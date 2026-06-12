@@ -1,24 +1,40 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { StatusPill } from "@/components/status-pill";
+
+type RecentRow = {
+  id: string;
+  title: string;
+  status: string;
+  target_language: string;
+  created_at: string;
+};
 
 export default async function DashboardPage() {
   let docCount: number | null = null;
   let contentCount: number | null = null;
   let pendingCount: number | null = null;
+  let recent: RecentRow[] = [];
 
   if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
     const supabase = await createClient();
-    const [docs, content, pending] = await Promise.all([
+    const [docs, content, pending, recentRes] = await Promise.all([
       supabase.from("documents").select("id", { count: "exact", head: true }),
       supabase.from("generated_content").select("id", { count: "exact", head: true }),
       supabase
         .from("generated_content")
         .select("id", { count: "exact", head: true })
         .eq("status", "in_review"),
+      supabase
+        .from("generated_content")
+        .select("id, title, status, target_language, created_at")
+        .order("created_at", { ascending: false })
+        .limit(5),
     ]);
     docCount = docs.count ?? 0;
     contentCount = content.count ?? 0;
     pendingCount = pending.count ?? 0;
+    recent = recentRes.data ?? [];
   }
 
   const cards = [
@@ -83,13 +99,56 @@ export default async function DashboardPage() {
             Add a document
           </Link>
         </div>
-      ) : (
+      ) : recent.length === 0 ? (
         <div className="flex flex-col items-center gap-3 rounded-card border border-dashed border-edge-strong bg-surface px-8 py-16 text-center">
-          <p className="text-[15px] font-semibold">Content generation lands on Day 3</p>
+          <p className="text-[15px] font-semibold">Ready to generate</p>
           <p className="max-w-md text-sm text-ink-muted">
-            The Content Generator, Template Library, and Approval Queue arrive
-            over the next sprint days.
+            Your Knowledge Hub has sources — generate your first piece of
+            content from them.
           </p>
+          <Link
+            href="/generate"
+            className="mt-2 rounded-control bg-brand px-[18px] py-2.5 text-[13.5px] font-semibold text-white transition-opacity hover:opacity-90"
+          >
+            Generate content
+          </Link>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3.5 rounded-card border border-edge bg-surface p-[22px]">
+          <div className="flex items-center">
+            <h2 className="text-[15px] font-bold">Recent content</h2>
+            <div className="flex-1" />
+            <Link
+              href="/content"
+              className="text-[13px] font-semibold text-brand hover:underline"
+            >
+              View all →
+            </Link>
+          </div>
+          <ul className="flex flex-col gap-0.5">
+            {recent.map((row) => (
+              <li key={row.id}>
+                <Link
+                  href={`/content/${row.id}`}
+                  className="-mx-2 flex items-center gap-3 rounded-control px-2 py-2.5 transition-colors hover:bg-page"
+                >
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    <span className="truncate text-[13px] font-semibold">
+                      {row.title}
+                    </span>
+                    <span className="text-[11.5px] text-ink-faint">
+                      {row.target_language} ·{" "}
+                      {new Date(row.created_at).toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                      })}
+                    </span>
+                  </span>
+                  <StatusPill status={row.status} />
+                </Link>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
     </div>

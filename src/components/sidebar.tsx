@@ -97,8 +97,8 @@ export function Sidebar({ orgName, orgIndustry, userName, userRole, pendingCount
         <div className="flex h-[30px] w-[30px] items-center justify-center rounded-full bg-brand-dark text-[11px] font-bold text-white">
           {initials || "?"}
         </div>
-        <div className="flex flex-1 flex-col">
-          <span className="text-[13px] font-semibold">{userName}</span>
+        <div className="flex min-w-0 flex-1 flex-col">
+          <span className="truncate text-[13px] font-semibold">{userName}</span>
           <span className="text-[11px] capitalize text-ink-faint">{userRole}</span>
         </div>
         <button
