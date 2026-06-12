@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { StatusPill } from "@/components/status-pill";
 import { ContentEditor } from "./editor";
+import { ApprovalActions } from "./approval-actions";
+import { ExportButtons } from "./export-buttons";
 
 function CheckIcon() {
   return (
@@ -28,6 +30,19 @@ export default async function ContentDetailPage({
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL) notFound();
 
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  let viewerIsApprover = false;
+  if (user) {
+    const { data: me } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+    viewerIsApprover = me?.role === "admin" || me?.role === "approver";
+  }
+
   const { data: content } = await supabase
     .from("generated_content")
     .select(
@@ -115,6 +130,12 @@ export default async function ContentDetailPage({
         </div>
 
         <div className="flex flex-col gap-5">
+          {content.status === "in_review" && viewerIsApprover && (
+            <ApprovalActions id={content.id} />
+          )}
+          {content.status === "approved" && (
+            <ExportButtons id={content.id} body={content.body} />
+          )}
           <div className="flex flex-col gap-3 rounded-card border border-edge bg-surface p-[22px]">
             <div className="flex items-center gap-2">
               <h2 className="text-[15px] font-bold">Generated from</h2>

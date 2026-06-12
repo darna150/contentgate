@@ -70,6 +70,103 @@ export async function updateContentBody(
   return { ok: true };
 }
 
+export async function approveContent(id: string): Promise<ActionResult> {
+  const ctx = await requireUser();
+  if (!ctx) return { error: "Your session expired — sign in again." };
+  if (ctx.profile.role !== "admin" && ctx.profile.role !== "approver") {
+    return { error: "Only approvers can approve content." };
+  }
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    return { error: "Approvals are not configured on this environment." };
+  }
+
+  // Service-role client bypasses RLS, so org + state checks live here.
+  const admin = createAdminClient();
+  const { data: row } = await admin
+    .from("generated_content")
+    .select("org_id, status")
+    .eq("id", id)
+    .single();
+  if (!row || row.org_id !== ctx.profile.org_id) {
+    return { error: "Content not found." };
+  }
+  if (row.status !== "in_review") {
+    return { error: "Only content in review can be approved." };
+  }
+
+  const { error } = await admin
+    .from("generated_content")
+    .update({
+      status: "approved",
+      approved_by: ctx.user.id,
+      approved_at: new Date().toISOString(),
+      rejection_note: null,
+    })
+    .eq("id", id);
+  if (error) return { error: `Could not approve: ${error.message}` };
+
+  await writeAudit({
+    org_id: ctx.profile.org_id,
+    actor_id: ctx.user.id,
+    action: "content.approved",
+    entity_id: id,
+  });
+
+  revalidatePath(`/content/${id}`);
+  revalidatePath("/content");
+  revalidatePath("/approvals");
+  return { ok: true };
+}
+
+export async function rejectContent(
+  id: string,
+  note: string
+): Promise<ActionResult> {
+  const ctx = await requireUser();
+  if (!ctx) return { error: "Your session expired — sign in again." };
+  if (ctx.profile.role !== "admin" && ctx.profile.role !== "approver") {
+    return { error: "Only approvers can reject content." };
+  }
+  if (!note.trim()) {
+    return { error: "Add a note so the author knows what to change." };
+  }
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    return { error: "Approvals are not configured on this environment." };
+  }
+
+  const admin = createAdminClient();
+  const { data: row } = await admin
+    .from("generated_content")
+    .select("org_id, status")
+    .eq("id", id)
+    .single();
+  if (!row || row.org_id !== ctx.profile.org_id) {
+    return { error: "Content not found." };
+  }
+  if (row.status !== "in_review") {
+    return { error: "Only content in review can be rejected." };
+  }
+
+  const { error } = await admin
+    .from("generated_content")
+    .update({ status: "rejected", rejection_note: note.trim() })
+    .eq("id", id);
+  if (error) return { error: `Could not reject: ${error.message}` };
+
+  await writeAudit({
+    org_id: ctx.profile.org_id,
+    actor_id: ctx.user.id,
+    action: "content.rejected",
+    entity_id: id,
+    detail: { note: note.trim() },
+  });
+
+  revalidatePath(`/content/${id}`);
+  revalidatePath("/content");
+  revalidatePath("/approvals");
+  return { ok: true };
+}
+
 export async function submitForReview(id: string): Promise<ActionResult> {
   const ctx = await requireUser();
   if (!ctx) return { error: "Your session expired — sign in again." };
