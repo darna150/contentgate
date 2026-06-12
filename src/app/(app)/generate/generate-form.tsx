@@ -38,12 +38,17 @@ type Phase =
 export function GenerateForm({
   docs,
   templates,
+  initialTemplateId,
 }: {
   docs: DocOption[];
   templates: TemplateOption[];
+  initialTemplateId?: string | null;
 }) {
   const [templateId, setTemplateId] = useState<string | null>(
-    templates[0]?.id ?? null
+    (initialTemplateId &&
+      templates.find((t) => t.id === initialTemplateId)?.id) ||
+      templates[0]?.id ||
+      null
   );
   const [selectedDocs, setSelectedDocs] = useState<Set<string>>(new Set());
   const [audience, setAudience] = useState("");
@@ -345,9 +350,15 @@ export function GenerateForm({
                 Saved as draft
               </span>
               <span className="text-[12.5px] text-ink-muted">
-                Editing and the approval flow arrive on sprint Days 4–5.
+                Review it, edit if needed, then submit for approval.
               </span>
             </span>
+            <Link
+              href={`/content/${phase.id}`}
+              className="whitespace-nowrap text-[13px] font-semibold text-approve hover:underline"
+            >
+              Open draft →
+            </Link>
           </div>
         )}
 

@@ -8,6 +8,7 @@ const NAV = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/knowledge", label: "Knowledge Hub" },
   { href: "/generate", label: "Content Generator" },
+  { href: "/content", label: "Content" },
   { href: "/templates", label: "Template Library" },
   { href: "/approvals", label: "Approval Queue" },
 ];

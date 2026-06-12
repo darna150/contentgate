@@ -1,7 +1,12 @@
 import { createClient } from "@/lib/supabase/server";
 import { GenerateForm, type DocOption, type TemplateOption } from "./generate-form";
 
-export default async function GeneratePage() {
+export default async function GeneratePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ template?: string }>;
+}) {
+  const { template } = await searchParams;
   let docs: DocOption[] = [];
   let templates: TemplateOption[] = [];
 
@@ -30,7 +35,11 @@ export default async function GeneratePage() {
           generated starts as a draft.
         </p>
       </div>
-      <GenerateForm docs={docs} templates={templates} />
+      <GenerateForm
+        docs={docs}
+        templates={templates}
+        initialTemplateId={template ?? null}
+      />
     </div>
   );
 }
