@@ -77,7 +77,6 @@ export async function POST(req: Request) {
         const messageStream = anthropic.messages.stream({
           model: "claude-opus-4-8",
           max_tokens: 2048,
-          temperature: 0.3,
           system: buildSystemPrompt(brief),
           messages: [{ role: "user", content: buildUserPrompt(sourceDocs, brief) }],
         });
