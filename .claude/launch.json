@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "contentgate",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "cwd": "/Users/debbiemelgarejo/Documents/Animal-Health-Hub/contentgate",
+      "port": 3000
+    }
+  ]
+}
