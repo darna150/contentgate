@@ -52,7 +52,7 @@ export default async function ContentPage({
         </div>
         <div className="flex-1" />
         <Link
-          href="/generate"
+          href="/products"
           className="rounded-control bg-brand px-[18px] py-2.5 text-[13.5px] font-semibold text-white transition-opacity hover:opacity-90"
         >
           Generate content
@@ -82,7 +82,7 @@ export default async function ContentPage({
           </p>
           <p className="max-w-md text-sm text-ink-muted">
             {filter === "all"
-              ? "Generate your first piece of content from the documents in your Knowledge Hub."
+              ? "Pick a product to generate your first piece of content from its approved knowledge."
               : "No content matches this filter."}
           </p>
         </div>
