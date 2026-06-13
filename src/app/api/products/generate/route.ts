@@ -10,6 +10,7 @@ type Body = {
   productTemplateId: string;
   language?: string;
   revisions?: string[]; // controlled revision keys, applied as extra instructions
+  replaceContentId?: string; // when revising, update this draft in place
 };
 
 export async function POST(req: Request) {
@@ -23,7 +24,7 @@ export async function POST(req: Request) {
   } = await supabase.auth.getUser();
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { productTemplateId, language = "English", revisions = [] } =
+  const { productTemplateId, language = "English", revisions = [], replaceContentId } =
     (await req.json()) as Body;
   if (!productTemplateId) {
     return Response.json({ error: "Missing product template." }, { status: 400 });
@@ -151,26 +152,60 @@ export async function POST(req: Request) {
   const title = `${product.name} · ${tpl.variant}`;
   const body = flattenFields(structured, editableFields);
 
-  const { data: row, error } = await supabase
-    .from("generated_content")
-    .insert({
-      org_id: profile.org_id,
-      created_by: user.id,
-      product_id: product.id,
-      product_template_id: tpl.id,
-      template_id: null,
-      structured_fields: structured,
-      source_document_ids: sourceDocs.map((d) => d.id),
-      citations: evidence,
-      title,
-      body,
-      target_language: language,
-      status: "draft",
-    })
-    .select("id")
-    .single();
-  if (error || !row) {
-    return Response.json({ error: `Could not save draft: ${error?.message}` }, { status: 500 });
+  let row: { id: string } | null = null;
+  let writeError: { message: string } | null = null;
+
+  if (replaceContentId) {
+    // In-place revision: only the author may revise, and only a draft/rejected row.
+    const { data: existing } = await supabase
+      .from("generated_content")
+      .select("id, status")
+      .eq("id", replaceContentId)
+      .single();
+    if (existing && (existing.status === "draft" || existing.status === "rejected")) {
+      const res = await supabase
+        .from("generated_content")
+        .update({
+          structured_fields: structured,
+          citations: evidence,
+          body,
+          target_language: language,
+          status: "draft",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", replaceContentId)
+        .select("id")
+        .single();
+      row = res.data;
+      writeError = res.error;
+    }
+  }
+
+  if (!row && !writeError) {
+    const res = await supabase
+      .from("generated_content")
+      .insert({
+        org_id: profile.org_id,
+        created_by: user.id,
+        product_id: product.id,
+        product_template_id: tpl.id,
+        template_id: null,
+        structured_fields: structured,
+        source_document_ids: sourceDocs.map((d) => d.id),
+        citations: evidence,
+        title,
+        body,
+        target_language: language,
+        status: "draft",
+      })
+      .select("id")
+      .single();
+    row = res.data;
+    writeError = res.error;
+  }
+
+  if (writeError || !row) {
+    return Response.json({ error: `Could not save draft: ${writeError?.message}` }, { status: 500 });
   }
 
   if (process.env.SUPABASE_SERVICE_ROLE_KEY) {

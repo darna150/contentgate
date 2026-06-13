@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { flattenFields } from "@/lib/templates";
 
 type ActionResult = { ok: true } | { error: string };
 
@@ -50,6 +51,43 @@ export async function updateContentBody(
   const { data: row, error } = await ctx.supabase
     .from("generated_content")
     .update({ body: trimmed, updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .select("id, status")
+    .single();
+  if (error || !row) {
+    return { error: `Could not save: ${error?.message ?? "not found"}` };
+  }
+
+  await writeAudit({
+    org_id: ctx.profile.org_id,
+    actor_id: ctx.user.id,
+    action: "content.edited",
+    entity_id: id,
+    detail: { status_after_edit: row.status },
+  });
+
+  revalidatePath(`/content/${id}`);
+  revalidatePath("/content");
+  return { ok: true };
+}
+
+export async function updateStructuredFields(
+  id: string,
+  fields: Record<string, string>,
+  order: string[]
+): Promise<ActionResult> {
+  const ctx = await requireUser();
+  if (!ctx) return { error: "Your session expired — sign in again." };
+
+  const cleaned: Record<string, string> = {};
+  for (const k of order) cleaned[k] = (fields[k] ?? "").trim();
+  const body = flattenFields(cleaned, order);
+  if (!body) return { error: "Content cannot be empty." };
+
+  // Updating body triggers revoke_approval_on_edit (approved → draft).
+  const { data: row, error } = await ctx.supabase
+    .from("generated_content")
+    .update({ structured_fields: cleaned, body, updated_at: new Date().toISOString() })
     .eq("id", id)
     .select("id, status")
     .single();
