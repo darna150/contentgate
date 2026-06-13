@@ -31,6 +31,14 @@ export default async function ProductDetailPage({
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL) notFound();
 
   const supabase = await createClient();
+  let isAdmin = false;
+  {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { data: me } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+      isAdmin = me?.role === "admin";
+    }
+  }
   const { data: product } = await supabase
     .from("products")
     .select("id, name, description, disclaimer_text, status")
@@ -66,6 +74,14 @@ export default async function ProductDetailPage({
             {product.name[0]}
           </span>
           <h1 className="font-serif text-[28px] font-semibold">{product.name}</h1>
+          {isAdmin && (
+            <Link
+              href={`/products/${id}/edit`}
+              className="rounded-control border border-edge px-4 py-2 text-[13px] font-semibold text-ink-muted transition-colors hover:border-brand hover:text-brand"
+            >
+              Edit
+            </Link>
+          )}
         </div>
         {product.description && (
           <p className="max-w-2xl text-[14.5px] text-ink-muted">{product.description}</p>

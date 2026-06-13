@@ -11,9 +11,15 @@ type ProductRow = {
 export default async function ProductsPage() {
   let products: ProductRow[] = [];
   let counts: Record<string, { claims: number; templates: number }> = {};
+  let isAdmin = false;
 
   if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
     const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { data: me } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+      isAdmin = me?.role === "admin";
+    }
     const { data } = await supabase
       .from("products")
       .select("id, name, description, status")
@@ -34,12 +40,24 @@ export default async function ProductsPage() {
 
   return (
     <div className="mx-auto flex max-w-[1280px] flex-col gap-6 px-10 py-9">
-      <div className="flex flex-col gap-1.5">
-        <h1 className="font-serif text-[28px] font-semibold">Products</h1>
-        <p className="text-[14.5px] text-ink-muted">
-          Everything starts with a product. Pick one to create compliant content
-          from its approved knowledge.
-        </p>
+      <div className="flex items-end gap-4">
+        <div className="flex flex-col gap-1.5">
+          <h1 className="font-serif text-[28px] font-semibold">Products</h1>
+          <p className="text-[14.5px] text-ink-muted">
+            Everything starts with a product. Pick one to create compliant content
+            from its approved knowledge.
+          </p>
+        </div>
+        {isAdmin && (
+          <div className="flex-1 flex justify-end">
+            <Link
+              href="/products/new"
+              className="rounded-control bg-brand px-[18px] py-2.5 text-[13.5px] font-semibold text-white transition-opacity hover:opacity-90"
+            >
+              + New product
+            </Link>
+          </div>
+        )}
       </div>
 
       {products.length === 0 ? (
