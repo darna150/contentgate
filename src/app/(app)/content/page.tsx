@@ -10,6 +10,7 @@ const FILTERS = [
   { key: "rejected", label: "Rejected" },
 ];
 
+type Joined<T> = T | T[] | null;
 type ContentRow = {
   id: string;
   title: string;
@@ -17,8 +18,13 @@ type ContentRow = {
   target_language: string;
   audience: string | null;
   created_at: string;
-  templates: { name: string } | { name: string }[] | null;
+  products: Joined<{ name: string }>;
+  product_templates: Joined<{ variant: string }>;
 };
+
+function one<T>(v: Joined<T>): T | null {
+  return Array.isArray(v) ? (v[0] ?? null) : v;
+}
 
 export default async function ContentPage({
   searchParams,
@@ -33,7 +39,9 @@ export default async function ContentPage({
     const supabase = await createClient();
     let query = supabase
       .from("generated_content")
-      .select("id, title, status, target_language, audience, created_at, templates(name)")
+      .select(
+        "id, title, status, target_language, audience, created_at, products(name), product_templates(variant)"
+      )
       .order("created_at", { ascending: false });
     if (filter !== "all") query = query.eq("status", filter);
     const { data } = await query;
@@ -89,9 +97,14 @@ export default async function ContentPage({
       ) : (
         <div className="flex flex-col gap-1 rounded-card border border-edge bg-surface p-3">
           {rows.map((row) => {
-            const template = Array.isArray(row.templates)
-              ? row.templates[0]
-              : row.templates;
+            const product = one(row.products);
+            const template = one(row.product_templates);
+            const meta = [
+              product?.name,
+              template?.variant,
+              row.target_language,
+              row.audience,
+            ].filter(Boolean);
             return (
               <Link
                 key={row.id}
@@ -103,8 +116,8 @@ export default async function ContentPage({
                     {row.title}
                   </span>
                   <span className="text-[11.5px] text-ink-faint">
-                    {template?.name ?? "Custom"} · {row.target_language}
-                    {row.audience ? ` · ${row.audience}` : ""} ·{" "}
+                    {meta.join(" · ")}
+                    {meta.length > 0 ? " · " : ""}
                     {new Date(row.created_at).toLocaleDateString("en-US", {
                       month: "short",
                       day: "numeric",

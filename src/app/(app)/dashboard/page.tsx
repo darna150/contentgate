@@ -48,7 +48,7 @@ export default async function DashboardPage() {
       label: "Generated content",
       value: contentCount,
       hint: "drafts and approved",
-      href: "/generate",
+      href: "/content",
     },
     {
       label: "Awaiting approval",
@@ -103,11 +103,11 @@ export default async function DashboardPage() {
         <div className="flex flex-col items-center gap-3 rounded-card border border-dashed border-edge-strong bg-surface px-8 py-16 text-center">
           <p className="text-[15px] font-semibold">Ready to generate</p>
           <p className="max-w-md text-sm text-ink-muted">
-            Your Knowledge Hub has sources — generate your first piece of
-            content from them.
+            Your Knowledge Hub has sources. Pick a product to generate your
+            first piece of content.
           </p>
           <Link
-            href="/generate"
+            href="/products"
             className="mt-2 rounded-control bg-brand px-[18px] py-2.5 text-[13.5px] font-semibold text-white transition-opacity hover:opacity-90"
           >
             Generate content
