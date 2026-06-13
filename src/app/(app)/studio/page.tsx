@@ -1,32 +1,16 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { CATEGORY_SIZES, type SizeKey } from "@/lib/creative";
 import { StudioEditor } from "./studio-editor";
-
-// Pull candidate one-liners out of approved copy so the headline is chosen
-// from what's already approved, never typed from scratch.
-function candidateLines(body: string): string[] {
-  return body
-    .replace(/\r\n/g, "\n")
-    .split(/\n+/)
-    .flatMap((line) => line.split(/(?<=[.!?])\s+/))
-    .map((s) =>
-      s
-        .replace(/^[#>*\-•\s]+/, "")
-        .replace(/\*\*|__|[*_`]/g, "") // strip inline markdown emphasis
-        .replace(/\s+/g, " ")
-        .trim()
-    )
-    .filter((s) => s.length >= 8 && s.length <= 95)
-    .slice(0, 8);
-}
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
     <div className="mx-auto flex max-w-[1280px] flex-col gap-6 px-10 py-9">
       <div className="flex flex-col gap-1.5">
-        <h1 className="font-serif text-[28px] font-semibold">Creative Studio</h1>
+        <h1 className="font-serif text-[28px] font-semibold">Asset preview</h1>
         <p className="text-[14.5px] text-ink-muted">
-          The last step. Turn an approved piece into a finished, on-brand asset.
+          The last step. An approved piece poured into its locked product template,
+          ready to export.
         </p>
       </div>
       {children}
@@ -41,7 +25,7 @@ function Gate({ message }: { message: string }) {
         <p className="text-[15px] font-semibold">{message}</p>
         <p className="max-w-md text-sm text-ink-muted">
           Only approved content can be turned into an asset. Get a piece through
-          review first, then come back here.
+          review first.
         </p>
         <Link
           href="/content?status=approved"
@@ -60,41 +44,21 @@ export default async function StudioPage({
   searchParams: Promise<{ content?: string }>;
 }) {
   const { content: contentId } = await searchParams;
-
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
-    return <Gate message="Connect a workspace to use the studio" />;
+    return <Gate message="Connect a workspace to preview assets" />;
   }
 
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
 
-  let orgName = "Your brand";
-  if (user) {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("organizations(name)")
-      .eq("id", user.id)
-      .single();
-    const org = Array.isArray(profile?.organizations)
-      ? profile?.organizations[0]
-      : profile?.organizations;
-    orgName = org?.name ?? orgName;
-  }
-
-  // No piece chosen yet: let them pick from approved content.
   if (!contentId) {
     const { data: approved } = await supabase
       .from("generated_content")
-      .select("id, title, target_language, created_at")
+      .select("id, title, target_language")
       .eq("status", "approved")
       .order("created_at", { ascending: false });
-
     if (!approved || approved.length === 0) {
       return <Gate message="Nothing approved to turn into an asset yet" />;
     }
-
     return (
       <Shell>
         <div className="flex flex-col gap-3 rounded-card border border-edge bg-surface p-[22px]">
@@ -107,19 +71,10 @@ export default async function StudioPage({
                   className="-mx-2 flex items-center gap-3 rounded-control px-2 py-2.5 transition-colors hover:bg-page"
                 >
                   <span className="flex min-w-0 flex-1 flex-col">
-                    <span className="truncate text-[13.5px] font-semibold">
-                      {row.title}
-                    </span>
-                    <span className="text-[11.5px] text-ink-faint">
-                      {row.target_language}
-                    </span>
+                    <span className="truncate text-[13.5px] font-semibold">{row.title}</span>
+                    <span className="text-[11.5px] text-ink-faint">{row.target_language}</span>
                   </span>
-                  <span className="inline-flex rounded-full bg-approve-tint px-[9px] py-0.5 text-[11.5px] font-semibold text-approve">
-                    Approved
-                  </span>
-                  <span className="text-[13px] font-semibold text-brand">
-                    Make asset →
-                  </span>
+                  <span className="text-[13px] font-semibold text-brand">Preview →</span>
                 </Link>
               </li>
             ))}
@@ -131,25 +86,21 @@ export default async function StudioPage({
 
   const { data: content } = await supabase
     .from("generated_content")
-    .select("id, title, body, status")
+    .select("id, title, status, product_templates(category)")
     .eq("id", contentId)
     .single();
 
   if (!content) return <Gate message="That content could not be found" />;
-  if (content.status !== "approved") {
-    return <Gate message="That piece isn't approved yet" />;
-  }
+  if (content.status !== "approved") return <Gate message="That piece isn't approved yet" />;
 
-  const lines = candidateLines(content.body);
+  const tpl = Array.isArray(content.product_templates)
+    ? content.product_templates[0]
+    : content.product_templates;
+  const sizes: SizeKey[] = CATEGORY_SIZES[tpl?.category ?? "social"] ?? CATEGORY_SIZES.social;
 
   return (
     <Shell>
-      <StudioEditor
-        contentId={content.id}
-        contentTitle={content.title}
-        orgName={orgName}
-        lines={lines}
-      />
+      <StudioEditor contentId={content.id} contentTitle={content.title} sizes={sizes} />
     </Shell>
   );
 }

@@ -1,37 +1,238 @@
 import { ImageResponse } from "next/og";
-import { SIZES, BACKGROUNDS, DEFAULTS, type SizeKey } from "@/lib/creative";
+import { createClient } from "@/lib/supabase/server";
+import { SIZES, type SizeKey } from "@/lib/creative";
 
 export const runtime = "nodejs";
 
-// Renders a designed marketing asset to a PNG at the requested channel size.
-// One parametric template for now; the gallery adds more in Phase 2.
+// Locked palette (design is not user-editable).
+const C = {
+  from: "#12312B",
+  to: "#0E5F58",
+  text: "#FFFFFF",
+  sub: "#C9DAD3",
+  accent: "#A9D3C6",
+  chipText: "#0B2520",
+  disc: "#7E9A90",
+};
+
+type Fields = Record<string, string>;
+
+function f(fields: Fields, key: string): string {
+  return (fields[key] ?? "").toString().trim();
+}
+
+// Renders an APPROVED piece of content into its product's locked layout.
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
+  const contentId = searchParams.get("content");
+  const sizeKey = (searchParams.get("size") ?? "square") as SizeKey;
+  const size = SIZES[sizeKey] ?? SIZES.square;
+  if (!contentId) return new Response("Missing content id", { status: 400 });
 
-  const sizeKey = (searchParams.get("size") ?? DEFAULTS.size) as SizeKey;
-  const size = SIZES[sizeKey] ?? SIZES[DEFAULTS.size];
-  const bg = BACKGROUNDS[searchParams.get("bg") ?? DEFAULTS.bg] ?? BACKGROUNDS.forest;
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return new Response("Unauthorized", { status: 401 });
 
-  const org = searchParams.get("org") ?? DEFAULTS.org;
-  const headline = searchParams.get("headline") ?? DEFAULTS.headline;
-  const cta = searchParams.get("cta") ?? DEFAULTS.cta;
-  const price = searchParams.get("price") ?? DEFAULTS.price;
-  const disclaimer = searchParams.get("disclaimer") ?? DEFAULTS.disclaimer;
-  const img = searchParams.get("img") ?? "";
-  const approved = (searchParams.get("approved") ?? "1") === "1";
+  const { data: content } = await supabase
+    .from("generated_content")
+    .select(
+      "id, status, structured_fields, products(name, disclaimer_text), product_templates(layout_key, category)"
+    )
+    .eq("id", contentId)
+    .single();
+  if (!content) return new Response("Not found", { status: 404 });
+  // Export gate: only approved content can be rendered to an asset.
+  if (content.status !== "approved") {
+    return new Response("Only approved content can be exported.", { status: 403 });
+  }
+
+  const product = Array.isArray(content.products) ? content.products[0] : content.products;
+  const tpl = Array.isArray(content.product_templates)
+    ? content.product_templates[0]
+    : content.product_templates;
+  const fields = (content.structured_fields ?? {}) as Fields;
+  const layout = tpl?.layout_key ?? "social_v1";
+  const orgName = product?.name ?? "Product";
+  const disclaimer = product?.disclaimer_text ?? "";
 
   const { w, h } = size;
   const m = Math.min(w, h);
-  const pad = Math.round(m * 0.075);
-  const headlineSize = Math.round(m * 0.092);
-  const ctaSize = Math.round(m * 0.04);
-  const labelSize = Math.round(m * 0.03);
-  const priceSize = Math.round(m * 0.05);
-  const discSize = Math.round(m * 0.024);
-  const radius = Math.round(m * 0.03);
-  const wide = w / h > 1.4; // feed banner
+  const pad = Math.round(m * 0.07);
 
-  const hasImg = /^https?:\/\//.test(img);
+  const benefits = [f(fields, "benefit_1"), f(fields, "benefit_2"), f(fields, "benefit_3")].filter(Boolean);
+
+  function Wordmark({ small }: { small?: boolean }) {
+    const s = small ? m * 0.026 : m * 0.032;
+    return (
+      <div style={{ display: "flex", alignItems: "center", gap: s * 0.5 }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: s * 1.4,
+            height: s * 1.4,
+            borderRadius: s * 0.35,
+            backgroundColor: C.accent,
+            color: C.chipText,
+            fontSize: s * 0.9,
+            fontWeight: 800,
+          }}
+        >
+          {orgName[0]}
+        </div>
+        <div style={{ display: "flex", fontSize: s, fontWeight: 800, letterSpacing: -s * 0.02 }}>
+          {orgName}
+        </div>
+      </div>
+    );
+  }
+
+  function ApprovedPill() {
+    return (
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          fontSize: m * 0.022,
+          fontWeight: 800,
+          letterSpacing: m * 0.004,
+          color: C.chipText,
+          backgroundColor: C.accent,
+          borderRadius: 999,
+          padding: `${Math.round(pad * 0.16)}px ${Math.round(pad * 0.32)}px`,
+        }}
+      >
+        APPROVED
+      </div>
+    );
+  }
+
+  function Disclaimer() {
+    if (!disclaimer) return <div style={{ display: "flex" }} />;
+    return (
+      <div style={{ display: "flex", fontSize: m * 0.019, lineHeight: 1.3, color: C.disc, maxWidth: "92%" }}>
+        {disclaimer}
+      </div>
+    );
+  }
+
+  function Benefits({ size: bs }: { size: number }) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: bs * 0.5 }}>
+        {benefits.map((b, i) => (
+          <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: bs * 0.5 }}>
+            <div
+              style={{
+                display: "flex",
+                width: bs * 0.42,
+                height: bs * 0.42,
+                marginTop: bs * 0.4,
+                borderRadius: bs * 0.12,
+                backgroundColor: C.accent,
+              }}
+            />
+            <div style={{ display: "flex", flex: 1, fontSize: bs, lineHeight: 1.25, color: C.text }}>{b}</div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  let inner: React.ReactElement;
+
+  if (layout === "flyer_v1") {
+    const headlineSize = m * 0.072;
+    inner = (
+      <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", width: "100%", height: "100%" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
+          <Wordmark />
+          <ApprovedPill />
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: pad * 0.4 }}>
+          <div style={{ display: "flex", fontSize: headlineSize, fontWeight: 800, lineHeight: 1.04, letterSpacing: -headlineSize * 0.02 }}>
+            {f(fields, "headline")}
+          </div>
+          {f(fields, "subheadline") && (
+            <div style={{ display: "flex", fontSize: m * 0.034, color: C.sub, lineHeight: 1.3 }}>
+              {f(fields, "subheadline")}
+            </div>
+          )}
+        </div>
+        {benefits.length > 0 && <Benefits size={m * 0.032} />}
+        {f(fields, "body") && (
+          <div style={{ display: "flex", fontSize: m * 0.028, lineHeight: 1.5, color: C.sub }}>
+            {f(fields, "body")}
+          </div>
+        )}
+        {f(fields, "cta") && (
+          <div
+            style={{
+              display: "flex",
+              alignSelf: "flex-start",
+              fontSize: m * 0.03,
+              fontWeight: 700,
+              color: C.chipText,
+              backgroundColor: C.accent,
+              borderRadius: pad * 0.3,
+              padding: `${Math.round(pad * 0.24)}px ${Math.round(pad * 0.45)}px`,
+            }}
+          >
+            {f(fields, "cta")}
+          </div>
+        )}
+        <div style={{ display: "flex", flexDirection: "column", gap: pad * 0.2, width: "100%", borderTop: `1px solid #1E4A41`, paddingTop: pad * 0.4 }}>
+          {(f(fields, "contact") || f(fields, "territory")) && (
+            <div style={{ display: "flex", fontSize: m * 0.022, color: C.sub }}>
+              {[f(fields, "contact"), f(fields, "territory")].filter(Boolean).join("  ·  ")}
+            </div>
+          )}
+          <Disclaimer />
+        </div>
+      </div>
+    );
+  } else {
+    // social_v1
+    const headlineSize = m * 0.092;
+    const hasBenefits = benefits.length > 0;
+    inner = (
+      <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", width: "100%", height: "100%" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
+          <Wordmark small={size.h < 1100} />
+          <ApprovedPill />
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: pad * 0.45 }}>
+          <div style={{ display: "flex", fontSize: headlineSize, fontWeight: 800, lineHeight: 1.04, letterSpacing: -headlineSize * 0.02 }}>
+            {f(fields, "headline")}
+          </div>
+          {hasBenefits ? (
+            <Benefits size={m * 0.04} />
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: pad * 0.35 }}>
+              {f(fields, "body") && (
+                <div style={{ display: "flex", fontSize: m * 0.038, lineHeight: 1.4, color: C.sub }}>
+                  {f(fields, "body")}
+                </div>
+              )}
+              {f(fields, "key_takeaway") && (
+                <div style={{ display: "flex", fontSize: m * 0.042, fontWeight: 700, color: C.accent, lineHeight: 1.25 }}>
+                  {f(fields, "key_takeaway")}
+                </div>
+              )}
+            </div>
+          )}
+          {f(fields, "cta") && (
+            <div style={{ display: "flex", fontSize: m * 0.034, fontWeight: 600, color: C.sub }}>
+              {f(fields, "cta")}
+            </div>
+          )}
+        </div>
+        <Disclaimer />
+      </div>
+    );
+  }
 
   return new ImageResponse(
     (
@@ -40,149 +241,13 @@ export async function GET(req: Request) {
           width: w,
           height: h,
           display: "flex",
-          flexDirection: "column",
-          justifyContent: "space-between",
           padding: pad,
-          backgroundImage: `linear-gradient(${bg.angle}deg, ${bg.from}, ${bg.to})`,
+          backgroundImage: `linear-gradient(145deg, ${C.from}, ${C.to})`,
           fontFamily: "sans-serif",
-          color: bg.text,
+          color: C.text,
         }}
       >
-        {/* Top row: brand + approved badge */}
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            width: "100%",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              fontSize: labelSize,
-              fontWeight: 700,
-              letterSpacing: labelSize * 0.12,
-              textTransform: "uppercase",
-            }}
-          >
-            {org}
-          </div>
-          {approved && (
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                fontSize: labelSize * 0.82,
-                fontWeight: 700,
-                color: bg.chipText,
-                backgroundColor: bg.chipBg,
-                borderRadius: 999,
-                padding: `${Math.round(pad * 0.18)}px ${Math.round(pad * 0.34)}px`,
-              }}
-            >
-              APPROVED
-            </div>
-          )}
-        </div>
-
-        {/* Middle: optional product image + headline */}
-        <div
-          style={{
-            display: "flex",
-            flexDirection: wide ? "row" : "column",
-            alignItems: wide ? "center" : "flex-start",
-            gap: pad * 0.6,
-            width: "100%",
-          }}
-        >
-          {hasImg && (
-            <img
-              src={img}
-              width={wide ? Math.round(w * 0.4) : Math.round(w - pad * 2)}
-              height={wide ? Math.round(h - pad * 2) : Math.round(h * 0.34)}
-              style={{
-                objectFit: "cover",
-                borderRadius: radius,
-              }}
-            />
-          )}
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              flex: 1,
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                fontSize: headlineSize,
-                fontWeight: 800,
-                lineHeight: 1.04,
-                letterSpacing: -headlineSize * 0.02,
-              }}
-            >
-              {headline}
-            </div>
-            {cta ? (
-              <div
-                style={{
-                  display: "flex",
-                  marginTop: pad * 0.4,
-                  fontSize: ctaSize,
-                  fontWeight: 600,
-                  color: bg.sub,
-                }}
-              >
-                {cta}
-              </div>
-            ) : (
-              <div style={{ display: "flex" }} />
-            )}
-          </div>
-        </div>
-
-        {/* Bottom: disclaimer + price chip */}
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "flex-end",
-            width: "100%",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              maxWidth: "62%",
-              fontSize: discSize,
-              color: bg.sub,
-              lineHeight: 1.3,
-            }}
-          >
-            {disclaimer}
-          </div>
-          {price ? (
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                fontSize: priceSize,
-                fontWeight: 800,
-                color: bg.chipText,
-                backgroundColor: bg.chipBg,
-                borderRadius: radius,
-                padding: `${Math.round(pad * 0.22)}px ${Math.round(pad * 0.4)}px`,
-              }}
-            >
-              {price}
-            </div>
-          ) : (
-            <div style={{ display: "flex" }} />
-          )}
-        </div>
+        {inner}
       </div>
     ),
     { width: w, height: h }
