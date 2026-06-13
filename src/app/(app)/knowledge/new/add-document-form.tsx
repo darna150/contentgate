@@ -6,7 +6,13 @@ import { segmentParagraphs } from "@/lib/paragraphs";
 
 const TEXT_EXTENSIONS = /\.(txt|md|markdown|csv)$/i;
 
-export function AddDocumentForm() {
+export function AddDocumentForm({
+  products,
+  defaultProductId,
+}: {
+  products: { id: string; name: string }[];
+  defaultProductId?: string;
+}) {
   const [state, formAction, pending] = useActionState<CreateDocumentState, FormData>(
     createDocument,
     null
@@ -50,14 +56,22 @@ export function AddDocumentForm() {
             />
           </label>
           <label className="flex flex-col gap-1.5">
-            <span className="text-[13px] font-semibold">
-              Product <span className="font-normal text-ink-faint">(optional)</span>
-            </span>
-            <input
-              name="product"
-              placeholder="e.g. FleaShield Duo"
+            <span className="text-[13px] font-semibold">Product</span>
+            <select
+              name="product_id"
+              required
+              defaultValue={defaultProductId ?? ""}
               className="rounded-control border border-edge-strong bg-surface px-3.5 py-2.5 text-sm outline-none focus:border-brand"
-            />
+            >
+              <option value="" disabled>
+                Select a product…
+              </option>
+              {products.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
           </label>
         </div>
 
@@ -118,10 +132,10 @@ export function AddDocumentForm() {
             disabled={pending}
             className="rounded-control bg-brand px-[18px] py-2.5 text-[13.5px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
           >
-            {pending ? "Saving…" : "Save to Knowledge Hub"}
+            {pending ? "Saving…" : "Save source document"}
           </button>
           <span className="text-[12.5px] text-ink-faint">
-            Saved documents become available to the Content Generator.
+            Becomes approved source knowledge for the selected product.
           </span>
         </div>
       </div>

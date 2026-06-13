@@ -50,7 +50,7 @@ export async function createDocument(
   const { supabase, user, profile } = await requireProfile();
 
   const title = String(formData.get("title") ?? "").trim();
-  const product = String(formData.get("product") ?? "").trim();
+  const productId = String(formData.get("product_id") ?? "").trim();
   const content = String(formData.get("content") ?? "").trim();
   const file = formData.get("file");
 
@@ -80,7 +80,7 @@ export async function createDocument(
     org_id: profile.org_id,
     uploaded_by: user.id,
     title,
-    product: product || null,
+    product_id: productId || null,
     storage_path: storagePath,
     content_text: content,
     paragraphs,
@@ -95,10 +95,14 @@ export async function createDocument(
     action: "document.created",
     entity_type: "document",
     entity_id: id,
-    detail: { title, paragraphs: paragraphs.length, uploaded_file: !!storagePath },
+    detail: { title, paragraphs: paragraphs.length, uploaded_file: !!storagePath, product_id: productId || null },
   });
 
   revalidatePath("/knowledge");
+  if (productId) {
+    revalidatePath(`/products/${productId}`);
+    redirect(`/products/${productId}`);
+  }
   redirect(`/knowledge/${id}`);
 }
 

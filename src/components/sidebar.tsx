@@ -11,6 +11,9 @@ const NAV = [
   { href: "/approvals", label: "Approval Queue" },
 ];
 
+// Admin-only: the cross-product source-document library.
+const ADMIN_NAV = [{ href: "/knowledge", label: "Source Documents" }];
+
 type Props = {
   orgName: string;
   orgIndustry: string | null;
@@ -29,6 +32,11 @@ export function Sidebar({ orgName, orgIndustry, userName, userRole, pendingCount
     router.push("/login");
     router.refresh();
   }
+
+  const items =
+    userRole === "admin"
+      ? [...NAV.slice(0, 2), ...ADMIN_NAV, ...NAV.slice(2)]
+      : NAV;
 
   const initials = userName
     .split(" ")
@@ -67,7 +75,7 @@ export function Sidebar({ orgName, orgIndustry, userName, userRole, pendingCount
 
       {/* Nav */}
       <nav className="flex flex-col gap-0.5">
-        {NAV.map((item) => {
+        {items.map((item) => {
           const active = pathname.startsWith(item.href);
           return (
             <Link

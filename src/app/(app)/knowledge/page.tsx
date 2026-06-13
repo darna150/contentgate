@@ -4,28 +4,17 @@ import { createClient } from "@/lib/supabase/server";
 type DocRow = {
   id: string;
   title: string;
-  product: string | null;
   storage_path: string | null;
   created_at: string;
   paragraphs: { n: number }[] | null;
+  products: { name: string } | { name: string }[] | null;
 };
 
 function UploadIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 20 20" fill="none" aria-hidden>
-      <path
-        d="M10 13V4M6.5 7.5L10 4l3.5 3.5"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M3.5 13.5v1.5a2 2 0 002 2h9a2 2 0 002-2v-1.5"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-      />
+      <path d="M10 13V4M6.5 7.5L10 4l3.5 3.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M3.5 13.5v1.5a2 2 0 002 2h9a2 2 0 002-2v-1.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
     </svg>
   );
 }
@@ -37,7 +26,7 @@ export default async function KnowledgePage() {
     const supabase = await createClient();
     const { data } = await supabase
       .from("documents")
-      .select("id, title, product, storage_path, created_at, paragraphs")
+      .select("id, title, storage_path, created_at, paragraphs, products(name)")
       .order("created_at", { ascending: false });
     docs = (data as DocRow[]) ?? [];
   }
@@ -46,9 +35,9 @@ export default async function KnowledgePage() {
     <div className="mx-auto flex max-w-[1280px] flex-col gap-6 px-10 py-9">
       <div className="flex items-end gap-4">
         <div className="flex flex-col gap-1.5">
-          <h1 className="font-serif text-[28px] font-semibold">Knowledge Hub</h1>
+          <h1 className="font-serif text-[28px] font-semibold">Source documents</h1>
           <p className="text-[14.5px] text-ink-muted">
-            Approved source documents your content is generated from.
+            Every approved document across your products, in one place.
           </p>
         </div>
         <div className="flex-1" />
@@ -65,8 +54,8 @@ export default async function KnowledgePage() {
         <div className="flex flex-col items-center gap-3 rounded-card border border-dashed border-edge-strong bg-surface px-8 py-16 text-center">
           <p className="text-[15px] font-semibold">No documents yet</p>
           <p className="max-w-md text-sm text-ink-muted">
-            Add your approved product guides, claim sheets, and FAQs. Generated
-            content can only draw on what lives here.
+            Add a product&apos;s approved guides, claim sheets, and FAQs.
+            Generated content can only draw on what lives here.
           </p>
           <Link
             href="/knowledge/new"
@@ -86,35 +75,36 @@ export default async function KnowledgePage() {
             </span>
           </div>
           <ul className="flex flex-col">
-            {docs.map((doc) => (
-              <li key={doc.id}>
-                <Link
-                  href={`/knowledge/${doc.id}`}
-                  className="-mx-2 flex items-center gap-3 rounded-control px-2 py-2.5 transition-colors hover:bg-page"
-                >
-                  <span className="flex h-8 w-8 items-center justify-center rounded-[8px] bg-[#EDF0EC] text-[9.5px] font-bold text-ink-muted">
-                    {doc.storage_path ? "FILE" : "TEXT"}
-                  </span>
-                  <span className="flex min-w-0 flex-1 flex-col">
-                    <span className="truncate text-[13px] font-semibold">
-                      {doc.title}
+            {docs.map((doc) => {
+              const product = Array.isArray(doc.products) ? doc.products[0] : doc.products;
+              return (
+                <li key={doc.id}>
+                  <Link
+                    href={`/knowledge/${doc.id}`}
+                    className="-mx-2 flex items-center gap-3 rounded-control px-2 py-2.5 transition-colors hover:bg-page"
+                  >
+                    <span className="flex h-8 w-8 items-center justify-center rounded-[8px] bg-[#EDF0EC] text-[9.5px] font-bold text-ink-muted">
+                      {doc.storage_path ? "FILE" : "TEXT"}
                     </span>
-                    <span className="text-[11.5px] text-ink-faint">
-                      {doc.product ? `${doc.product} · ` : ""}
-                      {doc.paragraphs?.length ?? 0} paragraphs ·{" "}
-                      {new Date(doc.created_at).toLocaleDateString("en-US", {
-                        month: "short",
-                        day: "numeric",
-                        year: "numeric",
-                      })}
+                    <span className="flex min-w-0 flex-1 flex-col">
+                      <span className="truncate text-[13px] font-semibold">{doc.title}</span>
+                      <span className="text-[11.5px] text-ink-faint">
+                        {product?.name ? `${product.name} · ` : "Unassigned · "}
+                        {doc.paragraphs?.length ?? 0} paragraphs ·{" "}
+                        {new Date(doc.created_at).toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                        })}
+                      </span>
                     </span>
-                  </span>
-                  <span className="inline-flex rounded-full bg-approve-tint px-[9px] py-0.5 text-[11.5px] font-semibold text-approve">
-                    Indexed
-                  </span>
-                </Link>
-              </li>
-            ))}
+                    <span className="inline-flex rounded-full bg-approve-tint px-[9px] py-0.5 text-[11.5px] font-semibold text-approve">
+                      Indexed
+                    </span>
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}

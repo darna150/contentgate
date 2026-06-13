@@ -124,9 +124,18 @@ export default async function ProductDetailPage({
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <span className="text-[12px] font-semibold uppercase tracking-[0.06em] text-ink-faint">
-              Source documents
-            </span>
+            <div className="flex items-center">
+              <span className="text-[12px] font-semibold uppercase tracking-[0.06em] text-ink-faint">
+                Source documents
+              </span>
+              <div className="flex-1" />
+              <Link
+                href={`/knowledge/new?product=${id}`}
+                className="text-[12px] font-semibold text-brand hover:underline"
+              >
+                + Add
+              </Link>
+            </div>
             {(docs ?? []).length === 0 ? (
               <span className="text-[13px] text-ink-faint">None yet</span>
             ) : (
