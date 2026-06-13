@@ -136,6 +136,8 @@ ${product.disclaimer_text ? `MANDATORY DISCLAIMER (always applies): ${product.di
       question: question.trim(),
       not_found: result.not_found ?? false,
       citation_count: result.citations?.length ?? 0,
+      answer: result.answer ?? "",
+      citations: result.citations ?? [],
     });
   }
 
