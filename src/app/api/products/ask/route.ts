@@ -115,11 +115,29 @@ ${product.disclaimer_text ? `MANDATORY DISCLAIMER (always applies): ${product.di
     return NextResponse.json({ error: "No answer generated" }, { status: 500 });
   }
 
-  return NextResponse.json(
-    toolUse.input as {
-      answer: string;
-      citations: { document_title: string; excerpt: string }[];
-      not_found: boolean;
-    }
-  );
+  const result = toolUse.input as {
+    answer: string;
+    citations: { document_title: string; excerpt: string }[];
+    not_found: boolean;
+  };
+
+  // Log the query for usage analytics + audit trail. Best-effort: a logging
+  // failure must never block the answer the user came for.
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("org_id")
+    .eq("id", user.id)
+    .single();
+  if (profile?.org_id) {
+    await supabase.from("knowledge_queries").insert({
+      org_id: profile.org_id,
+      product_id: productId,
+      user_id: user.id,
+      question: question.trim(),
+      not_found: result.not_found ?? false,
+      citation_count: result.citations?.length ?? 0,
+    });
+  }
+
+  return NextResponse.json(result);
 }

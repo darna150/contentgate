@@ -1,8 +1,19 @@
 import { createClient } from "@/lib/supabase/server";
 import { AskClient } from "./ask-client";
+import { ActivityPanel } from "./activity-panel";
 
 export default async function AskPage() {
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  let isAdmin = false;
+  if (user) {
+    const { data: me } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+    isAdmin = me?.role === "admin";
+  }
+
   const { data: products } = await supabase
     .from("products")
     .select("id, name")
@@ -18,6 +29,7 @@ export default async function AskPage() {
         </p>
       </div>
       <AskClient products={products ?? []} />
+      {isAdmin && <ActivityPanel />}
     </div>
   );
 }
