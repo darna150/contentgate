@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { fieldLabel } from "@/lib/templates";
+import { SIZES } from "@/lib/creative";
 import { GenerateVariant } from "./generate-variant";
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -86,24 +87,42 @@ export default async function ProductDetailPage({
               <h2 className="text-[15px] font-bold">
                 {CATEGORY_LABELS[category] ?? category}
               </h2>
-              <div className="flex flex-col gap-3">
-                {variants.map((t) => (
-                  <div
-                    key={t.id}
-                    className="flex flex-col gap-2.5 rounded-control border border-edge bg-page p-4"
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="text-[13.5px] font-semibold">{t.variant}</span>
-                      <span className="rounded-[5px] bg-brand-tint px-[7px] py-0.5 text-[10px] font-bold uppercase tracking-[0.06em] text-brand">
-                        {t.editable_fields.length} fields
-                      </span>
+              <div className="grid grid-cols-2 gap-3">
+                {variants.map((t) => {
+                  const sizeKey = t.category === "flyer" ? "a4" : "square";
+                  const dims = SIZES[sizeKey];
+                  const previewSrc = `/api/creative/template-preview?template=${t.id}&size=${sizeKey}`;
+                  return (
+                    <div
+                      key={t.id}
+                      className="flex flex-col gap-2.5 rounded-control border border-edge bg-surface p-3"
+                    >
+                      <div
+                        className="overflow-hidden rounded-[8px] border border-edge bg-page"
+                        style={{ aspectRatio: `${dims.w} / ${dims.h}` }}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={previewSrc}
+                          alt={`${t.variant} template preview`}
+                          className="h-full w-full object-cover"
+                        />
+                      </div>
+                      <div className="flex items-center gap-2 px-0.5">
+                        <span className="text-[13px] font-semibold">{t.variant}</span>
+                        <span className="rounded-[5px] bg-brand-tint px-[6px] py-0.5 text-[9.5px] font-bold uppercase tracking-[0.05em] text-brand">
+                          {t.editable_fields.length} fields
+                        </span>
+                      </div>
+                      <p className="line-clamp-1 px-0.5 text-[11px] text-ink-faint">
+                        {t.editable_fields.map((fk) => fieldLabel(fk)).join(" · ")}
+                      </p>
+                      <div className="px-0.5">
+                        <GenerateVariant templateId={t.id} variant={t.variant} />
+                      </div>
                     </div>
-                    <p className="text-[12px] text-ink-faint">
-                      {t.editable_fields.map((f) => fieldLabel(f)).join(" · ")}
-                    </p>
-                    <GenerateVariant templateId={t.id} variant={t.variant} />
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           ))}
