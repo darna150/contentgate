@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 
 export function ExportButtons({ id, body }: { id: string; body: string }) {
@@ -32,6 +33,12 @@ export function ExportButtons({ id, body }: { id: string; body: string }) {
           Download .md
         </a>
       </div>
+      <Link
+        href={`/studio?content=${id}`}
+        className="rounded-control border border-brand bg-brand-tint px-4 py-2.5 text-center text-[13.5px] font-semibold text-brand transition-opacity hover:opacity-90"
+      >
+        Create image asset →
+      </Link>
     </div>
   );
 }
