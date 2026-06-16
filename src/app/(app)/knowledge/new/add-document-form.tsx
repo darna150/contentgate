@@ -5,6 +5,8 @@ import { createDocument, type CreateDocumentState } from "../actions";
 import { segmentParagraphs } from "@/lib/paragraphs";
 
 const TEXT_EXTENSIONS = /\.(txt|md|markdown|csv)$/i;
+const DOCUMENT_ACCEPT =
+  ".txt,.md,.markdown,.csv,.html,.htm,.pdf,.docx,.pptx,.xlsx,.rtf,.odt,.odp,.ods,image/*";
 
 export function AddDocumentForm({
   products,
@@ -59,12 +61,11 @@ export function AddDocumentForm({
             <span className="text-[13px] font-semibold">Product</span>
             <select
               name="product_id"
-              required
               defaultValue={defaultProductId ?? ""}
               className="rounded-control border border-edge-strong bg-surface px-3.5 py-2.5 text-sm outline-none focus:border-brand"
             >
-              <option value="" disabled>
-                Select a product…
+              <option value="">
+                All products / workspace-wide
               </option>
               {products.map((p) => (
                 <option key={p.id} value={p.id}>
@@ -81,6 +82,7 @@ export function AddDocumentForm({
             ref={fileInputRef}
             type="file"
             name="file"
+            accept={DOCUMENT_ACCEPT}
             className="hidden"
             onChange={(e) => onFileChosen(e.target.files?.[0] ?? null)}
           />
@@ -97,7 +99,7 @@ export function AddDocumentForm({
               {fileName ?? "Browse for a file"}
             </span>
             <span className="text-xs text-ink-faint">
-              TXT and Markdown are extracted automatically · PDF/DOCX attach as reference
+              PDF, DOCX, PPTX, spreadsheets, text, and common office formats
             </span>
           </button>
           {fileNote && (
@@ -111,10 +113,9 @@ export function AddDocumentForm({
           <span className="text-[13px] font-semibold">Document text</span>
           <textarea
             name="content"
-            required
             value={content}
             onChange={(e) => setContent(e.target.value)}
-            placeholder="Paste the approved document text here. Separate paragraphs with a blank line — each paragraph becomes a citable source."
+            placeholder="Optional: paste or correct approved text here. If left blank, supported files are extracted after submission."
             rows={14}
             className="resize-y rounded-control border border-edge-strong bg-surface px-3.5 py-3 text-sm leading-relaxed outline-none focus:border-brand"
           />
@@ -126,16 +127,16 @@ export function AddDocumentForm({
           </p>
         )}
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <button
             type="submit"
             disabled={pending}
-            className="rounded-control bg-brand px-[18px] py-2.5 text-[13.5px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+            className="shrink-0 whitespace-nowrap rounded-control bg-brand px-[18px] py-2.5 text-[13.5px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
           >
             {pending ? "Saving…" : "Save source document"}
           </button>
           <span className="text-[12.5px] text-ink-faint">
-            Becomes approved source knowledge for the selected product.
+            Product assignment is optional. Workspace-wide sources apply to every product.
           </span>
         </div>
       </div>

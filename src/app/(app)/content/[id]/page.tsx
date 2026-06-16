@@ -7,6 +7,8 @@ import { StructuredReview } from "./structured-review";
 import { ApprovalActions } from "./approval-actions";
 import { ExportButtons } from "./export-buttons";
 import type { Evidence } from "@/lib/templates";
+import { resolveEffectiveFieldLimits } from "@/lib/template-specs";
+import type { FieldLimits } from "@/lib/template-fields";
 
 function CheckIcon() {
   return (
@@ -38,7 +40,7 @@ export default async function ContentDetailPage({
   const { data: content } = await supabase
     .from("generated_content")
     .select(
-      "id, title, body, status, target_language, audience, source_document_ids, rejection_note, created_at, approved_at, product_id, product_template_id, structured_fields, citations, products(name), product_templates(variant, category, editable_fields), creator:profiles!generated_content_created_by_fkey(full_name), approver:profiles!generated_content_approved_by_fkey(full_name)"
+      "id, title, body, status, target_language, audience, source_document_ids, rejection_note, created_at, approved_at, product_id, product_template_id, structured_fields, citations, products(name), product_templates(layout_key, variant, category, editable_fields, field_limits), creator:profiles!generated_content_created_by_fkey(full_name), approver:profiles!generated_content_approved_by_fkey(full_name)"
     )
     .eq("id", id)
     .single();
@@ -60,6 +62,10 @@ export default async function ContentDetailPage({
   const order: string[] = (ptemplate?.editable_fields as string[]) ?? [];
   const structuredFields = (content.structured_fields ?? {}) as Record<string, string>;
   const evidence = (content.citations ?? []) as Evidence[];
+  const effectiveLimits = resolveEffectiveFieldLimits(
+    ptemplate?.layout_key,
+    (ptemplate?.field_limits ?? {}) as FieldLimits
+  );
 
   const subtitle = isStructured
     ? `${product?.name ?? "Product"} · ${ptemplate?.variant ?? ""} · ${content.target_language}`
@@ -117,6 +123,7 @@ export default async function ContentDetailPage({
               initialFields={structuredFields}
               order={order}
               evidence={evidence}
+              limits={effectiveLimits}
             />
           ) : (
             <div className="flex flex-col gap-4 rounded-card border border-edge bg-surface p-6">
@@ -128,6 +135,14 @@ export default async function ContentDetailPage({
 
         <div className="flex flex-col gap-5">
           {content.status === "in_review" && viewerIsApprover && <ApprovalActions id={content.id} />}
+          {isStructured && (
+            <Link
+              href={`/studio?product=${content.product_id}&template=${content.product_template_id}&content=${content.id}`}
+              className="rounded-control border border-brand bg-brand-tint px-4 py-2.5 text-center text-[13.5px] font-semibold text-brand"
+            >
+              Preview in Studio
+            </Link>
+          )}
           {content.status === "approved" && <ExportButtons id={content.id} body={content.body} />}
           <div className="flex flex-col gap-3 rounded-card border border-edge bg-surface p-[22px]">
             <div className="flex items-center gap-2">

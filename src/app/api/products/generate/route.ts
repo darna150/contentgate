@@ -2,6 +2,12 @@ import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { flattenFields, revisionInstruction, type Evidence } from "@/lib/templates";
+import {
+  fieldLimitInstruction,
+  fitTemplateFields,
+  type FieldLimits,
+} from "@/lib/template-fields";
+import { resolveEffectiveFieldLimits } from "@/lib/template-specs";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -40,7 +46,9 @@ export async function POST(req: Request) {
   // RLS scopes all of these to the caller's org.
   const { data: tpl } = await supabase
     .from("product_templates")
-    .select("id, product_id, category, variant, editable_fields, generation_instructions")
+    .select(
+      "id, product_id, category, variant, layout_key, editable_fields, default_copy, field_limits, generation_instructions"
+    )
     .eq("id", productTemplateId)
     .single();
   if (!tpl) return Response.json({ error: "Template not found." }, { status: 404 });
@@ -48,11 +56,19 @@ export async function POST(req: Request) {
   const [{ data: product }, { data: claims }, { data: docs }] = await Promise.all([
     supabase.from("products").select("id, name, description, disclaimer_text").eq("id", tpl.product_id).single(),
     supabase.from("product_claims").select("claim_text").eq("product_id", tpl.product_id).eq("status", "approved"),
-    supabase.from("documents").select("id, title, paragraphs").eq("product_id", tpl.product_id),
+    supabase
+      .from("documents")
+      .select("id, title, paragraphs")
+      .or(`product_id.eq.${tpl.product_id},product_id.is.null`),
   ]);
   if (!product) return Response.json({ error: "Product not found." }, { status: 404 });
 
   const editableFields = (tpl.editable_fields as string[]) ?? [];
+  const fieldLimits = resolveEffectiveFieldLimits(
+    tpl.layout_key,
+    (tpl.field_limits ?? {}) as FieldLimits
+  );
+  const defaultCopy = (tpl.default_copy ?? {}) as Record<string, string>;
   const approvedClaims = (claims ?? []).map((c) => c.claim_text);
   const sourceDocs = docs ?? [];
   const sourceText = sourceDocs
@@ -86,11 +102,21 @@ export async function POST(req: Request) {
     extraInstructions ? `\nADDITIONAL DIRECTION: ${extraInstructions}` : ``,
     ``,
     `Produce exactly these fields: ${editableFields.join(", ")}.`,
+    `FIELD LIMITS:`,
+    editableFields.map((key) => fieldLimitInstruction(key, fieldLimits[key])).join("\n"),
+    ``,
+    `The existing template copy below is a length and tone reference only. Do not repeat unsupported facts from it:`,
+    editableFields.map((key) => `${key}: ${defaultCopy[key] ?? ""}`).join("\n"),
     `For every field that makes a factual or benefit claim, add an evidence entry naming the approved claim or approved source sentence it rests on.`,
   ].join("\n");
 
-  const fieldProps: Record<string, { type: "string" }> = {};
-  for (const f of editableFields) fieldProps[f] = { type: "string" };
+  const fieldProps: Record<string, { type: "string"; maxLength?: number }> = {};
+  for (const f of editableFields) {
+    fieldProps[f] = {
+      type: "string",
+      ...(fieldLimits[f]?.max_chars ? { maxLength: fieldLimits[f].max_chars } : {}),
+    };
+  }
 
   const anthropic = new Anthropic();
   let message;
@@ -145,8 +171,7 @@ export async function POST(req: Request) {
   };
 
   // Keep only the requested fields, in order.
-  const structured: Record<string, string> = {};
-  for (const f of editableFields) structured[f] = (out.fields?.[f] ?? "").toString().trim();
+  const structured = fitTemplateFields(out.fields ?? {}, editableFields, fieldLimits);
   const evidence = Array.isArray(out.evidence) ? out.evidence : [];
 
   const title = `${product.name} · ${tpl.variant}`;
@@ -170,6 +195,8 @@ export async function POST(req: Request) {
           citations: evidence,
           body,
           target_language: language,
+          source_document_ids: sourceDocs.map((d) => d.id),
+          prompt_context: { language, revisions, field_limits: fieldLimits },
           status: "draft",
           updated_at: new Date().toISOString(),
         })
@@ -196,6 +223,7 @@ export async function POST(req: Request) {
         title,
         body,
         target_language: language,
+        prompt_context: { language, revisions, field_limits: fieldLimits },
         status: "draft",
       })
       .select("id")

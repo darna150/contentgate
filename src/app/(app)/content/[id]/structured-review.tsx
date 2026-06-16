@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import { updateStructuredFields, submitForReview } from "../actions";
 import { fieldLabel, REVISION_OPTIONS, type Evidence } from "@/lib/templates";
+import { fieldLimitText, type FieldLimits } from "@/lib/template-fields";
 
 export function StructuredReview({
   id,
@@ -13,6 +14,7 @@ export function StructuredReview({
   initialFields,
   order,
   evidence,
+  limits,
 }: {
   id: string;
   productTemplateId: string;
@@ -21,6 +23,7 @@ export function StructuredReview({
   initialFields: Record<string, string>;
   order: string[];
   evidence: Evidence[];
+  limits: FieldLimits;
 }) {
   const router = useRouter();
   const [fields, setFields] = useState(initialFields);
@@ -34,8 +37,6 @@ export function StructuredReview({
     [fields, savedFields, order]
   );
   const canSubmit = (status === "draft" || status === "rejected") && !dirty;
-  const editable = status !== "approved" || dirty;
-
   const evidenceFor = (field: string) =>
     evidence.filter((e) => e.field === field).map((e) => e.approved_source);
 
@@ -46,7 +47,7 @@ export function StructuredReview({
   function onSave() {
     setMessage(null);
     startTransition(async () => {
-      const res = await updateStructuredFields(id, fields, order);
+      const res = await updateStructuredFields(id, fields);
       if ("error" in res) setMessage({ kind: "error", text: res.error });
       else {
         setSavedFields(fields);
@@ -111,27 +112,27 @@ export function StructuredReview({
           {order.map((key) => {
             const sources = evidenceFor(key);
             const isHeadline = key === "headline";
+            const rows = limits[key]?.max_lines ?? (key === "body" ? 4 : 2);
             return (
               <div key={key} className="flex flex-col gap-1.5">
                 <label className="text-[12px] font-semibold uppercase tracking-[0.06em] text-ink-faint">
-                  {fieldLabel(key)}
+                  {fieldLabel(key)}{" "}
+                  <span className="font-normal normal-case tracking-normal">
+                    · {fieldLimitText(limits[key])}
+                  </span>
                 </label>
-                {isHeadline ? (
-                  <input
-                    value={fields[key] ?? ""}
-                    onChange={(e) => setField(key, e.target.value)}
-                    disabled={busy}
-                    className="rounded-control border border-edge-strong bg-surface px-3.5 py-2.5 text-[14px] font-semibold outline-none focus:border-brand"
-                  />
-                ) : (
-                  <textarea
-                    value={fields[key] ?? ""}
-                    onChange={(e) => setField(key, e.target.value)}
-                    disabled={busy}
-                    rows={key === "body" ? 4 : 2}
-                    className="resize-y rounded-control border border-edge-strong bg-surface px-3.5 py-2.5 text-[13.5px] leading-relaxed outline-none focus:border-brand"
-                  />
-                )}
+                <textarea
+                  value={fields[key] ?? ""}
+                  onChange={(e) => setField(key, e.target.value)}
+                  disabled={busy}
+                  maxLength={limits[key]?.max_chars}
+                  rows={rows}
+                  className={
+                    isHeadline
+                      ? "resize-y rounded-control border border-edge-strong bg-surface px-3.5 py-2.5 text-[14px] font-semibold leading-snug outline-none focus:border-brand"
+                      : "resize-y rounded-control border border-edge-strong bg-surface px-3.5 py-2.5 text-[13.5px] leading-relaxed outline-none focus:border-brand"
+                  }
+                />
                 {sources.length > 0 && (
                   <div className="flex flex-col gap-1 rounded-control border border-approve-border bg-approve-tint px-3 py-2">
                     <span className="text-[10.5px] font-bold uppercase tracking-[0.06em] text-approve">

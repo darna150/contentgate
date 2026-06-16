@@ -8,9 +8,11 @@ const LANGUAGES = ["English", "Filipino", "Spanish", "Portuguese", "Vietnamese",
 export function GenerateVariant({
   templateId,
   variant,
+  compact = false,
 }: {
   templateId: string;
   variant: string;
+  compact?: boolean;
 }) {
   const router = useRouter();
   const [language, setLanguage] = useState("English");
@@ -40,7 +42,7 @@ export function GenerateVariant({
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex shrink-0 items-center gap-2">
       <select
         value={language}
         onChange={(e) => setLanguage(e.target.value)}
@@ -55,11 +57,11 @@ export function GenerateVariant({
         type="button"
         onClick={generate}
         disabled={busy}
-        className="rounded-control bg-brand px-4 py-2 text-[12.5px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+        className="whitespace-nowrap rounded-control bg-brand px-4 py-2 text-[12.5px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
       >
-        {busy ? "Generating…" : `Generate ${variant}`}
+        {busy ? "Generating…" : compact ? "Generate" : `Generate ${variant}`}
       </button>
-      {error && <span className="text-[12px] text-reject">{error}</span>}
+      {error && <span className="whitespace-nowrap text-[12px] text-reject">{error}</span>}
     </div>
   );
 }

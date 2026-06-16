@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { LoginForm } from "./login-form";
 
 const PROMISES = [
@@ -11,16 +12,17 @@ export default function LoginPage() {
     <div className="flex min-h-screen">
       {/* Brand panel */}
       <div className="hidden md:flex w-[44%] flex-col gap-6 bg-brand-dark p-12 text-white">
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand text-base font-bold">
-            +
-          </div>
-          <div className="flex flex-col">
-            <span className="text-[15px] font-bold">ContentGate</span>
-            <span className="text-[10px] uppercase tracking-[0.12em] text-sidebar-faint">
-              Compliant content
-            </span>
-          </div>
+        <div className="flex flex-col gap-1">
+          <Image
+            src="/brand/contentgate/logo-horizontal-light.svg"
+            alt="ContentGate"
+            width={180}
+            height={36}
+            priority
+          />
+          <span className="pl-[43px] text-[10px] uppercase tracking-[0.12em] text-sidebar-faint">
+            Compliant content
+          </span>
         </div>
 
         <div className="flex max-w-md flex-1 flex-col justify-center gap-5">
@@ -54,6 +56,14 @@ export default function LoginPage() {
       {/* Sign-in panel */}
       <div className="flex flex-1 items-center justify-center p-12">
         <div className="flex w-[400px] flex-col gap-6">
+          <Image
+            src="/brand/contentgate/logo-primary.svg"
+            alt="ContentGate"
+            width={160}
+            height={32}
+            className="md:hidden"
+            priority
+          />
           <div className="flex flex-col gap-2">
             <h2 className="font-serif text-[27px] font-semibold">Sign in</h2>
             <p className="text-sm text-ink-muted">

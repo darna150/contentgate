@@ -1,6 +1,7 @@
 // Field metadata + revision controls shared by generation, review, and render.
 
 export const FIELD_LABELS: Record<string, string> = {
+  // Legacy layout fields
   headline: "Headline",
   subheadline: "Subheadline",
   body: "Body copy",
@@ -11,6 +12,10 @@ export const FIELD_LABELS: Record<string, string> = {
   cta: "Call to action",
   contact: "Contact",
   territory: "Territory",
+  kicker: "Kicker / eyebrow",
+  benefits: "Benefits",
+  subline: "Subline",
+  supportCopy: "Support copy",
 };
 
 export function fieldLabel(key: string): string {

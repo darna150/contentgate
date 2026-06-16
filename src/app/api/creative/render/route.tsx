@@ -2,10 +2,23 @@ import { ImageResponse } from "next/og";
 import { createClient } from "@/lib/supabase/server";
 import { SIZES, type SizeKey } from "@/lib/creative";
 import { AssetLayout } from "@/lib/creative-layout";
+import { renderApexCanine } from "@/lib/apex-canine-render";
+import { loadApexCanineFonts } from "@/lib/apex-canine-fonts";
+import { renderVitalBite } from "@/lib/vitalbite-render";
+import { loadVitalBiteFonts } from "@/lib/vitalbite-fonts";
+import { renderCaniGuard5 } from "@/lib/caniguard5-render";
+import { loadCaniGuard5Fonts } from "@/lib/caniguard5-fonts";
+import { renderDigestPro } from "@/lib/digestpro-render";
+import { loadDigestProFonts } from "@/lib/digestpro-fonts";
+import { renderPoultryShieldPro } from "@/lib/poultryshieldpro-render";
+import { loadPoultryShieldProFonts } from "@/lib/poultryshieldpro-fonts";
+import { renderSwineGuardPlus } from "@/lib/swineguardplus-render";
+import { loadSwineGuardPlusFonts } from "@/lib/swineguardplus-fonts";
+import { renderTemplateSpec } from "@/lib/template-spec-render";
 
 export const runtime = "nodejs";
 
-// Renders an APPROVED piece of content into its product's locked layout.
+// Renders an org-visible piece of content into its product's locked layout.
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const contentId = searchParams.get("content");
@@ -27,26 +40,108 @@ export async function GET(req: Request) {
     .eq("id", contentId)
     .single();
   if (!content) return new Response("Not found", { status: 404 });
-  // Export gate: only approved content can be rendered to an asset.
-  if (content.status !== "approved") {
-    return new Response("Only approved content can be exported.", { status: 403 });
-  }
-
   const product = Array.isArray(content.products) ? content.products[0] : content.products;
   const tpl = Array.isArray(content.product_templates)
     ? content.product_templates[0]
     : content.product_templates;
 
+  const layoutKey = tpl?.layout_key ?? "social_v1";
+  const fields = (content.structured_fields ?? {}) as Record<string, string>;
+  const productName = product?.name ?? "Product";
+  const disclaimer = product?.disclaimer_text ?? "";
+
+  const cacheHeaders = { "Cache-Control": "private, max-age=60, stale-while-revalidate=300" };
+
+  if (layoutKey.startsWith("digestpro_")) {
+    const { element, w, h } = renderDigestPro({
+      sizeKey,
+      fields,
+      disclaimer,
+      origin: new URL(req.url).origin,
+    });
+    const fonts = await loadDigestProFonts();
+    return new ImageResponse(element, { width: w, height: h, fonts, headers: cacheHeaders });
+  }
+
+  if (layoutKey.startsWith("apex_canine_")) {
+    const origin = new URL(req.url).origin;
+    const { element, w, h } = renderApexCanine({
+      sizeKey,
+      fields,
+      disclaimer,
+      origin,
+    });
+    const fonts = await loadApexCanineFonts();
+    return new ImageResponse(element, { width: w, height: h, fonts, headers: cacheHeaders });
+  }
+
+  if (layoutKey.startsWith("caniguard5_")) {
+    const { element, w, h } = renderCaniGuard5({
+      sizeKey,
+      fields,
+      disclaimer,
+      origin: new URL(req.url).origin,
+    });
+    const fonts = await loadCaniGuard5Fonts();
+    return new ImageResponse(element, { width: w, height: h, fonts, headers: cacheHeaders });
+  }
+
+  if (layoutKey.startsWith("poultryshieldpro_")) {
+    const specRender = renderTemplateSpec({
+      layoutKey,
+      sizeKey,
+      fields,
+      disclaimer,
+      origin: new URL(req.url).origin,
+    });
+    const { element, w, h } =
+      specRender ??
+      renderPoultryShieldPro({
+        sizeKey,
+        fields,
+        disclaimer,
+        origin: new URL(req.url).origin,
+      });
+    const fonts = await loadPoultryShieldProFonts();
+    return new ImageResponse(element, { width: w, height: h, fonts, headers: cacheHeaders });
+  }
+
+  if (layoutKey.startsWith("swineguardplus_")) {
+    const specRender = renderTemplateSpec({
+      layoutKey,
+      sizeKey,
+      fields,
+      disclaimer,
+      origin: new URL(req.url).origin,
+    });
+    const { element, w, h } =
+      specRender ??
+      renderSwineGuardPlus({
+        sizeKey,
+        fields,
+        disclaimer,
+        origin: new URL(req.url).origin,
+      });
+    const fonts = await loadSwineGuardPlusFonts();
+    return new ImageResponse(element, { width: w, height: h, fonts, headers: cacheHeaders });
+  }
+
+  if (layoutKey.startsWith("vitalbite_")) {
+    const origin = new URL(req.url).origin;
+    const { element, w, h } = renderVitalBite({
+      layoutKey,
+      sizeKey,
+      fields,
+      disclaimer,
+      origin,
+    });
+    const fonts = await loadVitalBiteFonts();
+    return new ImageResponse(element, { width: w, height: h, fonts, headers: cacheHeaders });
+  }
+
   const { w, h } = size;
   return new ImageResponse(
-    AssetLayout({
-      layoutKey: tpl?.layout_key ?? "social_v1",
-      fields: (content.structured_fields ?? {}) as Record<string, string>,
-      orgName: product?.name ?? "Product",
-      disclaimer: product?.disclaimer_text ?? "",
-      w,
-      h,
-    }),
-    { width: w, height: h }
+    AssetLayout({ layoutKey, fields, orgName: productName, disclaimer, w, h }),
+    { width: w, height: h, headers: cacheHeaders }
   );
 }

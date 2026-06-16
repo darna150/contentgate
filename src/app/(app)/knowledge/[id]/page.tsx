@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { DeleteDocumentButton } from "./delete-button";
 
@@ -16,7 +16,7 @@ export default async function DocumentDetailPage({
     supabase
       .from("documents")
       .select(
-        "id, title, product, storage_path, content_text, paragraphs, created_at, uploaded_by, profiles(full_name)"
+        "id, title, file_type, storage_path, content_text, paragraphs, created_at, uploaded_by, products(name), profiles(full_name)"
       )
       .eq("id", id)
       .single(),
@@ -33,8 +33,10 @@ export default async function DocumentDetailPage({
       .single();
     isAdmin = me?.role === "admin";
   }
+  if (!isAdmin) redirect("/ask");
 
   const uploader = Array.isArray(doc.profiles) ? doc.profiles[0] : doc.profiles;
+  const product = Array.isArray(doc.products) ? doc.products[0] : doc.products;
   const paragraphs = (doc.paragraphs ?? []) as { n: number; text: string }[];
 
   let fileUrl: string | null = null;
@@ -59,7 +61,7 @@ export default async function DocumentDetailPage({
             {doc.title}
           </h1>
           <p className="text-[13.5px] text-ink-muted">
-            {doc.product ? `${doc.product} · ` : ""}
+            {product?.name ? `${product.name} · ` : "Workspace-wide · "}
             {paragraphs.length} citable paragraphs · added{" "}
             {new Date(doc.created_at).toLocaleDateString("en-US", {
               month: "long",

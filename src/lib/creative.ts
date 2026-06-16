@@ -14,6 +14,8 @@ export type SizeKey = keyof typeof SIZES;
 export const CATEGORY_SIZES: Record<string, SizeKey[]> = {
   social: ["square", "story", "feed"],
   flyer: ["a4"],
+  one_pager: ["a4"],
+  presentation: ["feed"],
 };
 
 export function defaultSizeFor(category: string): SizeKey {
@@ -22,4 +24,8 @@ export function defaultSizeFor(category: string): SizeKey {
 
 export function renderUrl(contentId: string, size: SizeKey): string {
   return `/api/creative/render?content=${contentId}&size=${size}`;
+}
+
+export function templatePreviewUrl(templateId: string, size: SizeKey): string {
+  return `/api/creative/template-preview?template=${templateId}&size=${size}`;
 }

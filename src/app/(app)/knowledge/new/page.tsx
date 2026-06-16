@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { AddDocumentForm } from "./add-document-form";
 
@@ -13,6 +14,10 @@ export default async function NewDocumentPage({
   let presetName: string | null = null;
   if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
     const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) redirect("/login");
+    const { data: me } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+    if (me?.role !== "admin") redirect("/ask");
     const { data } = await supabase
       .from("products")
       .select("id, name")
@@ -37,13 +42,7 @@ export default async function NewDocumentPage({
             : "Upload a file or paste approved text. Every paragraph becomes a citable source for generated content."}
         </p>
       </div>
-      {products.length === 0 ? (
-        <div className="rounded-card border border-dashed border-edge-strong bg-surface px-8 py-12 text-center text-sm text-ink-muted">
-          Create a product first, then add its source documents.
-        </div>
-      ) : (
-        <AddDocumentForm products={products} defaultProductId={productId} />
-      )}
+      <AddDocumentForm products={products} defaultProductId={productId} />
     </div>
   );
 }

@@ -1,6 +1,13 @@
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { updateProduct, addClaim, setClaimStatus, deleteClaim } from "../../actions";
+import {
+  updateProduct,
+  addClaim,
+  setClaimStatus,
+  deleteClaim,
+  uploadProductAsset,
+  deleteProductAsset,
+} from "../../actions";
 
 const STATUS_LABELS: Record<string, string> = { approved: "Approved", inactive: "Inactive" };
 
@@ -23,11 +30,18 @@ export default async function EditProductPage({
     .single();
   if (!product) notFound();
 
-  const { data: claims } = await supabase
-    .from("product_claims")
-    .select("id, claim_text, status")
-    .eq("product_id", id)
-    .order("created_at", { ascending: true });
+  const [{ data: claims }, { data: assets }] = await Promise.all([
+    supabase
+      .from("product_claims")
+      .select("id, claim_text, status")
+      .eq("product_id", id)
+      .order("created_at", { ascending: true }),
+    supabase
+      .from("product_assets")
+      .select("id, asset_type, storage_path")
+      .eq("product_id", id)
+      .order("created_at", { ascending: true }),
+  ]);
 
   const updateThisProduct = updateProduct.bind(null, id);
   const addClaimToProduct = addClaim.bind(null, id);
@@ -159,6 +173,79 @@ export default async function EditProductPage({
             className="whitespace-nowrap rounded-control bg-brand px-4 py-2.5 text-[13.5px] font-semibold text-white transition-opacity hover:opacity-90"
           >
             + Add claim
+          </button>
+        </form>
+      </div>
+
+      <div className="flex flex-col gap-4 rounded-card border border-edge bg-surface p-[22px]">
+        <div className="flex flex-col gap-1">
+          <h2 className="text-[15px] font-bold">Approved assets</h2>
+          <p className="text-[12.5px] text-ink-muted">
+            Upload approved logos, packshots, backgrounds, and supporting images.
+          </p>
+        </div>
+        {(assets ?? []).length > 0 && (
+          <div className="grid grid-cols-3 gap-3">
+            {(assets ?? []).map((asset) => {
+              const publicUrl = supabase.storage
+                .from("product-assets")
+                .getPublicUrl(asset.storage_path).data.publicUrl;
+              const deleteAction = deleteProductAsset.bind(null, asset.id, id);
+              return (
+                <div key={asset.id} className="flex flex-col gap-2 rounded-control border border-edge bg-page p-2.5">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={publicUrl}
+                    alt={`${product.name} ${asset.asset_type}`}
+                    className="aspect-square w-full rounded-[7px] object-contain"
+                  />
+                  <div className="flex items-center gap-2">
+                    <span className="flex-1 text-[11px] font-bold uppercase tracking-[0.06em] text-ink-faint">
+                      {asset.asset_type}
+                    </span>
+                    <form action={deleteAction}>
+                      <button type="submit" className="text-[11px] font-semibold text-reject hover:underline">
+                        Delete
+                      </button>
+                    </form>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        <form action={uploadProductAsset.bind(null, id)} className="flex items-end gap-3 border-t border-edge pt-4">
+          <label className="flex flex-col gap-1.5">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-faint">
+              Type
+            </span>
+            <select
+              name="asset_type"
+              className="rounded-control border border-edge bg-page px-3 py-2.5 text-[13px] focus:border-brand focus:outline-none"
+            >
+              <option value="logo">Logo</option>
+              <option value="packshot">Packshot</option>
+              <option value="background">Background</option>
+              <option value="image">Supporting image</option>
+            </select>
+          </label>
+          <label className="flex min-w-0 flex-1 flex-col gap-1.5">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-faint">
+              Image
+            </span>
+            <input
+              type="file"
+              name="file"
+              accept="image/*"
+              required
+              className="rounded-control border border-edge bg-page px-3 py-2 text-[12px]"
+            />
+          </label>
+          <button
+            type="submit"
+            className="rounded-control bg-brand px-4 py-2.5 text-[13px] font-semibold text-white"
+          >
+            Upload
           </button>
         </form>
       </div>

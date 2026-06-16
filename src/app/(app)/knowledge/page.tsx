@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
 type DocRow = {
@@ -24,6 +25,10 @@ export default async function KnowledgePage() {
 
   if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
     const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) redirect("/login");
+    const { data: me } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+    if (me?.role !== "admin") redirect("/ask");
     const { data } = await supabase
       .from("documents")
       .select("id, title, storage_path, created_at, paragraphs, products(name)")

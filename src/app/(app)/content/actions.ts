@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { flattenFields } from "@/lib/templates";
+import { fitTemplateFields, type FieldLimits } from "@/lib/template-fields";
+import { resolveEffectiveFieldLimits } from "@/lib/template-specs";
 
 type ActionResult = { ok: true } | { error: string };
 
@@ -73,14 +75,27 @@ export async function updateContentBody(
 
 export async function updateStructuredFields(
   id: string,
-  fields: Record<string, string>,
-  order: string[]
+  fields: Record<string, string>
 ): Promise<ActionResult> {
   const ctx = await requireUser();
   if (!ctx) return { error: "Your session expired — sign in again." };
 
-  const cleaned: Record<string, string> = {};
-  for (const k of order) cleaned[k] = (fields[k] ?? "").trim();
+  const { data: content } = await ctx.supabase
+    .from("generated_content")
+    .select("product_templates(layout_key, editable_fields, field_limits)")
+    .eq("id", id)
+    .single();
+  const template = Array.isArray(content?.product_templates)
+    ? content.product_templates[0]
+    : content?.product_templates;
+  if (!template) return { error: "Template configuration was not found." };
+
+  const order = (template.editable_fields ?? []) as string[];
+  const limits = resolveEffectiveFieldLimits(
+    template.layout_key,
+    (template.field_limits ?? {}) as FieldLimits
+  );
+  const cleaned = fitTemplateFields(fields, order, limits);
   const body = flattenFields(cleaned, order);
   if (!body) return { error: "Content cannot be empty." };
 

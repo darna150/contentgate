@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { fieldLabel } from "@/lib/templates";
-import { SIZES } from "@/lib/creative";
+import { defaultSizeFor, SIZES } from "@/lib/creative";
 import { GenerateVariant } from "./generate-variant";
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -20,6 +20,7 @@ type Template = {
   editable_fields: string[];
   generation_instructions: string;
   sort_order: number;
+  default_copy: Record<string, string>;
 };
 
 export default async function ProductDetailPage({
@@ -51,7 +52,7 @@ export default async function ProductDetailPage({
     supabase.from("documents").select("id, title").eq("product_id", id),
     supabase
       .from("product_templates")
-      .select("id, category, variant, editable_fields, generation_instructions, sort_order")
+      .select("id, category, variant, editable_fields, generation_instructions, default_copy, sort_order")
       .eq("product_id", id)
       .eq("status", "active")
       .order("sort_order", { ascending: true }),
@@ -105,7 +106,7 @@ export default async function ProductDetailPage({
               </h2>
               <div className="grid grid-cols-2 gap-3">
                 {variants.map((t) => {
-                  const sizeKey = t.category === "flyer" ? "a4" : "square";
+                  const sizeKey = defaultSizeFor(t.category);
                   const dims = SIZES[sizeKey];
                   const previewSrc = `/api/creative/template-preview?template=${t.id}&size=${sizeKey}`;
                   return (
@@ -114,19 +115,20 @@ export default async function ProductDetailPage({
                       className="flex flex-col gap-2.5 rounded-control border border-edge bg-surface p-3"
                     >
                       <div
-                        className="overflow-hidden rounded-[8px] border border-edge bg-page"
+                        className="overflow-hidden rounded-[8px] border border-edge bg-brand-tint"
                         style={{ aspectRatio: `${dims.w} / ${dims.h}` }}
                       >
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                           src={previewSrc}
                           alt={`${t.variant} template preview`}
+                          loading="lazy"
                           className="h-full w-full object-cover"
                         />
                       </div>
                       <div className="flex items-center gap-2 px-0.5">
-                        <span className="text-[13px] font-semibold">{t.variant}</span>
-                        <span className="rounded-[5px] bg-brand-tint px-[6px] py-0.5 text-[9.5px] font-bold uppercase tracking-[0.05em] text-brand">
+                        <span className="min-w-0 truncate text-[13px] font-semibold">{t.variant}</span>
+                        <span className="shrink-0 whitespace-nowrap rounded-[5px] bg-brand-tint px-[6px] py-0.5 text-[9.5px] font-bold uppercase tracking-[0.05em] text-brand">
                           {t.editable_fields.length} fields
                         </span>
                       </div>
@@ -134,7 +136,15 @@ export default async function ProductDetailPage({
                         {t.editable_fields.map((fk) => fieldLabel(fk)).join(" · ")}
                       </p>
                       <div className="px-0.5">
-                        <GenerateVariant templateId={t.id} variant={t.variant} />
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Link
+                            href={`/products/${id}/templates/${t.id}`}
+                            className="whitespace-nowrap rounded-control border border-edge-strong px-3 py-2 text-[12px] font-semibold text-ink-muted hover:border-brand hover:text-brand"
+                          >
+                            View template
+                          </Link>
+                          <GenerateVariant templateId={t.id} variant={t.variant} compact />
+                        </div>
                       </div>
                     </div>
                   );

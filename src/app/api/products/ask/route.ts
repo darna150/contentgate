@@ -3,6 +3,9 @@ import Anthropic from "@anthropic-ai/sdk";
 import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return NextResponse.json({ error: "Knowledge Q&A is not configured." }, { status: 503 });
+  }
   const supabase = await createClient();
   const {
     data: { user },
@@ -21,24 +24,18 @@ export async function POST(req: Request) {
     .single();
   if (!product) return NextResponse.json({ error: "Product not found" }, { status: 404 });
 
-  const [{ data: claims }, { data: docs }] = await Promise.all([
-    supabase
-      .from("product_claims")
-      .select("claim_text")
-      .eq("product_id", productId)
-      .eq("status", "approved"),
-    supabase.from("documents").select("id, title, paragraphs").eq("product_id", productId),
-  ]);
-
-  const claimsText = (claims ?? [])
-    .map((c, i) => `${i + 1}. ${c.claim_text}`)
-    .join("\n");
+  const { data: docs } = await supabase
+    .from("documents")
+    .select("id, title, paragraphs")
+    .or(`product_id.eq.${productId},product_id.is.null`);
 
   const docsText = (docs ?? [])
     .map((doc) => {
       const paras = Array.isArray(doc.paragraphs)
         ? doc.paragraphs
-            .map((p: { text?: string } | string) => (typeof p === "string" ? p : (p.text ?? "")))
+            .map((p: { n?: number; text?: string } | string) =>
+              typeof p === "string" ? p : `[¶${p.n ?? "?"}] ${p.text ?? ""}`
+            )
             .filter(Boolean)
             .join("\n\n")
         : "";
@@ -55,9 +52,6 @@ STRICT RULES:
 - Be concise, direct, and helpful. Write for someone who needs a quick, reliable answer in the field.
 - When citing, quote the exact relevant passage from the source document.
 
-APPROVED CLAIMS FOR ${product.name.toUpperCase()}:
-${claimsText || "None on file."}
-
 APPROVED SOURCE DOCUMENTS:
 ${docsText || "No documents uploaded yet."}
 
@@ -65,11 +59,23 @@ ${product.disclaimer_text ? `MANDATORY DISCLAIMER (always applies): ${product.di
 
   const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-  const response = await anthropic.messages.create({
-    model: "claude-sonnet-4-6",
-    max_tokens: 1024,
-    system,
-    tools: [
+  if (!docsText.trim()) {
+    return await saveAndReturnNotFound(
+      supabase,
+      user.id,
+      productId,
+      question.trim(),
+      "I could not find that information because no approved source documents are available for this product."
+    );
+  }
+
+  let response;
+  try {
+    response = await anthropic.messages.create({
+      model: "claude-sonnet-4-6",
+      max_tokens: 1024,
+      system,
+      tools: [
       {
         name: "answer_question",
         description: "Answer the user's question with supporting citations from approved sources.",
@@ -105,20 +111,44 @@ ${product.disclaimer_text ? `MANDATORY DISCLAIMER (always applies): ${product.di
           required: ["answer", "citations", "not_found"],
         },
       },
-    ],
-    tool_choice: { type: "tool", name: "answer_question" },
-    messages: [{ role: "user", content: question.trim() }],
-  });
+      ],
+      tool_choice: { type: "tool", name: "answer_question" },
+      messages: [{ role: "user", content: question.trim() }],
+    });
+  } catch (error) {
+    console.error("knowledge answer failed:", error);
+    return NextResponse.json({ error: "Knowledge search failed. Try again." }, { status: 502 });
+  }
 
   const toolUse = response.content.find((b) => b.type === "tool_use");
   if (!toolUse || toolUse.type !== "tool_use") {
     return NextResponse.json({ error: "No answer generated" }, { status: 500 });
   }
 
-  const result = toolUse.input as {
+  const rawResult = toolUse.input as {
     answer: string;
     citations: { document_title: string; excerpt: string }[];
     not_found: boolean;
+  };
+  const documentText = new Map(
+    (docs ?? []).map((doc) => [
+      doc.title,
+      ((doc.paragraphs ?? []) as { text?: string }[])
+        .map((paragraph) => paragraph.text ?? "")
+        .join("\n"),
+    ])
+  );
+  const citations = (rawResult.citations ?? []).filter((citation) => {
+    const source = documentText.get(citation.document_title);
+    return !!source && source.toLowerCase().includes(citation.excerpt.trim().toLowerCase());
+  });
+  const unsupported = !rawResult.not_found && citations.length === 0;
+  const result = {
+    answer: unsupported
+      ? "I could not verify an answer in the uploaded source documents."
+      : rawResult.answer,
+    citations,
+    not_found: rawResult.not_found || unsupported,
   };
 
   // Log the query for usage analytics + audit trail. Best-effort: a logging
@@ -142,4 +172,31 @@ ${product.disclaimer_text ? `MANDATORY DISCLAIMER (always applies): ${product.di
   }
 
   return NextResponse.json(result);
+}
+
+async function saveAndReturnNotFound(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  productId: string,
+  question: string,
+  answer: string
+) {
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("org_id")
+    .eq("id", userId)
+    .single();
+  if (profile?.org_id) {
+    await supabase.from("knowledge_queries").insert({
+      org_id: profile.org_id,
+      product_id: productId,
+      user_id: userId,
+      question,
+      not_found: true,
+      citation_count: 0,
+      answer,
+      citations: [],
+    });
+  }
+  return NextResponse.json({ answer, citations: [], not_found: true });
 }

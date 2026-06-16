@@ -1,13 +1,14 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
 const NAV = [
+  { href: "/ask", label: "Knowledge Hub" },
   { href: "/dashboard", label: "Dashboard" },
   { href: "/products", label: "Products" },
-  { href: "/ask", label: "Knowledge Hub" },
   { href: "/content", label: "Content" },
   { href: "/approvals", label: "Approval Queue" },
 ];
@@ -34,9 +35,10 @@ export function Sidebar({ orgName, orgIndustry, userName, userRole, pendingCount
     router.refresh();
   }
 
+  const productsIndex = NAV.findIndex((item) => item.href === "/products") + 1;
   const items =
     userRole === "admin"
-      ? [...NAV.slice(0, 2), ...ADMIN_NAV, ...NAV.slice(2)]
+      ? [...NAV.slice(0, productsIndex), ...ADMIN_NAV, ...NAV.slice(productsIndex)]
       : NAV;
 
   const initials = userName
@@ -49,18 +51,19 @@ export function Sidebar({ orgName, orgIndustry, userName, userRole, pendingCount
   return (
     <aside className="sticky top-0 flex h-screen w-[248px] flex-shrink-0 flex-col gap-4 border-r border-edge bg-surface px-3.5 py-5">
       {/* Logo */}
-      <div className="flex items-center gap-2.5 px-2 py-1">
-        <div className="flex h-[30px] w-[30px] items-center justify-center rounded-lg bg-brand-dark text-base font-bold text-white">
-          +
-        </div>
-        <div className="flex flex-col">
-          <span className="text-sm font-bold">ContentGate</span>
-          {orgIndustry && (
-            <span className="text-[10px] uppercase tracking-[0.12em] text-ink-faint">
-              {orgIndustry}
-            </span>
-          )}
-        </div>
+      <div className="flex flex-col gap-1 px-2 py-1">
+        <Image
+          src="/brand/contentgate/logo-primary.svg"
+          alt="ContentGate"
+          width={140}
+          height={28}
+          priority
+        />
+        {orgIndustry && (
+          <span className="pl-[33px] text-[10px] uppercase tracking-[0.12em] text-ink-faint">
+            {orgIndustry}
+          </span>
+        )}
       </div>
 
       {/* Workspace card */}

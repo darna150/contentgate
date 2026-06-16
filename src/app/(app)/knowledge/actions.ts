@@ -5,8 +5,9 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { segmentParagraphs } from "@/lib/paragraphs";
+import { documentFileType, extractDocumentText } from "@/lib/document-extraction";
 
-async function requireProfile() {
+async function requireAdminProfile() {
   const supabase = await createClient();
   const {
     data: { user },
@@ -19,6 +20,7 @@ async function requireProfile() {
     .eq("id", user.id)
     .single();
   if (!profile) redirect("/login");
+  if (profile.role !== "admin") throw new Error("Admins only");
 
   return { supabase, user, profile };
 }
@@ -47,15 +49,34 @@ export async function createDocument(
   _prev: CreateDocumentState,
   formData: FormData
 ): Promise<CreateDocumentState> {
-  const { supabase, user, profile } = await requireProfile();
+  const { supabase, user, profile } = await requireAdminProfile();
 
   const title = String(formData.get("title") ?? "").trim();
   const productId = String(formData.get("product_id") ?? "").trim();
-  const content = String(formData.get("content") ?? "").trim();
+  let content = String(formData.get("content") ?? "").trim();
   const file = formData.get("file");
 
   if (!title) return { error: "Give the document a title." };
-  if (!content) return { error: "The document needs text content — paste or extract it first." };
+  if (file instanceof File && file.size > 15 * 1024 * 1024) {
+    return { error: "Documents must be 15 MB or smaller." };
+  }
+  if (!content && file instanceof File && file.size > 0) {
+    try {
+      content = (await extractDocumentText(file)) ?? "";
+    } catch (error) {
+      console.error("document extraction failed:", error);
+      return {
+        error:
+          "The file was received, but its text could not be extracted. Paste the approved text and try again.",
+      };
+    }
+  }
+  if (!content) {
+    return {
+      error:
+        "No readable text was found. Paste approved text for image files or unsupported formats.",
+    };
+  }
 
   const paragraphs = segmentParagraphs(content);
   if (paragraphs.length === 0) return { error: "Could not split the text into paragraphs." };
@@ -64,7 +85,8 @@ export async function createDocument(
   let storagePath: string | null = null;
 
   if (file instanceof File && file.size > 0) {
-    storagePath = `${profile.org_id}/${id}`;
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]+/g, "-").toLowerCase();
+    storagePath = `${profile.org_id}/${id}/${safeName}`;
     const { error: uploadError } = await supabase.storage
       .from("documents")
       .upload(storagePath, file, {
@@ -84,6 +106,7 @@ export async function createDocument(
     storage_path: storagePath,
     content_text: content,
     paragraphs,
+    file_type: file instanceof File && file.size > 0 ? documentFileType(file) : "text",
   });
   if (error) {
     return { error: `Could not save the document: ${error.message}` };
@@ -107,7 +130,7 @@ export async function createDocument(
 }
 
 export async function deleteDocument(id: string) {
-  const { supabase, user, profile } = await requireProfile();
+  const { supabase, user, profile } = await requireAdminProfile();
 
   const { data: doc } = await supabase
     .from("documents")
