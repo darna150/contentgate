@@ -130,18 +130,26 @@ ${product.disclaimer_text ? `MANDATORY DISCLAIMER (always applies): ${product.di
     citations: { document_title: string; excerpt: string }[];
     not_found: boolean;
   };
-  const documentText = new Map(
+  const docMap = new Map(
     (docs ?? []).map((doc) => [
       doc.title,
-      ((doc.paragraphs ?? []) as { text?: string }[])
-        .map((paragraph) => paragraph.text ?? "")
-        .join("\n"),
+      {
+        id: doc.id,
+        text: ((doc.paragraphs ?? []) as { text?: string }[])
+          .map((p) => p.text ?? "")
+          .join("\n"),
+      },
     ])
   );
-  const citations = (rawResult.citations ?? []).filter((citation) => {
-    const source = documentText.get(citation.document_title);
-    return !!source && source.toLowerCase().includes(citation.excerpt.trim().toLowerCase());
-  });
+  const citations = (rawResult.citations ?? [])
+    .filter((citation) => {
+      const source = docMap.get(citation.document_title);
+      return !!source && source.text.toLowerCase().includes(citation.excerpt.trim().toLowerCase());
+    })
+    .map((citation) => ({
+      ...citation,
+      document_id: docMap.get(citation.document_title)?.id ?? null,
+    }));
   const unsupported = !rawResult.not_found && citations.length === 0;
   const result = {
     answer: unsupported
