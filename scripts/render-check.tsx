@@ -6,11 +6,17 @@ import { renderPoultryShieldPro } from "../src/lib/poultryshieldpro-render";
 import { loadPoultryShieldProFonts } from "../src/lib/poultryshieldpro-fonts";
 import { renderSwineGuardPlus } from "../src/lib/swineguardplus-render";
 import { loadSwineGuardPlusFonts } from "../src/lib/swineguardplus-fonts";
-import { renderCaniGuard5 } from "../src/lib/caniguard5-render";
+import {
+  caniGuard5LayoutDensity,
+  renderCaniGuard5,
+} from "../src/lib/caniguard5-render";
 import { loadCaniGuard5Fonts } from "../src/lib/caniguard5-fonts";
 import { renderDigestPro } from "../src/lib/digestpro-render";
 import { loadDigestProFonts } from "../src/lib/digestpro-fonts";
-import { renderVitalBite } from "../src/lib/vitalbite-render";
+import {
+  vitalBiteLayoutDensity,
+  renderVitalBite,
+} from "../src/lib/vitalbite-render";
 import { loadVitalBiteFonts } from "../src/lib/vitalbite-fonts";
 import {
   apexCanineLayoutDensity,
@@ -124,23 +130,59 @@ async function main() {
   await renderOne("stress-swine-feed", "swineguardplus_social", "feed");
   await renderOne("stress-swine-flyer", "swineguardplus_flyer", "a4");
 
-  // CaniGuard 5
+  // CaniGuard 5 (square only — new Canva campaign 2026-06)
   await renderOne("stress-caniguard-square", "caniguard5_social", "square");
-  await renderOne("stress-caniguard-story", "caniguard5_social", "story");
-  await renderOne("stress-caniguard-feed", "caniguard5_feed", "feed");
-  await renderOne("stress-caniguard-flyer", "caniguard5_flyer", "a4");
+  const caniShort = {
+    headline: "One vaccine.\nTotal confidence.",
+    supportCopy: "Clinically proven core protection.",
+  };
+  const caniStandard = {
+    headline: "One vaccine.\nFive diseases.\nTotal confidence.",
+    supportCopy: "Clinically proven protection against distemper, parvovirus, adenovirus, and parainfluenza.",
+  };
+  const caniLong = {
+    headline: "Complete five-in-one canine.\nCore protection.\nClinically proven confidence.",
+    supportCopy: "Clinically proven protection against distemper, parvovirus, adenovirus type 2, parainfluenza, and leptospirosis.",
+  };
+  assert.equal(caniGuard5LayoutDensity(caniShort), "short");
+  assert.equal(caniGuard5LayoutDensity(caniStandard), "standard");
+  assert.equal(caniGuard5LayoutDensity(caniLong), "long");
+  await renderOne("adaptive-short-caniguard-square", "caniguard5_social", "square", caniShort);
+  await renderOne("adaptive-standard-caniguard-square", "caniguard5_social", "square", caniStandard);
+  await renderOne("adaptive-long-caniguard-square", "caniguard5_social", "square", caniLong);
+
+  // VitalBite (square only — new Canva campaign 2026-06)
+  await renderOne("stress-vitalbite-square", "vitalbite_social", "square");
+  const vbShort = {
+    kicker: "Dental wellness",
+    headline: "Fresher breath.\nHappier dogs.",
+    supporting: "Grain-free daily chews.",
+    cta: "Shop now.",
+  };
+  const vbStandard = {
+    kicker: "Clinically tested dental wellness",
+    headline: "Fresher breath.\nCleaner teeth.\nHappier dogs.",
+    supporting: "Grain-free treats with natural ingredients for dogs of all sizes.",
+    cta: "Discover VitalBite.",
+  };
+  const vbLong = {
+    kicker: "Veterinarian-recommended dental wellness for dogs",
+    headline: "Fresher breath.\nCleaner teeth.\nHappier, healthier dogs.",
+    supporting: "Grain-free dental chews with natural ingredients clinically tested for dogs of all breeds and sizes.",
+    cta: "Discover VitalBite today.",
+  };
+  assert.equal(vitalBiteLayoutDensity(vbShort), "short");
+  assert.equal(vitalBiteLayoutDensity(vbStandard), "standard");
+  assert.equal(vitalBiteLayoutDensity(vbLong), "long");
+  await renderOne("adaptive-short-vitalbite-square", "vitalbite_social", "square", vbShort);
+  await renderOne("adaptive-standard-vitalbite-square", "vitalbite_social", "square", vbStandard);
+  await renderOne("adaptive-long-vitalbite-square", "vitalbite_social", "square", vbLong);
 
   // DigestPro
   await renderOne("stress-digestpro-square", "digestpro_social", "square");
   await renderOne("stress-digestpro-story", "digestpro_social", "story");
   await renderOne("stress-digestpro-flyer", "digestpro_flyer", "a4");
   await renderOne("stress-digestpro-presentation", "digestpro_presentation", "feed");
-
-  // VitalBite
-  await renderOne("stress-vitalbite-square", "vitalbite_square", "square");
-  await renderOne("stress-vitalbite-story", "vitalbite_story", "story");
-  await renderOne("stress-vitalbite-feed", "vitalbite_feed", "feed");
-  await renderOne("stress-vitalbite-flyer", "vitalbite_flyer", "a4");
 
   // Apex Canine
   await renderOne("stress-apex-square", "apex_canine_social", "square");

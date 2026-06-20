@@ -1,6 +1,6 @@
 import React from "react";
 import type { SizeKey } from "./creative";
-import { fitCopy, pickCopy, type CopyFit } from "./render-copy";
+import { fitCopy, pickCopy } from "./render-copy";
 
 type Fields = Record<string, string>;
 
@@ -17,393 +17,323 @@ type RenderResult = {
   element: React.ReactElement;
   w: number;
   h: number;
+  density: VitalBiteDensity;
 };
 
-const C = {
-  teal: "#1A4A3A",
-  green: "#3A7A5A",
-  dark: "#1A2C1A",
-  body: "#2E2E2E",
-  white: "#FFFFFF",
+export type VitalBiteDensity = "short" | "standard" | "long";
+
+// ─── Colors ───────────────────────────────────────────────────────────────────
+
+const TEAL = "#1A4A3A";
+const BODY = "#2E2E2E";
+const WHITE = "#FFFFFF";
+
+// ─── Square contract (1080×1080) ──────────────────────────────────────────────
+//
+// Text zone: left column from y≈212 (kicker top) down to y≈820 (above the
+// locked benefit icon strip baked into the background art).
+// Editable fields: kicker, headline, supportCopy, cta.
+// The headline is authored as explicit-newline phrases ("Fresher breath.\n
+// Cleaner teeth.\nHappier dogs.") — no character-width re-wrapping applied.
+
+type SquareContract = {
+  kicker: { fontSize: number; maxChars: number; height: number };
+  kickerHeadlineGap: number;
+  headline: { fontSize: number; maxChars: number; maxLines: number; containerHeight: number };
+  headlineBodyGap: number;
+  body: { fontSize: number; maxChars: number; maxLines: number; containerHeight: number };
+  bodyCtaGap: number;
+  cta: { fontSize: number; maxChars: number; minWidth: number; maxWidth: number; height: number };
 };
 
-function assetUrl(
-  origin: string,
-  format: "square" | "story" | "feed" | "flyer",
-  mode: "reference" | "background"
-) {
-  return new URL(
-    `/assets/vitalbite/vitalbite-${format}-${mode}.png`,
-    origin
-  ).toString();
+const SQUARE_CONTRACTS: Record<VitalBiteDensity, SquareContract> = {
+  short: {
+    kicker: { fontSize: 30, maxChars: 36, height: 52 },
+    kickerHeadlineGap: 12,
+    headline: { fontSize: 90, maxChars: 50, maxLines: 3, containerHeight: 285 },
+    headlineBodyGap: 14,
+    body: { fontSize: 27, maxChars: 76, maxLines: 2, containerHeight: 72 },
+    bodyCtaGap: 18,
+    cta: { fontSize: 27, maxChars: 20, minWidth: 200, maxWidth: 340, height: 66 },
+  },
+  standard: {
+    kicker: { fontSize: 28, maxChars: 36, height: 50 },
+    kickerHeadlineGap: 14,
+    headline: { fontSize: 86, maxChars: 50, maxLines: 3, containerHeight: 268 },
+    headlineBodyGap: 16,
+    body: { fontSize: 26, maxChars: 82, maxLines: 2, containerHeight: 66 },
+    bodyCtaGap: 18,
+    cta: { fontSize: 27, maxChars: 20, minWidth: 200, maxWidth: 340, height: 66 },
+  },
+  long: {
+    kicker: { fontSize: 26, maxChars: 40, height: 48 },
+    kickerHeadlineGap: 12,
+    headline: { fontSize: 76, maxChars: 50, maxLines: 3, containerHeight: 240 },
+    headlineBodyGap: 14,
+    body: { fontSize: 24, maxChars: 96, maxLines: 3, containerHeight: 88 },
+    bodyCtaGap: 16,
+    cta: { fontSize: 25, maxChars: 22, minWidth: 200, maxWidth: 340, height: 60 },
+  },
+};
+
+// ─── Density ──────────────────────────────────────────────────────────────────
+
+function supportCopy(fields: Fields) {
+  return pickCopy(fields, ["supporting", "supportCopy", "supportingCopy", "subline", "body"]);
 }
 
-function Spacer({ height }: { height: number }) {
-  return <div style={{ display: "flex", flexShrink: 0, height }} />;
+export function vitalBiteLayoutDensity(fields: Fields): VitalBiteDensity {
+  const headline = fields.headline || "";
+  const body = supportCopy(fields);
+  const headlineLines = headline ? headline.split(/\r?\n/).length : 0;
+  const bodyLen = body.replace(/\s+/g, " ").trim().length;
+  const kickerLen = (fields.kicker || "").trim().length;
+
+  if (headlineLines <= 2 && bodyLen <= 40 && kickerLen <= 20) return "short";
+  if (headlineLines >= 3 && bodyLen >= 66) return "long";
+  return "standard";
 }
 
-function supportingCopy(fields: Fields, fit?: CopyFit) {
-  return fitCopy(
-    pickCopy(fields, ["supporting", "supportCopy", "supportingCopy", "subline", "subheadline", "body"]),
-    fit
-  );
+// ─── Components ───────────────────────────────────────────────────────────────
+
+function assetUrl(origin: string, mode: "reference" | "background") {
+  const path = `/assets/vitalbite/vitalbite-square-${mode}.jpg`;
+  return origin ? new URL(path, origin).toString() : path;
 }
 
-function Text({
+// Approximate glyph width at a given font size (Nunito Sans, no letter-spacing)
+function glyphUnits(value: string) {
+  return Array.from(value).reduce((total, ch) => {
+    if (ch === " ") return total + 0.28;
+    if (/[ilI1.,'|]/.test(ch)) return total + 0.28;
+    if (/[mwMW@%&]/.test(ch)) return total + 0.82;
+    if (/[A-Z]/.test(ch)) return total + 0.62;
+    return total + 0.52;
+  }, 0);
+}
+
+function KickerText({
   value,
-  marginLeft,
-  width,
-  height,
-  color = C.dark,
-  size,
-  weight,
-  lineHeight,
-  align = "left",
+  contract,
 }: {
-  value?: string;
-  marginLeft: number;
-  width: number;
-  height: number;
-  color?: string;
-  size: number;
-  weight: 400 | 500 | 600 | 700 | 800;
-  lineHeight: number;
-  align?: "left" | "center";
+  value: string;
+  contract: SquareContract["kicker"];
 }) {
+  const fitted = fitCopy(value, { maxChars: contract.maxChars, maxLines: 1 });
   return (
     <div
+      data-template-field="kicker"
       style={{
         display: "flex",
         flexShrink: 0,
-        width,
-        height,
-        marginLeft,
+        width: 460,
+        maxHeight: contract.height,
         overflow: "hidden",
-        color,
-        fontFamily: "Nunito Sans",
-        fontSize: size,
-        fontWeight: weight,
-        lineHeight,
-        textAlign: align,
-        whiteSpace: "pre-wrap",
-      }}
-    >
-      {value}
-    </div>
-  );
-}
-
-function Kicker({
-  value,
-  marginLeft,
-  width,
-  height,
-  size,
-}: {
-  value?: string;
-  marginLeft: number;
-  width: number;
-  height: number;
-  size: number;
-}) {
-  return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        flexShrink: 0,
-        width,
-        height,
-        marginLeft,
-        overflow: "hidden",
-        color: C.green,
-        fontFamily: "Nunito Sans",
-        fontSize: size,
+        color: TEAL,
+        fontFamily: "VitalBite Nunito Sans",
+        fontSize: contract.fontSize,
         fontWeight: 500,
         lineHeight: 1.1,
         whiteSpace: "pre-wrap",
       }}
     >
-      {value}
+      <span data-template-content style={{ display: "block", width: "100%" }}>
+        {fitted}
+      </span>
     </div>
   );
 }
 
-function Button({
+function HeadlineText({
   value,
-  marginLeft,
-  width,
-  height,
-  size,
+  contract,
 }: {
-  value?: string;
-  marginLeft: number;
-  width: number;
-  height: number;
-  size: number;
+  value: string;
+  contract: SquareContract["headline"];
 }) {
+  // Headline is authored as explicit-newline short phrases — preserve them,
+  // just enforce maxLines and maxChars as a safety cap.
+  const fitted = fitCopy(value, {
+    maxChars: contract.maxChars,
+    maxLines: contract.maxLines,
+  });
   return (
     <div
+      data-template-field="headline"
       style={{
         display: "flex",
+        flexShrink: 0,
+        width: 490,
+        maxHeight: contract.containerHeight,
+        overflow: "hidden",
+        color: TEAL,
+        fontFamily: "VitalBite Nunito Sans",
+        fontSize: contract.fontSize,
+        fontWeight: 800,
+        lineHeight: 1.02,
+        whiteSpace: "pre-wrap",
+      }}
+    >
+      <span data-template-content style={{ display: "block", width: "100%" }}>
+        {fitted}
+      </span>
+    </div>
+  );
+}
+
+function BodyText({
+  value,
+  contract,
+}: {
+  value: string;
+  contract: SquareContract["body"];
+}) {
+  const fitted = fitCopy(value, {
+    maxChars: contract.maxChars,
+    maxLines: contract.maxLines,
+  });
+  return (
+    <div
+      data-template-field="supportCopy"
+      style={{
+        display: "flex",
+        flexShrink: 0,
+        width: 448,
+        maxHeight: contract.containerHeight,
+        overflow: "hidden",
+        color: BODY,
+        fontFamily: "VitalBite Nunito Sans",
+        fontSize: contract.fontSize,
+        fontWeight: 400,
+        lineHeight: 1.3,
+        whiteSpace: "pre-wrap",
+      }}
+    >
+      <span data-template-content style={{ display: "block", width: "100%" }}>
+        {fitted}
+      </span>
+    </div>
+  );
+}
+
+function CtaButton({
+  value,
+  contract,
+}: {
+  value: string;
+  contract: SquareContract["cta"];
+}) {
+  const fitted = fitCopy(value, { maxChars: contract.maxChars, maxLines: 1 });
+  const hPad = 28;
+  const measured = glyphUnits(fitted) * contract.fontSize * 1.06 + hPad * 2;
+  const width = Math.min(contract.maxWidth, Math.max(contract.minWidth, measured));
+
+  return (
+    <div
+      data-template-field="cta"
+      style={{
+        display: "flex",
+        flexShrink: 0,
         alignItems: "center",
         justifyContent: "center",
-        flexShrink: 0,
         width,
-        height,
-        marginLeft,
-        borderRadius: height / 2,
-        backgroundColor: C.teal,
-        color: C.white,
-        fontFamily: "Nunito Sans",
-        fontSize: size,
+        height: contract.height,
+        paddingLeft: hPad,
+        paddingRight: hPad,
+        boxSizing: "border-box",
+        borderRadius: contract.height / 2,
+        backgroundColor: TEAL,
+        color: WHITE,
+        fontFamily: "VitalBite Nunito Sans",
+        fontSize: contract.fontSize,
         fontWeight: 700,
         overflow: "hidden",
         whiteSpace: "nowrap",
       }}
     >
-      {value}
+      <span data-template-content>{fitted}</span>
     </div>
   );
 }
 
-function Canvas({
-  width,
-  height,
-  format,
+function Spacer({ height }: { height: number }) {
+  return <div aria-hidden="true" style={{ display: "flex", flexShrink: 0, height }} />;
+}
+
+// ─── Canvas ───────────────────────────────────────────────────────────────────
+
+function SquareCanvas({
+  fields,
   origin,
   original,
-  children,
-}: {
-  width: number;
-  height: number;
-  format: "square" | "story" | "feed" | "flyer";
-  origin: string;
-  original?: boolean;
-  children?: React.ReactNode;
-}) {
+  density,
+}: Omit<RenderInput, "sizeKey" | "layoutKey"> & { density: VitalBiteDensity }) {
+  const c = SQUARE_CONTRACTS[density];
+  const body = supportCopy(fields);
+
   return (
     <div
+      data-vitalbite-format="square"
+      data-vitalbite-density={density}
       style={{
+        position: "relative",
         display: "flex",
-        flexDirection: "column",
-        width,
-        height,
+        width: 1080,
+        height: 1080,
         overflow: "hidden",
-        backgroundImage: `url(${assetUrl(
-          origin,
-          format,
-          original ? "reference" : "background"
-        )})`,
-        backgroundSize: `${width}px ${height}px`,
+        backgroundImage: `url(${assetUrl(origin, original ? "reference" : "background")})`,
+        backgroundSize: "1080px 1080px",
         backgroundRepeat: "no-repeat",
       }}
     >
-      {!original && children}
+      {!original && (
+        <div
+          data-template-stack
+          style={{
+            position: "absolute",
+            display: "flex",
+            flexDirection: "column",
+            left: 52,
+            top: 212,
+            width: 490,
+            // maxHeight keeps the stack above the locked benefit icons at ~y=820.
+            maxHeight: 608,
+            overflow: "hidden",
+          }}
+        >
+          <KickerText value={fields.kicker || ""} contract={c.kicker} />
+          <Spacer height={c.kickerHeadlineGap} />
+          <HeadlineText value={fields.headline || ""} contract={c.headline} />
+          <Spacer height={c.headlineBodyGap} />
+          <BodyText value={body} contract={c.body} />
+          <Spacer height={c.bodyCtaGap} />
+          <CtaButton value={fields.cta || ""} contract={c.cta} />
+        </div>
+      )}
     </div>
   );
 }
 
-function Square({ fields, origin, original }: Omit<RenderInput, "sizeKey" | "layoutKey">) {
-  return (
-    <Canvas width={1080} height={1080} format="square" origin={origin} original={original}>
-      <Spacer height={212} />
-      <Kicker value={fitCopy(fields.kicker, { maxChars: 30 })} marginLeft={52} width={460} height={50} size={28} />
-      <Spacer height={14} />
-      <Text
-        value={fitCopy(fields.headline, { maxChars: 28, maxLines: 3, lineChars: 9 })}
-        marginLeft={52}
-        width={490}
-        height={268}
-        size={86}
-        weight={800}
-        lineHeight={1.02}
-      />
-      <Spacer height={16} />
-      <Text
-        value={supportingCopy(fields, { maxChars: 82, maxWords: 11, maxLines: 2, lineChars: 32 })}
-        marginLeft={52}
-        width={448}
-        height={60}
-        color={C.body}
-        size={26}
-        weight={400}
-        lineHeight={1.3}
-      />
-      <Spacer height={18} />
-      <Button value={fitCopy(fields.cta, { maxChars: 14 })} marginLeft={52} width={255} height={66} size={27} />
-    </Canvas>
-  );
-}
+// ─── Public API ───────────────────────────────────────────────────────────────
 
-function Story({ fields, origin, original }: Omit<RenderInput, "sizeKey" | "layoutKey">) {
-  return (
-    <Canvas width={1080} height={1920} format="story" origin={origin} original={original}>
-      <Spacer height={722} />
-      <Kicker value={fitCopy(fields.kicker, { maxChars: 34 })} marginLeft={54} width={580} height={52} size={30} />
-      <Spacer height={16} />
-      <Text
-        value={fitCopy(fields.headline, { maxChars: 36, maxLines: 3, lineChars: 12 })}
-        marginLeft={54}
-        width={700}
-        height={310}
-        size={92}
-        weight={800}
-        lineHeight={1.01}
-      />
-      <Spacer height={20} />
-      <Text
-        value={supportingCopy(fields, { maxChars: 90, maxWords: 12, maxLines: 2, lineChars: 34 })}
-        marginLeft={54}
-        width={610}
-        height={66}
-        color={C.body}
-        size={30}
-        weight={400}
-        lineHeight={1.3}
-      />
-      <Spacer height={24} />
-      <Text
-        value={fitCopy(pickCopy(fields, ["bullets", "benefits"]), { maxChars: 140, maxLines: 4, lineChars: 34 })}
-        marginLeft={54}
-        width={640}
-        height={196}
-        size={30}
-        weight={500}
-        lineHeight={1.38}
-      />
-      <Spacer height={28} />
-      <Button value={fitCopy(fields.cta, { maxChars: 15 })} marginLeft={54} width={295} height={78} size={30} />
-    </Canvas>
-  );
-}
-
-function Feed({ fields, origin, original }: Omit<RenderInput, "sizeKey" | "layoutKey">) {
-  return (
-    <Canvas width={1200} height={630} format="feed" origin={origin} original={original}>
-      {/* Positions measured against vitalbite-feed-reference.png: logo
-          bottom ~95, headline top ~180, support top ~440, CTA top ~520. */}
-      <Spacer height={180} />
-      <Text
-        value={fitCopy(fields.headline, { maxChars: 30, maxLines: 3, lineChars: 10 })}
-        marginLeft={54}
-        width={520}
-        height={235}
-        size={78}
-        weight={800}
-        lineHeight={1.01}
-      />
-      <Spacer height={30} />
-      <Text
-        value={supportingCopy(fields, { maxChars: 76, maxWords: 10, maxLines: 2, lineChars: 32 })}
-        marginLeft={54}
-        width={498}
-        height={50}
-        color={C.body}
-        size={26}
-        weight={400}
-        lineHeight={1.3}
-      />
-      <Spacer height={30} />
-      <Button value={fitCopy(fields.cta, { maxChars: 14 })} marginLeft={54} width={240} height={62} size={26} />
-    </Canvas>
-  );
-}
-
-function Flyer({ fields, disclaimer, origin, original }: Omit<RenderInput, "sizeKey" | "layoutKey">) {
-  // Each benefit must be fit independently (own maxLines budget) — fitting
-  // the joined string with a single maxLines cap starves later items of
-  // lines and silently drops them.
-  const benefitItems = (fields.benefits ?? "")
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .slice(0, 3);
-  const benefitLines = benefitItems.map((item) => fitCopy(item, { maxChars: 40, maxLines: 2, lineChars: 20 }));
-
-  return (
-    <Canvas width={1240} height={1754} format="flyer" origin={origin} original={original}>
-      {/* Positions measured against vitalbite-flyer-reference.png: kicker
-          top ~325, headline top ~390, body top ~715, the three benefit
-          rows at ~1050/1150/1255, CTA top ~1370, website top ~1455. */}
-      <Spacer height={325} />
-      <Kicker value={fitCopy(fields.kicker, { maxChars: 32 })} marginLeft={78} width={500} height={40} size={28} />
-      <Spacer height={30} />
-      {/* No lineChars rewrap here: the headline is authored as 3 short
-          newline-separated phrases (see default_copy), each meant to occupy
-          one line. Re-wrapping by an approximate char budget at this font
-          size mis-measures bold glyph width and drops the last phrase. */}
-      <Text
-        value={fitCopy(fields.headline, { maxChars: 60, maxLines: 3 })}
-        marginLeft={78}
-        width={560}
-        height={240}
-        size={58}
-        weight={800}
-        lineHeight={1.35}
-      />
-      <Spacer height={80} />
-      <Text
-        value={fitCopy(fields.body || supportingCopy(fields), { maxChars: 220, maxWords: 36, maxLines: 6, lineChars: 32 })}
-        marginLeft={78}
-        width={370}
-        height={325}
-        color={C.body}
-        size={23}
-        weight={400}
-        lineHeight={1.42}
-      />
-      <Spacer height={10} />
-      <Text value={benefitLines[0] ?? ""} marginLeft={165} width={300} height={60} size={22} weight={700} lineHeight={1.22} />
-      <Spacer height={40} />
-      <Text value={benefitLines[1] ?? ""} marginLeft={165} width={300} height={60} size={22} weight={700} lineHeight={1.22} />
-      <Spacer height={45} />
-      <Text value={benefitLines[2] ?? ""} marginLeft={165} width={300} height={60} size={22} weight={700} lineHeight={1.22} />
-      <Spacer height={55} />
-      <Button value={fitCopy(fields.cta, { maxChars: 20 })} marginLeft={76} width={344} height={60} size={26} />
-      <Spacer height={25} />
-      <Text
-        value={fitCopy(pickCopy(fields, ["website", "contact"]), { maxChars: 28 })}
-        marginLeft={76}
-        width={330}
-        height={30}
-        color={C.teal}
-        size={26}
-        weight={500}
-        lineHeight={1.1}
-      />
-      <Spacer height={50} />
-      <Text
-        value={fitCopy(disclaimer, { maxChars: 160, maxLines: 3, lineChars: 46 })}
-        marginLeft={78}
-        width={400}
-        height={94}
-        color="#5A5A5A"
-        size={18}
-        weight={400}
-        lineHeight={1.32}
-      />
-    </Canvas>
-  );
-}
-
-function resolveFormat(layoutKey?: string, sizeKey?: SizeKey): "square" | "story" | "feed" | "flyer" {
-  if (layoutKey === "vitalbite_flyer") return "flyer";
-  if (sizeKey === "story" || layoutKey === "vitalbite_story") return "story";
-  if (sizeKey === "feed" || layoutKey === "vitalbite_feed") return "feed";
-  return "square";
+export function vitalBiteDimensions() {
+  return { w: 1080, h: 1080 };
 }
 
 export function renderVitalBite(input: RenderInput): RenderResult {
-  const format = resolveFormat(input.layoutKey, input.sizeKey);
-  switch (format) {
-    case "story":
-      return { element: <Story {...input} />, w: 1080, h: 1920 };
-    case "feed":
-      return { element: <Feed {...input} />, w: 1200, h: 630 };
-    case "flyer":
-      return { element: <Flyer {...input} />, w: 1240, h: 1754 };
-    default:
-      return { element: <Square {...input} />, w: 1080, h: 1080 };
-  }
+  const density = vitalBiteLayoutDensity(input.fields);
+  return {
+    element: (
+      <SquareCanvas
+        fields={input.fields}
+        origin={input.origin}
+        disclaimer={input.disclaimer}
+        original={input.original}
+        density={density}
+      />
+    ),
+    w: 1080,
+    h: 1080,
+    density,
+  };
 }

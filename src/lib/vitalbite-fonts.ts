@@ -4,7 +4,7 @@ import { join } from "node:path";
 type VitalBiteFont = {
   name: string;
   data: ArrayBuffer;
-  weight: 400 | 500 | 600 | 700 | 800;
+  weight: 400 | 500 | 700 | 800;
   style: "normal";
 };
 
@@ -26,10 +26,10 @@ export function loadVitalBiteFonts(): Promise<VitalBiteFont[]> {
       readPublicFont("NunitoSans-Bold.ttf"),
       readPublicFont("NunitoSans-ExtraBold.ttf"),
     ]).then(([regular, semi, bold, extra]) => [
-      { name: "Nunito Sans", data: regular, weight: 400, style: "normal" },
-      { name: "Nunito Sans", data: semi, weight: 500, style: "normal" },
-      { name: "Nunito Sans", data: bold, weight: 700, style: "normal" },
-      { name: "Nunito Sans", data: extra, weight: 800, style: "normal" },
+      { name: "VitalBite Nunito Sans", data: regular, weight: 400, style: "normal" },
+      { name: "VitalBite Nunito Sans", data: semi, weight: 500, style: "normal" },
+      { name: "VitalBite Nunito Sans", data: bold, weight: 700, style: "normal" },
+      { name: "VitalBite Nunito Sans", data: extra, weight: 800, style: "normal" },
     ]);
   }
   return fontPromise;

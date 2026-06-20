@@ -4,7 +4,7 @@ import { join } from "node:path";
 type CaniGuardFont = {
   name: string;
   data: ArrayBuffer;
-  weight: 400 | 500 | 700 | 800;
+  weight: 400 | 700 | 800;
   style: "normal";
 };
 
@@ -22,16 +22,13 @@ export function loadCaniGuard5Fonts(): Promise<CaniGuardFont[]> {
   if (!fontPromise) {
     fontPromise = Promise.all([
       readPublicFont("Roboto-Regular.ttf"),
-      readPublicFont("Roboto-Medium.ttf"),
       readPublicFont("Roboto-Bold.ttf"),
       readPublicFont("Roboto-ExtraBold.ttf"),
-    ]).then(([regular, medium, bold, extraBold]) => [
-      { name: "Roboto", data: regular, weight: 400, style: "normal" },
-      { name: "Roboto", data: medium, weight: 500, style: "normal" },
-      { name: "Roboto", data: bold, weight: 700, style: "normal" },
-      { name: "Roboto", data: extraBold, weight: 800, style: "normal" },
+    ]).then(([regular, bold, extraBold]) => [
+      { name: "CaniGuard Roboto", data: regular, weight: 400, style: "normal" },
+      { name: "CaniGuard Roboto", data: bold, weight: 700, style: "normal" },
+      { name: "CaniGuard Roboto", data: extraBold, weight: 800, style: "normal" },
     ]);
   }
-
   return fontPromise;
 }
