@@ -33,6 +33,62 @@
 }
 
 @font-face {
+  font-family: "VitalBite Nunito Sans";
+  src: url("/fonts/NunitoSans-Regular.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "VitalBite Nunito Sans";
+  src: url("/fonts/NunitoSans-SemiBold.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 500;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "VitalBite Nunito Sans";
+  src: url("/fonts/NunitoSans-Bold.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 700;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "VitalBite Nunito Sans";
+  src: url("/fonts/NunitoSans-ExtraBold.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 800;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "CaniGuard Roboto";
+  src: url("/fonts/Roboto-Regular.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "CaniGuard Roboto";
+  src: url("/fonts/Roboto-Bold.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 700;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "CaniGuard Roboto";
+  src: url("/fonts/Roboto-ExtraBold.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 800;
+  font-display: block;
+}
+
+@font-face {
   font-family: "Apex Fraunces";
   src: url("/fonts/Fraunces9pt-Bold.woff2") format("woff2");
   font-style: normal;
