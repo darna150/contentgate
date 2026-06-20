@@ -29,3 +29,38 @@ export function renderUrl(contentId: string, size: SizeKey): string {
 export function templatePreviewUrl(templateId: string, size: SizeKey): string {
   return `/api/creative/template-preview?template=${templateId}&size=${size}`;
 }
+
+function assetFormatForSize(size: SizeKey): "square" | "story" | "feed" | "flyer" {
+  if (size === "story") return "story";
+  if (size === "feed") return "feed";
+  if (size === "a4") return "flyer";
+  return "square";
+}
+
+function templateAssetFamily(layoutKey: string): string | null {
+  if (layoutKey.startsWith("digestpro_")) return "digestpro";
+  if (layoutKey.startsWith("caniguard5_")) return "caniguard5";
+  if (layoutKey.startsWith("poultryshieldpro_")) return "poultryshieldpro";
+  if (layoutKey.startsWith("swineguardplus_")) return "swineguardplus";
+  if (layoutKey.startsWith("vitalbite_")) return "vitalbite";
+  if (layoutKey.startsWith("apex_canine_")) return "apex-canine";
+  return null;
+}
+
+export function templateReferenceAssetUrl(
+  layoutKey: string,
+  size: SizeKey
+): string | null {
+  const family = templateAssetFamily(layoutKey);
+  if (!family) return null;
+  const extension = family === "apex-canine" ? "jpg" : "png";
+  return `/assets/${family}/${family}-${assetFormatForSize(size)}-reference.${extension}`;
+}
+
+export function originalTemplatePreviewUrl(
+  templateId: string,
+  layoutKey: string,
+  size: SizeKey
+): string {
+  return templateReferenceAssetUrl(layoutKey, size) ?? templatePreviewUrl(templateId, size);
+}

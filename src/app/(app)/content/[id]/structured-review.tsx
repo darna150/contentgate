@@ -3,13 +3,11 @@
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import { updateStructuredFields, submitForReview } from "../actions";
-import { fieldLabel, REVISION_OPTIONS, type Evidence } from "@/lib/templates";
+import { fieldLabel, type Evidence } from "@/lib/templates";
 import { fieldLimitText, type FieldLimits } from "@/lib/template-fields";
 
 export function StructuredReview({
   id,
-  productTemplateId,
-  language,
   status,
   initialFields,
   order,
@@ -17,8 +15,6 @@ export function StructuredReview({
   limits,
 }: {
   id: string;
-  productTemplateId: string;
-  language: string;
   status: string;
   initialFields: Record<string, string>;
   order: string[];
@@ -30,7 +26,6 @@ export function StructuredReview({
   const [savedFields, setSavedFields] = useState(initialFields);
   const [message, setMessage] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
   const [pending, startTransition] = useTransition();
-  const [revising, setRevising] = useState<string | null>(null);
 
   const dirty = useMemo(
     () => order.some((k) => (fields[k] ?? "") !== (savedFields[k] ?? "")),
@@ -72,36 +67,7 @@ export function StructuredReview({
     });
   }
 
-  async function revise(key: string) {
-    setRevising(key);
-    setMessage(null);
-    try {
-      const res = await fetch("/api/products/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          productTemplateId,
-          language,
-          revisions: [key],
-          replaceContentId: id,
-        }),
-      });
-      const j = await res.json();
-      if (!res.ok) {
-        setMessage({ kind: "error", text: j.error ?? "Revision failed." });
-        return;
-      }
-      setFields(j.structured_fields);
-      setSavedFields(j.structured_fields);
-      router.refresh();
-    } catch {
-      setMessage({ kind: "error", text: "Revision failed. Try again." });
-    } finally {
-      setRevising(null);
-    }
-  }
-
-  const busy = pending || revising !== null;
+  const busy = pending;
 
   return (
     <div className="flex flex-col gap-5">
@@ -157,7 +123,7 @@ export function StructuredReview({
             disabled={busy || !dirty}
             className="rounded-control border border-edge-strong bg-surface px-[18px] py-2.5 text-[13.5px] font-semibold transition-colors hover:border-brand disabled:opacity-50"
           >
-            {pending && !revising ? "Working…" : "Save changes"}
+            {pending ? "Working…" : "Save changes"}
           </button>
           {(status === "draft" || status === "rejected") && (
             <button
@@ -181,31 +147,6 @@ export function StructuredReview({
           )}
         </div>
       </div>
-
-      {/* Controlled revisions */}
-      {status !== "approved" && (
-        <div className="flex flex-col gap-3 rounded-card border border-edge bg-surface p-[22px]">
-          <div className="flex items-center gap-2">
-            <h2 className="text-[15px] font-bold">Refine</h2>
-            <span className="text-[12px] text-ink-faint">
-              Regenerates from approved sources only
-            </span>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {REVISION_OPTIONS.map((o) => (
-              <button
-                key={o.key}
-                type="button"
-                onClick={() => revise(o.key)}
-                disabled={busy}
-                className="rounded-full border border-edge-strong px-3.5 py-[7px] text-[12.5px] font-semibold text-ink-muted transition-colors hover:border-brand hover:text-brand disabled:opacity-50"
-              >
-                {revising === o.key ? "Refining…" : o.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

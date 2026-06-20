@@ -4,7 +4,7 @@ import { join } from "node:path";
 type ApexFont = {
   name: string;
   data: ArrayBuffer;
-  weight: 400 | 600 | 700 | 800;
+  weight: 400 | 700;
   style: "normal";
 };
 
@@ -21,17 +21,13 @@ async function readPublicFont(filename: string): Promise<ArrayBuffer> {
 export function loadApexCanineFonts(): Promise<ApexFont[]> {
   if (!fontPromise) {
     fontPromise = Promise.all([
-      readPublicFont("Fraunces-Bold.ttf"),
-      readPublicFont("NunitoSans-Regular.ttf"),
-      readPublicFont("NunitoSans-SemiBold.ttf"),
-      readPublicFont("NunitoSans-Bold.ttf"),
-      readPublicFont("NunitoSans-ExtraBold.ttf"),
-    ]).then(([fraunces, nunitoRegular, nunitoSemiBold, nunitoBold, nunitoExtraBold]) => [
-      { name: "Fraunces", data: fraunces, weight: 700, style: "normal" },
-      { name: "Nunito Sans", data: nunitoRegular, weight: 400, style: "normal" },
-      { name: "Nunito Sans", data: nunitoSemiBold, weight: 600, style: "normal" },
-      { name: "Nunito Sans", data: nunitoBold, weight: 700, style: "normal" },
-      { name: "Nunito Sans", data: nunitoExtraBold, weight: 800, style: "normal" },
+      readPublicFont("Fraunces9pt-Bold.otf"),
+      readPublicFont("Nourd-Regular.otf"),
+      readPublicFont("Nourd-Bold.otf"),
+    ]).then(([fraunces, nourdRegular, nourdBold]) => [
+      { name: "Apex Fraunces", data: fraunces, weight: 700, style: "normal" },
+      { name: "Apex Nourd", data: nourdRegular, weight: 400, style: "normal" },
+      { name: "Apex Nourd", data: nourdBold, weight: 700, style: "normal" },
     ]);
   }
 

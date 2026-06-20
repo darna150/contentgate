@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { resolveEffectiveFieldLimits } from "@/lib/template-specs";
 import { StudioEditor } from "./studio-editor";
 
-type Product = { id: string; name: string };
+type Product = { id: string; name: string; disclaimer_text: string | null };
 type Template = {
   id: string;
   product_id: string;
@@ -22,7 +22,11 @@ export default async function StudioPage({
   const query = await searchParams;
   const supabase = await createClient();
   const [{ data: productRows }, { data: templateRows }, { data: organization }] = await Promise.all([
-    supabase.from("products").select("id, name").eq("status", "active").order("name"),
+    supabase
+      .from("products")
+      .select("id, name, disclaimer_text")
+      .eq("status", "active")
+      .order("name"),
     supabase
       .from("product_templates")
       .select("id, product_id, category, variant, layout_key, editable_fields, default_copy, field_limits")
@@ -51,11 +55,14 @@ export default async function StudioPage({
     title: string;
     status: string;
     structured_fields: Record<string, string>;
+    manuallyEdited: boolean;
   } | null = null;
   if (query.content && selectedTemplate) {
     const { data } = await supabase
       .from("generated_content")
-      .select("id, title, status, structured_fields, product_template_id")
+      .select(
+        "id, title, status, structured_fields, prompt_context, product_template_id"
+      )
       .eq("id", query.content)
       .eq("product_template_id", selectedTemplate.id)
       .single();
@@ -65,6 +72,14 @@ export default async function StudioPage({
         title: data.title,
         status: data.status,
         structured_fields: (data.structured_fields ?? {}) as Record<string, string>,
+        manuallyEdited:
+          Array.isArray(
+            (data.prompt_context as { manually_edited_fields?: unknown[] } | null)
+              ?.manually_edited_fields
+          ) &&
+          (
+            data.prompt_context as { manually_edited_fields?: unknown[] }
+          ).manually_edited_fields!.length > 0,
       };
     }
   }

@@ -6,10 +6,12 @@ import { useState } from "react";
 const LANGUAGES = ["English", "Filipino", "Spanish", "Portuguese", "Vietnamese", "Thai"];
 
 export function GenerateVariant({
+  productId,
   templateId,
   variant,
   compact = false,
 }: {
+  productId: string;
   templateId: string;
   variant: string;
   compact?: boolean;
@@ -33,7 +35,12 @@ export function GenerateVariant({
         setError(j.error ?? "Generation failed.");
         return;
       }
-      router.push(`/content/${j.contentId}`);
+      const params = new URLSearchParams({
+        product: productId,
+        template: templateId,
+        content: j.contentId,
+      });
+      router.push(`/studio?${params.toString()}`);
     } catch {
       setError("Generation failed. Try again.");
     } finally {
@@ -59,7 +66,11 @@ export function GenerateVariant({
         disabled={busy}
         className="whitespace-nowrap rounded-control bg-brand px-4 py-2 text-[12.5px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
       >
-        {busy ? "Generating…" : compact ? "Generate" : `Generate ${variant}`}
+      {busy
+        ? "Generating preview…"
+        : compact
+          ? "Generate"
+          : `Generate ${variant}`}
       </button>
       {error && <span className="whitespace-nowrap text-[12px] text-reject">{error}</span>}
     </div>

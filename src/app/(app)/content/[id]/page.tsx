@@ -117,8 +117,6 @@ export default async function ContentDetailPage({
           {isStructured ? (
             <StructuredReview
               id={content.id}
-              productTemplateId={content.product_template_id!}
-              language={content.target_language}
               status={content.status}
               initialFields={structuredFields}
               order={order}

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { fieldLabel } from "@/lib/templates";
-import { defaultSizeFor, SIZES } from "@/lib/creative";
+import { defaultSizeFor, originalTemplatePreviewUrl, SIZES } from "@/lib/creative";
 import { GenerateVariant } from "./generate-variant";
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -17,6 +17,7 @@ type Template = {
   id: string;
   category: string;
   variant: string;
+  layout_key: string;
   editable_fields: string[];
   generation_instructions: string;
   sort_order: number;
@@ -52,7 +53,7 @@ export default async function ProductDetailPage({
     supabase.from("documents").select("id, title").eq("product_id", id),
     supabase
       .from("product_templates")
-      .select("id, category, variant, editable_fields, generation_instructions, default_copy, sort_order")
+      .select("id, category, variant, layout_key, editable_fields, generation_instructions, default_copy, sort_order")
       .eq("product_id", id)
       .eq("status", "active")
       .order("sort_order", { ascending: true }),
@@ -108,7 +109,11 @@ export default async function ProductDetailPage({
                 {variants.map((t) => {
                   const sizeKey = defaultSizeFor(t.category);
                   const dims = SIZES[sizeKey];
-                  const previewSrc = `/api/creative/template-preview?template=${t.id}&size=${sizeKey}`;
+                  const previewSrc = originalTemplatePreviewUrl(
+                    t.id,
+                    t.layout_key,
+                    sizeKey
+                  );
                   return (
                     <div
                       key={t.id}
@@ -143,7 +148,12 @@ export default async function ProductDetailPage({
                           >
                             View template
                           </Link>
-                          <GenerateVariant templateId={t.id} variant={t.variant} compact />
+                          <GenerateVariant
+                            productId={id}
+                            templateId={t.id}
+                            variant={t.variant}
+                            compact
+                          />
                         </div>
                       </div>
                     </div>

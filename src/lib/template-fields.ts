@@ -6,6 +6,11 @@ export type FieldLimit = {
 
 export type FieldLimits = Record<string, FieldLimit>;
 
+export type FieldIssue = {
+  type: "required" | "characters" | "words" | "lines";
+  message: string;
+};
+
 export function fieldLimitText(limit?: FieldLimit): string {
   if (!limit) return "No configured limit";
   const parts: string[] = [];
@@ -27,6 +32,52 @@ export function fitFieldValue(value: unknown, limit?: FieldLimit): string {
     text = text.slice(0, limit.max_chars).trimEnd();
   }
   return text;
+}
+
+export function fieldIssues(
+  value: unknown,
+  limit?: FieldLimit,
+  required = true
+): FieldIssue[] {
+  const text = String(value ?? "");
+  const issues: FieldIssue[] = [];
+  const trimmed = text.trim();
+  if (required && !trimmed) {
+    issues.push({ type: "required", message: "Required field" });
+  }
+  if (limit?.max_chars && text.length > limit.max_chars) {
+    issues.push({
+      type: "characters",
+      message: `${text.length - limit.max_chars} characters over`,
+    });
+  }
+  const words = trimmed ? trimmed.split(/\s+/).length : 0;
+  if (limit?.max_words && words > limit.max_words) {
+    issues.push({
+      type: "words",
+      message: `${words - limit.max_words} words over`,
+    });
+  }
+  const lines = text ? text.split(/\r?\n/).length : 0;
+  if (limit?.max_lines && lines > limit.max_lines) {
+    issues.push({
+      type: "lines",
+      message: `${lines - limit.max_lines} lines over`,
+    });
+  }
+  return issues;
+}
+
+export function templateFieldIssues(
+  fields: Record<string, unknown>,
+  order: string[],
+  limits: FieldLimits
+): Record<string, FieldIssue[]> {
+  return Object.fromEntries(
+    order
+      .map((key) => [key, fieldIssues(fields[key], limits[key])] as const)
+      .filter(([, issues]) => issues.length > 0)
+  );
 }
 
 export function fitTemplateFields(

@@ -19,6 +19,15 @@ type Body = {
   replaceContentId?: string; // when revising, update this draft in place
 };
 
+const ALLOWED_LANGUAGES = new Set([
+  "English",
+  "Filipino",
+  "Spanish",
+  "Portuguese",
+  "Vietnamese",
+  "Thai",
+]);
+
 export async function POST(req: Request) {
   if (!process.env.ANTHROPIC_API_KEY) {
     return Response.json({ error: "Generation is not configured." }, { status: 503 });
@@ -30,10 +39,26 @@ export async function POST(req: Request) {
   } = await supabase.auth.getUser();
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { productTemplateId, language = "English", revisions = [], replaceContentId } =
-    (await req.json()) as Body;
-  if (!productTemplateId) {
+  let requestBody: Body;
+  try {
+    requestBody = (await req.json()) as Body;
+  } catch {
+    return Response.json({ error: "Invalid request body." }, { status: 400 });
+  }
+  const {
+    productTemplateId,
+    language = "English",
+    revisions = [],
+    replaceContentId,
+  } = requestBody;
+  if (!productTemplateId || typeof productTemplateId !== "string") {
     return Response.json({ error: "Missing product template." }, { status: 400 });
+  }
+  if (!ALLOWED_LANGUAGES.has(language)) {
+    return Response.json({ error: "Unsupported language." }, { status: 400 });
+  }
+  if (!Array.isArray(revisions) || revisions.length > 1) {
+    return Response.json({ error: "Invalid refinement selection." }, { status: 400 });
   }
 
   const { data: profile } = await supabase
@@ -50,6 +75,7 @@ export async function POST(req: Request) {
       "id, product_id, category, variant, layout_key, editable_fields, default_copy, field_limits, generation_instructions"
     )
     .eq("id", productTemplateId)
+    .eq("status", "active")
     .single();
   if (!tpl) return Response.json({ error: "Template not found." }, { status: 404 });
 
@@ -59,7 +85,7 @@ export async function POST(req: Request) {
     supabase
       .from("documents")
       .select("id, title, paragraphs")
-      .or(`product_id.eq.${tpl.product_id},product_id.is.null`),
+      .eq("product_id", tpl.product_id),
   ]);
   if (!product) return Response.json({ error: "Product not found." }, { status: 404 });
 
@@ -184,28 +210,43 @@ export async function POST(req: Request) {
     // In-place revision: only the author may revise, and only a draft/rejected row.
     const { data: existing } = await supabase
       .from("generated_content")
-      .select("id, status")
+      .select("id, status, product_template_id")
       .eq("id", replaceContentId)
+      .eq("product_template_id", tpl.id)
       .single();
-    if (existing && (existing.status === "draft" || existing.status === "rejected")) {
-      const res = await supabase
-        .from("generated_content")
-        .update({
-          structured_fields: structured,
-          citations: evidence,
-          body,
-          target_language: language,
-          source_document_ids: sourceDocs.map((d) => d.id),
-          prompt_context: { language, revisions, field_limits: fieldLimits },
-          status: "draft",
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", replaceContentId)
-        .select("id")
-        .single();
-      row = res.data;
-      writeError = res.error;
+    if (!existing) {
+      return Response.json({ error: "Draft to replace was not found." }, { status: 404 });
     }
+    if (existing.status !== "draft" && existing.status !== "rejected") {
+      return Response.json(
+        { error: "Only draft or rejected content can be regenerated." },
+        { status: 409 }
+      );
+    }
+    const res = await supabase
+      .from("generated_content")
+      .update({
+        structured_fields: structured,
+        citations: evidence,
+        body,
+        target_language: language,
+        source_document_ids: sourceDocs.map((d) => d.id),
+        prompt_context: {
+          language,
+          revisions,
+          field_limits: fieldLimits,
+          generated_fields: structured,
+          manually_edited_fields: [],
+          compliance_state: "generated",
+        },
+        status: "draft",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", replaceContentId)
+      .select("id")
+      .single();
+    row = res.data;
+    writeError = res.error;
   }
 
   if (!row && !writeError) {
@@ -223,7 +264,14 @@ export async function POST(req: Request) {
         title,
         body,
         target_language: language,
-        prompt_context: { language, revisions, field_limits: fieldLimits },
+        prompt_context: {
+          language,
+          revisions,
+          field_limits: fieldLimits,
+          generated_fields: structured,
+          manually_edited_fields: [],
+          compliance_state: "generated",
+        },
         status: "draft",
       })
       .select("id")

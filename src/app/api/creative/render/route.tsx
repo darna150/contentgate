@@ -2,7 +2,10 @@ import { ImageResponse } from "next/og";
 import { createClient } from "@/lib/supabase/server";
 import { SIZES, type SizeKey } from "@/lib/creative";
 import { AssetLayout } from "@/lib/creative-layout";
-import { renderApexCanine } from "@/lib/apex-canine-render";
+import {
+  isApexCanineSizeAllowed,
+  renderApexCanine,
+} from "@/lib/apex-canine-render";
 import { loadApexCanineFonts } from "@/lib/apex-canine-fonts";
 import { renderVitalBite } from "@/lib/vitalbite-render";
 import { loadVitalBiteFonts } from "@/lib/vitalbite-fonts";
@@ -64,6 +67,9 @@ export async function GET(req: Request) {
   }
 
   if (layoutKey.startsWith("apex_canine_")) {
+    if (!isApexCanineSizeAllowed(layoutKey, sizeKey)) {
+      return new Response("Unsupported size for this template", { status: 400 });
+    }
     const origin = new URL(req.url).origin;
     const { element, w, h } = renderApexCanine({
       sizeKey,

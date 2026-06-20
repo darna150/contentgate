@@ -4,10 +4,20 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { flattenFields } from "@/lib/templates";
-import { fitTemplateFields, type FieldLimits } from "@/lib/template-fields";
+import {
+  templateFieldIssues,
+  type FieldLimits,
+} from "@/lib/template-fields";
 import { resolveEffectiveFieldLimits } from "@/lib/template-specs";
 
-type ActionResult = { ok: true } | { error: string };
+type ActionResult =
+  | {
+      ok: true;
+      status?: string;
+      savedAt?: string;
+      manuallyEdited?: boolean;
+    }
+  | { error: string };
 
 async function requireUser() {
   const supabase = await createClient();
@@ -38,6 +48,38 @@ function writeAudit(entry: {
     .then(({ error }) => {
       if (error) console.error("audit_log insert failed:", error.message);
     });
+}
+
+function validateStoredTemplateFields(content: {
+  structured_fields: unknown;
+  product_templates:
+    | {
+        layout_key: string;
+        editable_fields: unknown;
+        field_limits: unknown;
+      }
+    | {
+        layout_key: string;
+        editable_fields: unknown;
+        field_limits: unknown;
+      }[]
+    | null;
+}): string | null {
+  const template = Array.isArray(content.product_templates)
+    ? content.product_templates[0]
+    : content.product_templates;
+  if (!template) return "Template configuration was not found.";
+  const order = (template.editable_fields ?? []) as string[];
+  const fields = (content.structured_fields ?? {}) as Record<string, unknown>;
+  const limits = resolveEffectiveFieldLimits(
+    template.layout_key,
+    (template.field_limits ?? {}) as FieldLimits
+  );
+  const issues = templateFieldIssues(fields, order, limits);
+  const firstIssue = order.find((key) => issues[key]?.length);
+  return firstIssue
+    ? `${firstIssue.replace(/_/g, " ")}: ${issues[firstIssue][0].message}`
+    : null;
 }
 
 export async function updateContentBody(
@@ -82,7 +124,9 @@ export async function updateStructuredFields(
 
   const { data: content } = await ctx.supabase
     .from("generated_content")
-    .select("product_templates(layout_key, editable_fields, field_limits)")
+    .select(
+      "structured_fields, prompt_context, product_templates(layout_key, editable_fields, field_limits)"
+    )
     .eq("id", id)
     .single();
   const template = Array.isArray(content?.product_templates)
@@ -95,14 +139,49 @@ export async function updateStructuredFields(
     template.layout_key,
     (template.field_limits ?? {}) as FieldLimits
   );
-  const cleaned = fitTemplateFields(fields, order, limits);
+  const cleaned = Object.fromEntries(
+    order.map((key) => [key, String(fields[key] ?? "")])
+  );
+  const issues = templateFieldIssues(cleaned, order, limits);
+  const firstIssue = order.find((key) => issues[key]?.length);
+  if (firstIssue) {
+    return {
+      error: `${firstIssue.replace(/_/g, " ")}: ${issues[firstIssue][0].message}`,
+    };
+  }
   const body = flattenFields(cleaned, order);
   if (!body) return { error: "Content cannot be empty." };
+
+  const promptContext =
+    content?.prompt_context && typeof content.prompt_context === "object"
+      ? (content.prompt_context as Record<string, unknown>)
+      : {};
+  const generatedFields =
+    promptContext.generated_fields &&
+    typeof promptContext.generated_fields === "object"
+      ? (promptContext.generated_fields as Record<string, string>)
+      : ((content?.structured_fields ?? {}) as Record<string, string>);
+  const manuallyEditedFields = order.filter(
+    (key) => cleaned[key] !== (generatedFields[key] ?? "")
+  );
+  const savedAt = new Date().toISOString();
 
   // Updating body triggers revoke_approval_on_edit (approved → draft).
   const { data: row, error } = await ctx.supabase
     .from("generated_content")
-    .update({ structured_fields: cleaned, body, updated_at: new Date().toISOString() })
+    .update({
+      structured_fields: cleaned,
+      body,
+      prompt_context: {
+        ...promptContext,
+        generated_fields: generatedFields,
+        manually_edited_fields: manuallyEditedFields,
+        compliance_state:
+          manuallyEditedFields.length > 0 ? "needs_review" : "generated",
+        last_manual_edit_at: manuallyEditedFields.length > 0 ? savedAt : null,
+      },
+      updated_at: savedAt,
+    })
     .eq("id", id)
     .select("id, status")
     .single();
@@ -115,12 +194,20 @@ export async function updateStructuredFields(
     actor_id: ctx.user.id,
     action: "content.edited",
     entity_id: id,
-    detail: { status_after_edit: row.status },
+    detail: {
+      status_after_edit: row.status,
+      manually_edited_fields: manuallyEditedFields,
+    },
   });
 
   revalidatePath(`/content/${id}`);
   revalidatePath("/content");
-  return { ok: true };
+  return {
+    ok: true,
+    status: row.status,
+    savedAt,
+    manuallyEdited: manuallyEditedFields.length > 0,
+  };
 }
 
 export async function approveContent(id: string): Promise<ActionResult> {
@@ -137,7 +224,9 @@ export async function approveContent(id: string): Promise<ActionResult> {
   const admin = createAdminClient();
   const { data: row } = await admin
     .from("generated_content")
-    .select("org_id, status")
+    .select(
+      "org_id, status, structured_fields, product_templates(layout_key, editable_fields, field_limits)"
+    )
     .eq("id", id)
     .single();
   if (!row || row.org_id !== ctx.profile.org_id) {
@@ -145,6 +234,10 @@ export async function approveContent(id: string): Promise<ActionResult> {
   }
   if (row.status !== "in_review") {
     return { error: "Only content in review can be approved." };
+  }
+  const validationError = validateStoredTemplateFields(row);
+  if (validationError) {
+    return { error: `Content no longer fits its template: ${validationError}` };
   }
 
   const { error } = await admin
@@ -226,12 +319,18 @@ export async function submitForReview(id: string): Promise<ActionResult> {
 
   const { data: current } = await ctx.supabase
     .from("generated_content")
-    .select("status")
+    .select(
+      "status, structured_fields, product_templates(layout_key, editable_fields, field_limits)"
+    )
     .eq("id", id)
     .single();
   if (!current) return { error: "Content not found." };
   if (current.status !== "draft" && current.status !== "rejected") {
     return { error: "Only drafts can be submitted for review." };
+  }
+  const validationError = validateStoredTemplateFields(current);
+  if (validationError) {
+    return { error: `Content does not fit its template: ${validationError}` };
   }
 
   const { error } = await ctx.supabase

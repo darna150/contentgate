@@ -1,7 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { defaultSizeFor, SIZES, templatePreviewUrl } from "@/lib/creative";
+import {
+  defaultSizeFor,
+  originalTemplatePreviewUrl,
+  SIZES,
+} from "@/lib/creative";
 import { resolveEffectiveFieldLimits } from "@/lib/template-specs";
 import { fieldLabel } from "@/lib/templates";
 import { fieldLimitText, type FieldLimits } from "@/lib/template-fields";
@@ -36,7 +40,11 @@ export default async function ProductTemplatePage({
   const locked = (template.locked_fields ?? []) as string[];
   const sizeKey = defaultSizeFor(template.category);
   const size = SIZES[sizeKey];
-  const preview = templatePreviewUrl(template.id, sizeKey);
+  const preview = originalTemplatePreviewUrl(
+    template.id,
+    template.layout_key,
+    sizeKey
+  );
 
   return (
     <div className="mx-auto flex max-w-[1280px] flex-col gap-6 px-10 py-9">
@@ -72,7 +80,8 @@ export default async function ProductTemplatePage({
               Open in Studio
             </Link>
             <a
-              href={`${preview}&download=1`}
+              href={preview}
+              download
               className="rounded-control border border-edge-strong px-4 py-2.5 text-[13px] font-semibold text-ink"
             >
               Download original
@@ -120,7 +129,11 @@ export default async function ProductTemplatePage({
             <p className="text-[12.5px] leading-relaxed text-ink-muted">
               {template.generation_instructions}
             </p>
-            <GenerateVariant templateId={template.id} variant={template.variant} />
+            <GenerateVariant
+              productId={product.id}
+              templateId={template.id}
+              variant={template.variant}
+            />
           </div>
         </div>
       </div>

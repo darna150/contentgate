@@ -1,4 +1,5 @@
 import { writeFile } from "node:fs/promises";
+import assert from "node:assert/strict";
 import { ImageResponse } from "next/og";
 import { renderTemplateSpec } from "../src/lib/template-spec-render";
 import { renderPoultryShieldPro } from "../src/lib/poultryshieldpro-render";
@@ -11,11 +12,14 @@ import { renderDigestPro } from "../src/lib/digestpro-render";
 import { loadDigestProFonts } from "../src/lib/digestpro-fonts";
 import { renderVitalBite } from "../src/lib/vitalbite-render";
 import { loadVitalBiteFonts } from "../src/lib/vitalbite-fonts";
-import { renderApexCanine } from "../src/lib/apex-canine-render";
+import {
+  apexCanineLayoutDensity,
+  renderApexCanine,
+} from "../src/lib/apex-canine-render";
 import { loadApexCanineFonts } from "../src/lib/apex-canine-fonts";
 import type { SizeKey } from "../src/lib/creative";
 
-const origin = "http://localhost:3001";
+const origin = "http://localhost:3000";
 
 // Worst-case stress copy: every field gets MORE raw input than any
 // configured max_chars/max_words/max_lines ceiling in the codebase, so each
@@ -141,8 +145,66 @@ async function main() {
   // Apex Canine
   await renderOne("stress-apex-square", "apex_canine_social", "square");
   await renderOne("stress-apex-story", "apex_canine_social", "story");
-  await renderOne("stress-apex-feed", "apex_canine_social", "feed");
   await renderOne("stress-apex-flyer", "apex_canine_flyer", "a4");
+  const apexShortSocial = {
+    kicker: "Daily nutrition",
+    headline: "Good health starts here.",
+    supportCopy: "Real chicken. Daily support.",
+    cta: "Discover Apex",
+  };
+  const apexStandardSocial = {
+    kicker: "Veterinarian-formulated nutrition",
+    headline: "Balanced nutrition for adult dogs.",
+    supportCopy: "Real chicken with daily support.",
+    cta: "Discover Apex Canine",
+  };
+  const apexSocial = {
+    kicker: "Veterinarian-formulated adult nutrition",
+    headline: "Complete daily nutrition for healthier dogs.",
+    supportCopy: "Real chicken with digestive, skin and coat support.",
+    cta: "Discover Apex Canine",
+  };
+  assert.equal(apexCanineLayoutDensity("square", apexShortSocial), "short");
+  assert.equal(apexCanineLayoutDensity("square", apexStandardSocial), "standard");
+  assert.equal(apexCanineLayoutDensity("square", apexSocial), "long");
+  await renderOne("adaptive-short-apex-square", "apex_canine_social", "square", apexShortSocial);
+  await renderOne("adaptive-standard-apex-square", "apex_canine_social", "square", apexStandardSocial);
+  await renderOne("reference-apex-square", "apex_canine_social", "square", apexSocial);
+  await renderOne("adaptive-short-apex-story", "apex_canine_social", "story", apexShortSocial);
+  await renderOne("adaptive-standard-apex-story", "apex_canine_social", "story", apexStandardSocial);
+  await renderOne("reference-apex-story", "apex_canine_social", "story", apexSocial);
+  await renderOne("reported-overlap-apex-story", "apex_canine_social", "story", {
+    kicker: "Veterinarian-formulated nutrition",
+    headline: "Complete, AAFCO-balanced adult care",
+    supportCopy: "Real chicken, joint, digestive and coat support.",
+    cta: "Recommend Apex Canine",
+  });
+  const apexShortFlyer = {
+    kicker: "Everyday adult nutrition",
+    headline: "Healthy starts daily.",
+    body: "Real chicken and balanced everyday support for adult dogs.",
+  };
+  const apexStandardFlyer = {
+    kicker: "Veterinarian-formulated adult nutrition",
+    headline: "Balanced nutrition for adult dogs.",
+    body: "A balanced formula made with real chicken to support healthy digestion, skin, coat, and everyday vitality.",
+  };
+  const apexLongFlyer = {
+    kicker: "Veterinarian-formulated adult nutrition",
+    headline: "Complete daily nutrition for healthier dogs.",
+    body: "A thoughtfully crafted adult dog nutrition formula made with real chicken and targeted support for digestion, skin, coat, and everyday vitality.",
+  };
+  assert.equal(apexCanineLayoutDensity("a4", apexShortFlyer), "short");
+  assert.equal(apexCanineLayoutDensity("a4", apexStandardFlyer), "standard");
+  assert.equal(apexCanineLayoutDensity("a4", apexLongFlyer), "long");
+  await renderOne("adaptive-short-apex-flyer", "apex_canine_flyer", "a4", apexShortFlyer);
+  await renderOne("adaptive-standard-apex-flyer", "apex_canine_flyer", "a4", apexStandardFlyer);
+  await renderOne("reference-apex-flyer", "apex_canine_flyer", "a4", apexLongFlyer);
+  await renderOne("reported-overlap-apex-flyer", "apex_canine_flyer", "a4", {
+    kicker: "Adult dog nutrition explained",
+    headline: "Understanding complete and balanced nutrition",
+    body: "Apex Canine is a complete, balanced food meeting AAFCO standards for adult dogs, made with real chicken first, plus prebiotic fiber and live probiotic cultures.",
+  });
 }
 
 main().catch((err) => {
