@@ -22,6 +22,16 @@ import {
   apexCanineLayoutDensity,
   renderApexCanine,
 } from "@/lib/apex-canine-render";
+import {
+  caniGuard5Dimensions,
+  caniGuard5LayoutDensity,
+  renderCaniGuard5,
+} from "@/lib/caniguard5-render";
+import {
+  vitalBiteDimensions,
+  vitalBiteLayoutDensity,
+  renderVitalBite,
+} from "@/lib/vitalbite-render";
 import { exportCanvas, type ExportFormat } from "@/lib/canvas-export";
 import { fieldLabel, REVISION_OPTIONS } from "@/lib/templates";
 import {
@@ -187,13 +197,18 @@ export function StudioEditor({
 }) {
   const router = useRouter();
   const isApexCanine = selectedTemplate.layout_key.startsWith("apex_canine_");
+  const isCaniGuard5 = selectedTemplate.layout_key.startsWith("caniguard5_");
+  const isVitalBite = selectedTemplate.layout_key.startsWith("vitalbite_");
+  const isLiveCanvas = isApexCanine || isCaniGuard5 || isVitalBite;
   const categorySizes =
     CATEGORY_SIZES[selectedTemplate.category] ?? CATEGORY_SIZES.social;
   const sizes = isApexCanine
     ? selectedTemplate.layout_key === "apex_canine_flyer"
       ? (["a4"] as SizeKey[])
       : (["square", "story"] as SizeKey[])
-    : categorySizes;
+    : isCaniGuard5 || isVitalBite
+      ? (["square"] as SizeKey[])
+      : categorySizes;
   const [size, setSize] = useState<SizeKey>(sizes[0]);
   const [language, setLanguage] = useState("English");
   const [selectedRevision, setSelectedRevision] = useState<string | null>(null);
@@ -230,9 +245,9 @@ export function StudioEditor({
     [templates, selectedProduct.id]
   );
   const activeFields = draftFields;
-  const isApexPilot = isApexCanine;
+  const isApexPilot = isLiveCanvas;
   const editablePilot =
-    isApexPilot &&
+    isLiveCanvas &&
     mode === "generated" &&
     content !== null &&
     (content.status === "draft" || content.status === "rejected");
@@ -276,23 +291,49 @@ export function StudioEditor({
           selectedTemplate.layout_key,
           size
         );
-  const dims = isApexCanine ? apexCanineDimensions(size) : SIZES[size];
-  const apexDensity = isApexCanine
+  const dims = isApexCanine
+    ? apexCanineDimensions(size)
+    : isCaniGuard5
+      ? caniGuard5Dimensions()
+      : isVitalBite
+        ? vitalBiteDimensions()
+        : SIZES[size];
+  const liveDensity = isApexCanine
     ? apexCanineLayoutDensity(size, activeFields)
-    : null;
-  const liveCanvas = isApexPilot
-    ? renderApexCanine({
-        sizeKey: size,
-        fields: activeFields,
-        disclaimer: selectedProduct.disclaimer_text ?? "",
-        origin: "",
-        original: mode === "original",
-      }).element
+    : isCaniGuard5
+      ? caniGuard5LayoutDensity(activeFields)
+      : isVitalBite
+        ? vitalBiteLayoutDensity(activeFields)
+        : null;
+  const liveCanvas = isLiveCanvas
+    ? isApexCanine
+      ? renderApexCanine({
+          sizeKey: size,
+          fields: activeFields,
+          disclaimer: selectedProduct.disclaimer_text ?? "",
+          origin: "",
+          original: mode === "original",
+        }).element
+      : isCaniGuard5
+        ? renderCaniGuard5({
+            sizeKey: size,
+            fields: activeFields,
+            disclaimer: selectedProduct.disclaimer_text ?? "",
+            origin: "",
+            original: mode === "original",
+          }).element
+        : renderVitalBite({
+            sizeKey: size,
+            fields: activeFields,
+            disclaimer: selectedProduct.disclaimer_text ?? "",
+            origin: "",
+            original: mode === "original",
+          }).element
     : null;
 
   useLayoutEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas || !isApexCanine || mode === "original") {
+    if (!canvas || !isLiveCanvas || mode === "original") {
       setOverflowFields([]);
       return;
     }
@@ -337,7 +378,7 @@ export function StudioEditor({
       cancelled = true;
       observer.disconnect();
     };
-  }, [activeFields, isApexCanine, mode, size]);
+  }, [activeFields, isLiveCanvas, mode, size]);
 
   useEffect(() => {
     if (!dirty || !content || mode !== "generated") {
@@ -497,7 +538,7 @@ export function StudioEditor({
       const filename = `${selectedProduct.name}-${selectedTemplate.variant}-${mode}-${size}`
         .replace(/[^\w]+/g, "-")
         .toLowerCase();
-      if (isApexPilot && canvasRef.current) {
+      if (isLiveCanvas && canvasRef.current) {
         await exportCanvas({
           node: canvasRef.current,
           width: dims.w,
@@ -749,13 +790,13 @@ export function StudioEditor({
             ))}
             {editablePilot && (
               <p className="rounded-control bg-approve-tint px-3 py-2 text-[11.5px] leading-relaxed text-approve">
-                Apex edits update the locked design immediately. The{" "}
-                <span className="font-bold capitalize">{apexDensity}</span>{" "}
+                Edits update the locked design immediately. The{" "}
+                <span className="font-bold capitalize">{liveDensity}</span>{" "}
                 copy arrangement was selected automatically. Artwork,
                 typography, safe zones, and approved positions remain locked.
               </p>
             )}
-            {isApexPilot && mode === "original" && (
+            {isLiveCanvas && mode === "original" && (
               <p className="rounded-control bg-page px-3 py-2 text-[11.5px] leading-relaxed text-ink-muted">
                 Generate a variation to edit copy. The approved original remains
                 read-only.
@@ -863,7 +904,7 @@ export function StudioEditor({
                 {content.status}
               </span>
             )}
-            {isApexPilot && (
+            {isLiveCanvas && (
               <select
                 value={exportFormat}
                 onChange={(event) =>
@@ -890,7 +931,7 @@ export function StudioEditor({
             >
               {downloading
                 ? "Preparing…"
-                : `Download ${isApexPilot ? exportFormat.toUpperCase() : "PNG"}`}
+                : `Download ${isLiveCanvas ? exportFormat.toUpperCase() : "PNG"}`}
             </button>
           </div>
 
