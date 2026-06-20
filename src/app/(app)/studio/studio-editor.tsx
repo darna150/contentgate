@@ -220,6 +220,7 @@ export function StudioEditor({
     "idle" | "unsaved" | "saving" | "saved" | "error"
   >("idle");
   const [savedAt, setSavedAt] = useState<string | null>(null);
+  const [previewBust, setPreviewBust] = useState(0);
   const [overflowFields, setOverflowFields] = useState<string[]>([]);
   const canvasRef = useRef<HTMLDivElement>(null);
   const saveSequence = useRef(0);
@@ -269,7 +270,7 @@ export function StudioEditor({
       saveState !== "saving");
   const previewUrl =
     mode === "generated" && content
-      ? renderUrl(content.id, size)
+      ? renderUrl(content.id, size) + (previewBust ? `&t=${previewBust}` : "")
       : originalTemplatePreviewUrl(
           selectedTemplate.id,
           selectedTemplate.layout_key,
@@ -467,6 +468,7 @@ export function StudioEditor({
       setSavedAt(new Date().toISOString());
       setHasManualEdits(false);
       setSelectedRevision(null);
+      setPreviewBust(Date.now());
       router.replace(
         `/studio?product=${selectedProduct.id}&template=${selectedTemplate.id}&content=${nextContent.id}`,
         { scroll: false }
