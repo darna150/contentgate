@@ -1,73 +1,248 @@
-# ContentGate MVP Roadmap
+# ContentGate MVP Execution Plan
 
-Last updated: 2026-07-06
+Last updated: 2026-07-12
 
-## Phase 0: Stabilize Live App
+## Product Goal
 
-Owner: Codex
+Ship a focused brand-safe content production MVP where approved knowledge and assets feed locked templates, content moves through a controlled review workflow, and only approved output can be exported.
 
-- Keep production deployable from `main`.
-- Keep a clear handoff in `AGENT_HANDOFF.md`.
-- Fix server-side approval and export bypasses before adding major UI surface.
-- Keep Supabase migrations additive.
-- Run build/lint checks before handoff whenever practical.
+The MVP is not a campaign planner, finance platform, project-management suite, or freeform Canva replacement.
 
-## Phase 1: Core Integrity
+## Current Status
 
-Owner: Codex
+### Completed
 
-- Harden RLS for profiles, documents, generated content, and storage.
-- Enforce approval transitions through server actions.
-- Block generated creative rendering/export for unapproved content.
-- Validate AI evidence against approved claims/source text.
-- Add audit events for creation, edits, submit, approval, rejection, and export.
+- Product direction, architecture, ownership, template onboarding, and production audit documented.
+- Supabase project restored and hardening migration applied to the live database.
+- Profile membership fields, source documents, product asset storage, and generated-content writes protected with stricter RLS.
+- Submit, approve, and reject transitions moved behind trusted server actions.
+- Direct creative rendering blocked for unapproved generated content.
+- AI evidence filtered against approved claims and source paragraphs before storage.
+- Authenticated draft -> review -> reject -> resubmit -> approve workflow verified on Vercel Preview.
+- Approved content-to-Studio handoff fixed and verified with VitalBite.
+- Lint, TypeScript, production build, browser console, and preview runtime-log checks pass.
 
-## Phase 2: Brand/Product Workspace MVP
+### Release Gate
+
+- Manually confirm Markdown and PNG downloads arrive as valid files.
+- Push the reviewed local commits to GitHub.
+- Promote only the verified build to Production.
+- Run post-deploy authentication, approval, export, and runtime-log checks.
+
+Production is intentionally unchanged until this gate is complete.
+
+## Execution Order
+
+Work in this order. Do not start a later UI phase while its backend contract is still changing.
+
+### 1. Release The Stabilized Foundation
+
+Status: In progress
+
+Owner: Codex, with one manual download check by Debbie
+
+Codex:
+
+- Confirm the local branch is clean and review every commit ahead of GitHub.
+- Push the reviewed commits to GitHub.
+- Confirm the Git/Vercel preview matches commit `8f1325c` or a later reviewed commit.
+- Promote the verified deployment to Production only after download confirmation.
+- Check production login, dashboard, content detail, Studio handoff, and runtime errors.
+- Record the production deployment ID and verification result in `PRODUCTION_AUDIT.md`.
+
+Debbie:
+
+- Click `Download .md` on the approved content page.
+- Click `Download PNG` in Studio.
+- Confirm both files open and contain the expected VitalBite content.
+
+Exit criteria:
+
+- GitHub, local `main`, and Production point to the same reviewed code.
+- The approved workflow and both download types work in Production.
+- No new warning/error/fatal runtime logs appear during smoke testing.
+
+### 2. Build The Asset Library Foundation
+
+Status: Next
 
 Owner: Codex first, Claude Code second
 
-- Normalize product/brand workspace data.
-- Connect each workspace to assets, source docs, templates, generated content, and approvals.
-- Add asset library basics: upload, metadata, tags/categories, image/PDF preview, and delete.
-- Polish workspace UI after backend rules are stable.
+Codex:
 
-## Phase 3: Template Engine Standardization
+- Audit the existing `product_assets` table, storage paths, and policies.
+- Define the MVP asset model: organization, product/workspace, asset type, title, storage path, file type, dimensions, tags, approval state, creator, and timestamps.
+- Add additive migrations for missing metadata and indexes.
+- Implement admin upload, metadata edit, filtering, preview data, and safe delete behavior.
+- Add audit events for asset upload, update, and deletion.
+- Add focused permission and storage-path tests.
+
+Claude Code, after Codex handoff:
+
+- Build the Asset Library interface from the established data contract.
+- Add grid/list views, search, product/type filters, upload progress, empty states, previews, and metadata editing.
+- Keep the interface work-focused, responsive, and consistent with the existing visual system.
+
+Exit criteria:
+
+- Admins can upload, organize, preview, filter, edit, and delete assets.
+- Non-admin write access is blocked by both UI and backend policy.
+- Assets are associated with the correct organization and product/workspace.
+
+### 3. Make Product Workspaces The Core Navigation Unit
+
+Status: After Asset Library foundation
 
 Owner: Codex first, Claude Code second
 
-- Make the Apex Canine pattern the official production template standard.
-- Keep editable fields, field limits, locked fields, density rules, and overflow policy consistent.
-- Add render/stress checks for each active template.
-- Claude Code can then calibrate visual spacing, type, and template polish.
+Codex:
 
-## Phase 4: Knowledge Hub
+- Define one workspace query/service that returns product profile, assets, approved sources, claims, templates, content, and approval counts.
+- Remove duplicated cross-page data assembly where it creates inconsistent behavior.
+- Define workspace-level permission and empty-state rules.
+
+Claude Code:
+
+- Rework the product detail experience into a clear workspace with Assets, Knowledge, Templates, Content, and Approvals views.
+- Preserve fast navigation into Knowledge Hub and Studio.
+- Complete desktop and mobile visual QA.
+
+Exit criteria:
+
+- Users can understand the complete state of one brand/product without jumping through unrelated screens.
+- All workspace views use the same organization/product boundary.
+
+### 4. Standardize The Template Engine
+
+Status: Partially implemented
 
 Owner: Codex first, Claude Code second
 
-- Improve source document model and citation validation.
-- Persist notebook sessions reliably.
-- Add summaries only after source/citation reliability is solid.
-- Polish the NotebookLM-style three-pane experience.
+Codex:
 
-## Phase 5: Approval Workflow Polish
+- Make the Apex Canine implementation the documented template contract.
+- Standardize layout keys, editable fields, locked fields, field limits, density rules, overflow checks, and supported output sizes.
+- Add automated render/stress checks for every active template and output size.
+- Confirm server-rendered and live-canvas templates share the same approval/export rules.
+- Hide or deactivate legacy templates that do not meet the contract.
+
+Claude Code:
+
+- Calibrate spacing, typography, imagery, and responsive Studio behavior for Apex Canine, VitalBite, and CaniGuard 5.
+- Compare rendered output with the approved Figma/Canva references.
+- Fix visual overflow only within the declared template contract.
+
+Exit criteria:
+
+- Every active template passes field-limit and render checks.
+- Approved output is visually reliable at every supported size.
+- Adding a new template follows one repeatable onboarding process.
+
+### 5. Strengthen Knowledge Hub Reliability
+
+Status: Core session experience exists
 
 Owner: Codex first, Claude Code second
 
-- Add approval/rejection notes and revision history.
-- Track who approved/exported what.
-- Improve reviewer screens and status indicators.
+Codex:
 
-## Later
+- Audit document ingestion, paragraph identity, citations, and notebook persistence.
+- Ensure answers cite only approved, accessible organization sources.
+- Add explicit no-evidence behavior instead of unsupported answers.
+- Add source/citation regression tests before adding semantic search.
+- Start with Postgres full-text search; add embeddings only when measured retrieval quality requires them.
 
-- Postgres full-text search, then semantic/vector search if needed.
-- Asset analytics.
-- Slack, Dropbox, Trello, Canva integrations.
-- Real-time collaboration.
-- Mobile-specific production flows.
+Claude Code:
 
-## Do Not Start Yet
+- Polish the three-pane NotebookLM-style experience.
+- Improve source selection, citation inspection, loading, empty, and mobile states.
+- Keep AI responses secondary to visible approved evidence.
 
-- Campaign planning.
-- Finance/funds modules.
+Exit criteria:
+
+- Saved sessions reload reliably.
+- Every supported answer has inspectable approved citations.
+- Unsupported questions fail clearly and safely.
+
+### 6. Complete Approval History And Auditability
+
+Status: Core state transitions verified; history is incomplete
+
+Owner: Codex first, Claude Code second
+
+Codex:
+
+- Confirm audit events cover create, generate, manual edit, submit, reject, approve, export, and approval revocation after editing.
+- Add immutable revision snapshots or a revision table for generated content.
+- Record export actor, format, content revision, and timestamp.
+- Add reviewer/author permission tests.
+
+Claude Code:
+
+- Build revision history, reviewer notes, comparison states, and clearer approval-queue filters.
+- Make status and next action obvious without adding campaign-management concepts.
+
+Exit criteria:
+
+- The team can answer who changed, approved, rejected, or exported each version.
+- Editing approved content reliably creates a new draft/review cycle.
+
+### 7. MVP Launch Readiness
+
+Status: Later in MVP
+
+Owner: Codex for engineering gates, Claude Code for visual QA
+
+Codex:
+
+- Add CI for lint, TypeScript/build, migration checks, and template render tests.
+- Establish a preview-branch and reviewed-promotion workflow.
+- Resolve relevant Supabase advisor warnings, including function search paths and service-function grants.
+- Review storage privacy, upload validation, rate limits, secrets, backups, and monitoring.
+- Add a small production smoke-test checklist and rollback procedure.
+
+Claude Code:
+
+- Complete responsive QA on the primary user journeys.
+- Verify loading, empty, error, disabled, and permission-denied states.
+- Run a final consistency pass against the design source of truth.
+
+Exit criteria:
+
+- A new customer organization can complete the core workflow without developer intervention.
+- CI and deployment gates prevent known security and template regressions.
+- Operational monitoring and rollback steps are documented.
+
+## Later, After MVP Validation
+
+- Asset usage analytics and reporting.
+- Semantic/vector search after full-text retrieval is measured.
+- Slack, Dropbox, Trello, and Canva integrations.
+- Real-time multi-user editing.
+- Advanced localization workflows.
+- Mobile-specific production flows beyond responsive review and access.
+
+## Do Not Prioritize
+
+- Campaign planning or calendars.
+- Funds, budgets, invoicing, or finance features.
+- Generic project/task management.
 - Full freeform canvas editing.
-- Complex multi-app integrations before the core asset/template/approval loop is reliable.
+- Broad integrations before the asset/template/approval loop is reliable.
+- Sanity CMS for core application records. Supabase should remain the system of record for governed assets, templates, permissions, and approvals.
+
+## Agent Handoff Rule
+
+Each Codex phase ends with:
+
+- A stable backend/data contract.
+- Applied additive migrations where needed.
+- Passing lint/build/tests.
+- Updated `AGENT_HANDOFF.md` and `PRODUCTION_AUDIT.md`.
+- A preview URL and explicit list of surfaces Claude Code may change.
+
+Each Claude Code phase ends with:
+
+- Visual QA notes for desktop and mobile.
+- No changes to RLS, trusted workflow transitions, approval/export rules, or service-role boundaries unless returned to Codex for review.
+- A clear handoff describing changed components and any backend needs discovered during UI work.

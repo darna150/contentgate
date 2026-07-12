@@ -6,6 +6,8 @@ Last updated: 2026-07-12
 
 Use `PRODUCT_DIRECTION.md` as the product source of truth. The older `HANDOVER.md` reflects an earlier regulated animal-health SaaS framing and should not be treated as the current strategy without cross-checking the newer docs.
 
+Use `MVP_ROADMAP.md` as the current execution order. It records completed work, release gates, Codex/Claude Code ownership, and exit criteria for each phase.
+
 Current direction:
 
 - Brand/content management platform.
@@ -81,6 +83,7 @@ Claude Code verified:
 
 ## Next Agent Should Check
 
+- Complete Phase 1, `Release The Stabilized Foundation`, in `MVP_ROADMAP.md` before starting Asset Library implementation.
 - Manually confirm the Markdown and live-canvas PNG files arrive in the local downloads folder. Browser automation could click the controls but did not expose the resulting download event.
 - Confirm `/api/creative/render` returns a rendered asset for approved content. Draft export absence was verified in the UI, but direct image-route navigation was blocked by the browser client before the application response could be observed.
 - Consider a future server-side creative export endpoint for live-canvas templates. The official UI blocks draft export, but any browser-rendered canvas can still be screenshotted by a determined user.
