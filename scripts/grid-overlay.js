@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 // Overlays a labeled pixel grid on an image so text-zone coordinates can be
 // read off visually at full resolution (or a cropped region of it).
 //

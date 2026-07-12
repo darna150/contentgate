@@ -245,7 +245,6 @@ export function StudioEditor({
     [templates, selectedProduct.id]
   );
   const activeFields = draftFields;
-  const isApexPilot = isLiveCanvas;
   const editablePilot =
     isLiveCanvas &&
     mode === "generated" &&

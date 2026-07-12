@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { createProduct } from "../actions";
 
@@ -13,9 +14,9 @@ export default async function NewProductPage() {
   return (
     <div className="mx-auto flex max-w-[680px] flex-col gap-6 px-10 py-9">
       <div className="flex flex-col gap-1.5">
-        <a href="/products" className="text-[13px] font-semibold text-brand hover:underline">
+        <Link href="/products" className="text-[13px] font-semibold text-brand hover:underline">
           ← Products
-        </a>
+        </Link>
         <h1 className="font-serif text-[28px] font-semibold">New product</h1>
         <p className="text-[14.5px] text-ink-muted">
           A product holds its approved claims, source documents, and templates.
@@ -67,12 +68,12 @@ export default async function NewProductPage() {
         </div>
 
         <div className="flex justify-end gap-3">
-          <a
+          <Link
             href="/products"
             className="rounded-control border border-edge px-[18px] py-2.5 text-[13.5px] font-semibold text-ink-muted transition-colors hover:text-ink"
           >
             Cancel
-          </a>
+          </Link>
           <button
             type="submit"
             className="rounded-control bg-brand px-[18px] py-2.5 text-[13.5px] font-semibold text-white transition-opacity hover:opacity-90"

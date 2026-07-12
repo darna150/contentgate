@@ -28,6 +28,45 @@ const ALLOWED_LANGUAGES = new Set([
   "Thai",
 ]);
 
+type SourceEntry = {
+  label: string;
+  text: string;
+};
+
+function normalizeEvidence(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function evidenceIsApproved(source: string, approvedSources: string[]) {
+  const needle = normalizeEvidence(source);
+  if (!needle) return false;
+
+  return approvedSources.some((approved) => {
+    const haystack = normalizeEvidence(approved);
+    return (
+      haystack.length > 0 &&
+      (haystack.includes(needle) || needle.includes(haystack))
+    );
+  });
+}
+
+function filterApprovedEvidence(
+  evidence: Evidence[],
+  editableFields: string[],
+  approvedSources: string[]
+) {
+  const validFields = new Set(editableFields);
+  return evidence.filter((item) => {
+    if (!validFields.has(item.field)) return false;
+    if (typeof item.approved_source !== "string") return false;
+    return evidenceIsApproved(item.approved_source, approvedSources);
+  });
+}
+
 export async function POST(req: Request) {
   if (!process.env.ANTHROPIC_API_KEY) {
     return Response.json({ error: "Generation is not configured." }, { status: 503 });
@@ -97,13 +136,20 @@ export async function POST(req: Request) {
   const defaultCopy = (tpl.default_copy ?? {}) as Record<string, string>;
   const approvedClaims = (claims ?? []).map((c) => c.claim_text);
   const sourceDocs = docs ?? [];
-  const sourceText = sourceDocs
-    .flatMap((d) =>
-      ((d.paragraphs as { n: number; text: string }[]) ?? []).map(
-        (p) => `[${d.title} ¶${p.n}] ${p.text}`
-      )
-    )
+  const sourceEntries: SourceEntry[] = sourceDocs.flatMap((d) =>
+    ((d.paragraphs as { n: number; text: string }[]) ?? []).map((p) => ({
+      label: `${d.title} ¶${p.n}`,
+      text: p.text,
+    }))
+  );
+  const sourceText = sourceEntries
+    .map((entry) => `[${entry.label}] ${entry.text}`)
     .join("\n");
+  const approvedEvidenceSources = [
+    ...approvedClaims,
+    ...sourceEntries.map((entry) => entry.text),
+    ...sourceEntries.map((entry) => `[${entry.label}] ${entry.text}`),
+  ];
 
   const extraInstructions = revisions
     .map(revisionInstruction)
@@ -198,7 +244,19 @@ export async function POST(req: Request) {
 
   // Keep only the requested fields, in order.
   const structured = fitTemplateFields(out.fields ?? {}, editableFields, fieldLimits);
-  const evidence = Array.isArray(out.evidence) ? out.evidence : [];
+  const rawEvidence = Array.isArray(out.evidence) ? out.evidence : [];
+  const evidence = filterApprovedEvidence(
+    rawEvidence,
+    editableFields,
+    approvedEvidenceSources
+  );
+  const rejectedEvidenceCount = rawEvidence.length - evidence.length;
+  if (rejectedEvidenceCount > 0) {
+    console.warn("Discarded unsupported generated evidence entries:", {
+      rejectedEvidenceCount,
+      productTemplateId,
+    });
+  }
 
   const title = `${product.name} · ${tpl.variant}`;
   const body = flattenFields(structured, editableFields);
@@ -238,6 +296,10 @@ export async function POST(req: Request) {
           generated_fields: structured,
           manually_edited_fields: [],
           compliance_state: "generated",
+          evidence_validation: {
+            accepted: evidence.length,
+            rejected: rejectedEvidenceCount,
+          },
         },
         status: "draft",
         updated_at: new Date().toISOString(),
@@ -271,6 +333,10 @@ export async function POST(req: Request) {
           generated_fields: structured,
           manually_edited_fields: [],
           compliance_state: "generated",
+          evidence_validation: {
+            accepted: evidence.length,
+            rejected: rejectedEvidenceCount,
+          },
         },
         status: "draft",
       })
@@ -291,7 +357,13 @@ export async function POST(req: Request) {
       action: revisions.length ? "content.revised" : "content.created",
       entity_type: "generated_content",
       entity_id: row.id,
-      detail: { product: product.name, variant: tpl.variant, revisions },
+      detail: {
+        product: product.name,
+        variant: tpl.variant,
+        revisions,
+        evidence_accepted: evidence.length,
+        evidence_rejected: rejectedEvidenceCount,
+      },
     });
   }
 

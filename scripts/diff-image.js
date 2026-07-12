@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 // Renders a visual diff mask (red = differs beyond threshold) between a
 // background (text-free) PNG and a reference (text baked in) PNG, so the
 // text zone can be read visually instead of guessed from noisy row stats.

@@ -37,7 +37,7 @@ export function AssetLayout({
   const pad = Math.round(m * 0.07);
   const benefits = [f(fields, "benefit_1"), f(fields, "benefit_2"), f(fields, "benefit_3")].filter(Boolean);
 
-  function Wordmark({ small }: { small?: boolean }) {
+  function renderWordmark(small?: boolean) {
     const s = small ? m * 0.026 : m * 0.032;
     return (
       <div style={{ display: "flex", alignItems: "center", gap: s * 0.5 }}>
@@ -64,7 +64,7 @@ export function AssetLayout({
     );
   }
 
-  function ApprovedPill() {
+  function renderApprovedPill() {
     return (
       <div
         style={{
@@ -84,7 +84,7 @@ export function AssetLayout({
     );
   }
 
-  function Disclaimer() {
+  function renderDisclaimer() {
     if (!disclaimer) return <div style={{ display: "flex" }} />;
     return (
       <div style={{ display: "flex", fontSize: m * 0.019, lineHeight: 1.3, color: C.disc, maxWidth: "92%" }}>
@@ -93,7 +93,7 @@ export function AssetLayout({
     );
   }
 
-  function Benefits({ size: bs }: { size: number }) {
+  function renderBenefits(bs: number) {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: bs * 0.5 }}>
         {benefits.map((b, i) => (
@@ -120,10 +120,10 @@ export function AssetLayout({
   if (layoutKey === "flyer_v1") {
     const headlineSize = m * 0.072;
     inner = (
-      <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", width: "100%", height: "100%" }}>
+        <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", width: "100%", height: "100%" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
-          <Wordmark />
-          <ApprovedPill />
+          {renderWordmark()}
+          {renderApprovedPill()}
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: pad * 0.4 }}>
           <div style={{ display: "flex", fontSize: headlineSize, fontWeight: 800, lineHeight: 1.04, letterSpacing: -headlineSize * 0.02 }}>
@@ -135,7 +135,7 @@ export function AssetLayout({
             </div>
           )}
         </div>
-        {benefits.length > 0 && <Benefits size={m * 0.032} />}
+        {benefits.length > 0 && renderBenefits(m * 0.032)}
         {f(fields, "body") && (
           <div style={{ display: "flex", fontSize: m * 0.028, lineHeight: 1.5, color: C.sub }}>
             {f(fields, "body")}
@@ -163,7 +163,7 @@ export function AssetLayout({
               {[f(fields, "contact"), f(fields, "territory")].filter(Boolean).join("  ·  ")}
             </div>
           )}
-          <Disclaimer />
+          {renderDisclaimer()}
         </div>
       </div>
     );
@@ -173,15 +173,15 @@ export function AssetLayout({
     inner = (
       <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", width: "100%", height: "100%" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
-          <Wordmark small={h < 1100} />
-          <ApprovedPill />
+          {renderWordmark(h < 1100)}
+          {renderApprovedPill()}
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: pad * 0.45 }}>
           <div style={{ display: "flex", fontSize: headlineSize, fontWeight: 800, lineHeight: 1.04, letterSpacing: -headlineSize * 0.02 }}>
             {f(fields, "headline")}
           </div>
           {hasBenefits ? (
-            <Benefits size={m * 0.04} />
+            renderBenefits(m * 0.04)
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: pad * 0.35 }}>
               {f(fields, "body") && (
@@ -202,7 +202,7 @@ export function AssetLayout({
             </div>
           )}
         </div>
-        <Disclaimer />
+        {renderDisclaimer()}
       </div>
     );
   }

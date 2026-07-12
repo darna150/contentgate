@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 // Measures text zones by diffing a reference (with baked-in text) PNG against
 // the text-free background PNG. Clusters rows with meaningful pixel diff into
 // horizontal bands, then reports the x-range within each band.

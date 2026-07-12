@@ -43,6 +43,12 @@ export async function GET(req: Request) {
     .eq("id", contentId)
     .single();
   if (!content) return new Response("Not found", { status: 404 });
+  if (content.status !== "approved") {
+    return new Response("Only approved content can be rendered.", {
+      status: 403,
+      headers: { "Cache-Control": "no-store" },
+    });
+  }
   const product = Array.isArray(content.products) ? content.products[0] : content.products;
   const tpl = Array.isArray(content.product_templates)
     ? content.product_templates[0]

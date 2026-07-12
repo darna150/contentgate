@@ -316,15 +316,26 @@ export async function rejectContent(
 export async function submitForReview(id: string): Promise<ActionResult> {
   const ctx = await requireUser();
   if (!ctx) return { error: "Your session expired — sign in again." };
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    return { error: "Review submission is not configured on this environment." };
+  }
 
-  const { data: current } = await ctx.supabase
+  // Status transitions are trusted server-side workflow changes. The normal
+  // authenticated client may edit drafts, but cannot promote content states.
+  const admin = createAdminClient();
+  const { data: current } = await admin
     .from("generated_content")
     .select(
-      "status, structured_fields, product_templates(layout_key, editable_fields, field_limits)"
+      "org_id, created_by, status, structured_fields, product_templates(layout_key, editable_fields, field_limits)"
     )
     .eq("id", id)
     .single();
-  if (!current) return { error: "Content not found." };
+  if (!current || current.org_id !== ctx.profile.org_id) {
+    return { error: "Content not found." };
+  }
+  if (current.created_by !== ctx.user.id && ctx.profile.role !== "admin") {
+    return { error: "Only the author or an admin can submit this content." };
+  }
   if (current.status !== "draft" && current.status !== "rejected") {
     return { error: "Only drafts can be submitted for review." };
   }
@@ -333,9 +344,14 @@ export async function submitForReview(id: string): Promise<ActionResult> {
     return { error: `Content does not fit its template: ${validationError}` };
   }
 
-  const { error } = await ctx.supabase
+  const { error } = await admin
     .from("generated_content")
-    .update({ status: "in_review", rejection_note: null })
+    .update({
+      status: "in_review",
+      rejection_note: null,
+      approved_by: null,
+      approved_at: null,
+    })
     .eq("id", id);
   if (error) return { error: `Could not submit: ${error.message}` };
 

@@ -1,10 +1,9 @@
 import { writeFile } from "node:fs/promises";
 import assert from "node:assert/strict";
 import { ImageResponse } from "next/og";
+import type { ReactElement } from "react";
 import { renderTemplateSpec } from "../src/lib/template-spec-render";
-import { renderPoultryShieldPro } from "../src/lib/poultryshieldpro-render";
 import { loadPoultryShieldProFonts } from "../src/lib/poultryshieldpro-fonts";
-import { renderSwineGuardPlus } from "../src/lib/swineguardplus-render";
 import { loadSwineGuardPlusFonts } from "../src/lib/swineguardplus-fonts";
 import {
   caniGuard5LayoutDensity,
@@ -26,6 +25,8 @@ import { loadApexCanineFonts } from "../src/lib/apex-canine-fonts";
 import type { SizeKey } from "../src/lib/creative";
 
 const origin = "http://localhost:3000";
+type ImageResponseOptions = NonNullable<ConstructorParameters<typeof ImageResponse>[1]>;
+type ImageResponseFont = NonNullable<ImageResponseOptions["fonts"]>[number];
 
 // Worst-case stress copy: every field gets MORE raw input than any
 // configured max_chars/max_words/max_lines ceiling in the codebase, so each
@@ -76,10 +77,10 @@ async function renderOne(
   sizeKey: SizeKey,
   fields: Record<string, string> = STRESS_FIELDS
 ) {
-  let element;
+  let element: ReactElement | undefined;
   let w = 0;
   let h = 0;
-  let fonts: any = undefined;
+  let fonts: ImageResponseFont[] | undefined = undefined;
 
   if (layoutKey.startsWith("poultryshieldpro_")) {
     const r = renderTemplateSpec({ layoutKey, sizeKey, fields, disclaimer: filler(120), origin });
@@ -111,7 +112,9 @@ async function renderOne(
     throw new Error("unknown layout " + layoutKey);
   }
 
-  const res = new ImageResponse(element as any, { width: w, height: h, fonts });
+  if (!element) throw new Error("renderer did not return an element");
+
+  const res = new ImageResponse(element, { width: w, height: h, fonts });
   const buf = Buffer.from(await res.arrayBuffer());
   await writeFile(`/tmp/diffs/${name}.png`, buf);
   console.log(`wrote /tmp/diffs/${name}.png (${w}x${h})`);
