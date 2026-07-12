@@ -1,6 +1,6 @@
 # Agent Handoff
 
-Last updated: 2026-07-08
+Last updated: 2026-07-12
 
 ## Current Direction
 
@@ -59,6 +59,9 @@ Claude Code should not loosen backend security, approval, RLS, or export constra
   - Removed an unused studio flag.
   - Converted shared creative-layout nested JSX components into render helpers.
 - Verified `git diff --check`, `npm run lint`, and `npm run build` pass locally on 2026-07-08 after migration confirmation.
+- Completed an authenticated draft -> review -> reject -> resubmit -> approve workflow check on Vercel Preview.
+- Fixed approved content deep links so Studio derives the canonical product/template from the saved content record instead of falling back to the first active product.
+- Verified the corrected preview loads approved VitalBite content in Generated mode with approved export controls and no browser or Vercel runtime errors.
 
 ## Remaining Blocker
 
@@ -78,8 +81,8 @@ Claude Code verified:
 
 ## Next Agent Should Check
 
-- Confirm `/api/creative/render` blocks drafts/rejected content and still renders approved content.
-- Confirm submit/approve/reject flow still works after the RLS migration.
+- Manually confirm the Markdown and live-canvas PNG files arrive in the local downloads folder. Browser automation could click the controls but did not expose the resulting download event.
+- Confirm `/api/creative/render` returns a rendered asset for approved content. Draft export absence was verified in the UI, but direct image-route navigation was blocked by the browser client before the application response could be observed.
 - Consider a future server-side creative export endpoint for live-canvas templates. The official UI blocks draft export, but any browser-rendered canvas can still be screenshotted by a determined user.
 
 ## Do Not Break

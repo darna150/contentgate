@@ -40,13 +40,29 @@ export default async function StudioPage({
     ...template,
     field_limits: resolveEffectiveFieldLimits(template.layout_key, template.field_limits),
   }));
+
+  const { data: requestedContent } = query.content
+    ? await supabase
+        .from("generated_content")
+        .select(
+          "id, title, status, structured_fields, prompt_context, product_id, product_template_id"
+        )
+        .eq("id", query.content)
+        .single()
+    : { data: null };
+
+  // A saved content record is the canonical product/template context. This
+  // keeps content deep links from silently falling back to Studio defaults.
+  const requestedProductId = requestedContent?.product_id ?? query.product;
+  const requestedTemplateId =
+    requestedContent?.product_template_id ?? query.template;
   const selectedProduct =
-    products.find((product) => product.id === query.product) ?? products[0] ?? null;
+    products.find((product) => product.id === requestedProductId) ?? products[0] ?? null;
   const productTemplates = templates.filter(
     (template) => template.product_id === selectedProduct?.id
   );
   const selectedTemplate =
-    productTemplates.find((template) => template.id === query.template) ??
+    productTemplates.find((template) => template.id === requestedTemplateId) ??
     productTemplates[0] ??
     null;
 
@@ -57,31 +73,27 @@ export default async function StudioPage({
     structured_fields: Record<string, string>;
     manuallyEdited: boolean;
   } | null = null;
-  if (query.content && selectedTemplate) {
-    const { data } = await supabase
-      .from("generated_content")
-      .select(
-        "id, title, status, structured_fields, prompt_context, product_template_id"
-      )
-      .eq("id", query.content)
-      .eq("product_template_id", selectedTemplate.id)
-      .single();
-    if (data) {
+  if (
+    requestedContent &&
+    selectedProduct &&
+    selectedTemplate &&
+    requestedContent.product_id === selectedProduct.id &&
+    requestedContent.product_template_id === selectedTemplate.id
+  ) {
       initialContent = {
-        id: data.id,
-        title: data.title,
-        status: data.status,
-        structured_fields: (data.structured_fields ?? {}) as Record<string, string>,
+        id: requestedContent.id,
+        title: requestedContent.title,
+        status: requestedContent.status,
+        structured_fields: (requestedContent.structured_fields ?? {}) as Record<string, string>,
         manuallyEdited:
           Array.isArray(
-            (data.prompt_context as { manually_edited_fields?: unknown[] } | null)
+            (requestedContent.prompt_context as { manually_edited_fields?: unknown[] } | null)
               ?.manually_edited_fields
           ) &&
           (
-            data.prompt_context as { manually_edited_fields?: unknown[] }
+            requestedContent.prompt_context as { manually_edited_fields?: unknown[] }
           ).manually_edited_fields!.length > 0,
       };
-    }
   }
 
   return (

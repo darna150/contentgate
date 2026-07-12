@@ -1,6 +1,6 @@
 # Production Audit
 
-Last updated: 2026-07-08
+Last updated: 2026-07-12
 
 ## Local Repo
 
@@ -98,3 +98,19 @@ Verified live database changes:
 - New generated-content policies require draft-only client inserts/updates with null approval fields.
 - Superseded permissive policies were removed.
 - No migration errors were reported.
+
+## Authenticated Workflow Verification
+
+Completed on Vercel Preview on 2026-07-12 using an existing VitalBite draft:
+
+- Draft content did not expose export controls.
+- Submit for review moved the record to `in_review` and added it to the approval queue.
+- Rejection required and stored a reviewer note, returned the record to `rejected`, and removed it from the queue.
+- Resubmission returned the record to `in_review`.
+- Approval stored the approver/date, removed the record from the queue, and exposed approved export controls.
+- The approved content-to-Studio handoff initially revealed a context bug: `/studio?content=...` fell back to the default Apex Canine template.
+- The handoff was fixed so the content record is the canonical product/template context and export links include all three IDs.
+- Corrected preview deployment `dpl_6kg4vyNbytRHzXZBmc3WrdUoPGGz` loaded the approved VitalBite content in Generated mode with the correct copy and enabled PNG/JPEG/PDF export controls.
+- No browser console warnings/errors or Vercel warning/error/fatal runtime logs were observed for the corrected preview during the test window.
+
+Browser automation did not surface a file-download event for the Markdown or live-canvas PNG buttons. Both controls remained available without a UI or console error, but the resulting local file transfer should be confirmed manually before production promotion.

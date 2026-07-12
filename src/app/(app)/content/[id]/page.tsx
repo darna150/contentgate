@@ -141,7 +141,14 @@ export default async function ContentDetailPage({
               Preview in Studio
             </Link>
           )}
-          {content.status === "approved" && <ExportButtons id={content.id} body={content.body} />}
+          {content.status === "approved" && (
+            <ExportButtons
+              id={content.id}
+              body={content.body}
+              productId={content.product_id}
+              templateId={content.product_template_id}
+            />
+          )}
           <div className="flex flex-col gap-3 rounded-card border border-edge bg-surface p-[22px]">
             <div className="flex items-center gap-2">
               <h2 className="text-[15px] font-bold">Generated from</h2>

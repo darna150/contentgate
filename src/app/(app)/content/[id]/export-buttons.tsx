@@ -3,7 +3,17 @@
 import Link from "next/link";
 import { useState } from "react";
 
-export function ExportButtons({ id, body }: { id: string; body: string }) {
+export function ExportButtons({
+  id,
+  body,
+  productId,
+  templateId,
+}: {
+  id: string;
+  body: string;
+  productId: string;
+  templateId: string;
+}) {
   const [copied, setCopied] = useState(false);
 
   async function onCopy() {
@@ -34,7 +44,7 @@ export function ExportButtons({ id, body }: { id: string; body: string }) {
         </a>
       </div>
       <Link
-        href={`/studio?content=${id}`}
+        href={`/studio?product=${productId}&template=${templateId}&content=${id}`}
         className="rounded-control border border-brand bg-brand-tint px-4 py-2.5 text-center text-[13.5px] font-semibold text-brand transition-opacity hover:opacity-90"
       >
         Create image asset →
