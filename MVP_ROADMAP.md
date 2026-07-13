@@ -38,13 +38,15 @@ The MVP is not a campaign planner, finance platform, project-management suite, o
 - Codex review closed product-lifecycle and Knowledge Hub context gaps, including direct template/API generation enforcement for non-active products.
 - Phase 3 PR #2 merged to `main` at `752a3b1` and deployed successfully to Production.
 - Authenticated Production workspace, product-scoped Knowledge Hub, inactive-product gating, browser-console, and runtime-log checks pass.
+- Phase 4 PR #3 merged to `main` at `b517c31` and deployed successfully to Production.
+- Authenticated Production template-size and approval/export checks pass with clean browser and runtime logs.
 
 ### Current Gate
 
 - Phases 1 and 2 are complete and verified in Production.
 - Phase 3 is complete and verified in Production; disposable Preview role accounts and provisioning records were removed.
-- Phase 4 engineering is complete on `codex/template-engine-standardization`; its additive contract metadata migration is applied and verified live.
-- Phase 4 is integrated with the released Phase 3 code and is ready for pull-request release. Final template visual calibration is deferred until the replacement Figma frames are approved.
+- Phase 4 is complete and verified in Production; its contract metadata migration is applied and verified live.
+- Phase 5 Knowledge Hub reliability is next. Final template visual calibration remains deferred until the replacement Figma frames are approved.
 
 ## Execution Order
 
@@ -159,7 +161,7 @@ Exit criteria:
 
 ### 4. Standardize The Template Engine
 
-Status: Engineering and authenticated Preview QA complete; Figma visual calibration intentionally deferred
+Status: Complete and verified in Production; Figma visual calibration intentionally deferred
 
 Owner: Codex first, Claude Code second
 
@@ -173,6 +175,7 @@ Codex:
 - Completed: added a normalized design-source boundary so Canva metadata can move to Figma without changing generation or approval workflows.
 - Completed: verified the authenticated Phase 4 Preview across Apex Canine, CaniGuard 5, and VitalBite. Each active layout exposes only its declared output sizes, draft export stays disabled, and approved export is enabled.
 - Completed: verified no browser console warnings/errors and no Vercel error/fatal runtime logs during the authenticated Preview workflow.
+- Completed: merged PR #3 as `b517c31`, deployed Production `dpl_EUt85bDDiKwsMoDuwnCmNDwYFFRE`, and repeated the authenticated size and approval/export checks with clean browser and runtime logs.
 
 Claude Code:
 
@@ -183,6 +186,7 @@ Exit criteria:
 
 - Complete: every active template passes field-limit and render checks.
 - Complete: the authenticated Preview enforces the declared output-size and approval/export contract.
+- Complete: the released Production build enforces the same contract.
 - Deferred until Figma migration: final pixel comparison against the replacement approved designs.
 - Complete: adding a new template follows one repeatable onboarding process documented in `TEMPLATE_ENGINE_CONTRACT.md` and `TEMPLATE_ONBOARDING.md`.
 
