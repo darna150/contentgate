@@ -114,6 +114,8 @@ Claude Code should not loosen backend security, approval, RLS, or export constra
 - Applied and verified `strengthen_knowledge_reliability` and `index_knowledge_sessions` on the live Supabase project. VitalBite retrieval returns ranked exact paragraphs; inactive DigestPro returns no evidence; no new security advisor warnings were introduced.
 - Deployed Phase 5 Preview `dpl_3fS3K4QmXS2EH2y8cnffMuoyW46a` and completed authenticated QA. A supported VitalBite answer cited and highlighted exact paragraph 2, an unsupported question failed safely, and both exchanges persisted after reload.
 - Deleted the disposable notebook session after QA. Two `knowledge_queries` rows remain intentionally as the immutable usage/audit record; browser and Vercel error logs were clean.
+- Merged Phase 5 PR #5 to `main` at `f6a7cd6`. Production deployment `dpl_EPJ1rxCoPJ43BZHP9C8tSGVXdrmu` reached `READY`; the supported citation, safe no-evidence, and reload workflow passed again with clean browser and runtime logs.
+- Deleted the Production test notebook session after verification. Phase 6 approval history and auditability is the next backend workstream.
 
 ## Remaining Blocker
 
@@ -134,7 +136,7 @@ Claude Code verified:
 ## Next Agent Should Check
 
 - Run a live direct-generation `409` probe only with an isolated fixture or explicit approval to create the required inactive-product/active-template condition. Do not alter a real product or template solely for this test.
-- Begin Phase 5 Knowledge Hub reliability work from the released `main` branch and preserve the product-scoped session behavior verified in Phase 3.
+- Begin Phase 6 approval history and auditability work from the released `main` branch.
 - Run Figma visual calibration later, after Debbie supplies approved frame IDs and replacement assets. Preserve the v1 field, lifecycle, approval, and export contract during that work.
 - Consider a future server-side creative export endpoint for live-canvas templates. The official UI blocks draft export, but any browser-rendered canvas can still be screenshotted by a determined user.
 
