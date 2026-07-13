@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { normalizeParagraphs } from "@/lib/paragraphs";
 import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
@@ -20,5 +21,5 @@ export async function GET(req: Request) {
 
   if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  return NextResponse.json({ paragraphs: doc.paragraphs ?? [] });
+  return NextResponse.json({ paragraphs: normalizeParagraphs(doc.paragraphs) });
 }

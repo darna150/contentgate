@@ -109,6 +109,11 @@ Claude Code should not loosen backend security, approval, RLS, or export constra
 - Deployed Phase 4 Preview `dpl_6nyU2Hn8K7eegrK463HYawq3Yeqc` and completed authenticated admin QA. Apex social exposes Square/Story, Apex flyer exposes only A4, and the CaniGuard 5 and VitalBite templates expose only Square.
 - Verified the VitalBite draft keeps Download PNG disabled while approved content enables it. The browser console and Vercel error/fatal runtime logs were clean in the checked window.
 - Merged Phase 4 PR #3 to `main` at `b517c31`. Production deployment `dpl_EUt85bDDiKwsMoDuwnCmNDwYFFRE` reached `READY`; authenticated template-size and approval/export checks pass with clean browser and runtime logs.
+- Started Phase 5 on `codex/knowledge-reliability` and documented the backend contract in `KNOWLEDGE_HUB_CONTRACT.md`.
+- Added product-scoped Postgres full-text paragraph retrieval, stable citation identity and validation, safe no-evidence behavior, session RLS/product integrity, explicit save failures, and session reload indexes.
+- Applied and verified `strengthen_knowledge_reliability` and `index_knowledge_sessions` on the live Supabase project. VitalBite retrieval returns ranked exact paragraphs; inactive DigestPro returns no evidence; no new security advisor warnings were introduced.
+- Deployed Phase 5 Preview `dpl_3fS3K4QmXS2EH2y8cnffMuoyW46a` and completed authenticated QA. A supported VitalBite answer cited and highlighted exact paragraph 2, an unsupported question failed safely, and both exchanges persisted after reload.
+- Deleted the disposable notebook session after QA. Two `knowledge_queries` rows remain intentionally as the immutable usage/audit record; browser and Vercel error logs were clean.
 
 ## Remaining Blocker
 

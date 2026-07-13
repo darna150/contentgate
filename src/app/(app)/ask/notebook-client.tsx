@@ -64,6 +64,7 @@ export function NotebookClient({
   const [sourcePanel, setSourcePanel] = useState<{
     docTitle: string;
     docId: string | null;
+    paragraphN: number | null;
     excerpt: string;
   } | null>(null);
   const [sourceParagraphs, setSourceParagraphs] = useState<Paragraph[] | null>(null);
@@ -205,10 +206,11 @@ export function NotebookClient({
         not_found: data.not_found,
       };
 
-      // Determine auto-title from first question
       const current = sessions.find((s) => s.id === sessionId);
-      const isFirst = (current?.messages.length ?? 0) === 0;
+      const previousMessages = current?.messages ?? [];
+      const isFirst = previousMessages.length === 0;
       const newTitle = isFirst ? q.slice(0, 58) : (current?.title ?? "New conversation");
+      const allMessages = [...previousMessages, userMsg, assistantMsg];
 
       setSessions((prev) =>
         prev.map((s) =>
@@ -216,19 +218,17 @@ export function NotebookClient({
             ? {
                 ...s,
                 title: newTitle,
-                messages: [...s.messages, assistantMsg],
+                messages: allMessages,
                 updated_at: new Date().toISOString(),
               }
             : s
         )
       );
 
-      // Persist in background
-      startTransition(() => {
-        const updated = sessions.find((s) => s.id === sessionId);
-        const all = [...(updated?.messages ?? []), userMsg, assistantMsg];
-        saveSession(sessionId!, all, newTitle);
-      });
+      const saveResult = await saveSession(sessionId, allMessages, newTitle);
+      if (saveResult.error) {
+        setError("The answer is shown, but this conversation could not be saved. Please try again.");
+      }
     } catch {
       setError("Something went wrong. Please try again.");
       setSessions((prev) =>
@@ -248,7 +248,12 @@ export function NotebookClient({
 
   async function openSource(citation: Citation) {
     const docId = citation.document_id ?? docs.find((d) => d.title === citation.document_title)?.id ?? null;
-    setSourcePanel({ docTitle: citation.document_title, docId, excerpt: citation.excerpt });
+    setSourcePanel({
+      docTitle: citation.document_title,
+      docId,
+      paragraphN: citation.paragraph_n ?? null,
+      excerpt: citation.excerpt,
+    });
     setSourceParagraphs(null);
     citedParaRef.current = null;
     if (!docId) return;
@@ -452,7 +457,8 @@ export function NotebookClient({
                             key={j}
                             onClick={() => openSource(c)}
                             className={`flex gap-3 rounded-[10px] border px-4 py-3 text-left transition-colors hover:border-brand ${
-                              sourcePanel?.docTitle === c.document_title && sourcePanel.excerpt === c.excerpt
+                              sourcePanel?.docId === c.document_id &&
+                              sourcePanel.paragraphN === (c.paragraph_n ?? null)
                                 ? "border-brand bg-brand-tint"
                                 : "border-edge bg-page"
                             }`}
@@ -561,7 +567,9 @@ export function NotebookClient({
               <ol className="flex flex-col gap-1.5">
                 {sourceParagraphs.map((p) => {
                   const excerpt = sourcePanel.excerpt.trim().toLowerCase();
-                  const isCited = excerpt.length >= 20 && p.text.toLowerCase().includes(excerpt.slice(0, 40));
+                  const isCited = sourcePanel.paragraphN
+                    ? p.n === sourcePanel.paragraphN
+                    : excerpt.length >= 20 && p.text.toLowerCase().includes(excerpt.slice(0, 40));
                   return (
                     <li
                       key={p.n}

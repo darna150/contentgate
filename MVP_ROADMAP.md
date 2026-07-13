@@ -192,17 +192,22 @@ Exit criteria:
 
 ### 5. Strengthen Knowledge Hub Reliability
 
-Status: Core session experience exists
+Status: Backend reliability and authenticated Preview QA complete; visual polish deferred
 
 Owner: Codex first, Claude Code second
 
 Codex:
 
-- Audit document ingestion, paragraph identity, citations, and notebook persistence.
-- Ensure answers cite only approved, accessible organization sources.
-- Add explicit no-evidence behavior instead of unsupported answers.
-- Add source/citation regression tests before adding semantic search.
-- Start with Postgres full-text search; add embeddings only when measured retrieval quality requires them.
+- Completed: audited document ingestion, paragraph identity, citations, and notebook persistence.
+- Completed: restricted retrieval to active products and explicitly assigned documents in the user's organization.
+- Completed: added ranked Postgres full-text paragraph retrieval before model calls.
+- Completed: added stable `(document_id, paragraph_n)` citations with verbatim excerpt validation.
+- Completed: added explicit no-evidence behavior for empty retrieval and unsupported model output.
+- Completed: hardened notebook session RLS, product integrity, save limits, failure reporting, and reload indexes.
+- Completed: added source/citation/no-evidence regression tests before semantic search.
+- Completed: verified a supported VitalBite answer cites and highlights exact paragraph 2, an unsupported question fails safely, and both exchanges survive a reload.
+- Completed: removed the disposable notebook session and confirmed clean browser and Vercel runtime logs. The two question audit events remain by design.
+- Deferred by design: add embeddings only when measured retrieval quality requires them.
 
 Claude Code:
 
@@ -212,9 +217,9 @@ Claude Code:
 
 Exit criteria:
 
-- Saved sessions reload reliably.
-- Every supported answer has inspectable approved citations.
-- Unsupported questions fail clearly and safely.
+- Complete: saved sessions reload reliably.
+- Complete: every supported answer has inspectable approved citations.
+- Complete: unsupported questions fail clearly and safely.
 
 ### 6. Complete Approval History And Auditability
 

@@ -10,7 +10,7 @@
     "test": "npm run test:assets && npm run test:workspace && npm run test:knowledge && npm run test:templates && npm run test:template-render",
     "test:assets": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test src/lib/product-assets.test.ts",
     "test:workspace": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test src/lib/product-workspace.test.ts",
-    "test:knowledge": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test src/lib/knowledge-hub.test.ts",
+    "test:knowledge": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test src/lib/knowledge-hub.test.ts src/lib/knowledge-reliability.test.ts",
     "test:templates": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test src/lib/template-contract.test.ts",
     "test:template-render": "tsx --test src/lib/template-renderer.test.tsx"
   },
