@@ -36,6 +36,7 @@ import {
   renderVitalBite,
 } from "@/lib/vitalbite-render";
 import { renderContentGate } from "@/lib/contentgate-render";
+import { renderPublishedTemplatePackage } from "@/lib/published-template-package";
 import { exportCanvas, type ExportFormat } from "@/lib/canvas-export";
 import { fieldLabel, REVISION_OPTIONS } from "@/lib/templates";
 import {
@@ -329,14 +330,23 @@ export function StudioEditor({
             original: mode === "original",
           }).element
         : isContentGate
-          ? renderContentGate({
-              layoutKey: selectedTemplate.layout_key,
-              sizeKey: size,
-              fields: activeFields,
-              disclaimer: selectedProduct.disclaimer_text ?? "",
-              origin: "",
-              original: mode === "original",
-            }).element
+          ? (renderPublishedTemplatePackage({
+                layoutKey: selectedTemplate.layout_key,
+                sizeKey: size,
+                fields: activeFields,
+                disclaimer: selectedProduct.disclaimer_text ?? "",
+                origin: "",
+                original: mode === "original",
+                definition: selectedTemplate.template_definition,
+              }) ??
+              renderContentGate({
+                layoutKey: selectedTemplate.layout_key,
+                sizeKey: size,
+                fields: activeFields,
+                disclaimer: selectedProduct.disclaimer_text ?? "",
+                origin: "",
+                original: mode === "original",
+              })).element
           : renderVitalBite({
               sizeKey: size,
               fields: activeFields,

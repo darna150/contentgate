@@ -163,7 +163,7 @@ Exit criteria:
 
 ### 4. Standardize The Template Engine
 
-Status: Complete and verified in Production; Figma visual calibration intentionally deferred
+Status: Complete; ContentGate has moved to published template packages for the core service
 
 Owner: Codex first, Claude Code second
 
@@ -175,21 +175,22 @@ Codex:
 - Completed: enforced the same declared sizes and approval/export boundary for server rendering and live canvas.
 - Completed: kept all unregistered legacy templates inactive and blocked active contract drift in both code and database metadata.
 - Completed: added a normalized design-source boundary so Canva metadata can move to Figma without changing generation or approval workflows.
+- Completed: added the `published-design` renderer path for ContentGate template sets, with locked frames, exact editable text slots, future image-slot support, and client-safe template definitions.
 - Completed: verified the authenticated Phase 4 Preview across Apex Canine, CaniGuard 5, and VitalBite. Each active layout exposes only its declared output sizes, draft export stays disabled, and approved export is enabled.
 - Completed: verified no browser console warnings/errors and no Vercel error/fatal runtime logs during the authenticated Preview workflow.
 - Completed: merged PR #3 as `b517c31`, deployed Production `dpl_EUt85bDDiKwsMoDuwnCmNDwYFFRE`, and repeated the authenticated size and approval/export checks with clean browser and runtime logs.
 
 Claude Code:
 
-- Deferred by product decision: calibrate spacing, typography, imagery, and responsive Studio behavior after the replacement Figma templates are approved.
-- Deferred: compare rendered output with the approved Figma frames and fix visual differences only within the declared template contract.
+- Next: calibrate the published package coordinates and locked backgrounds against final Figma frames.
+- Next: add the admin/import path that writes refreshed Figma-derived package frames into `template_definition.published_package`.
 
 Exit criteria:
 
 - Complete: every active template passes field-limit and render checks.
 - Complete: the authenticated Preview enforces the declared output-size and approval/export contract.
 - Complete: the released Production build enforces the same contract.
-- Deferred until Figma migration: final pixel comparison against the replacement approved designs.
+- Next: final pixel comparison against replacement approved Figma designs.
 - Complete: adding a new template follows one repeatable onboarding process documented in `TEMPLATE_ENGINE_CONTRACT.md` and `TEMPLATE_ONBOARDING.md`.
 
 ### 5. Strengthen Knowledge Hub Reliability

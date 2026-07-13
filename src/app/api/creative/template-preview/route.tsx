@@ -114,6 +114,7 @@ export async function GET(req: Request) {
         disclaimer,
         origin: new URL(req.url).origin,
         original: true,
+        definition: tpl.template_definition,
       })
     : null;
   if (contractRender) {

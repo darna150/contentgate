@@ -64,7 +64,7 @@ export type TemplateContractIssue = {
 export type TemplateLayoutContract = {
   layoutKey: string;
   engine: "react-image-v1";
-  renderer: "apex-canine" | "caniguard5" | "contentgate" | "vitalbite";
+  renderer: "apex-canine" | "caniguard5" | "contentgate" | "published-design" | "vitalbite";
   sizes: readonly TemplateSizeKey[];
   editableFields: readonly string[];
   requiredLockedFields: readonly string[];
@@ -170,7 +170,7 @@ export const TEMPLATE_LAYOUT_CONTRACTS: Record<string, TemplateLayoutContract> =
   contentgate_local_friendly: {
     layoutKey: "contentgate_local_friendly",
     engine: "react-image-v1",
-    renderer: "contentgate",
+    renderer: "published-design",
     sizes: ["square", "story", "link_ad", "leaderboard", "medium_rectangle"],
     editableFields: ["headline", "subheadline", "local_detail", "cta", "proof_note"],
     requiredLockedFields: [
@@ -190,7 +190,7 @@ export const TEMPLATE_LAYOUT_CONTRACTS: Record<string, TemplateLayoutContract> =
   contentgate_local_premium: {
     layoutKey: "contentgate_local_premium",
     engine: "react-image-v1",
-    renderer: "contentgate",
+    renderer: "published-design",
     sizes: ["square", "portrait", "story", "link_ad", "medium_rectangle"],
     editableFields: ["headline", "subheadline", "local_detail", "cta", "proof_note"],
     requiredLockedFields: [

@@ -1,22 +1,23 @@
 # Template Engine Contract
 
-Last updated: 2026-07-13
+Last updated: 2026-07-14
 
 ## Purpose
 
 ContentGate templates are locked production layouts with controlled copy fields. The template engine separates four concerns:
 
-1. The design source defines the approved visual reference.
-2. The code renderer reproduces that reference for supported output sizes.
+1. The internal design source defines the approved visual reference.
+2. A published template package converts that design into locked frames, editable slots, and export geometry.
 3. The template contract defines editable fields, limits, locked elements, layout presets, and overflow behavior.
 4. The content workflow controls generation, review, approval, and export.
 
-Changing the design source from Canva to Figma must not weaken or replace the content workflow.
+Figma is an internal production layer, not a client-facing feature. Clients see only approved template sets and editable slots in ContentGate.
 
 ## Source Of Truth
 
 - Runtime contract registry: `src/lib/template-contract.ts`
 - Shared active renderer dispatch: `src/lib/template-renderer.tsx`
+- Published package renderer: `src/lib/published-template-package.tsx`
 - Database metadata: `product_templates.template_definition`
 - Field fitting and validation: `src/lib/template-fields.ts` and `src/lib/template-specs.ts`
 - Active render matrix: `src/lib/template-renderer.test.tsx`
@@ -34,6 +35,7 @@ Every active template must declare:
 - `layout_presets: ["short", "standard", "long"]`
 - `overflow_policy: "block_save_review_and_export"`
 - `design_source.provider`: `canva`, `figma`, or `legacy`
+- Optional `published_package` data for imported locked frames and slot geometry
 - The exact editable-field order registered for its layout
 - Positive `max_chars` and `max_lines` limits for each editable field
 - Every required locked field registered for its layout
@@ -48,6 +50,8 @@ The database enforces the common metadata. The code registry enforces layout-spe
 | `apex_canine_flyer` | A4 | Kicker, headline, body |
 | `caniguard5_social` | Square | Headline, support copy |
 | `vitalbite_social` | Square | Kicker, headline, supporting copy, CTA |
+| `contentgate_local_friendly` | Square, Story, Link Ad, Leaderboard, Medium Rectangle | Headline, subheadline, local detail, CTA, proof note |
+| `contentgate_local_premium` | Square, Portrait, Story, Link Ad, Medium Rectangle | Headline, subheadline, local detail, CTA, proof note |
 
 All other existing templates remain inactive. Inactive historical templates stay readable for existing content but cannot become active until they are registered and pass the contract suite.
 
@@ -60,7 +64,8 @@ All other existing templates remain inactive. Inactive historical templates stay
 - Live-canvas overflow blocks save, review, and export.
 - Server image rendering accepts only a declared template size.
 - Only approved content can use the server export route.
-- Canva/Figma links and identifiers are metadata and never grant export permission.
+- Canva/Figma links and identifiers are internal metadata and never grant export permission.
+- Studio and product-workspace props must strip internal design provenance before reaching the browser.
 
 ## Automated Verification
 
@@ -75,21 +80,20 @@ All other existing templates remain inactive. Inactive historical templates stay
 
 The normal lint, TypeScript, and production-build gates remain required.
 
-## Figma Migration
+## Published Package Workflow
 
-When the replacement Figma templates are ready:
+For client work, ContentGate should use published template packages rather than new product-specific renderers.
 
-1. Create one canonical Figma component or frame set per ContentGate layout.
-2. Create a named frame for each supported size in the registered size list.
-3. Mark copy layers with stable field keys matching `editable_fields` exactly.
-4. Keep logos, product imagery, backgrounds, typography, colors, icons, and legal elements locked.
-5. Record the Figma file key, page ID, frame IDs, and design version under `template_definition.design_source`.
-6. Export locked raster assets at the renderer's exact pixel dimensions.
-7. Calibrate the existing renderer or add a registered replacement renderer without changing approval/export checks.
-8. Run the full contract and render matrix, then compare outputs against the approved Figma frames.
-9. Activate a replacement template only after the visual comparison and long-copy review pass.
+1. Design the client's approved template set internally in Figma.
+2. Create a named frame for each supported ContentGate output size.
+3. Mark editable copy and image areas with stable slot keys matching `editable_fields` or approved image-slot keys.
+4. Keep layout, logos, typography, color, legal text, masks, and export geometry locked.
+5. Publish a package into `template_definition.published_package` with frame dimensions, locked visual layers or exported locked backgrounds, text slots, image slots, and overflow rules.
+6. Store Figma file keys, page IDs, and design versions only under internal `design_source` metadata.
+7. Run the full contract and render matrix, then visually compare the ContentGate output against the approved Figma frames.
+8. Activate the template only after visual comparison, long-copy review, Studio preview, and approved export all pass.
 
-Recommended Figma metadata shape:
+Recommended internal metadata shape:
 
 ```json
 {
