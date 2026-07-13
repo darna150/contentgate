@@ -136,7 +136,7 @@ Claude Code verified:
 ## Next Agent Should Check
 
 - Run a live direct-generation `409` probe only with an isolated fixture or explicit approval to create the required inactive-product/active-template condition. Do not alter a real product or template solely for this test.
-- Begin Phase 6 approval history and auditability work from the released `main` branch.
+- Phase 6 approval history is implemented on `codex/phase6-approval-history`. Live additive migrations `20260713113241_complete_approval_history` and `20260713113807_backfill_missing_content_creation_events` are applied and structurally verified; complete authenticated Preview/Production lifecycle QA before closing the phase.
 - Run Figma visual calibration later, after Debbie supplies approved frame IDs and replacement assets. Preserve the v1 field, lifecycle, approval, and export contract during that work.
 - Consider a future server-side creative export endpoint for live-canvas templates. The official UI blocks draft export, but any browser-rendered canvas can still be screenshotted by a determined user.
 

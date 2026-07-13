@@ -64,6 +64,13 @@ Generated content should move through:
 
 Only approved content may be exported or rendered as a final generated asset. UI gating is not enough; API routes and RLS must enforce this too.
 
+Phase 6 adds `generated_content_revisions` and `generated_content_events` as the
+immutable history boundary. Content-bearing changes create numbered snapshots;
+submit, approve, reject, revocation, and export events point to the exact
+revision they affect. Trusted authenticated RPCs own atomic workflow and export
+events, while direct clients remain constrained by RLS and trigger-owned status
+fields. See `APPROVAL_HISTORY_CONTRACT.md`.
+
 ### AI Generation
 
 AI copy generation must:

@@ -225,16 +225,18 @@ Exit criteria:
 
 ### 6. Complete Approval History And Auditability
 
-Status: Core state transitions verified; history is incomplete
+Status: Backend and core history UI implemented; release verification in progress
 
 Owner: Codex first, Claude Code second
 
 Codex:
 
-- Confirm audit events cover create, generate, manual edit, submit, reject, approve, export, and approval revocation after editing.
-- Add immutable revision snapshots or a revision table for generated content.
-- Record export actor, format, content revision, and timestamp.
-- Add reviewer/author permission tests.
+- Completed: added canonical events for create, generate, manual edit, submit, reject, approve, export, and approval revocation after editing; every event is mirrored to the organization audit log.
+- Completed: added immutable, organization-scoped revision snapshots with exact content payloads and migration-time baselines.
+- Completed: gated Markdown, clipboard, and Studio creative exports against the exact approved revision and recorded actor, format, revision, surface, size, and timestamp.
+- Completed: added author/reviewer permission and export-revision tests, and hid editable controls from non-authors.
+- Completed: applied and structurally verified live migrations `20260713113241_complete_approval_history` and `20260713113807_backfill_missing_content_creation_events`; 17 current records have snapshots, 68 historical/baseline events are present, every current record has create/generate events, and all consistency checks returned zero failures.
+- In progress: authenticated Preview and Production lifecycle QA, merge, and release record.
 
 Claude Code:
 
