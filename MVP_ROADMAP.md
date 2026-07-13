@@ -43,6 +43,8 @@ The MVP is not a campaign planner, finance platform, project-management suite, o
 - Phase 3 implementation and Codex review fixes are complete on `codex/product-workspaces`.
 - Corrected Preview admin/member/approver role QA is complete; the disposable role accounts and provisioning records were removed.
 - Draft PR #2 is ready for final release review, merge, and Production verification.
+- Phase 4 engineering is complete on `codex/template-engine-standardization`; its additive contract metadata migration is applied and verified live.
+- Phase 4 code release must follow the Phase 3 merge. Final template visual calibration is deferred until the replacement Figma frames are approved.
 
 ## Execution Order
 
@@ -156,29 +158,29 @@ Exit criteria:
 
 ### 4. Standardize The Template Engine
 
-Status: Partially implemented
+Status: Engineering complete; Figma visual calibration intentionally deferred
 
 Owner: Codex first, Claude Code second
 
 Codex:
 
-- Make the Apex Canine implementation the documented template contract.
-- Standardize layout keys, editable fields, locked fields, field limits, density rules, overflow checks, and supported output sizes.
-- Add automated render/stress checks for every active template and output size.
-- Confirm server-rendered and live-canvas templates share the same approval/export rules.
-- Hide or deactivate legacy templates that do not meet the contract.
+- Completed: made the active Apex Canine pattern a versioned registry shared by Studio, generation, workspace readiness, review, approval, preview, and export.
+- Completed: standardized layout keys, editable fields, locked fields, field limits, density rules, overflow checks, and supported output sizes for all active templates.
+- Completed: added contract and nonblank PNG render/stress checks for every active template and output size.
+- Completed: enforced the same declared sizes and approval/export boundary for server rendering and live canvas.
+- Completed: kept all unregistered legacy templates inactive and blocked active contract drift in both code and database metadata.
+- Completed: added a normalized design-source boundary so Canva metadata can move to Figma without changing generation or approval workflows.
 
 Claude Code:
 
-- Calibrate spacing, typography, imagery, and responsive Studio behavior for Apex Canine, VitalBite, and CaniGuard 5.
-- Compare rendered output with the approved Figma/Canva references.
-- Fix visual overflow only within the declared template contract.
+- Deferred by product decision: calibrate spacing, typography, imagery, and responsive Studio behavior after the replacement Figma templates are approved.
+- Deferred: compare rendered output with the approved Figma frames and fix visual differences only within the declared template contract.
 
 Exit criteria:
 
-- Every active template passes field-limit and render checks.
-- Approved output is visually reliable at every supported size.
-- Adding a new template follows one repeatable onboarding process.
+- Complete: every active template passes field-limit and render checks.
+- Deferred until Figma migration: final pixel comparison against the replacement approved designs.
+- Complete: adding a new template follows one repeatable onboarding process documented in `TEMPLATE_ENGINE_CONTRACT.md` and `TEMPLATE_ONBOARDING.md`.
 
 ### 5. Strengthen Knowledge Hub Reliability
 

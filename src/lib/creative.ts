@@ -1,14 +1,12 @@
-// Locked-template render config. Text always comes from approved content;
-// the only choice users get is the output size. Design is locked.
+import {
+  defaultTemplateSize,
+  TEMPLATE_OUTPUT_SIZES,
+  type TemplateSizeKey,
+} from "./template-contract";
 
-export const SIZES = {
-  square: { label: "Square", w: 1080, h: 1080 },
-  story: { label: "Story", w: 1080, h: 1920 },
-  feed: { label: "Feed", w: 1200, h: 630 },
-  a4: { label: "A4 Flyer", w: 1240, h: 1754 },
-} as const;
-
-export type SizeKey = keyof typeof SIZES;
+// Kept as a public alias while the engine contract owns output dimensions.
+export const SIZES = TEMPLATE_OUTPUT_SIZES;
+export type SizeKey = TemplateSizeKey;
 
 // Which sizes each asset category may export at.
 export const CATEGORY_SIZES: Record<string, SizeKey[]> = {
@@ -19,7 +17,7 @@ export const CATEGORY_SIZES: Record<string, SizeKey[]> = {
 };
 
 export function defaultSizeFor(category: string): SizeKey {
-  return CATEGORY_SIZES[category]?.[0] ?? "square";
+  return defaultTemplateSize({ layoutKey: "", category });
 }
 
 export function renderUrl(contentId: string, size: SizeKey): string {

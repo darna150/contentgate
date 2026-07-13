@@ -9,6 +9,7 @@ import {
   type FieldLimits,
 } from "@/lib/template-fields";
 import { resolveEffectiveFieldLimits } from "@/lib/template-specs";
+import { isTemplateContractReady } from "@/lib/template-contract";
 
 type ActionResult =
   | {
@@ -55,13 +56,21 @@ function validateStoredTemplateFields(content: {
   product_templates:
     | {
         layout_key: string;
+        category: string;
         editable_fields: unknown;
         field_limits: unknown;
+        locked_fields: unknown;
+        template_definition: unknown;
+        status: string;
       }
     | {
         layout_key: string;
+        category: string;
         editable_fields: unknown;
         field_limits: unknown;
+        locked_fields: unknown;
+        template_definition: unknown;
+        status: string;
       }[]
     | null;
 }): string | null {
@@ -75,6 +84,19 @@ function validateStoredTemplateFields(content: {
     template.layout_key,
     (template.field_limits ?? {}) as FieldLimits
   );
+  if (
+    !isTemplateContractReady({
+      layoutKey: template.layout_key,
+      category: template.category,
+      editableFields: order,
+      fieldLimits: limits,
+      lockedFields: (template.locked_fields ?? []) as string[],
+      definition: template.template_definition,
+      status: template.status,
+    })
+  ) {
+    return "Template configuration does not meet the active engine contract.";
+  }
   const issues = templateFieldIssues(fields, order, limits);
   const firstIssue = order.find((key) => issues[key]?.length);
   return firstIssue
@@ -125,7 +147,7 @@ export async function updateStructuredFields(
   const { data: content } = await ctx.supabase
     .from("generated_content")
     .select(
-      "structured_fields, prompt_context, product_templates(layout_key, editable_fields, field_limits)"
+      "structured_fields, prompt_context, product_templates(layout_key, category, editable_fields, field_limits, locked_fields, template_definition, status)"
     )
     .eq("id", id)
     .single();
@@ -139,6 +161,19 @@ export async function updateStructuredFields(
     template.layout_key,
     (template.field_limits ?? {}) as FieldLimits
   );
+  if (
+    !isTemplateContractReady({
+      layoutKey: template.layout_key,
+      category: template.category,
+      editableFields: order,
+      fieldLimits: limits,
+      lockedFields: (template.locked_fields ?? []) as string[],
+      definition: template.template_definition,
+      status: template.status,
+    })
+  ) {
+    return { error: "Template configuration is not ready for editing." };
+  }
   const cleaned = Object.fromEntries(
     order.map((key) => [key, String(fields[key] ?? "")])
   );
@@ -225,7 +260,7 @@ export async function approveContent(id: string): Promise<ActionResult> {
   const { data: row } = await admin
     .from("generated_content")
     .select(
-      "org_id, status, structured_fields, product_templates(layout_key, editable_fields, field_limits)"
+      "org_id, status, structured_fields, product_templates(layout_key, category, editable_fields, field_limits, locked_fields, template_definition, status)"
     )
     .eq("id", id)
     .single();
@@ -326,7 +361,7 @@ export async function submitForReview(id: string): Promise<ActionResult> {
   const { data: current } = await admin
     .from("generated_content")
     .select(
-      "org_id, created_by, status, structured_fields, product_templates(layout_key, editable_fields, field_limits)"
+      "org_id, created_by, status, structured_fields, product_templates(layout_key, category, editable_fields, field_limits, locked_fields, template_definition, status)"
     )
     .eq("id", id)
     .single();

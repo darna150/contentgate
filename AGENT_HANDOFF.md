@@ -101,6 +101,10 @@ Claude Code should not loosen backend security, approval, RLS, or export constra
 - Verified the stable branch Preview as admin: all five VitalBite workspace views settle correctly, `/ask?product=...` preserves VitalBite context, and inactive DigestPro exposes no Generate or Studio control.
 - Provisioned isolated disposable member and approver users through the trusted server-only handshake. Member generation/read controls, approver generation/review controls, and admin-only management boundaries all matched `PRODUCT_WORKSPACE_CONTRACT.md` with no browser console errors.
 - Signed out and deleted both disposable users; verified zero matching Auth users, profiles, and provisioning records remain.
+- Completed Phase 4 engineering on `codex/template-engine-standardization`: added the v1 template registry, shared renderer dispatch, readiness gates, exact output-size enforcement, and active-layout stress tests.
+- Added `TEMPLATE_ENGINE_CONTRACT.md` with the Figma migration boundary and updated template onboarding to make Figma the future visual source of truth.
+- Applied and verified `standardize_template_engine_contract` on the live Supabase project. All four active templates now declare contract version 1, `react-image-v1`, exact sizes, and Canva as the current normalized design source; the active-template metadata constraint is validated.
+- Verified the full test suite, nonblank PNG render matrix, TypeScript, and lint. Final visual calibration is intentionally deferred until approved Figma frames exist.
 
 ## Remaining Blocker
 
@@ -123,7 +127,8 @@ Claude Code verified:
 - Mark PR #2 ready, merge it, and verify the Production deployment and authenticated product workspace.
 - Confirm the Production `/ask?product=...` handoff and inactive-product generation controls after promotion.
 - Run a live direct-generation `409` probe only with an isolated fixture or explicit approval to create the required inactive-product/active-template condition. Do not alter a real product or template solely for this test.
-- Begin Phase 4 template-engine standardization only after the Phase 3 release gate closes.
+- After PR #2 is in Production, rebase or retarget `codex/template-engine-standardization`, deploy its Preview, and run authenticated Studio/generation/approval/export QA before the Phase 4 code release.
+- Run Figma visual calibration later, after Debbie supplies approved frame IDs and replacement assets. Preserve the v1 field, lifecycle, approval, and export contract during that work.
 - Consider a future server-side creative export endpoint for live-canvas templates. The official UI blocks draft export, but any browser-rendered canvas can still be screenshotted by a determined user.
 
 ## Do Not Break

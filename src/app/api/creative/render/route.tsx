@@ -18,6 +18,11 @@ import { loadPoultryShieldProFonts } from "@/lib/poultryshieldpro-fonts";
 import { renderSwineGuardPlus } from "@/lib/swineguardplus-render";
 import { loadSwineGuardPlusFonts } from "@/lib/swineguardplus-fonts";
 import { renderTemplateSpec } from "@/lib/template-spec-render";
+import {
+  isTemplateSizeAllowed,
+  usesRegisteredTemplateContract,
+} from "@/lib/template-contract";
+import { renderContractTemplate } from "@/lib/template-renderer";
 
 export const runtime = "nodejs";
 
@@ -25,8 +30,7 @@ export const runtime = "nodejs";
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const contentId = searchParams.get("content");
-  const sizeKey = (searchParams.get("size") ?? "square") as SizeKey;
-  const size = SIZES[sizeKey] ?? SIZES.square;
+  const requestedSize = searchParams.get("size") ?? "square";
   if (!contentId) return new Response("Missing content id", { status: 400 });
 
   const supabase = await createClient();
@@ -38,7 +42,7 @@ export async function GET(req: Request) {
   const { data: content } = await supabase
     .from("generated_content")
     .select(
-      "id, status, structured_fields, products(name, disclaimer_text), product_templates(layout_key, category)"
+      "id, status, structured_fields, products(name, disclaimer_text), product_templates(layout_key, category, template_definition, status)"
     )
     .eq("id", contentId)
     .single();
@@ -55,11 +59,41 @@ export async function GET(req: Request) {
     : content.product_templates;
 
   const layoutKey = tpl?.layout_key ?? "social_v1";
+  const templateSizeInput = {
+    layoutKey,
+    category: tpl?.category ?? "social",
+    definition: tpl?.template_definition,
+    status: tpl?.status,
+  };
+  if (!isTemplateSizeAllowed(templateSizeInput, requestedSize)) {
+    return new Response("Unsupported size for this template", { status: 400 });
+  }
+  const sizeKey = requestedSize as SizeKey;
+  const size = SIZES[sizeKey];
+
   const fields = (content.structured_fields ?? {}) as Record<string, string>;
   const productName = product?.name ?? "Product";
   const disclaimer = product?.disclaimer_text ?? "";
 
   const cacheHeaders = { "Cache-Control": "private, max-age=60, stale-while-revalidate=300" };
+
+  const contractRender = usesRegisteredTemplateContract(templateSizeInput)
+    ? await renderContractTemplate({
+        layoutKey,
+        sizeKey,
+        fields,
+        disclaimer,
+        origin: new URL(req.url).origin,
+      })
+    : null;
+  if (contractRender) {
+    return new ImageResponse(contractRender.element, {
+      width: contractRender.w,
+      height: contractRender.h,
+      fonts: contractRender.fonts,
+      headers: cacheHeaders,
+    });
+  }
 
   if (layoutKey.startsWith("digestpro_")) {
     const { element, w, h } = renderDigestPro({

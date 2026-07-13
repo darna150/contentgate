@@ -18,6 +18,11 @@ import { loadPoultryShieldProFonts } from "@/lib/poultryshieldpro-fonts";
 import { renderSwineGuardPlus } from "@/lib/swineguardplus-render";
 import { loadSwineGuardPlusFonts } from "@/lib/swineguardplus-fonts";
 import { renderTemplateSpec } from "@/lib/template-spec-render";
+import {
+  isTemplateSizeAllowed,
+  usesRegisteredTemplateContract,
+} from "@/lib/template-contract";
+import { renderContractTemplate } from "@/lib/template-renderer";
 
 export const runtime = "nodejs";
 
@@ -37,8 +42,7 @@ const SAMPLES: Record<string, string> = {
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const templateId = searchParams.get("template");
-  const sizeKey = (searchParams.get("size") ?? "square") as SizeKey;
-  const size = SIZES[sizeKey] ?? SIZES.square;
+  const requestedSize = searchParams.get("size") ?? "square";
   if (!templateId) return new Response("Missing template id", { status: 400 });
 
   const supabase = await createClient();
@@ -49,7 +53,7 @@ export async function GET(req: Request) {
 
   const { data: tpl } = await supabase
     .from("product_templates")
-    .select("id, variant, layout_key, editable_fields, default_copy, product_id, products(name, disclaimer_text)")
+    .select("id, variant, category, layout_key, editable_fields, default_copy, template_definition, status, product_id, products(name, disclaimer_text)")
     .eq("id", templateId)
     .single();
   if (!tpl) return new Response("Not found", { status: 404 });
@@ -57,6 +61,21 @@ export async function GET(req: Request) {
   const product = Array.isArray(tpl.products) ? tpl.products[0] : tpl.products;
 
   const layoutKey = tpl.layout_key as string;
+  if (
+    !isTemplateSizeAllowed(
+      {
+        layoutKey,
+        category: tpl.category,
+        definition: tpl.template_definition,
+        status: tpl.status,
+      },
+      requestedSize
+    )
+  ) {
+    return new Response("Unsupported size for this template", { status: 400 });
+  }
+  const sizeKey = requestedSize as SizeKey;
+  const size = SIZES[sizeKey];
   const productName = product?.name ?? "Product";
   const editableFields = (tpl.editable_fields as string[]) ?? [];
   const seededCopy = (tpl.default_copy ?? {}) as Record<string, string>;
@@ -83,6 +102,29 @@ export async function GET(req: Request) {
     fields[key] = SAMPLES[key] ?? "Sample";
   }
   const disclaimer = product?.disclaimer_text ?? "";
+  const contractRender = usesRegisteredTemplateContract({
+    layoutKey,
+    definition: tpl.template_definition,
+    status: tpl.status,
+  })
+    ? await renderContractTemplate({
+        layoutKey,
+        sizeKey,
+        fields,
+        disclaimer,
+        origin: new URL(req.url).origin,
+        original: true,
+      })
+    : null;
+  if (contractRender) {
+    return new ImageResponse(contractRender.element, {
+      width: contractRender.w,
+      height: contractRender.h,
+      fonts: contractRender.fonts,
+      headers: responseHeaders(searchParams.get("download"), tpl.variant),
+    });
+  }
+
   if (layoutKey.startsWith("poultryshieldpro_")) {
     const specRender = renderTemplateSpec({
       layoutKey,

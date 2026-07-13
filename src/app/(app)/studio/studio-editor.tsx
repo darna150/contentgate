@@ -11,12 +11,15 @@ import {
   useState,
 } from "react";
 import {
-  CATEGORY_SIZES,
   originalTemplatePreviewUrl,
   SIZES,
   renderUrl,
   type SizeKey,
 } from "@/lib/creative";
+import {
+  getTemplateLayoutContract,
+  getTemplateSupportedSizes,
+} from "@/lib/template-contract";
 import {
   apexCanineDimensions,
   apexCanineLayoutDensity,
@@ -54,6 +57,8 @@ type Template = {
   editable_fields: string[];
   default_copy: Record<string, string>;
   field_limits: FieldLimits;
+  locked_fields: string[];
+  template_definition: Record<string, unknown>;
 };
 
 type Content = {
@@ -199,16 +204,14 @@ export function StudioEditor({
   const isApexCanine = selectedTemplate.layout_key.startsWith("apex_canine_");
   const isCaniGuard5 = selectedTemplate.layout_key.startsWith("caniguard5_");
   const isVitalBite = selectedTemplate.layout_key.startsWith("vitalbite_");
-  const isLiveCanvas = isApexCanine || isCaniGuard5 || isVitalBite;
-  const categorySizes =
-    CATEGORY_SIZES[selectedTemplate.category] ?? CATEGORY_SIZES.social;
-  const sizes = isApexCanine
-    ? selectedTemplate.layout_key === "apex_canine_flyer"
-      ? (["a4"] as SizeKey[])
-      : (["square", "story"] as SizeKey[])
-    : isCaniGuard5 || isVitalBite
-      ? (["square"] as SizeKey[])
-      : categorySizes;
+  const layoutContract = getTemplateLayoutContract(selectedTemplate.layout_key);
+  const isLiveCanvas = layoutContract?.liveCanvas ?? false;
+  const sizes = getTemplateSupportedSizes({
+    layoutKey: selectedTemplate.layout_key,
+    category: selectedTemplate.category,
+    definition: selectedTemplate.template_definition,
+    status: "active",
+  });
   const [size, setSize] = useState<SizeKey>(sizes[0]);
   const [language, setLanguage] = useState("English");
   const [selectedRevision, setSelectedRevision] = useState<string | null>(null);

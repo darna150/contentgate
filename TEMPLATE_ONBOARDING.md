@@ -1,6 +1,6 @@
 # Template Onboarding Standard
 
-Last updated: 2026-07-06
+Last updated: 2026-07-13
 
 ## Reference Pattern
 
@@ -9,7 +9,7 @@ Apex Canine is the approved reference implementation. Every new production produ
 ## Required Inputs
 
 - Product or brand workspace.
-- Approved Canva/Figma reference design.
+- Approved Figma reference frames. Canva may remain as legacy reference metadata during migration.
 - Locked artwork/background assets.
 - Product images and logos.
 - Product-specific fonts.
@@ -22,23 +22,28 @@ Apex Canine is the approved reference implementation. Every new production produ
 
 1. Add product-specific font files under `public/fonts` when needed.
 2. Declare the exact browser font families in `src/app/globals.css`.
-3. Add or update the product renderer in `src/lib`.
-4. Define a `CONTRACTS` object for pixel-exact text zones.
-5. Add adaptive density presets only when the approved design needs them.
-6. Run `fitCopy()` or equivalent field fitting on every editable text field.
-7. Set `overflow: hidden` only as a guard, not as a substitute for correct contracts.
-8. Add `data-template-field` / stack markers for live overflow detection where the Studio uses live canvas.
-9. Add `product_templates` metadata with:
+3. Register the layout, exact output sizes, fields, locks, and renderer in `src/lib/template-contract.ts`.
+4. Add or update the product renderer in `src/lib` and route it through `src/lib/template-renderer.tsx`.
+5. Define a renderer `CONTRACTS` object for pixel-exact text zones.
+6. Add short, standard, and long density presets only when the approved design needs them.
+7. Run `fitCopy()` or equivalent field fitting on every editable text field.
+8. Set `overflow: hidden` only as a guard, not as a substitute for correct contracts.
+9. Add `data-template-field` / stack markers for live overflow detection where the Studio uses live canvas.
+10. Add `product_templates` metadata with:
    - `editable_fields`
    - `default_copy`
    - `field_limits`
    - `locked_fields`
    - `template_definition.layout_policy`
    - `template_definition.overflow_policy`
-10. Keep inactive products hidden until the template has been rebuilt with this standard.
-11. Add render/stress checks for worst-case copy.
-12. Verify generated preview updates after regeneration.
-13. Verify download/export is blocked until approval.
+   - `template_definition.contract_version`
+   - `template_definition.engine`
+   - `template_definition.sizes`
+   - `template_definition.design_source`
+11. Keep templates inactive until the contract validator accepts them.
+12. Add the layout and every output size to the automated render/stress matrix.
+13. Verify generated preview updates after regeneration.
+14. Verify download/export is blocked until approval.
 
 ## Activation Rule
 
@@ -49,7 +54,8 @@ A template should only become active when:
 - Fonts render correctly in both server render and live browser canvas.
 - Draft/rejected content cannot be exported through direct URLs.
 - The approved export path has been tested.
+- The Figma frame IDs and exported locked assets match the registered sizes.
 
 ## Claude Code Notes
 
-Claude Code should handle visual calibration after Codex has set the data contract and safety rules. It should not loosen backend approval, RLS, or export constraints to make a UI easier to demo.
+Claude Code should handle visual calibration after the approved Figma frames exist. It should not loosen the template contract, backend approval, RLS, or export constraints to make a UI easier to demo.
