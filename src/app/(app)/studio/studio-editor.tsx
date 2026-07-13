@@ -35,6 +35,7 @@ import {
   vitalBiteLayoutDensity,
   renderVitalBite,
 } from "@/lib/vitalbite-render";
+import { renderContentGate } from "@/lib/contentgate-render";
 import { exportCanvas, type ExportFormat } from "@/lib/canvas-export";
 import { fieldLabel, REVISION_OPTIONS } from "@/lib/templates";
 import {
@@ -72,10 +73,10 @@ type Content = {
 
 const LANGUAGES = ["English", "Filipino", "Spanish", "Portuguese", "Vietnamese", "Thai"];
 const GENERATION_MESSAGES = [
-  "Reading the brief. No treats required.",
-  "Teaching the headline to sit.",
-  "Keeping every pixel on a short leash.",
-  "Giving the copy one last sniff.",
+  "Reading the approved brief.",
+  "Balancing the headline and layout.",
+  "Keeping every pixel inside the brand system.",
+  "Checking copy against the source material.",
   "Polishing the preview for its close-up.",
 ] as const;
 
@@ -204,6 +205,7 @@ export function StudioEditor({
   const router = useRouter();
   const isApexCanine = selectedTemplate.layout_key.startsWith("apex_canine_");
   const isCaniGuard5 = selectedTemplate.layout_key.startsWith("caniguard5_");
+  const isContentGate = selectedTemplate.layout_key.startsWith("contentgate_");
   const isVitalBite = selectedTemplate.layout_key.startsWith("vitalbite_");
   const layoutContract = getTemplateLayoutContract(selectedTemplate.layout_key);
   const isLiveCanvas = layoutContract?.liveCanvas ?? false;
@@ -326,13 +328,22 @@ export function StudioEditor({
             origin: "",
             original: mode === "original",
           }).element
-        : renderVitalBite({
-            sizeKey: size,
-            fields: activeFields,
-            disclaimer: selectedProduct.disclaimer_text ?? "",
-            origin: "",
-            original: mode === "original",
-          }).element
+        : isContentGate
+          ? renderContentGate({
+              layoutKey: selectedTemplate.layout_key,
+              sizeKey: size,
+              fields: activeFields,
+              disclaimer: selectedProduct.disclaimer_text ?? "",
+              origin: "",
+              original: mode === "original",
+            }).element
+          : renderVitalBite({
+              sizeKey: size,
+              fields: activeFields,
+              disclaimer: selectedProduct.disclaimer_text ?? "",
+              origin: "",
+              original: mode === "original",
+            }).element
     : null;
 
   useLayoutEffect(() => {
