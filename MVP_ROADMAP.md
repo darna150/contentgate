@@ -192,17 +192,20 @@ Exit criteria:
 
 ### 5. Strengthen Knowledge Hub Reliability
 
-Status: Core session experience exists
+Status: Backend reliability implemented; authenticated Preview QA pending
 
 Owner: Codex first, Claude Code second
 
 Codex:
 
-- Audit document ingestion, paragraph identity, citations, and notebook persistence.
-- Ensure answers cite only approved, accessible organization sources.
-- Add explicit no-evidence behavior instead of unsupported answers.
-- Add source/citation regression tests before adding semantic search.
-- Start with Postgres full-text search; add embeddings only when measured retrieval quality requires them.
+- Completed: audited document ingestion, paragraph identity, citations, and notebook persistence.
+- Completed: restricted retrieval to active products and explicitly assigned documents in the user's organization.
+- Completed: added ranked Postgres full-text paragraph retrieval before model calls.
+- Completed: added stable `(document_id, paragraph_n)` citations with verbatim excerpt validation.
+- Completed: added explicit no-evidence behavior for empty retrieval and unsupported model output.
+- Completed: hardened notebook session RLS, product integrity, save limits, failure reporting, and reload indexes.
+- Completed: added source/citation/no-evidence regression tests before semantic search.
+- Deferred by design: add embeddings only when measured retrieval quality requires them.
 
 Claude Code:
 

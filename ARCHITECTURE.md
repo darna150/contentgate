@@ -41,6 +41,8 @@ Knowledge Hub is the source-grounded assistant layer. It should answer only from
 
 Current tables: `documents`, `knowledge_queries`, `notebook_sessions`.
 
+Phase 5 retrieval uses the security-invoker `search_product_knowledge` RPC to rank explicitly product-assigned document paragraphs with Postgres full-text search. The model sees only the retrieved evidence set, and the server validates every new citation by `(document_id, paragraph_n)` plus verbatim excerpt containment. See `KNOWLEDGE_HUB_CONTRACT.md`.
+
 ### Template Studio
 
 Studio is the controlled editing surface for creative output.

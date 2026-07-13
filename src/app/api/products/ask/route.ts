@@ -1,4 +1,11 @@
 import { createClient } from "@/lib/supabase/server";
+import {
+  buildKnowledgeContext,
+  finalizeKnowledgeAnswer,
+  normalizeRetrievedParagraphs,
+  verifyKnowledgeCitations,
+  type RawKnowledgeCitation,
+} from "@/lib/knowledge-reliability";
 import Anthropic from "@anthropic-ai/sdk";
 import { NextResponse } from "next/server";
 
@@ -12,36 +19,47 @@ export async function POST(req: Request) {
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { productId, question } = await req.json();
-  if (!productId || !question?.trim()) {
+  let payload: { productId?: unknown; question?: unknown };
+  try {
+    payload = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+  }
+
+  const productId =
+    typeof payload.productId === "string" ? payload.productId : "";
+  const question =
+    typeof payload.question === "string" ? payload.question.trim() : "";
+  if (!productId || !question) {
     return NextResponse.json({ error: "Missing productId or question" }, { status: 400 });
+  }
+  if (question.length > 500) {
+    return NextResponse.json({ error: "Question is too long" }, { status: 400 });
   }
 
   const { data: product } = await supabase
     .from("products")
     .select("id, name, description, disclaimer_text")
     .eq("id", productId)
+    .eq("status", "active")
     .single();
   if (!product) return NextResponse.json({ error: "Product not found" }, { status: 404 });
 
-  const { data: docs } = await supabase
-    .from("documents")
-    .select("id, title, paragraphs")
-    .or(`product_id.eq.${productId},product_id.is.null`);
+  const { data: retrievalRows, error: retrievalError } = await supabase.rpc(
+    "search_product_knowledge",
+    {
+      p_product_id: productId,
+      p_query: question,
+      p_limit: 12,
+    }
+  );
+  if (retrievalError) {
+    console.error("knowledge retrieval failed:", retrievalError);
+    return NextResponse.json({ error: "Knowledge search failed. Try again." }, { status: 502 });
+  }
 
-  const docsText = (docs ?? [])
-    .map((doc) => {
-      const paras = Array.isArray(doc.paragraphs)
-        ? doc.paragraphs
-            .map((p: { n?: number; text?: string } | string) =>
-              typeof p === "string" ? p : `[¶${p.n ?? "?"}] ${p.text ?? ""}`
-            )
-            .filter(Boolean)
-            .join("\n\n")
-        : "";
-      return `--- ${doc.title} ---\n${paras}`;
-    })
-    .join("\n\n");
+  const evidence = normalizeRetrievedParagraphs(retrievalRows ?? []);
+  const approvedContext = buildKnowledgeContext(evidence);
 
   const system = `You are a product knowledge assistant for ${product.name}.
 Your role is to answer questions from field representatives, distributors, and marketing teams.
@@ -50,22 +68,23 @@ STRICT RULES:
 - Answer ONLY from the approved sources below. Never invent claims, data, or specifications.
 - If the answer is not in the approved sources, set not_found to true and say so clearly.
 - Be concise, direct, and helpful. Write for someone who needs a quick, reliable answer in the field.
-- When citing, quote the exact relevant passage from the source document.
+- Cite every supported answer using the exact document_id and paragraph number shown below.
+- The citation excerpt must be an exact passage from that paragraph.
 
-APPROVED SOURCE DOCUMENTS:
-${docsText || "No documents uploaded yet."}
+RETRIEVED APPROVED SOURCE PARAGRAPHS:
+${approvedContext || "No matching approved source paragraphs were found."}
 
 ${product.disclaimer_text ? `MANDATORY DISCLAIMER (always applies): ${product.disclaimer_text}` : ""}`;
 
   const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-  if (!docsText.trim()) {
+  if (evidence.length === 0) {
     return await saveAndReturnNotFound(
       supabase,
       user.id,
       productId,
-      question.trim(),
-      "I could not find that information because no approved source documents are available for this product."
+      question,
+      "I could not verify an answer in the approved source documents."
     );
   }
 
@@ -93,13 +112,20 @@ ${product.disclaimer_text ? `MANDATORY DISCLAIMER (always applies): ${product.di
               items: {
                 type: "object",
                 properties: {
-                  document_title: { type: "string" },
                   excerpt: {
                     type: "string",
                     description: "Exact passage from the source document.",
                   },
+                  document_id: {
+                    type: "string",
+                    description: "Exact document_id from the retrieved paragraph label.",
+                  },
+                  paragraph_n: {
+                    type: "integer",
+                    description: "Exact paragraph number from the retrieved paragraph label.",
+                  },
                 },
-                required: ["document_title", "excerpt"],
+                required: ["document_id", "paragraph_n", "excerpt"],
               },
             },
             not_found: {
@@ -113,7 +139,7 @@ ${product.disclaimer_text ? `MANDATORY DISCLAIMER (always applies): ${product.di
       },
       ],
       tool_choice: { type: "tool", name: "answer_question" },
-      messages: [{ role: "user", content: question.trim() }],
+      messages: [{ role: "user", content: question }],
     });
   } catch (error) {
     console.error("knowledge answer failed:", error);
@@ -127,37 +153,15 @@ ${product.disclaimer_text ? `MANDATORY DISCLAIMER (always applies): ${product.di
 
   const rawResult = toolUse.input as {
     answer: string;
-    citations: { document_title: string; excerpt: string }[];
+    citations: RawKnowledgeCitation[];
     not_found: boolean;
   };
-  const docMap = new Map(
-    (docs ?? []).map((doc) => [
-      doc.title,
-      {
-        id: doc.id,
-        text: ((doc.paragraphs ?? []) as { text?: string }[])
-          .map((p) => p.text ?? "")
-          .join("\n"),
-      },
-    ])
-  );
-  const citations = (rawResult.citations ?? [])
-    .filter((citation) => {
-      const source = docMap.get(citation.document_title);
-      return !!source && source.text.toLowerCase().includes(citation.excerpt.trim().toLowerCase());
-    })
-    .map((citation) => ({
-      ...citation,
-      document_id: docMap.get(citation.document_title)?.id ?? null,
-    }));
-  const unsupported = !rawResult.not_found && citations.length === 0;
-  const result = {
-    answer: unsupported
-      ? "I could not verify an answer in the uploaded source documents."
-      : rawResult.answer,
+  const citations = verifyKnowledgeCitations(rawResult.citations ?? [], evidence);
+  const result = finalizeKnowledgeAnswer({
+    answer: rawResult.answer,
+    notFound: rawResult.not_found,
     citations,
-    not_found: rawResult.not_found || unsupported,
-  };
+  });
 
   // Log the query for usage analytics + audit trail. Best-effort: a logging
   // failure must never block the answer the user came for.
@@ -171,7 +175,7 @@ ${product.disclaimer_text ? `MANDATORY DISCLAIMER (always applies): ${product.di
       org_id: profile.org_id,
       product_id: productId,
       user_id: user.id,
-      question: question.trim(),
+      question,
       not_found: result.not_found ?? false,
       citation_count: result.citations?.length ?? 0,
       answer: result.answer ?? "",
