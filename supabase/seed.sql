@@ -1,6 +1,6 @@
 -- ContentGate prototype seed: one org + three generic templates.
--- Run AFTER the migration. Sign up your own user afterwards — the
--- handle_new_user trigger makes the first user an admin of this org.
+-- Run AFTER the migration, then call provision_user with this org id before
+-- creating each Auth user through the server-only Admin API.
 
 insert into organizations (id, name, industry)
 values ('00000000-0000-0000-0000-000000000001', 'VetGlobal Animal Health', 'Animal Health');

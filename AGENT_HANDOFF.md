@@ -81,6 +81,10 @@ Claude Code should not loosen backend security, approval, RLS, or export constra
 - Verified Vercel Preview `dpl_3A9W8nPQENe7YmFpTZPhNWDXx24y` at `https://contentgate-qxc4qobn5-debbies-projects-a8de6bb4.vercel.app`.
 - Completed the authenticated Preview admin workflow: upload, image preview, metadata/alt-text/tag edit, URL-backed combined filtering, list view, and permanent delete.
 - Confirmed the disposable QA row and Storage object were removed and the Preview emitted no warning/error/fatal runtime logs in the checked window.
+- Created a temporary member, verified `/assets` exposes search/filter/read states but no upload/edit/delete controls, and confirmed a direct member insert fails with RLS error `42501`.
+- Signed out and deleted the temporary Auth user; cascading profile cleanup and zero denied-write test rows were verified.
+- Found and closed a user-provisioning escalation path: magic links now use `shouldCreateUser: false`, and `handle_new_user` consumes a short-lived server-only provisioning record instead of trusting `raw_user_meta_data`.
+- Applied and verified live migrations `harden_user_provisioning` and `fix_user_provisioning_handshake`; hostile self-signup is blocked while trusted member provisioning succeeds.
 
 ## Remaining Blocker
 
@@ -100,8 +104,8 @@ Claude Code verified:
 
 ## Next Agent Should Check
 
-- Sign in to the Asset Library Preview with a non-admin member account and confirm upload/edit/delete controls are absent while preview, search, and filters remain usable.
-- Promote the reviewed Asset Library release only after that member check passes, then record the Production deployment and smoke-test result.
+- Commit and deploy the user-provisioning hardening to Preview, then verify existing-user password and magic-link login behavior.
+- Promote the reviewed Asset Library release after that authentication check, then record the Production deployment and smoke-test result.
 - After the Asset Library release, begin Phase 3 by defining the shared product/workspace query and permission contract before Claude Code restructures the product detail UI.
 - Consider a future server-side creative export endpoint for live-canvas templates. The official UI blocks draft export, but any browser-rendered canvas can still be screenshotted by a determined user.
 

@@ -204,4 +204,21 @@ Authenticated admin smoke test:
 - Permanently deleted the disposable asset; the filtered library returned to zero assets and no QA data remains.
 - Vercel returned no warning/error/fatal runtime logs for the Preview deployment in the checked one-hour window.
 
-Production promotion remains gated on one authenticated non-admin member UI check. Backend RLS and Storage policies have already been verified, but the read-only member presentation must still be exercised in Preview.
+Authenticated member verification completed on 2026-07-13:
+
+- Created a temporary member in Veltara Animal Health and signed in through an isolated Preview session.
+- Confirmed search and type filters synchronize to `?q=logo&type=logo`.
+- Confirmed upload, edit, and delete controls are absent for the member role.
+- Confirmed a direct member insert into `product_assets` is rejected by RLS with PostgreSQL error `42501`.
+- Signed out and deleted the temporary Auth user; zero Auth users, profiles, Asset Library rows, and pending test records remain.
+
+The test exposed an existing provisioning vulnerability: `handle_new_user` trusted organization and role values from user-editable metadata, while magic-link login allowed account creation by default. The release branch now:
+
+- Sets `shouldCreateUser: false` for magic-link login.
+- Requires a short-lived `private.user_provisioning` record created through the service-role-only `provision_user` RPC.
+- Rejects unprovisioned self-signup and consumes the trusted record when creating the profile.
+- Grants `provision_user` only to `service_role`; `anon` and `authenticated` both fail the privilege check.
+- Applies live migrations `harden_user_provisioning` and `fix_user_provisioning_handshake`.
+- Verifies hostile signup is blocked and trusted member provisioning creates the intended organization/role before clean deletion.
+
+Production promotion remains gated on deploying this authentication hardening to Preview and rechecking existing-user login behavior.
