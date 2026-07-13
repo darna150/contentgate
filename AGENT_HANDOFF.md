@@ -125,6 +125,9 @@ Claude Code should not loosen backend security, approval, RLS, or export constra
 - Added durable fixed-scope AI rate limits, safer helper-function search paths/grants, high-frequency RLS optimizations, missing foreign-key indexes, and Storage-level upload restrictions.
 - Replaced permanent product-asset public URLs with one-hour signed URLs across the Asset Library, product workspace, and product editor. The private-bucket switch is intentionally isolated in a second migration that must run only after the compatible Production build is live.
 - Added normalized document upload validation, `LAUNCH_RUNBOOK.md`, `SECURITY_REVIEW.md`, and a committed safe `.env.example`.
+- Applied and verified the four pre-deployment Phase 7 migrations. Supabase performance advisors now report informational unused-index notices only; the product asset bucket intentionally remains public until the signed-URL build reaches Production.
+- Preview `dpl_H8inug8gVhtgtbDFPajmw9scQ1pm` passed authenticated dashboard, Asset Library, signed image, product workspace, health, browser-console, and Vercel runtime checks. The temporary asset row and object were deleted and independently verified absent.
+- Protected GitHub `main` with strict required `verify` and `Vercel` checks, administrator enforcement, linear history, resolved conversations, and force-push/deletion blocking.
 
 ## Remaining Blocker
 
@@ -145,7 +148,7 @@ Claude Code verified:
 ## Next Agent Should Check
 
 - Run a live direct-generation `409` probe only with an isolated fixture or explicit approval to create the required inactive-product/active-template condition. Do not alter a real product or template solely for this test.
-- Complete Phase 7 Preview/Production verification and apply its migrations in the order documented in `LAUNCH_RUNBOOK.md`; keep Figma template calibration deferred until approved frames and replacement assets are supplied.
+- Merge Phase 7 after its final CI/Preview checks pass, wait for the compatible Production deployment, apply `make_product_assets_private`, and repeat authenticated asset/health/runtime checks in the order documented in `LAUNCH_RUNBOOK.md`.
 - Run Figma visual calibration later, after Debbie supplies approved frame IDs and replacement assets. Preserve the v1 field, lifecycle, approval, and export contract during that work.
 - Consider a future server-side creative export endpoint for live-canvas templates. The official UI blocks draft export, but any browser-rendered canvas can still be screenshotted by a determined user.
 

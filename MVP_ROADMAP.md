@@ -264,7 +264,8 @@ Codex:
 - Completed in code: harden helper-function search paths/grants, add fixed-scope AI rate limits, optimize high-frequency RLS policies, and cover missing foreign-key indexes.
 - Completed in code: move product assets to short-lived signed URLs, enforce private-bucket delivery in a separately sequenced migration, and enforce upload size/MIME restrictions in both application and Storage.
 - Completed in code: add `/api/health`, a smoke-test script, a security review, and a launch/rollback runbook.
-- In progress: apply the live migrations in release-safe order, verify Preview, configure required GitHub checks, merge, and verify Production.
+- Completed: apply the pre-deployment migrations in release-safe order, verify signed-URL delivery in Preview, and protect `main` with strict GitHub CI and Vercel checks.
+- In progress: merge the reviewed build, verify Production, then apply and verify the final private-bucket migration.
 
 Claude Code:
 

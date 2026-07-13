@@ -49,5 +49,4 @@ Last updated: 2026-07-13
 - Enable and verify Supabase leaked-password protection in Auth settings.
 - Confirm daily backup retention or create a scheduled off-site logical backup if the project remains on the free plan.
 - Decide whether Storage object replication/export is required for the pilot's recovery objective.
-- Configure GitHub `main` branch protection to require CI and Vercel before merge.
 - Complete Claude Code responsive/state QA and later Figma template calibration without changing backend security contracts.
