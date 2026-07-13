@@ -44,6 +44,7 @@ export default async function AppLayout({
   const { count } = await supabase
     .from("generated_content")
     .select("id", { count: "exact", head: true })
+    .not("product_id", "is", null)
     .eq("status", "in_review");
 
   return (
