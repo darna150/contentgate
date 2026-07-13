@@ -1,14 +1,14 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
 import {
   defaultSizeFor,
   originalTemplatePreviewUrl,
   SIZES,
 } from "@/lib/creative";
+import { getProductWorkspace } from "@/lib/product-workspace-server";
 import { resolveEffectiveFieldLimits } from "@/lib/template-specs";
 import { fieldLabel } from "@/lib/templates";
-import { fieldLimitText, type FieldLimits } from "@/lib/template-fields";
+import { fieldLimitText } from "@/lib/template-fields";
 import { GenerateVariant } from "../../generate-variant";
 
 export default async function ProductTemplatePage({
@@ -17,39 +17,38 @@ export default async function ProductTemplatePage({
   params: Promise<{ id: string; templateId: string }>;
 }) {
   const { id, templateId } = await params;
-  const supabase = await createClient();
-  const [{ data: product }, { data: template }] = await Promise.all([
-    supabase.from("products").select("id, name, description").eq("id", id).single(),
-    supabase
-      .from("product_templates")
-      .select(
-        "id, product_id, category, variant, layout_key, editable_fields, default_copy, field_limits, locked_fields, generation_instructions, original_file_path"
-      )
-      .eq("id", templateId)
-      .eq("product_id", id)
-      .single(),
-  ]);
-  if (!product || !template) notFound();
+  const workspace = await getProductWorkspace(id);
+  if (!workspace) notFound();
 
-  const fields = (template.editable_fields ?? []) as string[];
-  const defaultCopy = (template.default_copy ?? {}) as Record<string, string>;
+  const template = workspace.templates.find((item) => item.id === templateId);
+  if (!template) notFound();
+
+  const { product, permissions } = workspace;
+  const canGenerate =
+    permissions.canGenerateContent && template.status === "active";
+
+  const fields = template.editableFields;
+  const defaultCopy = template.defaultCopy;
   const limits = resolveEffectiveFieldLimits(
-    template.layout_key,
-    (template.field_limits ?? {}) as FieldLimits
+    template.layoutKey,
+    template.fieldLimits
   );
-  const locked = (template.locked_fields ?? []) as string[];
+  const locked = template.lockedFields;
   const sizeKey = defaultSizeFor(template.category);
   const size = SIZES[sizeKey];
   const preview = originalTemplatePreviewUrl(
     template.id,
-    template.layout_key,
+    template.layoutKey,
     sizeKey
   );
 
   return (
-    <div className="mx-auto flex max-w-[1280px] flex-col gap-6 px-10 py-9">
+    <div className="mx-auto flex max-w-[1280px] flex-col gap-6 px-4 py-9 sm:px-10">
       <div className="flex flex-col gap-1.5">
-        <Link href={`/products/${id}`} className="text-[13px] font-semibold text-brand hover:underline">
+        <Link
+          href={`/products/${id}?view=templates`}
+          className="text-[13px] font-semibold text-brand hover:underline"
+        >
           ← {product.name}
         </Link>
         <div className="flex items-center gap-3">
@@ -63,7 +62,14 @@ export default async function ProductTemplatePage({
         </p>
       </div>
 
-      <div className="grid grid-cols-[1.05fr_1fr] items-start gap-6">
+      {!canGenerate && (
+        <p className="rounded-control border border-edge-strong bg-page px-4 py-3 text-[13px] text-ink-muted">
+          This template is available for reference only. Generation and Studio
+          require an active product and an active template.
+        </p>
+      )}
+
+      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[1.05fr_1fr]">
         <div className="flex flex-col gap-3 rounded-card border border-edge bg-surface p-5">
           <div
             className="overflow-hidden rounded-[10px] border border-edge bg-page"
@@ -72,13 +78,15 @@ export default async function ProductTemplatePage({
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={preview} alt={`${template.variant} original preview`} className="h-full w-full object-contain" />
           </div>
-          <div className="flex gap-2">
-            <Link
-              href={`/studio?product=${id}&template=${template.id}`}
-              className="flex-1 rounded-control bg-brand px-4 py-2.5 text-center text-[13.5px] font-semibold text-white"
-            >
-              Open in Studio
-            </Link>
+          <div className="flex flex-wrap gap-2">
+            {canGenerate && (
+              <Link
+                href={`/studio?product=${id}&template=${template.id}`}
+                className="flex-1 rounded-control bg-brand px-4 py-2.5 text-center text-[13.5px] font-semibold text-white"
+              >
+                Open in Studio
+              </Link>
+            )}
             <a
               href={preview}
               download
@@ -87,7 +95,7 @@ export default async function ProductTemplatePage({
               Download original
             </a>
           </div>
-          {template.original_file_path && (
+          {template.originalFilePath && (
             <p className="text-xs text-ink-faint">
               An original source file is registered for this template.
             </p>
@@ -127,13 +135,15 @@ export default async function ProductTemplatePage({
               ))}
             </div>
             <p className="text-[12.5px] leading-relaxed text-ink-muted">
-              {template.generation_instructions}
+              {template.generationInstructions}
             </p>
-            <GenerateVariant
-              productId={product.id}
-              templateId={template.id}
-              variant={template.variant}
-            />
+            {canGenerate && (
+              <GenerateVariant
+                productId={product.id}
+                templateId={template.id}
+                variant={template.variant}
+              />
+            )}
           </div>
         </div>
       </div>

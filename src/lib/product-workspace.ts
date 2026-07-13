@@ -53,6 +53,17 @@ export function isWorkspaceRole(value: string): value is WorkspaceRole {
   return WORKSPACE_ROLES.includes(value as WorkspaceRole);
 }
 
+export function isProductLifecycleActive(productStatus: string) {
+  return productStatus === "active";
+}
+
+export function canGenerateForProduct(
+  productStatus: string,
+  activeTemplateCount: number
+) {
+  return isProductLifecycleActive(productStatus) && activeTemplateCount > 0;
+}
+
 export function getWorkspacePermissions(input: {
   role: WorkspaceRole;
   productStatus: string;
@@ -60,16 +71,18 @@ export function getWorkspacePermissions(input: {
 }): WorkspacePermissions {
   const isAdmin = input.role === "admin";
   const isReviewer = isAdmin || input.role === "approver";
-  const productIsActive = input.productStatus === "active";
-  const hasTemplate = input.activeTemplateCount > 0;
+  const canGenerate = canGenerateForProduct(
+    input.productStatus,
+    input.activeTemplateCount
+  );
 
   return {
     canEditProduct: isAdmin,
     canManageAssets: isAdmin,
     canManageKnowledge: isAdmin,
     canManageTemplates: isAdmin,
-    canGenerateContent: productIsActive && hasTemplate,
-    canOpenStudio: productIsActive && hasTemplate,
+    canGenerateContent: canGenerate,
+    canOpenStudio: canGenerate,
     canReviewContent: isReviewer,
   };
 }

@@ -3,16 +3,22 @@ import { redirect } from "next/navigation";
 import { NotebookClient } from "./notebook-client";
 import type { SessionMessage } from "./actions";
 
-export default async function AskPage() {
+export default async function AskPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ product?: string }>;
+}) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
   const [
+    { product: requestedProductId },
     { data: products },
     { data: rawSessions },
     { data: docs },
   ] = await Promise.all([
+    searchParams,
     supabase
       .from("products")
       .select("id, name")
@@ -37,12 +43,18 @@ export default async function AskPage() {
     updated_at: s.updated_at as string,
     created_at: s.created_at as string,
   }));
+  const initialProductId = (products ?? []).some(
+    (product) => product.id === requestedProductId
+  )
+    ? requestedProductId ?? null
+    : null;
 
   return (
     <div className="flex h-screen flex-col overflow-hidden">
       <NotebookClient
         products={(products ?? []).map((p) => ({ id: p.id, name: p.name }))}
         initialSessions={sessions}
+        initialProductId={initialProductId}
         docs={(docs ?? []).map((d) => ({
           id: d.id,
           title: d.title,

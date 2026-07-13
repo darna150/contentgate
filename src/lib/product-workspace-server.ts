@@ -11,6 +11,7 @@ import {
   type WorkspaceRole,
 } from "@/lib/product-workspace";
 import { createClient } from "@/lib/supabase/server";
+import type { FieldLimits } from "@/lib/template-fields";
 
 type Joined<T> = T | T[] | null;
 
@@ -55,6 +56,9 @@ export type ProductWorkspaceTemplate = {
   editableFields: string[];
   generationInstructions: string;
   defaultCopy: Record<string, string>;
+  fieldLimits: FieldLimits;
+  lockedFields: string[];
+  originalFilePath: string | null;
   status: string;
   sortOrder: number;
 };
@@ -205,7 +209,7 @@ export async function getProductWorkspace(
       supabase
         .from("product_templates")
         .select(
-          "id, category, variant, layout_key, editable_fields, generation_instructions, default_copy, status, sort_order"
+          "id, category, variant, layout_key, editable_fields, generation_instructions, default_copy, field_limits, locked_fields, original_file_path, status, sort_order"
         )
         .eq("org_id", profile.org_id)
         .eq("product_id", productId)
@@ -267,6 +271,9 @@ export async function getProductWorkspace(
     editableFields: (template.editable_fields ?? []) as string[],
     generationInstructions: template.generation_instructions,
     defaultCopy: (template.default_copy ?? {}) as Record<string, string>,
+    fieldLimits: (template.field_limits ?? {}) as FieldLimits,
+    lockedFields: (template.locked_fields ?? []) as string[],
+    originalFilePath: template.original_file_path,
     status: template.status,
     sortOrder: template.sort_order,
   }));

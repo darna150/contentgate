@@ -48,7 +48,10 @@ change first.
 - `member`: read the workspace; generate content and open Studio for active,
   configured products; no product administration or approval action.
 - Archived products cannot generate new content or open Studio.
+- Inactive products cannot generate new content or open Studio.
 - Products without an active template cannot generate content or open Studio.
+- Template detail is reference-only unless both the product and requested template are active.
+- The generation API independently checks product lifecycle before loading approved knowledge or calling the model.
 
 The UI may hide or disable controls for clarity, but server actions and RLS
 remain the enforcement boundary.
@@ -72,6 +75,8 @@ corresponding action.
   the same contract.
 - Keep fast links to the global Knowledge Hub and Studio, but preserve the
   product ID in navigation.
+- Knowledge Hub navigation uses `?product=<id>` to select the newest existing
+  session for that product or a product-specific new-conversation state.
 - Do not query by product name, infer organization from the URL, or use a
   service-role client to render the workspace.
 - Do not cache the authenticated workspace across users or organizations.
@@ -82,4 +87,5 @@ corresponding action.
 - `npm run test:workspace` covers role, lifecycle, configuration, and empty-state
   behavior.
 - `npm run test` runs Asset Library and product-workspace contract tests.
+- `npm run test:knowledge` covers product-scoped Knowledge Hub selection.
 - `npm run lint` and `npm run build` must pass before handoff to Claude Code.

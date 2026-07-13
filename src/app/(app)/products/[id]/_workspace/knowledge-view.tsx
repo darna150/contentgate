@@ -23,7 +23,10 @@ export function KnowledgeView({ workspace }: { workspace: ProductWorkspace }) {
         <span className="rounded-[5px] bg-approve-tint px-[7px] py-0.5 text-[10px] font-bold uppercase tracking-[0.06em] text-approve">
           Locked knowledge
         </span>
-        <Link href="/ask" className="text-[13px] font-semibold text-brand hover:underline">
+        <Link
+          href={`/ask?product=${product.id}`}
+          className="text-[13px] font-semibold text-brand hover:underline"
+        >
           Open Knowledge Hub →
         </Link>
       </div>

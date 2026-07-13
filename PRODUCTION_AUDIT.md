@@ -246,6 +246,23 @@ Started on branch `codex/product-workspaces` after the Production release:
 - Applies live migrations `harden_user_provisioning` and `fix_user_provisioning_handshake`.
 - Verifies hostile signup is blocked and trusted member provisioning creates the intended organization/role before clean deletion.
 
+## Phase 3 Product Workspace UI Review
+
+Claude Code implementation reviewed on 2026-07-13:
+
+- Branch: `codex/product-workspaces`
+- UI commit: `8a09011c6180839acd53703f3ea6dfd67d1ca759`
+- Draft pull request: `https://github.com/darna150/contentgate/pull/2`
+- Initial UI Preview: `dpl_5SHRQo5CDNk64Ge3C6PZicxk6ZqF`
+- Initial Preview state: `READY`, with no build errors or warning/error/fatal runtime logs in the checked window.
+- Confirmed the five workspace views reuse `getProductWorkspace(productId)` and introduce no UI-specific Supabase queries.
+- Review found that direct template detail still exposed generation/Studio outside the workspace lifecycle gate and that Knowledge Hub navigation dropped the product ID.
+- Corrected template detail to consume the workspace contract, made non-active product/template views reference-only, and enforced active product status in `/api/products/generate` before knowledge/model work.
+- Corrected Knowledge Hub navigation to carry and validate `?product=...`, select the newest matching session, or retain the product in a new-conversation state.
+- Added inactive/archived lifecycle and product-aware Knowledge Hub regression tests.
+- Local verification: `git diff --check`, eleven tests, lint, TypeScript, and the Next.js production build pass.
+- Corrected Preview deployment and authenticated role QA remain pending before PR #2 can be marked ready.
+
 Authentication hardening Preview verification completed on 2026-07-13:
 
 - Commit: `47d5056069029fc180c4551e8c70d03a386cae9c`

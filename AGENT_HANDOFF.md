@@ -92,6 +92,11 @@ Claude Code should not loosen backend security, approval, RLS, or export constra
 - Started Phase 3 on `codex/product-workspaces` and added `PRODUCT_WORKSPACE_CONTRACT.md`.
 - Implemented `getProductWorkspace(productId)` as the shared RLS-preserving read boundary for the product profile, assets, sources, claims, active templates, generated content, and product approval queue.
 - Refactored `/products/[id]` onto the workspace service and added tested role, lifecycle, configuration, and empty-state rules.
+- Claude Code implemented the Phase 3 tabbed product workspace as commit `8a09011`, covering Assets, Knowledge, Templates, Content, and Approvals.
+- Codex independently reproduced the tests/build and reviewed the UI for boundary, permission, lifecycle, and navigation regressions.
+- Moved product template detail onto `getProductWorkspace`, hid generation/Studio for non-active products or templates, and added an API lifecycle check before generation context is loaded.
+- Preserved product context through `/ask?product=...`; the Knowledge Hub now selects that product's newest session or offers a product-specific new conversation state.
+- Added lifecycle and Knowledge Hub navigation regression coverage; all eleven focused tests, lint, and the production build pass locally.
 
 ## Remaining Blocker
 
@@ -111,9 +116,11 @@ Claude Code verified:
 
 ## Next Agent Should Check
 
-- Claude Code should read `PRODUCT_WORKSPACE_CONTRACT.md`, then restructure the product detail UI into Assets, Knowledge, Templates, Content, and Approvals views without bypassing `getProductWorkspace`.
-- Preserve fast product-scoped links into Knowledge Hub and Studio and run desktop/mobile visual QA.
-- Codex should review Claude's pass for organization/product boundary drift, permission regressions, duplicated queries, and all Phase 3 exit criteria.
+- Deploy the corrected `codex/product-workspaces` head and run authenticated Preview QA as admin, member, and approver.
+- Confirm inactive/archived template detail stays reference-only and a direct generation request returns `409` without creating content.
+- Confirm `/ask?product=...` reopens that product's newest session or starts from the correct product-specific empty state.
+- Mark PR #2 ready only after desktop/mobile layout, browser console, runtime logs, and role controls pass; then merge and verify Production.
+- Begin Phase 4 template-engine standardization only after the Phase 3 release gate closes.
 - Consider a future server-side creative export endpoint for live-canvas templates. The official UI blocks draft export, but any browser-rendered canvas can still be screenshotted by a determined user.
 
 ## Do Not Break

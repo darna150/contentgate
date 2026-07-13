@@ -2,8 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  canGenerateForProduct,
   getWorkspacePermissions,
   getWorkspaceSectionStates,
+  isProductLifecycleActive,
 } from "./product-workspace.ts";
 
 test("limits workspace administration to admins", () => {
@@ -51,11 +53,21 @@ test("blocks generation and Studio when a product is archived or has no template
     productStatus: "active",
     activeTemplateCount: 0,
   });
+  const inactive = getWorkspacePermissions({
+    role: "admin",
+    productStatus: "inactive",
+    activeTemplateCount: 1,
+  });
 
+  assert.equal(canGenerateForProduct("active", 1), true);
+  assert.equal(canGenerateForProduct("archived", 1), false);
+  assert.equal(isProductLifecycleActive("inactive"), false);
   assert.equal(archived.canGenerateContent, false);
   assert.equal(archived.canOpenStudio, false);
   assert.equal(unconfigured.canGenerateContent, false);
   assert.equal(unconfigured.canOpenStudio, false);
+  assert.equal(inactive.canGenerateContent, false);
+  assert.equal(inactive.canOpenStudio, false);
 });
 
 test("describes section empty states and hides actions a member cannot take", () => {

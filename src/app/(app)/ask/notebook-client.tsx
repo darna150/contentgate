@@ -8,6 +8,7 @@ import {
   renameSession,
 } from "./actions";
 import type { Citation, SessionMessage } from "./actions";
+import { resolveInitialKnowledgeSelection } from "@/lib/knowledge-hub";
 
 type Product = { id: string; name: string };
 type Doc = { id: string; title: string; product_id: string | null };
@@ -31,15 +32,28 @@ const STARTERS = [
 export function NotebookClient({
   products,
   initialSessions,
+  initialProductId,
   docs,
 }: {
   products: Product[];
   initialSessions: Session[];
+  initialProductId: string | null;
   docs: Doc[];
 }) {
+  const initialSelection = resolveInitialKnowledgeSelection({
+    productIds: products.map((product) => product.id),
+    sessions: initialSessions.map((session) => ({
+      id: session.id,
+      productId: session.product_id,
+    })),
+    requestedProductId: initialProductId,
+  });
   const [sessions, setSessions] = useState<Session[]>(initialSessions);
   const [activeId, setActiveId] = useState<string | null>(
-    initialSessions[0]?.id ?? null
+    initialSelection.activeSessionId
+  );
+  const [selectedProductId, setSelectedProductId] = useState<string | null>(
+    initialSelection.selectedProductId
   );
   const [question, setQuestion] = useState("");
   const [loading, setLoading] = useState(false);
@@ -63,6 +77,8 @@ export function NotebookClient({
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const activeSession = sessions.find((s) => s.id === activeId) ?? null;
+  const selectedProduct =
+    products.find((product) => product.id === selectedProductId) ?? null;
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -77,6 +93,7 @@ export function NotebookClient({
   // ── Session management ──────────────────────────────────────────────────────
 
   async function handleNew(productId: string) {
+    setSelectedProductId(productId);
     startTransition(async () => {
       const result = await createSession(productId);
       if ("error" in result) return;
@@ -102,6 +119,9 @@ export function NotebookClient({
       if (activeId === sessionId) {
         const next = sessions.find((s) => s.id !== sessionId);
         setActiveId(next?.id ?? null);
+        setSelectedProductId(
+          next?.product_id ?? initialProductId ?? products[0]?.id ?? null
+        );
         setSourcePanel(null);
       }
     });
@@ -287,7 +307,11 @@ export function NotebookClient({
                   className={`group relative flex items-start gap-1 rounded-[7px] mx-2 px-2 py-2 transition-colors cursor-pointer ${
                     activeId === s.id ? "bg-brand-tint" : "hover:bg-page"
                   }`}
-                  onClick={() => { setActiveId(s.id); setSourcePanel(null); }}
+                  onClick={() => {
+                    setActiveId(s.id);
+                    setSelectedProductId(s.product_id);
+                    setSourcePanel(null);
+                  }}
                 >
                   {renamingId === s.id ? (
                     <input
@@ -357,10 +381,26 @@ export function NotebookClient({
             <div className="flex h-full flex-col items-center justify-center gap-5 px-8 text-center">
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-tint text-[22px] font-bold text-brand">?</div>
               <div className="flex flex-col gap-1.5">
-                <p className="text-[15px] font-semibold">Start a conversation</p>
-                <p className="max-w-sm text-[13px] text-ink-muted">
-                  Pick a product on the left and click <span className="font-bold">+</span> to begin a new conversation.
+                <p className="text-[15px] font-semibold">
+                  {selectedProduct
+                    ? `Start a conversation about ${selectedProduct.name}`
+                    : "Start a conversation"}
                 </p>
+                <p className="max-w-sm text-[13px] text-ink-muted">
+                  {selectedProduct
+                    ? "Begin a new conversation grounded in this product's approved sources."
+                    : "Pick a product on the left to begin a new conversation."}
+                </p>
+                {selectedProduct && (
+                  <button
+                    type="button"
+                    onClick={() => handleNew(selectedProduct.id)}
+                    disabled={isPending}
+                    className="mt-3 rounded-control bg-brand px-4 py-2 text-[13px] font-semibold text-white disabled:opacity-40"
+                  >
+                    Start conversation
+                  </button>
+                )}
               </div>
             </div>
           ) : activeSession.messages.length === 0 && !loading ? (

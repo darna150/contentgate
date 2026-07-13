@@ -34,12 +34,14 @@ The MVP is not a campaign planner, finance platform, project-management suite, o
 - Asset Library PR #1 merged to `main` at `239db7c` and deployed successfully to Production.
 - Authenticated Production Asset Library and dashboard smoke tests pass with no runtime errors.
 - Phase 3 product-workspace read, permission, count, and empty-state contract implemented and tested.
+- Phase 3 product workspace UI implemented with Assets, Knowledge, Templates, Content, and Approvals views on one shared read boundary.
+- Codex review closed product-lifecycle and Knowledge Hub context gaps, including direct template/API generation enforcement for non-active products.
 
 ### Current Gate
 
 - Phases 1 and 2 are complete and verified in Production.
-- Phase 3 Codex architecture work is complete on `codex/product-workspaces`.
-- Claude Code can begin the product-workspace UI only after reviewing `PRODUCT_WORKSPACE_CONTRACT.md` and the shared service types.
+- Phase 3 implementation and Codex review fixes are complete on `codex/product-workspaces`.
+- Draft PR #2 requires one corrected Preview QA pass before it is marked ready, merged, and promoted to Production.
 
 ## Execution Order
 
@@ -117,7 +119,7 @@ Exit criteria:
 
 ### 3. Make Product Workspaces The Core Navigation Unit
 
-Status: Codex contract complete; Claude Code UI pass next
+Status: Implementation complete; corrected Preview release gate pending
 
 Owner: Codex first, Claude Code second
 
@@ -130,9 +132,18 @@ Codex:
 
 Claude Code:
 
-- Rework the product detail experience into a clear workspace with Assets, Knowledge, Templates, Content, and Approvals views.
-- Preserve fast navigation into Knowledge Hub and Studio.
-- Complete desktop and mobile visual QA.
+- Completed: reworked the product detail experience into Assets, Knowledge, Templates, Content, and Approvals views.
+- Completed: preserved navigation into Knowledge Hub, template detail, content, approvals, and Studio.
+- Completed: ran desktop and mobile visual QA on the initial Preview implementation.
+
+Codex review:
+
+- Completed: verified all five views consume `getProductWorkspace(productId)` without adding UI-specific Supabase queries.
+- Completed: moved template detail onto the shared workspace contract and made non-active product/template views reference-only.
+- Completed: enforced active-product lifecycle rules inside the generation API before loading knowledge or calling the model.
+- Completed: made Knowledge Hub links product-aware and added deterministic product/session selection.
+- Completed: added inactive/archived generation and Knowledge Hub navigation regression tests.
+- Pending: run authenticated admin/member/approver QA on the corrected Preview, then merge PR #2 and verify Production.
 
 Exit criteria:
 
