@@ -261,7 +261,12 @@ Claude Code implementation reviewed on 2026-07-13:
 - Corrected Knowledge Hub navigation to carry and validate `?product=...`, select the newest matching session, or retain the product in a new-conversation state.
 - Added inactive/archived lifecycle and product-aware Knowledge Hub regression tests.
 - Local verification: `git diff --check`, eleven tests, lint, TypeScript, and the Next.js production build pass.
-- Corrected Preview deployment and authenticated role QA remain pending before PR #2 can be marked ready.
+- Correction commit: `9e63a991aa0734e4564bf46fd769fefe86add33d`
+- Corrected Preview: `dpl_9cnouYp7aqX1f6Fk2NRrVV6Y9Wg7`
+- Corrected Preview URL: `https://contentgate-i5pr98tt6-debbies-projects-a8de6bb4.vercel.app`
+- Corrected Preview state: `READY`; build completed without errors and no warning/error/fatal runtime logs appeared in the checked window.
+- Unauthenticated workspace access correctly redirected to `/login`.
+- Authenticated admin/member/approver role QA remains pending before PR #2 can be marked ready.
 
 Authentication hardening Preview verification completed on 2026-07-13:
 

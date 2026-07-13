@@ -97,6 +97,7 @@ Claude Code should not loosen backend security, approval, RLS, or export constra
 - Moved product template detail onto `getProductWorkspace`, hid generation/Studio for non-active products or templates, and added an API lifecycle check before generation context is loaded.
 - Preserved product context through `/ask?product=...`; the Knowledge Hub now selects that product's newest session or offers a product-specific new conversation state.
 - Added lifecycle and Knowledge Hub navigation regression coverage; all eleven focused tests, lint, and the production build pass locally.
+- Pushed correction commit `9e63a99`; Vercel Preview `dpl_9cnouYp7aqX1f6Fk2NRrVV6Y9Wg7` reached `READY` with clean build and runtime logs.
 
 ## Remaining Blocker
 
