@@ -36,15 +36,15 @@ The MVP is not a campaign planner, finance platform, project-management suite, o
 - Phase 3 product-workspace read, permission, count, and empty-state contract implemented and tested.
 - Phase 3 product workspace UI implemented with Assets, Knowledge, Templates, Content, and Approvals views on one shared read boundary.
 - Codex review closed product-lifecycle and Knowledge Hub context gaps, including direct template/API generation enforcement for non-active products.
+- Phase 3 PR #2 merged to `main` at `752a3b1` and deployed successfully to Production.
+- Authenticated Production workspace, product-scoped Knowledge Hub, inactive-product gating, browser-console, and runtime-log checks pass.
 
 ### Current Gate
 
 - Phases 1 and 2 are complete and verified in Production.
-- Phase 3 implementation and Codex review fixes are complete on `codex/product-workspaces`.
-- Corrected Preview admin/member/approver role QA is complete; the disposable role accounts and provisioning records were removed.
-- Draft PR #2 is ready for final release review, merge, and Production verification.
+- Phase 3 is complete and verified in Production; disposable Preview role accounts and provisioning records were removed.
 - Phase 4 engineering is complete on `codex/template-engine-standardization`; its additive contract metadata migration is applied and verified live.
-- Phase 4 code release must follow the Phase 3 merge. Final template visual calibration is deferred until the replacement Figma frames are approved.
+- Phase 4 is integrated with the released Phase 3 code and is ready for pull-request release. Final template visual calibration is deferred until the replacement Figma frames are approved.
 
 ## Execution Order
 
@@ -122,7 +122,7 @@ Exit criteria:
 
 ### 3. Make Product Workspaces The Core Navigation Unit
 
-Status: Preview QA complete; Production promotion pending
+Status: Complete and verified in Production
 
 Owner: Codex first, Claude Code second
 
@@ -149,7 +149,8 @@ Codex review:
 - Completed: ran authenticated admin/member/approver QA on the corrected Preview. Active configured products allow generation for all three roles; administration is admin-only; approval actions are approver/admin-only; inactive products expose no Generate or Studio control.
 - Completed: verified product-scoped Knowledge Hub navigation, all five settled workspace views, and a clean browser console.
 - Completed: signed out and deleted the disposable member and approver Auth users; zero profiles and zero provisioning records remain.
-- Pending: merge PR #2 and verify Production. A live `409` probe was not run because the current inactive product has no active template and creating that condition would mutate shared Production data; the lifecycle guard remains covered by focused regression tests and code review.
+- Completed: merged PR #2 as `752a3b1`, deployed Production `dpl_PePwAtzv4Ti6rZo1MHeB3aFDDqFM`, and verified the workspace, product-scoped Knowledge Hub handoff, inactive DigestPro generation gate, browser console, and runtime logs.
+- Deferred: a live `409` probe was not run because the current inactive product has no active template and creating that condition would mutate shared Production data; the lifecycle guard remains covered by focused regression tests and code review.
 
 Exit criteria:
 
