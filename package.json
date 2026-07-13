@@ -7,10 +7,12 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "npm run test:assets && npm run test:workspace && npm run test:knowledge",
+    "test": "npm run test:assets && npm run test:workspace && npm run test:knowledge && npm run test:templates && npm run test:template-render",
     "test:assets": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test src/lib/product-assets.test.ts",
     "test:workspace": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test src/lib/product-workspace.test.ts",
-    "test:knowledge": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test src/lib/knowledge-hub.test.ts"
+    "test:knowledge": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test src/lib/knowledge-hub.test.ts",
+    "test:templates": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test src/lib/template-contract.test.ts",
+    "test:template-render": "tsx --test src/lib/template-renderer.test.tsx"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.83",
@@ -34,6 +36,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
     "tailwindcss": "^4",
+    "tsx": "^4.23.1",
     "typescript": "^5"
   }
 }

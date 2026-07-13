@@ -8,6 +8,7 @@ import {
   type FieldLimits,
 } from "@/lib/template-fields";
 import { resolveEffectiveFieldLimits } from "@/lib/template-specs";
+import { isTemplateContractReady } from "@/lib/template-contract";
 import { isProductLifecycleActive } from "@/lib/product-workspace";
 
 export const runtime = "nodejs";
@@ -112,12 +113,29 @@ export async function POST(req: Request) {
   const { data: tpl } = await supabase
     .from("product_templates")
     .select(
-      "id, product_id, category, variant, layout_key, editable_fields, default_copy, field_limits, generation_instructions"
+      "id, product_id, category, variant, layout_key, editable_fields, default_copy, field_limits, locked_fields, template_definition, generation_instructions"
     )
     .eq("id", productTemplateId)
     .eq("status", "active")
     .single();
   if (!tpl) return Response.json({ error: "Template not found." }, { status: 404 });
+
+  const templateReady = isTemplateContractReady({
+    layoutKey: tpl.layout_key,
+    category: tpl.category,
+    editableFields: (tpl.editable_fields ?? []) as string[],
+    fieldLimits: (tpl.field_limits ?? {}) as FieldLimits,
+    lockedFields: (tpl.locked_fields ?? []) as string[],
+    definition: tpl.template_definition,
+    status: "active",
+  });
+  if (!templateReady) {
+    console.error("Generation blocked by invalid template contract:", tpl.id);
+    return Response.json(
+      { error: "This template is not ready for content generation." },
+      { status: 409 }
+    );
+  }
 
   const { data: product } = await supabase
     .from("products")

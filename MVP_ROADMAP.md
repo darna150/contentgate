@@ -36,13 +36,15 @@ The MVP is not a campaign planner, finance platform, project-management suite, o
 - Phase 3 product-workspace read, permission, count, and empty-state contract implemented and tested.
 - Phase 3 product workspace UI implemented with Assets, Knowledge, Templates, Content, and Approvals views on one shared read boundary.
 - Codex review closed product-lifecycle and Knowledge Hub context gaps, including direct template/API generation enforcement for non-active products.
+- Phase 3 PR #2 merged to `main` at `752a3b1` and deployed successfully to Production.
+- Authenticated Production workspace, product-scoped Knowledge Hub, inactive-product gating, browser-console, and runtime-log checks pass.
 
 ### Current Gate
 
 - Phases 1 and 2 are complete and verified in Production.
-- Phase 3 implementation and Codex review fixes are complete on `codex/product-workspaces`.
-- Corrected Preview admin/member/approver role QA is complete; the disposable role accounts and provisioning records were removed.
-- Draft PR #2 is ready for final release review, merge, and Production verification.
+- Phase 3 is complete and verified in Production; disposable Preview role accounts and provisioning records were removed.
+- Phase 4 engineering is complete on `codex/template-engine-standardization`; its additive contract metadata migration is applied and verified live.
+- Phase 4 is integrated with the released Phase 3 code and is ready for pull-request release. Final template visual calibration is deferred until the replacement Figma frames are approved.
 
 ## Execution Order
 
@@ -120,7 +122,7 @@ Exit criteria:
 
 ### 3. Make Product Workspaces The Core Navigation Unit
 
-Status: Preview QA complete; Production promotion pending
+Status: Complete and verified in Production
 
 Owner: Codex first, Claude Code second
 
@@ -147,7 +149,8 @@ Codex review:
 - Completed: ran authenticated admin/member/approver QA on the corrected Preview. Active configured products allow generation for all three roles; administration is admin-only; approval actions are approver/admin-only; inactive products expose no Generate or Studio control.
 - Completed: verified product-scoped Knowledge Hub navigation, all five settled workspace views, and a clean browser console.
 - Completed: signed out and deleted the disposable member and approver Auth users; zero profiles and zero provisioning records remain.
-- Pending: merge PR #2 and verify Production. A live `409` probe was not run because the current inactive product has no active template and creating that condition would mutate shared Production data; the lifecycle guard remains covered by focused regression tests and code review.
+- Completed: merged PR #2 as `752a3b1`, deployed Production `dpl_PePwAtzv4Ti6rZo1MHeB3aFDDqFM`, and verified the workspace, product-scoped Knowledge Hub handoff, inactive DigestPro generation gate, browser console, and runtime logs.
+- Deferred: a live `409` probe was not run because the current inactive product has no active template and creating that condition would mutate shared Production data; the lifecycle guard remains covered by focused regression tests and code review.
 
 Exit criteria:
 
@@ -156,29 +159,32 @@ Exit criteria:
 
 ### 4. Standardize The Template Engine
 
-Status: Partially implemented
+Status: Engineering and authenticated Preview QA complete; Figma visual calibration intentionally deferred
 
 Owner: Codex first, Claude Code second
 
 Codex:
 
-- Make the Apex Canine implementation the documented template contract.
-- Standardize layout keys, editable fields, locked fields, field limits, density rules, overflow checks, and supported output sizes.
-- Add automated render/stress checks for every active template and output size.
-- Confirm server-rendered and live-canvas templates share the same approval/export rules.
-- Hide or deactivate legacy templates that do not meet the contract.
+- Completed: made the active Apex Canine pattern a versioned registry shared by Studio, generation, workspace readiness, review, approval, preview, and export.
+- Completed: standardized layout keys, editable fields, locked fields, field limits, density rules, overflow checks, and supported output sizes for all active templates.
+- Completed: added contract and nonblank PNG render/stress checks for every active template and output size.
+- Completed: enforced the same declared sizes and approval/export boundary for server rendering and live canvas.
+- Completed: kept all unregistered legacy templates inactive and blocked active contract drift in both code and database metadata.
+- Completed: added a normalized design-source boundary so Canva metadata can move to Figma without changing generation or approval workflows.
+- Completed: verified the authenticated Phase 4 Preview across Apex Canine, CaniGuard 5, and VitalBite. Each active layout exposes only its declared output sizes, draft export stays disabled, and approved export is enabled.
+- Completed: verified no browser console warnings/errors and no Vercel error/fatal runtime logs during the authenticated Preview workflow.
 
 Claude Code:
 
-- Calibrate spacing, typography, imagery, and responsive Studio behavior for Apex Canine, VitalBite, and CaniGuard 5.
-- Compare rendered output with the approved Figma/Canva references.
-- Fix visual overflow only within the declared template contract.
+- Deferred by product decision: calibrate spacing, typography, imagery, and responsive Studio behavior after the replacement Figma templates are approved.
+- Deferred: compare rendered output with the approved Figma frames and fix visual differences only within the declared template contract.
 
 Exit criteria:
 
-- Every active template passes field-limit and render checks.
-- Approved output is visually reliable at every supported size.
-- Adding a new template follows one repeatable onboarding process.
+- Complete: every active template passes field-limit and render checks.
+- Complete: the authenticated Preview enforces the declared output-size and approval/export contract.
+- Deferred until Figma migration: final pixel comparison against the replacement approved designs.
+- Complete: adding a new template follows one repeatable onboarding process documented in `TEMPLATE_ENGINE_CONTRACT.md` and `TEMPLATE_ONBOARDING.md`.
 
 ### 5. Strengthen Knowledge Hub Reliability
 

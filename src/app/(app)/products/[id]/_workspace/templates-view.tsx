@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { fieldLabel } from "@/lib/templates";
-import { defaultSizeFor, originalTemplatePreviewUrl, SIZES } from "@/lib/creative";
+import { originalTemplatePreviewUrl, SIZES } from "@/lib/creative";
+import { defaultTemplateSize } from "@/lib/template-contract";
 import type {
   ProductWorkspace,
   ProductWorkspaceTemplate,
@@ -63,7 +64,12 @@ export function TemplatesView({ workspace }: { workspace: ProductWorkspace }) {
           </h2>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {variants.map((t) => {
-              const sizeKey = defaultSizeFor(t.category);
+              const sizeKey = defaultTemplateSize({
+                layoutKey: t.layoutKey,
+                category: t.category,
+                definition: t.templateDefinition,
+                status: t.status,
+              });
               const dims = SIZES[sizeKey];
               const previewSrc = originalTemplatePreviewUrl(
                 t.id,

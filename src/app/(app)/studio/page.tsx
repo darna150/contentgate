@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { isTemplateContractReady } from "@/lib/template-contract";
 import { resolveEffectiveFieldLimits } from "@/lib/template-specs";
 import { StudioEditor } from "./studio-editor";
 
@@ -12,6 +13,8 @@ type Template = {
   editable_fields: string[];
   default_copy: Record<string, string>;
   field_limits: Record<string, { max_chars?: number; max_words?: number; max_lines?: number }>;
+  locked_fields: string[];
+  template_definition: Record<string, unknown>;
 };
 
 export default async function StudioPage({
@@ -29,17 +32,33 @@ export default async function StudioPage({
       .order("name"),
     supabase
       .from("product_templates")
-      .select("id, product_id, category, variant, layout_key, editable_fields, default_copy, field_limits")
+      .select("id, product_id, category, variant, layout_key, editable_fields, default_copy, field_limits, locked_fields, template_definition")
       .eq("status", "active")
       .order("sort_order"),
     supabase.from("organizations").select("name").single(),
   ]);
 
   const products = (productRows ?? []) as Product[];
-  const templates = ((templateRows ?? []) as Template[]).map((template) => ({
-    ...template,
-    field_limits: resolveEffectiveFieldLimits(template.layout_key, template.field_limits),
-  }));
+  const templates = ((templateRows ?? []) as Template[])
+    .map((template) => ({
+      ...template,
+      field_limits: resolveEffectiveFieldLimits(template.layout_key, template.field_limits),
+    }))
+    .filter((template) => {
+      const ready = isTemplateContractReady({
+        layoutKey: template.layout_key,
+        category: template.category,
+        editableFields: template.editable_fields,
+        fieldLimits: template.field_limits,
+        lockedFields: template.locked_fields,
+        definition: template.template_definition,
+        status: "active",
+      });
+      if (!ready) {
+        console.error("Active template failed the engine contract:", template.id);
+      }
+      return ready;
+    });
 
   const { data: requestedContent } = query.content
     ? await supabase
