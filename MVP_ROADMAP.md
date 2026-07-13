@@ -46,7 +46,8 @@ The MVP is not a campaign planner, finance platform, project-management suite, o
 - Phases 1 and 2 are complete and verified in Production.
 - Phase 3 is complete and verified in Production; disposable Preview role accounts and provisioning records were removed.
 - Phase 4 is complete and verified in Production; its contract metadata migration is applied and verified live.
-- Phase 5 Knowledge Hub reliability is next. Final template visual calibration remains deferred until the replacement Figma frames are approved.
+- Phase 5 Knowledge Hub backend reliability is complete and verified in Production.
+- Phase 6 approval history and auditability is next. Knowledge Hub visual polish and final template calibration remain deferred.
 
 ## Execution Order
 
@@ -192,7 +193,7 @@ Exit criteria:
 
 ### 5. Strengthen Knowledge Hub Reliability
 
-Status: Backend reliability and authenticated Preview QA complete; visual polish deferred
+Status: Backend reliability complete and verified in Production; visual polish deferred
 
 Owner: Codex first, Claude Code second
 
@@ -207,6 +208,7 @@ Codex:
 - Completed: added source/citation/no-evidence regression tests before semantic search.
 - Completed: verified a supported VitalBite answer cites and highlights exact paragraph 2, an unsupported question fails safely, and both exchanges survive a reload.
 - Completed: removed the disposable notebook session and confirmed clean browser and Vercel runtime logs. The two question audit events remain by design.
+- Completed: merged PR #5 as `f6a7cd6`, deployed Production `dpl_EPJ1rxCoPJ43BZHP9C8tSGVXdrmu`, repeated the supported/no-evidence/reload workflow, and removed the Production test notebook session.
 - Deferred by design: add embeddings only when measured retrieval quality requires them.
 
 Claude Code:
