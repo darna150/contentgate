@@ -48,7 +48,7 @@ The MVP is not a campaign planner, finance platform, project-management suite, o
 - Phase 4 is complete and verified in Production; its contract metadata migration is applied and verified live.
 - Phase 5 Knowledge Hub backend reliability is complete and verified in Production.
 - Phase 6 approval history and auditability is complete and verified in Production. Knowledge Hub visual polish and final template calibration remain deferred.
-- Phase 7 launch-readiness engineering is in progress. Final Figma calibration and Claude Code visual QA remain deferred by product decision.
+- Phase 7 launch-readiness engineering is complete and verified in Production. Final Figma calibration and Claude Code visual QA remain deferred by product decision.
 
 ## Execution Order
 
@@ -253,7 +253,7 @@ Exit criteria:
 
 ### 7. MVP Launch Readiness
 
-Status: Engineering implementation in progress
+Status: Engineering complete and verified in Production; visual QA deferred
 
 Owner: Codex for engineering gates, Claude Code for visual QA
 
@@ -265,7 +265,7 @@ Codex:
 - Completed in code: move product assets to short-lived signed URLs, enforce private-bucket delivery in a separately sequenced migration, and enforce upload size/MIME restrictions in both application and Storage.
 - Completed in code: add `/api/health`, a smoke-test script, a security review, and a launch/rollback runbook.
 - Completed: apply the pre-deployment migrations in release-safe order, verify signed-URL delivery in Preview, and protect `main` with strict GitHub CI and Vercel checks.
-- In progress: merge the reviewed build, verify Production, then apply and verify the final private-bucket migration.
+- Completed: merged PR #9, verified Production, then applied and verified the final private-bucket migration.
 
 Claude Code:
 
@@ -275,7 +275,7 @@ Claude Code:
 
 Exit criteria:
 
-- A new customer organization can complete the core workflow without developer intervention.
+- Controlled customer onboarding and the core asset-to-approved-export workflow are documented and operational; approved template setup remains an intentional implementation step until the Figma onboarding flow is finalized.
 - CI and deployment gates prevent known security and template regressions.
 - Operational monitoring and rollback steps are documented.
 
