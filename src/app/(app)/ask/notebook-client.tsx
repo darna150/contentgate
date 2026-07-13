@@ -23,10 +23,10 @@ type Session = {
 type Paragraph = { n: number; text: string };
 
 const STARTERS = [
-  "What claims can I make about this product?",
-  "What are the key benefits?",
-  "Who is this product for?",
-  "What's the recommended dosage or usage?",
+  "What claims can local teams use?",
+  "Which template fields can be edited?",
+  "Who is ContentGate for?",
+  "How should teams localize content?",
 ];
 
 export function NotebookClient({

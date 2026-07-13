@@ -29,8 +29,37 @@ function text(fields: Record<string, string>, keys: string[], fallback: string) 
   return pickCopy(fields, keys).trim() || fallback;
 }
 
-function fit(value: string, maxChars: number, maxLines = 1) {
-  return fitCopy(value, { maxChars, maxLines });
+function fit(value: string, maxChars: number, maxLines = 1, lineChars?: number) {
+  const wrapped = fitCopy(value, { maxLines, lineChars });
+  if (wrapped.length <= maxChars) return wrapped;
+
+  const clipped = wrapped.slice(0, maxChars).trimEnd();
+  const wordBoundary = clipped.lastIndexOf(" ");
+  if (wordBoundary > maxChars * 0.55) return clipped.slice(0, wordBoundary);
+  return clipped;
+}
+
+function Field({
+  name,
+  children,
+  style,
+  contentStyle,
+}: {
+  name: string;
+  children: React.ReactNode;
+  style: React.CSSProperties;
+  contentStyle?: React.CSSProperties;
+}) {
+  return (
+    <div data-template-field={name} style={style}>
+      <span
+        data-template-content
+        style={{ display: "block", width: "100%", ...contentStyle }}
+      >
+        {children}
+      </span>
+    </div>
+  );
 }
 
 function Logo({ light = false, scale = 1 }: { light?: boolean; scale?: number }) {
@@ -99,7 +128,13 @@ function Logo({ light = false, scale = 1 }: { light?: boolean; scale?: number })
   );
 }
 
-function ProductMockup({ compact = false }: { compact?: boolean }) {
+function ProductMockup({
+  compact = false,
+  tall = false,
+}: {
+  compact?: boolean;
+  tall?: boolean;
+}) {
   const cardCount = compact ? 2 : 3;
   return (
     <div
@@ -119,6 +154,7 @@ function ProductMockup({ compact = false }: { compact?: boolean }) {
         style={{
           display: "flex",
           flexDirection: "column",
+          ...(tall ? { justifyContent: "center" } : {}),
           gap: compact ? 12 : 18,
           width: "78%",
           padding: compact ? 18 : 30,
@@ -157,7 +193,7 @@ function ProductMockup({ compact = false }: { compact?: boolean }) {
             alignItems: "center",
             gap: 10,
             height: compact ? 26 : 44,
-            marginTop: "auto",
+            marginTop: tall ? 0 : "auto",
             padding: compact ? "0 12px" : "0 18px",
             borderRadius: 999,
             background: WARM,
@@ -208,7 +244,8 @@ function Layout({
     headlineSize: number,
     bodySize: number,
     ctaHeight: number,
-    compact = false
+    compact = false,
+    stackActions = false
   ) => (
     <div
       style={{
@@ -227,8 +264,8 @@ function Layout({
           background: RUST,
         }}
       />
-      <div
-        data-template-field="headline"
+      <Field
+        name="headline"
         style={{
           display: "flex",
           color: INK,
@@ -240,10 +277,10 @@ function Layout({
           overflow: "hidden",
         }}
       >
-        {fit(headline, compact ? 34 : 64, compact ? 2 : 3)}
-      </div>
-      <div
-        data-template-field="subheadline"
+        {fit(headline, compact ? 34 : 64, compact ? 2 : 3, compact ? 17 : 26)}
+      </Field>
+      <Field
+        name="subheadline"
         style={{
           display: "flex",
           color: MUTED,
@@ -255,11 +292,11 @@ function Layout({
           overflow: "hidden",
         }}
       >
-        {fit(subheadline, compact ? 68 : 132, compact ? 3 : 4)}
-      </div>
+        {fit(subheadline, compact ? 74 : 132, compact ? 3 : 4, compact ? 26 : 34)}
+      </Field>
       {!compact && (
-        <div
-          data-template-field="local_detail"
+        <Field
+          name="local_detail"
           style={{
             display: "flex",
             color: TEAL,
@@ -272,18 +309,30 @@ function Layout({
           }}
         >
           {fit(localDetail, 72, 2)}
-        </div>
+        </Field>
       )}
-      <div style={{ display: "flex", alignItems: "center", gap: compact ? 10 : 24 }}>
-        <div
-          data-template-field="cta"
+      <div
+        style={{
+          display: "flex",
+          flexDirection: stackActions ? "column" : "row",
+          alignItems: stackActions ? "flex-start" : "center",
+          gap: compact ? 10 : stackActions ? 18 : 24,
+        }}
+      >
+        <Field
+          name="cta"
           style={{
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            minWidth: compact ? 96 : 220,
+            ...(compact
+              ? { width: 132 }
+              : stackActions
+                ? { width: bodySize > 30 ? 520 : 430 }
+                : {}),
+            minWidth: compact ? 132 : stackActions ? 0 : 220,
             height: ctaHeight,
-            padding: `0 ${compact ? 18 : 30}px`,
+            padding: `0 ${compact ? 12 : 30}px`,
             borderRadius: 999,
             background: GREEN,
             color: WHITE,
@@ -292,23 +341,27 @@ function Layout({
             fontWeight: 700,
             whiteSpace: "nowrap",
           }}
+          contentStyle={{ textAlign: "center" }}
         >
-          {fit(cta, compact ? 14 : 28)}
-        </div>
-        <div
-          data-template-field="proof_note"
-          style={{
-            display: "flex",
-            color: TEAL,
-            fontFamily: "ContentGate Sans",
-            fontSize: compact ? 10 : bodySize * 0.82,
-            fontWeight: 700,
-            lineHeight: 1.1,
-            overflow: "hidden",
-          }}
-        >
-          {fit(proof, compact ? 24 : 64, compact ? 2 : 2)}
-        </div>
+          {fit(cta, compact ? 18 : 28)}
+        </Field>
+        {!compact && (
+          <Field
+            name="proof_note"
+            style={{
+              display: "flex",
+              color: TEAL,
+              fontFamily: "ContentGate Sans",
+              fontSize: bodySize * 0.82,
+              fontWeight: 700,
+              lineHeight: 1.1,
+              ...(stackActions ? { width: bodySize > 30 ? 520 : 430 } : {}),
+              overflow: "hidden",
+            }}
+          >
+            {fit(proof, 64, 2)}
+          </Field>
+        )}
       </div>
     </div>
   );
@@ -318,16 +371,16 @@ function Layout({
       <div style={{ display: "flex", width: "100%", height: "100%", background, alignItems: "center", padding: 18, boxSizing: "border-box", gap: 26 }}>
         <Logo scale={0.75} />
         <div style={{ display: "flex", flexDirection: "column", width: 308, gap: 5 }}>
-          <div data-template-field="headline" style={{ display: "flex", color: INK, fontFamily: "ContentGate Sans", fontSize: 22, fontWeight: 800, lineHeight: 1 }}>
-            {fit(headline, 45)}
-          </div>
-          <div data-template-field="subheadline" style={{ display: "flex", color: MUTED, fontFamily: "ContentGate Sans", fontSize: 12, fontWeight: 400 }}>
-            {fit(subheadline, 58)}
-          </div>
+          <Field name="headline" style={{ display: "flex", color: INK, fontFamily: "ContentGate Sans", fontSize: 22, fontWeight: 800, lineHeight: 1, overflow: "hidden" }}>
+            {fit(headline, 45, 1)}
+          </Field>
+          <Field name="subheadline" style={{ display: "flex", color: MUTED, fontFamily: "ContentGate Sans", fontSize: 12, fontWeight: 400, lineHeight: 1.15, whiteSpace: "pre-wrap", overflow: "hidden" }}>
+            {fit(subheadline, 84, 2, 42)}
+          </Field>
         </div>
-        <div data-template-field="cta" style={{ display: "flex", alignItems: "center", justifyContent: "center", marginLeft: "auto", width: 118, height: 40, borderRadius: 999, background: GREEN, color: WHITE, fontFamily: "ContentGate Sans", fontSize: 14, fontWeight: 700 }}>
-          {fit(cta, 14)}
-        </div>
+        <Field name="cta" style={{ display: "flex", alignItems: "center", justifyContent: "center", marginLeft: "auto", width: 132, height: 40, borderRadius: 999, background: GREEN, color: WHITE, fontFamily: "ContentGate Sans", fontSize: 13, fontWeight: 700, overflow: "hidden" }} contentStyle={{ textAlign: "center", whiteSpace: "nowrap" }}>
+          {fit(cta, 18)}
+        </Field>
       </div>
     );
   }
@@ -342,9 +395,61 @@ function Layout({
         <div style={{ display: "flex", position: "absolute", right: 28, top: 70, width: 70, height: 48 }}>
           <ProductMockup compact />
         </div>
-        <div style={{ display: "flex", position: "absolute", left: 22, top: 76 }}>
-          {copyColumn(166, 27, 13, 31, true)}
+        <div style={{ display: "flex", flexDirection: "column", position: "absolute", left: 22, top: 88, width: 182, gap: 8 }}>
+          <Field
+            name="headline"
+            style={{
+              display: "flex",
+              color: INK,
+              fontFamily: "ContentGate Sans",
+              fontSize: 24,
+              fontWeight: 800,
+              lineHeight: 0.98,
+              whiteSpace: "pre-wrap",
+              overflow: "hidden",
+            }}
+          >
+            {fit(headline, 46, 3, 20)}
+          </Field>
+          <Field
+            name="subheadline"
+            style={{
+              display: "flex",
+              color: MUTED,
+              fontFamily: "ContentGate Sans",
+              fontSize: 11.5,
+              fontWeight: 400,
+              lineHeight: 1.18,
+              whiteSpace: "pre-wrap",
+              overflow: "hidden",
+            }}
+          >
+            {fit(subheadline, 52, 2, 26)}
+          </Field>
         </div>
+        <Field
+          name="cta"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            position: "absolute",
+            left: 22,
+            bottom: 18,
+            width: 132,
+            height: 30,
+            borderRadius: 999,
+            background: GREEN,
+            color: WHITE,
+            fontFamily: "ContentGate Sans",
+            fontSize: 12,
+            fontWeight: 700,
+            overflow: "hidden",
+          }}
+          contentStyle={{ textAlign: "center", whiteSpace: "nowrap" }}
+        >
+          {fit(cta, 18)}
+        </Field>
       </div>
     );
   }
@@ -357,7 +462,7 @@ function Layout({
           <div style={{ display: "flex", marginTop: 52 }}>{copyColumn(520, 60, 22, 54)}</div>
         </div>
         <div style={{ display: "flex", flex: 1, alignItems: "center" }}>
-          <ProductMockup compact={false} />
+          <ProductMockup compact={false} tall />
         </div>
       </div>
     );
@@ -371,7 +476,7 @@ function Layout({
           <ProductMockup compact={false} />
         </div>
         <div style={{ display: "flex", flexDirection: "column", padding: sizeKey === "story" ? "70px 86px" : "62px 82px", boxSizing: "border-box" }}>
-          {copyColumn(900, sizeKey === "story" ? 76 : 64, sizeKey === "story" ? 34 : 27, sizeKey === "story" ? 96 : 70)}
+          {copyColumn(900, sizeKey === "story" ? 76 : 64, sizeKey === "story" ? 34 : 27, sizeKey === "story" ? 96 : 70, false, true)}
         </div>
       </div>
     );

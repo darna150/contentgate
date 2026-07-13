@@ -57,7 +57,7 @@ export default async function NewProductPage() {
             <textarea
               name="disclaimer_text"
               rows={3}
-              placeholder="For animal use only. Use as directed by an animal health professional."
+              placeholder="Use only approved brand claims, imagery, offers, and local details."
               className="resize-none rounded-control border border-edge bg-page px-3.5 py-2.5 text-[13.5px] placeholder:text-ink-faint focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
             />
             <p className="text-[11.5px] text-ink-faint">
