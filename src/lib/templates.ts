@@ -11,6 +11,8 @@ export const FIELD_LABELS: Record<string, string> = {
   benefit_3: "Benefit 3",
   cta: "Call to action",
   contact: "Contact",
+  local_detail: "Local detail",
+  proof_note: "Proof note",
   territory: "Territory",
   kicker: "Kicker / eyebrow",
   benefits: "Benefits",

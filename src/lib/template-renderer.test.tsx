@@ -15,8 +15,12 @@ const STRESS_COPY = Array.from(
 
 const EXPECTED_RATIOS = {
   square: 1,
+  portrait: 1080 / 1350,
   story: 9 / 16,
   feed: 1200 / 630,
+  link_ad: 1200 / 628,
+  leaderboard: 728 / 90,
+  medium_rectangle: 300 / 250,
   a4: 1 / Math.SQRT2,
 } as const;
 

@@ -4,6 +4,8 @@ import { renderApexCanine } from "./apex-canine-render";
 import { loadApexCanineFonts } from "./apex-canine-fonts";
 import { renderCaniGuard5 } from "./caniguard5-render";
 import { loadCaniGuard5Fonts } from "./caniguard5-fonts";
+import { renderContentGate } from "./contentgate-render";
+import { loadContentGateFonts } from "./contentgate-fonts";
 import {
   getTemplateLayoutContract,
   type TemplateSizeKey,
@@ -51,6 +53,13 @@ export async function renderContractTemplate(
     return {
       ...rendered,
       fonts: (await loadCaniGuard5Fonts()) as ImageResponseFont[],
+    };
+  }
+  if (contract.renderer === "contentgate") {
+    const rendered = renderContentGate(input);
+    return {
+      ...rendered,
+      fonts: (await loadContentGateFonts()) as ImageResponseFont[],
     };
   }
 
