@@ -34,6 +34,20 @@ Production was subsequently updated from GitHub `main`:
 - State: `READY`
 - Post-deploy checks: login 200, unauthenticated dashboard redirected to login, unauthenticated render returned 401, and no warning/error/fatal runtime logs appeared in the checked one-hour window.
 
+Latest Production release on 2026-07-13:
+
+- Pull request: `#1` (`codex/asset-library-ui`)
+- Merge commit: `239db7c7249332cade358787052d818b8421c72f`
+- Deployment: `dpl_Ev74i2D367mSH9QPvFSnmCvwf5Qe`
+- Deployment URL: `contentgate-4ecmafiw7-debbies-projects-a8de6bb4.vercel.app`
+- Production alias: `contentgate-delta.vercel.app`
+- State: `READY`
+- Build completed without errors.
+- `/login` returned 200; unauthenticated `/assets` resolved to login; unauthenticated creative render returned 401.
+- Authenticated admin `/assets` rendered the Asset Library, upload control, product/type/status/tag filters, and governed empty state.
+- Authenticated `/dashboard` rendered organization counts, approval count, and recent content.
+- Vercel reported no runtime error clusters and no warning/error/fatal log entries in the checked release window.
+
 ## Preview Deployment
 
 Security/API hardening from this pass was deployed to Vercel Preview, not Production:
@@ -218,6 +232,17 @@ The test exposed an existing provisioning vulnerability: `handle_new_user` trust
 - Requires a short-lived `private.user_provisioning` record created through the service-role-only `provision_user` RPC.
 - Rejects unprovisioned self-signup and consumes the trusted record when creating the profile.
 - Grants `provision_user` only to `service_role`; `anon` and `authenticated` both fail the privilege check.
+
+## Phase 3 Product Workspace Foundation
+
+Started on branch `codex/product-workspaces` after the Production release:
+
+- Added a single authenticated, organization-and-product-scoped workspace loader for product profile, assets, source documents, claims, active templates, generated content, approval queue, and status counts.
+- Added shared permission rules for admin, approver, and member roles plus archived-product and missing-template behavior.
+- Added shared section empty-state codes and permission-aware action URLs.
+- Refactored `/products/[id]` to use the shared service without changing its current interface.
+- Documented the read boundary in `PRODUCT_WORKSPACE_CONTRACT.md`.
+- `git diff --check`, Asset Library tests, five workspace tests, lint, and the full Next.js production build pass.
 - Applies live migrations `harden_user_provisioning` and `fix_user_provisioning_handshake`.
 - Verifies hostile signup is blocked and trusted member provisioning creates the intended organization/role before clean deletion.
 

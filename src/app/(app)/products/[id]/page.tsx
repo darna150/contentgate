@@ -1,8 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
 import { fieldLabel } from "@/lib/templates";
 import { defaultSizeFor, originalTemplatePreviewUrl, SIZES } from "@/lib/creative";
+import {
+  getProductWorkspace,
+  type ProductWorkspaceTemplate,
+} from "@/lib/product-workspace-server";
 import { GenerateVariant } from "./generate-variant";
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -13,17 +16,6 @@ const CATEGORY_LABELS: Record<string, string> = {
   presentation: "Presentation",
 };
 
-type Template = {
-  id: string;
-  category: string;
-  variant: string;
-  layout_key: string;
-  editable_fields: string[];
-  generation_instructions: string;
-  sort_order: number;
-  default_copy: Record<string, string>;
-};
-
 export default async function ProductDetailPage({
   params,
 }: {
@@ -32,35 +24,13 @@ export default async function ProductDetailPage({
   const { id } = await params;
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL) notFound();
 
-  const supabase = await createClient();
-  let isAdmin = false;
-  {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      const { data: me } = await supabase.from("profiles").select("role").eq("id", user.id).single();
-      isAdmin = me?.role === "admin";
-    }
-  }
-  const { data: product } = await supabase
-    .from("products")
-    .select("id, name, description, disclaimer_text, status")
-    .eq("id", id)
-    .single();
-  if (!product) notFound();
+  const workspace = await getProductWorkspace(id);
+  if (!workspace) notFound();
+  const { product, approvedSources: docs, activeTemplates: templates } = workspace;
+  const claims = workspace.claims.filter((claim) => claim.status === "approved");
 
-  const [{ data: claims }, { data: docs }, { data: templates }] = await Promise.all([
-    supabase.from("product_claims").select("claim_text").eq("product_id", id).eq("status", "approved"),
-    supabase.from("documents").select("id, title").eq("product_id", id),
-    supabase
-      .from("product_templates")
-      .select("id, category, variant, layout_key, editable_fields, generation_instructions, default_copy, sort_order")
-      .eq("product_id", id)
-      .eq("status", "active")
-      .order("sort_order", { ascending: true }),
-  ]);
-
-  const byCategory = new Map<string, Template[]>();
-  for (const t of (templates as Template[]) ?? []) {
+  const byCategory = new Map<string, ProductWorkspaceTemplate[]>();
+  for (const t of templates) {
     if (!byCategory.has(t.category)) byCategory.set(t.category, []);
     byCategory.get(t.category)!.push(t);
   }
@@ -76,7 +46,7 @@ export default async function ProductDetailPage({
             {product.name[0]}
           </span>
           <h1 className="font-serif text-[28px] font-semibold">{product.name}</h1>
-          {isAdmin && (
+          {workspace.permissions.canEditProduct && (
             <Link
               href={`/products/${id}/edit`}
               className="rounded-control border border-edge px-4 py-2 text-[13px] font-semibold text-ink-muted transition-colors hover:border-brand hover:text-brand"
@@ -111,7 +81,7 @@ export default async function ProductDetailPage({
                   const dims = SIZES[sizeKey];
                   const previewSrc = originalTemplatePreviewUrl(
                     t.id,
-                    t.layout_key,
+                    t.layoutKey,
                     sizeKey
                   );
                   return (
@@ -134,11 +104,11 @@ export default async function ProductDetailPage({
                       <div className="flex items-center gap-2 px-0.5">
                         <span className="min-w-0 truncate text-[13px] font-semibold">{t.variant}</span>
                         <span className="shrink-0 whitespace-nowrap rounded-[5px] bg-brand-tint px-[6px] py-0.5 text-[9.5px] font-bold uppercase tracking-[0.05em] text-brand">
-                          {t.editable_fields.length} fields
+                          {t.editableFields.length} fields
                         </span>
                       </div>
                       <p className="line-clamp-1 px-0.5 text-[11px] text-ink-faint">
-                        {t.editable_fields.map((fk) => fieldLabel(fk)).join(" · ")}
+                        {t.editableFields.map((fk) => fieldLabel(fk)).join(" · ")}
                       </p>
                       <div className="px-0.5">
                         <div className="flex flex-wrap items-center gap-2">
@@ -191,10 +161,10 @@ export default async function ProductDetailPage({
                 + Add
               </Link>
             </div>
-            {(docs ?? []).length === 0 ? (
+            {docs.length === 0 ? (
               <span className="text-[13px] text-ink-faint">None yet</span>
             ) : (
-              (docs ?? []).map((d) => (
+              docs.map((d) => (
                 <Link
                   key={d.id}
                   href={`/knowledge/${d.id}`}
@@ -208,25 +178,25 @@ export default async function ProductDetailPage({
 
           <div className="flex flex-col gap-1.5 border-t border-edge pt-3">
             <span className="text-[12px] font-semibold uppercase tracking-[0.06em] text-ink-faint">
-              Approved claims ({(claims ?? []).length})
+              Approved claims ({claims.length})
             </span>
             <ul className="flex flex-col gap-1.5">
-              {(claims ?? []).map((c, i) => (
-                <li key={i} className="flex gap-2 text-[12.5px] leading-snug text-ink-muted">
+              {claims.map((c) => (
+                <li key={c.id} className="flex gap-2 text-[12.5px] leading-snug text-ink-muted">
                   <span className="text-approve">✓</span>
-                  <span>{c.claim_text}</span>
+                  <span>{c.claimText}</span>
                 </li>
               ))}
             </ul>
           </div>
 
-          {product.disclaimer_text && (
+          {product.disclaimerText && (
             <div className="flex flex-col gap-1.5 border-t border-edge pt-3">
               <span className="text-[12px] font-semibold uppercase tracking-[0.06em] text-ink-faint">
                 Mandatory disclaimer
               </span>
               <p className="text-[12px] italic leading-snug text-ink-faint">
-                {product.disclaimer_text}
+                {product.disclaimerText}
               </p>
             </div>
           )}

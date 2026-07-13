@@ -87,6 +87,11 @@ Claude Code should not loosen backend security, approval, RLS, or export constra
 - Applied and verified live migrations `harden_user_provisioning` and `fix_user_provisioning_handshake`; hostile self-signup is blocked while trusted member provisioning succeeds.
 - Deployed authentication hardening commit `47d5056` as Preview `dpl_9aob3SNXBpGHobUvvuGntn9Y9bAf`.
 - Verified the Preview rejects an unknown magic-link address, accepts a server-provisioned member password login, cleans all temporary Auth/profile/provisioning records, and emits no warning/error/fatal runtime logs.
+- Marked PR #1 ready, merged it to `main` at `239db7c`, and verified Production deployment `dpl_Ev74i2D367mSH9QPvFSnmCvwf5Qe` at `contentgate-delta.vercel.app`.
+- Verified authenticated Production admin Asset Library and dashboard rendering, unauthenticated route protection, build health, and zero runtime error clusters.
+- Started Phase 3 on `codex/product-workspaces` and added `PRODUCT_WORKSPACE_CONTRACT.md`.
+- Implemented `getProductWorkspace(productId)` as the shared RLS-preserving read boundary for the product profile, assets, sources, claims, active templates, generated content, and product approval queue.
+- Refactored `/products/[id]` onto the workspace service and added tested role, lifecycle, configuration, and empty-state rules.
 
 ## Remaining Blocker
 
@@ -106,8 +111,9 @@ Claude Code verified:
 
 ## Next Agent Should Check
 
-- Review and merge draft PR #1, promote the reviewed Asset Library release to Production, and record the deployment and smoke-test result.
-- After the Asset Library release, begin Phase 3 by defining the shared product/workspace query and permission contract before Claude Code restructures the product detail UI.
+- Claude Code should read `PRODUCT_WORKSPACE_CONTRACT.md`, then restructure the product detail UI into Assets, Knowledge, Templates, Content, and Approvals views without bypassing `getProductWorkspace`.
+- Preserve fast product-scoped links into Knowledge Hub and Studio and run desktop/mobile visual QA.
+- Codex should review Claude's pass for organization/product boundary drift, permission regressions, duplicated queries, and all Phase 3 exit criteria.
 - Consider a future server-side creative export endpoint for live-canvas templates. The official UI blocks draft export, but any browser-rendered canvas can still be screenshotted by a determined user.
 
 ## Do Not Break

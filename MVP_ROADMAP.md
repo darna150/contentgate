@@ -31,13 +31,15 @@ The MVP is not a campaign planner, finance platform, project-management suite, o
 - Public user creation hardened so organization and role assignments require a short-lived server-only provisioning record.
 - Shared mobile app navigation corrected so primary app surfaces remain usable at phone widths.
 - Lint, TypeScript, production build, browser console, and preview runtime-log checks pass.
+- Asset Library PR #1 merged to `main` at `239db7c` and deployed successfully to Production.
+- Authenticated Production Asset Library and dashboard smoke tests pass with no runtime errors.
+- Phase 3 product-workspace read, permission, count, and empty-state contract implemented and tested.
 
 ### Current Gate
 
-- Phase 1 is complete.
-- Codex Asset Library backend work is committed, deployed, and verified in Production.
-- Authenticated upload, preview, metadata/status edit, audit, database delete, and physical Storage delete all pass.
-- Asset Library admin/member behavior and user-provisioning hardening are verified in Preview. PR #1 is ready for review, merge, and Production promotion.
+- Phases 1 and 2 are complete and verified in Production.
+- Phase 3 Codex architecture work is complete on `codex/product-workspaces`.
+- Claude Code can begin the product-workspace UI only after reviewing `PRODUCT_WORKSPACE_CONTRACT.md` and the shared service types.
 
 ## Execution Order
 
@@ -72,7 +74,7 @@ Exit criteria:
 
 ### 2. Build The Asset Library Foundation
 
-Status: Preview release gates complete; Production promotion pending
+Status: Complete
 
 Owner: Codex first, Claude Code second
 
@@ -105,7 +107,7 @@ Codex review:
 - Completed: blocked magic-link account creation and replaced editable-metadata membership assignment with a server-only provisioning handshake.
 - Completed: deployed authentication hardening commit `47d5056` as Vercel Preview `dpl_9aob3SNXBpGHobUvvuGntn9Y9bAf`.
 - Completed: verified unprovisioned magic-link signup is rejected, trusted member provisioning/password login succeeds, all temporary records are removed, and no Preview build/runtime errors appear.
-- Pending: review and merge PR #1, promote to Production, and run the Production smoke test.
+- Completed: merged PR #1 as `239db7c`, deployed Production `dpl_Ev74i2D367mSH9QPvFSnmCvwf5Qe`, and passed authenticated and unauthenticated smoke checks with no runtime errors.
 
 Exit criteria:
 
@@ -115,15 +117,16 @@ Exit criteria:
 
 ### 3. Make Product Workspaces The Core Navigation Unit
 
-Status: After Asset Library foundation
+Status: Codex contract complete; Claude Code UI pass next
 
 Owner: Codex first, Claude Code second
 
 Codex:
 
-- Define one workspace query/service that returns product profile, assets, approved sources, claims, templates, content, and approval counts.
-- Remove duplicated cross-page data assembly where it creates inconsistent behavior.
-- Define workspace-level permission and empty-state rules.
+- Completed: defined `getProductWorkspace(productId)` to return the org-scoped product profile, assets, sources, claims, active templates, content, approval queue, and counts.
+- Completed: moved the product detail route onto the shared service instead of assembling profile, product, claims, sources, and templates itself.
+- Completed: defined tested admin/approver/member, archived-product, template-readiness, and section empty-state rules.
+- Completed: documented the UI and security boundary in `PRODUCT_WORKSPACE_CONTRACT.md`.
 
 Claude Code:
 
