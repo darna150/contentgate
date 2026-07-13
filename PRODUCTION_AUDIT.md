@@ -295,3 +295,13 @@ Verified on 2026-07-13:
 - Template engine PR #3 merged to `main` at `b517c31`; Production deployment `dpl_EUt85bDDiKwsMoDuwnCmNDwYFFRE` reached `READY`.
 - Authenticated Production Studio checks confirmed VitalBite exposes only Square, draft Download PNG remains disabled, and approved Download PNG is enabled.
 - No browser console warnings/errors or Vercel error/fatal runtime logs appeared during either Production verification window.
+
+## Phase 5 Knowledge Reliability Preview
+
+Verified on 2026-07-13:
+
+- Preview deployment `dpl_3fS3K4QmXS2EH2y8cnffMuoyW46a` reached `READY` from commit `e84e3ab`.
+- A supported VitalBite question returned the approved 70.3% tartar result with an inspectable citation to the exact Dental Efficacy Study paragraph 2.
+- An unrelated moon question returned the explicit no-evidence response with no citation.
+- Both exchanges persisted after a full page reload; the disposable notebook session was then deleted.
+- The two question events remain in `knowledge_queries` as the audit trail. No browser console warnings/errors or Vercel error/fatal runtime logs appeared during the verification window.

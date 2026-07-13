@@ -112,6 +112,8 @@ Claude Code should not loosen backend security, approval, RLS, or export constra
 - Started Phase 5 on `codex/knowledge-reliability` and documented the backend contract in `KNOWLEDGE_HUB_CONTRACT.md`.
 - Added product-scoped Postgres full-text paragraph retrieval, stable citation identity and validation, safe no-evidence behavior, session RLS/product integrity, explicit save failures, and session reload indexes.
 - Applied and verified `strengthen_knowledge_reliability` and `index_knowledge_sessions` on the live Supabase project. VitalBite retrieval returns ranked exact paragraphs; inactive DigestPro returns no evidence; no new security advisor warnings were introduced.
+- Deployed Phase 5 Preview `dpl_3fS3K4QmXS2EH2y8cnffMuoyW46a` and completed authenticated QA. A supported VitalBite answer cited and highlighted exact paragraph 2, an unsupported question failed safely, and both exchanges persisted after reload.
+- Deleted the disposable notebook session after QA. Two `knowledge_queries` rows remain intentionally as the immutable usage/audit record; browser and Vercel error logs were clean.
 
 ## Remaining Blocker
 

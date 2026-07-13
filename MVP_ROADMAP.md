@@ -192,7 +192,7 @@ Exit criteria:
 
 ### 5. Strengthen Knowledge Hub Reliability
 
-Status: Backend reliability implemented; authenticated Preview QA pending
+Status: Backend reliability and authenticated Preview QA complete; visual polish deferred
 
 Owner: Codex first, Claude Code second
 
@@ -205,6 +205,8 @@ Codex:
 - Completed: added explicit no-evidence behavior for empty retrieval and unsupported model output.
 - Completed: hardened notebook session RLS, product integrity, save limits, failure reporting, and reload indexes.
 - Completed: added source/citation/no-evidence regression tests before semantic search.
+- Completed: verified a supported VitalBite answer cites and highlights exact paragraph 2, an unsupported question fails safely, and both exchanges survive a reload.
+- Completed: removed the disposable notebook session and confirmed clean browser and Vercel runtime logs. The two question audit events remain by design.
 - Deferred by design: add embeddings only when measured retrieval quality requires them.
 
 Claude Code:
@@ -215,9 +217,9 @@ Claude Code:
 
 Exit criteria:
 
-- Saved sessions reload reliably.
-- Every supported answer has inspectable approved citations.
-- Unsupported questions fail clearly and safely.
+- Complete: saved sessions reload reliably.
+- Complete: every supported answer has inspectable approved citations.
+- Complete: unsupported questions fail clearly and safely.
 
 ### 6. Complete Approval History And Auditability
 
