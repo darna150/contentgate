@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@/lib/supabase/server";
 import { buildSystemPrompt, buildUserPrompt } from "@/lib/generation";
 import type { Paragraph } from "@/lib/paragraphs";
+import { consumeApiRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
 export const maxDuration = 60;
 
@@ -15,6 +16,14 @@ export async function POST(req: Request) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return new Response("Unauthorized", { status: 401 });
+
+  try {
+    const rateLimit = await consumeApiRateLimit(supabase, "legacy.generate");
+    if (!rateLimit.allowed) return rateLimitResponse(rateLimit);
+  } catch (error) {
+    console.error("legacy generation rate limit failed:", error);
+    return new Response("Generation is temporarily unavailable.", { status: 503 });
+  }
 
   const body = (await req.json()) as {
     templateId?: string;

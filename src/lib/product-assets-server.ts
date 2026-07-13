@@ -16,6 +16,27 @@ export type ProductAssetFilters = {
   search?: string;
 };
 
+const PRODUCT_ASSET_URL_TTL_SECONDS = 60 * 60;
+
+export async function createProductAssetPreviewUrlMap(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  storagePaths: string[]
+) {
+  const paths = Array.from(new Set(storagePaths.filter(Boolean)));
+  if (paths.length === 0) return new Map<string, string>();
+
+  const { data, error } = await supabase.storage
+    .from("product-assets")
+    .createSignedUrls(paths, PRODUCT_ASSET_URL_TTL_SECONDS);
+  if (error) throw new Error(`Could not sign product asset URLs: ${error.message}`);
+
+  return new Map(
+    (data ?? [])
+      .filter((item) => item.signedUrl)
+      .map((item) => [item.path, item.signedUrl] as const)
+  );
+}
+
 export async function listProductAssets(filters: ProductAssetFilters = {}) {
   const supabase = await createClient();
   const {
@@ -57,15 +78,16 @@ export async function listProductAssets(filters: ProductAssetFilters = {}) {
 
   const { data, error } = await query;
   if (error) throw error;
+  const previewUrls = await createProductAssetPreviewUrlMap(
+    supabase,
+    (data ?? []).map((asset) => asset.storage_path)
+  );
 
   return {
     assets: (data ?? []).map((asset) => ({
       ...asset,
-      previewUrl: supabase.storage
-        .from("product-assets")
-        .getPublicUrl(asset.storage_path).data.publicUrl,
+      previewUrl: previewUrls.get(asset.storage_path) ?? "",
     })),
     role: profile.role as string,
   };
 }
-

@@ -5,7 +5,11 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { segmentParagraphs } from "@/lib/paragraphs";
-import { documentFileType, extractDocumentText } from "@/lib/document-extraction";
+import { extractDocumentText } from "@/lib/document-extraction";
+import {
+  documentFileType,
+  validateDocumentFile,
+} from "@/lib/document-files";
 
 async function requireAdminProfile() {
   const supabase = await createClient();
@@ -55,10 +59,15 @@ export async function createDocument(
   const productId = String(formData.get("product_id") ?? "").trim();
   let content = String(formData.get("content") ?? "").trim();
   const file = formData.get("file");
+  let uploadContentType: string | null = null;
 
   if (!title) return { error: "Give the document a title." };
-  if (file instanceof File && file.size > 15 * 1024 * 1024) {
-    return { error: "Documents must be 15 MB or smaller." };
+  if (file instanceof File && file.size > 0) {
+    try {
+      uploadContentType = validateDocumentFile(file);
+    } catch (error) {
+      return { error: error instanceof Error ? error.message : "Invalid document." };
+    }
   }
   if (!content && file instanceof File && file.size > 0) {
     try {
@@ -90,7 +99,7 @@ export async function createDocument(
     const { error: uploadError } = await supabase.storage
       .from("documents")
       .upload(storagePath, file, {
-        contentType: file.type || "application/octet-stream",
+        contentType: uploadContentType ?? "application/octet-stream",
       });
     if (uploadError) {
       return { error: `File upload failed: ${uploadError.message}` };

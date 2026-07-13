@@ -121,6 +121,10 @@ Claude Code should not loosen backend security, approval, RLS, or export constra
 - Completed rollback-only live lifecycle verification and authenticated Preview QA on deployment `dpl_3aVZx2Z6avBvwFwQex7WPyQfck32`. Approved, draft, in-review, and Studio states enforce the expected editing, review, and export controls with clean browser and Vercel runtime logs.
 - Recorded one real approved clipboard export during Preview QA. Its revision-specific audit event remains intentionally because Phase 6 history is append-only.
 - Merged Phase 6 PR #7 to `main` at `1475623`. Production deployment `dpl_CoZSt5pKjCGoCKMCLNCdU7wVJnaN` reached `READY`; approved history/export, draft gating, in-review controls, and Studio exact-revision export gating all pass with clean browser and runtime logs.
+- Started Phase 7 on `codex/phase7-launch-readiness`. Added GitHub CI, migration integrity checks, high-severity dependency audit, hourly/manual Production smoke monitoring, and `/api/health`.
+- Added durable fixed-scope AI rate limits, safer helper-function search paths/grants, high-frequency RLS optimizations, missing foreign-key indexes, and Storage-level upload restrictions.
+- Replaced permanent product-asset public URLs with one-hour signed URLs across the Asset Library, product workspace, and product editor. The private-bucket switch is intentionally isolated in a second migration that must run only after the compatible Production build is live.
+- Added normalized document upload validation, `LAUNCH_RUNBOOK.md`, `SECURITY_REVIEW.md`, and a committed safe `.env.example`.
 
 ## Remaining Blocker
 
@@ -141,7 +145,7 @@ Claude Code verified:
 ## Next Agent Should Check
 
 - Run a live direct-generation `409` probe only with an isolated fixture or explicit approval to create the required inactive-product/active-template condition. Do not alter a real product or template solely for this test.
-- Phase 6 approval history is complete and verified in Production. Start Phase 7 launch-readiness work from `MVP_ROADMAP.md`; keep Figma template calibration deferred until approved frames and replacement assets are supplied.
+- Complete Phase 7 Preview/Production verification and apply its migrations in the order documented in `LAUNCH_RUNBOOK.md`; keep Figma template calibration deferred until approved frames and replacement assets are supplied.
 - Run Figma visual calibration later, after Debbie supplies approved frame IDs and replacement assets. Preserve the v1 field, lifecycle, approval, and export contract during that work.
 - Consider a future server-side creative export endpoint for live-canvas templates. The official UI blocks draft export, but any browser-rendered canvas can still be screenshotted by a determined user.
 

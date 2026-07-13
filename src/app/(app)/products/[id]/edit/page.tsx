@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { updateProduct, addClaim, setClaimStatus, deleteClaim } from "../../actions";
 import { ProductAssetPanel } from "@/components/assets/product-asset-panel";
 import type { AssetItem } from "@/components/assets/types";
+import { createProductAssetPreviewUrlMap } from "@/lib/product-assets-server";
 
 const STATUS_LABELS: Record<string, string> = { approved: "Approved", inactive: "Inactive" };
 
@@ -42,6 +43,10 @@ export default async function EditProductPage({
 
   const updateThisProduct = updateProduct.bind(null, id);
   const addClaimToProduct = addClaim.bind(null, id);
+  const assetPreviewUrls = await createProductAssetPreviewUrlMap(
+    supabase,
+    (assets ?? []).map((asset) => asset.storage_path)
+  );
 
   const assetItems: AssetItem[] = (assets ?? []).map((asset) => ({
     id: asset.id,
@@ -60,7 +65,7 @@ export default async function EditProductPage({
     approvalStatus: asset.approval_status,
     createdAt: asset.created_at,
     updatedAt: asset.updated_at,
-    previewUrl: supabase.storage.from("product-assets").getPublicUrl(asset.storage_path).data.publicUrl,
+    previewUrl: assetPreviewUrls.get(asset.storage_path) ?? "",
   }));
 
   return (

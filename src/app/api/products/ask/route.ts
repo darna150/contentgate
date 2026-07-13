@@ -8,6 +8,7 @@ import {
 } from "@/lib/knowledge-reliability";
 import Anthropic from "@anthropic-ai/sdk";
 import { NextResponse } from "next/server";
+import { consumeApiRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
 export async function POST(req: Request) {
   if (!process.env.ANTHROPIC_API_KEY) {
@@ -18,6 +19,14 @@ export async function POST(req: Request) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  try {
+    const rateLimit = await consumeApiRateLimit(supabase, "knowledge.ask");
+    if (!rateLimit.allowed) return rateLimitResponse(rateLimit);
+  } catch (error) {
+    console.error("knowledge rate limit failed:", error);
+    return NextResponse.json({ error: "Knowledge Q&A is temporarily unavailable." }, { status: 503 });
+  }
 
   let payload: { productId?: unknown; question?: unknown };
   try {

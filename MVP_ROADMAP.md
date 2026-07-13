@@ -48,6 +48,7 @@ The MVP is not a campaign planner, finance platform, project-management suite, o
 - Phase 4 is complete and verified in Production; its contract metadata migration is applied and verified live.
 - Phase 5 Knowledge Hub backend reliability is complete and verified in Production.
 - Phase 6 approval history and auditability is complete and verified in Production. Knowledge Hub visual polish and final template calibration remain deferred.
+- Phase 7 launch-readiness engineering is in progress. Final Figma calibration and Claude Code visual QA remain deferred by product decision.
 
 ## Execution Order
 
@@ -252,17 +253,18 @@ Exit criteria:
 
 ### 7. MVP Launch Readiness
 
-Status: Later in MVP
+Status: Engineering implementation in progress
 
 Owner: Codex for engineering gates, Claude Code for visual QA
 
 Codex:
 
-- Add CI for lint, TypeScript/build, migration checks, and template render tests.
-- Establish a preview-branch and reviewed-promotion workflow.
-- Resolve relevant Supabase advisor warnings, including function search paths and service-function grants.
-- Review storage privacy, upload validation, rate limits, secrets, backups, and monitoring.
-- Add a small production smoke-test checklist and rollback procedure.
+- Completed in code: add CI for dependency audit, lint, TypeScript/build, migration integrity, focused tests, and template render tests.
+- Completed in code: establish PR Preview checks plus reviewed `main` promotion and an hourly/manual Production smoke workflow.
+- Completed in code: harden helper-function search paths/grants, add fixed-scope AI rate limits, optimize high-frequency RLS policies, and cover missing foreign-key indexes.
+- Completed in code: move product assets to short-lived signed URLs, enforce private-bucket delivery in a separately sequenced migration, and enforce upload size/MIME restrictions in both application and Storage.
+- Completed in code: add `/api/health`, a smoke-test script, a security review, and a launch/rollback runbook.
+- In progress: apply the live migrations in release-safe order, verify Preview, configure required GitHub checks, merge, and verify Production.
 
 Claude Code:
 

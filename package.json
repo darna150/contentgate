@@ -7,13 +7,18 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "npm run test:assets && npm run test:workspace && npm run test:knowledge && npm run test:approval && npm run test:templates && npm run test:template-render",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run test:migrations && npm run test:assets && npm run test:workspace && npm run test:knowledge && npm run test:approval && npm run test:templates && npm run test:rate-limits && npm run test:documents && npm run test:template-render",
+    "test:migrations": "node scripts/check-migrations.mjs",
     "test:assets": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test src/lib/product-assets.test.ts",
     "test:workspace": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test src/lib/product-workspace.test.ts",
     "test:knowledge": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test src/lib/knowledge-hub.test.ts src/lib/knowledge-reliability.test.ts",
     "test:approval": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test src/lib/content-governance.test.ts",
     "test:templates": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test src/lib/template-contract.test.ts",
-    "test:template-render": "tsx --test src/lib/template-renderer.test.tsx"
+    "test:rate-limits": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test src/lib/rate-limit.test.ts",
+    "test:documents": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test src/lib/document-extraction.test.ts",
+    "test:template-render": "tsx --test src/lib/template-renderer.test.tsx",
+    "smoke": "node scripts/smoke-test.mjs"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.83",

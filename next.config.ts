@@ -5,7 +5,7 @@ const nextConfig: NextConfig = {
   experimental: {
     serverActions: {
       // Document uploads go through a server action as FormData
-      bodySizeLimit: "10mb",
+      bodySizeLimit: "12mb",
     },
   },
 };
