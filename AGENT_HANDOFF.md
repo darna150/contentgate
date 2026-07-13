@@ -1,6 +1,6 @@
 # Agent Handoff
 
-Last updated: 2026-07-12
+Last updated: 2026-07-13
 
 ## Current Direction
 
@@ -64,6 +64,9 @@ Claude Code should not loosen backend security, approval, RLS, or export constra
 - Completed an authenticated draft -> review -> reject -> resubmit -> approve workflow check on Vercel Preview.
 - Fixed approved content deep links so Studio derives the canonical product/template from the saved content record instead of falling back to the first active product.
 - Verified the corrected preview loads approved VitalBite content in Generated mode with approved export controls and no browser or Vercel runtime errors.
+- Completed the Codex Asset Library backend foundation and documented it in `ASSET_LIBRARY_CONTRACT.md`.
+- Applied and verified three additive live Supabase migrations: metadata/indexes, explicit asset RLS, and storage-listing hardening.
+- Added verified image metadata extraction, admin upload/edit/delete actions, audit events, reusable filtering/preview data, and focused contract tests.
 
 ## Remaining Blocker
 
@@ -83,9 +86,9 @@ Claude Code verified:
 
 ## Next Agent Should Check
 
-- Complete Phase 1, `Release The Stabilized Foundation`, in `MVP_ROADMAP.md` before starting Asset Library implementation.
-- Manually confirm the Markdown and live-canvas PNG files arrive in the local downloads folder. Browser automation could click the controls but did not expose the resulting download event.
-- Confirm `/api/creative/render` returns a rendered asset for approved content. Draft export absence was verified in the UI, but direct image-route navigation was blocked by the browser client before the application response could be observed.
+- Commit/deploy the Asset Library application changes after local verification.
+- Run one authenticated production smoke test: upload a small PNG, edit its title/tags/status, confirm its preview, then delete it.
+- Claude Code should build the dedicated `/assets` grid/list and filters against `listProductAssets`; it should not alter the data, RLS, storage, or audit contract.
 - Consider a future server-side creative export endpoint for live-canvas templates. The official UI blocks draft export, but any browser-rendered canvas can still be screenshotted by a determined user.
 
 ## Do Not Break

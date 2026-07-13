@@ -1,6 +1,6 @@
 # ContentGate MVP Execution Plan
 
-Last updated: 2026-07-12
+Last updated: 2026-07-13
 
 ## Product Goal
 
@@ -20,16 +20,18 @@ The MVP is not a campaign planner, finance platform, project-management suite, o
 - AI evidence filtered against approved claims and source paragraphs before storage.
 - Authenticated draft -> review -> reject -> resubmit -> approve workflow verified on Vercel Preview.
 - Approved content-to-Studio handoff fixed and verified with VitalBite.
+- Reviewed commits pushed to GitHub and deployed to Production at commit `a5a17f5`.
+- Production login protection, dashboard routing, export authorization, and runtime logs checked.
+- Asset Library metadata, storage, permission, mutation, filtering, and audit contract implemented.
+- Asset Library migrations applied and verified on the live Supabase project.
 - Lint, TypeScript, production build, browser console, and preview runtime-log checks pass.
 
-### Release Gate
+### Current Gate
 
-- Manually confirm Markdown and PNG downloads arrive as valid files.
-- Push the reviewed local commits to GitHub.
-- Promote only the verified build to Production.
-- Run post-deploy authentication, approval, export, and runtime-log checks.
-
-Production is intentionally unchanged until this gate is complete.
+- Phase 1 is complete.
+- Codex Asset Library backend work is complete locally and in Supabase.
+- Commit and deploy the matching app code, then complete authenticated upload/edit/delete smoke testing.
+- Hand the stable contract to Claude Code for the dedicated `/assets` interface.
 
 ## Execution Order
 
@@ -37,7 +39,7 @@ Work in this order. Do not start a later UI phase while its backend contract is 
 
 ### 1. Release The Stabilized Foundation
 
-Status: In progress
+Status: Complete
 
 Owner: Codex, with one manual download check by Debbie
 
@@ -64,18 +66,18 @@ Exit criteria:
 
 ### 2. Build The Asset Library Foundation
 
-Status: Next
+Status: Backend complete; UI next
 
 Owner: Codex first, Claude Code second
 
 Codex:
 
-- Audit the existing `product_assets` table, storage paths, and policies.
-- Define the MVP asset model: organization, product/workspace, asset type, title, storage path, file type, dimensions, tags, approval state, creator, and timestamps.
-- Add additive migrations for missing metadata and indexes.
-- Implement admin upload, metadata edit, filtering, preview data, and safe delete behavior.
-- Add audit events for asset upload, update, and deletion.
-- Add focused permission and storage-path tests.
+- Completed: audited the existing table, public bucket, paths, actions, and policies.
+- Completed: defined the governed metadata contract in `ASSET_LIBRARY_CONTRACT.md`.
+- Completed: applied additive metadata, index, RLS, and storage-policy migrations.
+- Completed: implemented verified image upload, metadata edit, filtering/preview data, and safe delete behavior.
+- Completed: added upload, update, and delete audit events.
+- Completed: added storage-path unit tests and exercised allow/deny RLS behavior on the live database.
 
 Claude Code, after Codex handoff:
 

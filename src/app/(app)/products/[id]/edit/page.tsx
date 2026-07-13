@@ -6,6 +6,7 @@ import {
   setClaimStatus,
   deleteClaim,
   uploadProductAsset,
+  updateProductAssetMetadata,
   deleteProductAsset,
 } from "../../actions";
 
@@ -38,7 +39,7 @@ export default async function EditProductPage({
       .order("created_at", { ascending: true }),
     supabase
       .from("product_assets")
-      .select("id, asset_type, storage_path")
+      .select("id, asset_type, storage_path, title, description, alt_text, tags, approval_status, original_file_name, mime_type, file_size_bytes")
       .eq("product_id", id)
       .order("created_at", { ascending: true }),
   ]);
@@ -185,36 +186,104 @@ export default async function EditProductPage({
           </p>
         </div>
         {(assets ?? []).length > 0 && (
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {(assets ?? []).map((asset) => {
               const publicUrl = supabase.storage
                 .from("product-assets")
                 .getPublicUrl(asset.storage_path).data.publicUrl;
+              const updateAction = updateProductAssetMetadata.bind(null, asset.id, id);
               const deleteAction = deleteProductAsset.bind(null, asset.id, id);
               return (
                 <div key={asset.id} className="flex flex-col gap-2 rounded-control border border-edge bg-page p-2.5">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={publicUrl}
-                    alt={`${product.name} ${asset.asset_type}`}
+                    alt={asset.alt_text || `${product.name} ${asset.asset_type}`}
                     className="aspect-square w-full rounded-[7px] object-contain"
                   />
-                  <div className="flex items-center gap-2">
-                    <span className="flex-1 text-[11px] font-bold uppercase tracking-[0.06em] text-ink-faint">
-                      {asset.asset_type}
-                    </span>
+                  <div className="flex items-start gap-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[12.5px] font-semibold text-ink">{asset.title}</p>
+                      <p className="text-[10.5px] font-bold uppercase tracking-[0.06em] text-ink-faint">
+                        {asset.asset_type} · {asset.approval_status}
+                      </p>
+                    </div>
                     <form action={deleteAction}>
                       <button type="submit" className="text-[11px] font-semibold text-reject hover:underline">
                         Delete
                       </button>
                     </form>
                   </div>
+                  <details className="border-t border-edge pt-2">
+                    <summary className="cursor-pointer text-[11.5px] font-semibold text-brand">
+                      Edit metadata
+                    </summary>
+                    <form action={updateAction} className="mt-3 flex flex-col gap-2.5">
+                      <label className="flex flex-col gap-1">
+                        <span className="text-[10px] font-semibold uppercase text-ink-faint">Title</span>
+                        <input
+                          name="title"
+                          required
+                          defaultValue={asset.title}
+                          maxLength={120}
+                          className="rounded-control border border-edge bg-surface px-2.5 py-2 text-[12px]"
+                        />
+                      </label>
+                      <label className="flex flex-col gap-1">
+                        <span className="text-[10px] font-semibold uppercase text-ink-faint">Alt text</span>
+                        <input
+                          name="alt_text"
+                          defaultValue={asset.alt_text ?? ""}
+                          maxLength={300}
+                          className="rounded-control border border-edge bg-surface px-2.5 py-2 text-[12px]"
+                        />
+                      </label>
+                      <label className="flex flex-col gap-1">
+                        <span className="text-[10px] font-semibold uppercase text-ink-faint">Description</span>
+                        <textarea
+                          name="description"
+                          rows={2}
+                          defaultValue={asset.description ?? ""}
+                          maxLength={500}
+                          className="resize-none rounded-control border border-edge bg-surface px-2.5 py-2 text-[12px]"
+                        />
+                      </label>
+                      <label className="flex flex-col gap-1">
+                        <span className="text-[10px] font-semibold uppercase text-ink-faint">Tags</span>
+                        <input
+                          name="tags"
+                          defaultValue={(asset.tags ?? []).join(", ")}
+                          placeholder="launch, social, hero"
+                          className="rounded-control border border-edge bg-surface px-2.5 py-2 text-[12px]"
+                        />
+                      </label>
+                      <label className="flex flex-col gap-1">
+                        <span className="text-[10px] font-semibold uppercase text-ink-faint">Status</span>
+                        <select
+                          name="approval_status"
+                          defaultValue={asset.approval_status}
+                          className="rounded-control border border-edge bg-surface px-2.5 py-2 text-[12px]"
+                        >
+                          <option value="approved">Approved</option>
+                          <option value="pending">Pending</option>
+                          <option value="rejected">Rejected</option>
+                          <option value="archived">Archived</option>
+                        </select>
+                      </label>
+                      <button
+                        type="submit"
+                        className="rounded-control bg-brand px-3 py-2 text-[12px] font-semibold text-white"
+                      >
+                        Save metadata
+                      </button>
+                    </form>
+                  </details>
                 </div>
               );
             })}
           </div>
         )}
-        <form action={uploadProductAsset.bind(null, id)} className="flex items-end gap-3 border-t border-edge pt-4">
+        <form action={uploadProductAsset.bind(null, id)} className="grid grid-cols-1 gap-3 border-t border-edge pt-4 sm:grid-cols-2">
           <label className="flex flex-col gap-1.5">
             <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-faint">
               Type
@@ -241,9 +310,30 @@ export default async function EditProductPage({
               className="rounded-control border border-edge bg-page px-3 py-2 text-[12px]"
             />
           </label>
+          <label className="flex flex-col gap-1.5">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-faint">
+              Title
+            </span>
+            <input
+              name="title"
+              maxLength={120}
+              placeholder="Defaults to file name"
+              className="rounded-control border border-edge bg-page px-3 py-2.5 text-[13px]"
+            />
+          </label>
+          <label className="flex flex-col gap-1.5">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-faint">
+              Tags
+            </span>
+            <input
+              name="tags"
+              placeholder="launch, social, hero"
+              className="rounded-control border border-edge bg-page px-3 py-2.5 text-[13px]"
+            />
+          </label>
           <button
             type="submit"
-            className="rounded-control bg-brand px-4 py-2.5 text-[13px] font-semibold text-white"
+            className="rounded-control bg-brand px-4 py-2.5 text-[13px] font-semibold text-white sm:col-span-2"
           >
             Upload
           </button>

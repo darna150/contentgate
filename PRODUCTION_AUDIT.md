@@ -1,6 +1,6 @@
 # Production Audit
 
-Last updated: 2026-07-12
+Last updated: 2026-07-13
 
 ## Local Repo
 
@@ -24,6 +24,15 @@ Last updated: 2026-07-12
   - `contentgate-delta.vercel.app`
   - `contentgate-debbies-projects-a8de6bb4.vercel.app`
   - `contentgate-darna150-debbies-projects-a8de6bb4.vercel.app`
+
+Production was subsequently updated from GitHub `main`:
+
+- Deployment: `dpl_67BiwHMDvh2gLMLHxjbdJd8u61zc`
+- Deployment URL: `contentgate-era97sf0w-debbies-projects-a8de6bb4.vercel.app`
+- Production alias: `contentgate-delta.vercel.app`
+- Commit: `a5a17f520182d892cd852230d00c60982a17393a`
+- State: `READY`
+- Post-deploy checks: login 200, unauthenticated dashboard redirected to login, unauthenticated render returned 401, and no warning/error/fatal runtime logs appeared in the checked one-hour window.
 
 ## Preview Deployment
 
@@ -78,6 +87,12 @@ Completed on 2026-07-08:
 - `npm run build`: passed.
 - Vercel Preview runtime logs after live Supabase restore/migration: no error/fatal logs in the checked 2-hour window for deployment `dpl_szJ3Y36gxDuYfG5Lwnuc7M1D3CWt`.
 
+Dependency audit on 2026-07-13:
+
+- No high or critical production dependency advisories.
+- Two moderate advisories are reported through Next.js's bundled PostCSS.
+- npm offers an incompatible Next.js downgrade rather than a valid patched upgrade, so no automated audit fix was applied.
+
 ## Gaps To Resolve
 
 - Add a true staging/preview branch workflow before larger feature work.
@@ -114,3 +129,23 @@ Completed on Vercel Preview on 2026-07-12 using an existing VitalBite draft:
 - No browser console warnings/errors or Vercel warning/error/fatal runtime logs were observed for the corrected preview during the test window.
 
 Browser automation did not surface a file-download event for the Markdown or live-canvas PNG buttons. Both controls remained available without a UI or console error, but the resulting local file transfer should be confirmed manually before production promotion.
+
+Debbie subsequently confirmed that both Markdown and PNG files downloaded and opened correctly before the production push.
+
+## Asset Library Database Foundation
+
+Applied to live Supabase project `egjssfcenboalijfdmsi` on 2026-07-13:
+
+- `asset_library_foundation`
+- `asset_library_policy_indexes`
+- `harden_asset_storage_listing`
+
+Verified:
+
+- All metadata columns, constraints, indexes, and the update timestamp trigger exist.
+- Asset reads are organization-scoped; inserts, updates, and deletes are explicit admin-only policies.
+- Admin insert passed inside a rolled-back RLS transaction; an unauthorized identity was rejected.
+- No policy test rows remain.
+- Storage upload/delete remains admin-only and organization-folder-scoped.
+- Public bucket enumeration was removed while public object URLs remain available.
+- Supabase security advisor reports no Asset Library warnings after the changes.
