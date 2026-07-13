@@ -185,4 +185,23 @@ Completed on 2026-07-13 against Claude Code's uncommitted UI handoff:
 - `git diff --check`, `npm run lint`, `npm run test:assets`, and `npm run build` pass.
 - The final local browser pass produced no new warning or error console entries.
 
-This UI work has not yet been committed, pushed, or deployed. Preview and authenticated admin/member release checks remain required before Production promotion.
+## Asset Library UI Preview Verification
+
+Released to Preview on 2026-07-13:
+
+- Branch: `codex/asset-library-ui`
+- Commit: `52d6abb0cbcede4ec42f3dd8edc0f8ff793eac41`
+- Draft pull request: `https://github.com/darna150/contentgate/pull/1`
+- Vercel deployment: `dpl_3A9W8nPQENe7YmFpTZPhNWDXx24y`
+- Preview URL: `https://contentgate-qxc4qobn5-debbies-projects-a8de6bb4.vercel.app`
+- State: `READY`
+
+Authenticated admin smoke test:
+
+- Uploaded a 1080x1080 JPEG supporting image to Apex Canine and verified its approved status, dimensions, MIME type, size, tags, and preview.
+- Edited the title, alt text, description, and tags and confirmed the refreshed card and list row reflected the saved values.
+- Verified title, product, type, status, and tag filters combine into the URL and the grid/list control changes the rendered layout.
+- Permanently deleted the disposable asset; the filtered library returned to zero assets and no QA data remains.
+- Vercel returned no warning/error/fatal runtime logs for the Preview deployment in the checked one-hour window.
+
+Production promotion remains gated on one authenticated non-admin member UI check. Backend RLS and Storage policies have already been verified, but the read-only member presentation must still be exercised in Preview.

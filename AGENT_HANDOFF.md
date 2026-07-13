@@ -77,6 +77,10 @@ Claude Code should not loosen backend security, approval, RLS, or export constra
 - Replaced the fixed-width phone sidebar with a shared mobile header and navigation drawer; verified 375px and 1440px layouts have no horizontal overflow.
 - Added keyboard focus containment to shared asset dialogs, limited upload choices to active products, and aligned all-status UI copy with the governed asset contract.
 - Re-ran `git diff --check`, lint, focused asset tests, production build, and local browser console/layout verification successfully.
+- Committed the reviewed Asset Library UI as `52d6abb`, pushed `codex/asset-library-ui`, and opened draft PR #1.
+- Verified Vercel Preview `dpl_3A9W8nPQENe7YmFpTZPhNWDXx24y` at `https://contentgate-qxc4qobn5-debbies-projects-a8de6bb4.vercel.app`.
+- Completed the authenticated Preview admin workflow: upload, image preview, metadata/alt-text/tag edit, URL-backed combined filtering, list view, and permanent delete.
+- Confirmed the disposable QA row and Storage object were removed and the Preview emitted no warning/error/fatal runtime logs in the checked window.
 
 ## Remaining Blocker
 
@@ -96,8 +100,8 @@ Claude Code verified:
 
 ## Next Agent Should Check
 
-- Review and commit the local Asset Library UI work without including unrelated changes.
-- Deploy the reviewed commit to Preview and smoke test `/assets` as an admin and non-admin member before Production promotion.
+- Sign in to the Asset Library Preview with a non-admin member account and confirm upload/edit/delete controls are absent while preview, search, and filters remain usable.
+- Promote the reviewed Asset Library release only after that member check passes, then record the Production deployment and smoke-test result.
 - After the Asset Library release, begin Phase 3 by defining the shared product/workspace query and permission contract before Claude Code restructures the product detail UI.
 - Consider a future server-side creative export endpoint for live-canvas templates. The official UI blocks draft export, but any browser-rendered canvas can still be screenshotted by a determined user.
 

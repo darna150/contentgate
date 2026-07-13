@@ -25,6 +25,8 @@ The MVP is not a campaign planner, finance platform, project-management suite, o
 - Asset Library metadata, storage, permission, mutation, filtering, and audit contract implemented.
 - Asset Library migrations applied and verified on the live Supabase project.
 - Dedicated Asset Library UI implemented and reviewed locally, including grid/list views, URL filters, preview, metadata editing, upload, delete confirmation, and role-aware controls.
+- Asset Library UI committed as `52d6abb`, pushed on `codex/asset-library-ui`, opened as draft PR #1, and deployed to Vercel Preview.
+- Authenticated Preview admin upload, preview, metadata edit, combined filtering, list view, and delete cleanup all pass with no warning/error/fatal runtime logs.
 - Shared mobile app navigation corrected so primary app surfaces remain usable at phone widths.
 - Lint, TypeScript, production build, browser console, and preview runtime-log checks pass.
 
@@ -33,7 +35,7 @@ The MVP is not a campaign planner, finance platform, project-management suite, o
 - Phase 1 is complete.
 - Codex Asset Library backend work is committed, deployed, and verified in Production.
 - Authenticated upload, preview, metadata/status edit, audit, database delete, and physical Storage delete all pass.
-- The Asset Library UI is complete and reviewed locally; commit, preview deployment, and authenticated release smoke testing are the current gate.
+- The Asset Library UI Preview admin workflow is verified; a non-admin member UI check and Production promotion are the current gate.
 
 ## Execution Order
 
@@ -68,7 +70,7 @@ Exit criteria:
 
 ### 2. Build The Asset Library Foundation
 
-Status: Implementation complete locally; release verification pending
+Status: Preview admin verification complete; member verification and Production promotion pending
 
 Owner: Codex first, Claude Code second
 
@@ -95,7 +97,9 @@ Codex review:
 - Completed: replaced the fixed mobile sidebar with a responsive mobile header and navigation drawer.
 - Completed: added modal keyboard focus containment and prevented archived products from being offered for upload.
 - Completed: reran lint, focused tests, production build, desktop/mobile layout checks, and browser console checks.
-- Pending: commit the reviewed work, deploy it to Preview, run authenticated admin/member smoke tests, then promote the reviewed deployment.
+- Completed: committed and pushed the reviewed UI, opened draft PR #1, and deployed commit `52d6abb` as Vercel Preview `dpl_3A9W8nPQENe7YmFpTZPhNWDXx24y`.
+- Completed: ran the authenticated admin upload, preview, metadata edit, combined-filter/list-view, and delete-cleanup workflow with no Preview runtime errors.
+- Pending: verify the read-only UI with a non-admin member account, then promote the reviewed release.
 
 Exit criteria:
 
