@@ -10,7 +10,7 @@ export default async function AppLayout({
   // Unconfigured preview fallback so the shell is reviewable without Supabase
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
     return (
-      <div className="flex min-h-screen">
+      <div className="flex min-h-screen flex-col md:flex-row">
         <Sidebar
           orgName="Demo Workspace"
           orgIndustry="Preview"
@@ -47,7 +47,7 @@ export default async function AppLayout({
     .eq("status", "in_review");
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen flex-col md:flex-row">
       <Sidebar
         orgName={org?.name ?? "Workspace"}
         orgIndustry={org?.industry ?? null}

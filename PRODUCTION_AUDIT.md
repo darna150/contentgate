@@ -171,3 +171,18 @@ Authenticated admin smoke test on 2026-07-13:
 - No temporary Asset Library rows or files remain.
 - Supabase security advisor reports no Asset Library warnings; only expected fresh-index `unused_index` informational notices remain.
 - Vercel reported no runtime error groups and no warning/error/fatal logs for the deployment in the checked one-hour window.
+
+## Asset Library UI Local Review
+
+Completed on 2026-07-13 against Claude Code's uncommitted UI handoff:
+
+- Confirmed the UI reused `listProductAssets`, `uploadProductAsset`, `updateProductAssetMetadata`, and `deleteProductAsset` without changing migrations, RLS, Storage policies, service-role use, or audit behavior.
+- Reproduced and fixed a URL-filter race between debounced title search and product/type/status/view changes.
+- Reproduced and fixed the shared 248px sidebar squeezing phone content to 127px and causing horizontal overflow.
+- Verified the corrected shell at 375x812: mobile header and drawer fit the viewport, document width equals viewport width, and body scrolling is locked while the drawer is open.
+- Verified the corrected shell at 1440x900: the 248px desktop rail remains intact and the main region fills the remaining width without overflow.
+- Verified the rapid combined-filter path resolves to `?q=logo&type=packshot` rather than dropping the type filter.
+- `git diff --check`, `npm run lint`, `npm run test:assets`, and `npm run build` pass.
+- The final local browser pass produced no new warning or error console entries.
+
+This UI work has not yet been committed, pushed, or deployed. Preview and authenticated admin/member release checks remain required before Production promotion.

@@ -71,6 +71,12 @@ Claude Code should not loosen backend security, approval, RLS, or export constra
 - Completed an authenticated production Asset Library smoke test in Chrome.
 - The first delete test exposed a Storage API requirement for scoped object visibility; added and applied `allow_admin_asset_storage_read`, cleaned the orphaned test object through the Storage API, and reran delete successfully.
 - Confirmed all temporary test rows and objects were removed and create/update/delete audit events were recorded.
+- Reviewed Claude Code's dedicated `/assets` implementation against `ASSET_LIBRARY_CONTRACT.md`; no backend contract or security-boundary changes were introduced.
+- Verified the UI includes URL-backed search and product/type/status/tag filters, grid/list views, previews, metadata editing, upload feedback, delete confirmation, and admin/member control separation.
+- Fixed a reproduced filter race where the delayed title search could erase a newly selected filter.
+- Replaced the fixed-width phone sidebar with a shared mobile header and navigation drawer; verified 375px and 1440px layouts have no horizontal overflow.
+- Added keyboard focus containment to shared asset dialogs, limited upload choices to active products, and aligned all-status UI copy with the governed asset contract.
+- Re-ran `git diff --check`, lint, focused asset tests, production build, and local browser console/layout verification successfully.
 
 ## Remaining Blocker
 
@@ -90,8 +96,9 @@ Claude Code verified:
 
 ## Next Agent Should Check
 
-- Claude Code should build the dedicated `/assets` grid/list and filters against `listProductAssets`; it should not alter the data, RLS, storage, or audit contract.
-- Add clear pending/success/error feedback to asset forms and ensure cards refresh immediately after server actions.
+- Review and commit the local Asset Library UI work without including unrelated changes.
+- Deploy the reviewed commit to Preview and smoke test `/assets` as an admin and non-admin member before Production promotion.
+- After the Asset Library release, begin Phase 3 by defining the shared product/workspace query and permission contract before Claude Code restructures the product detail UI.
 - Consider a future server-side creative export endpoint for live-canvas templates. The official UI blocks draft export, but any browser-rendered canvas can still be screenshotted by a determined user.
 
 ## Do Not Break

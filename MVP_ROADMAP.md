@@ -24,6 +24,8 @@ The MVP is not a campaign planner, finance platform, project-management suite, o
 - Production login protection, dashboard routing, export authorization, and runtime logs checked.
 - Asset Library metadata, storage, permission, mutation, filtering, and audit contract implemented.
 - Asset Library migrations applied and verified on the live Supabase project.
+- Dedicated Asset Library UI implemented and reviewed locally, including grid/list views, URL filters, preview, metadata editing, upload, delete confirmation, and role-aware controls.
+- Shared mobile app navigation corrected so primary app surfaces remain usable at phone widths.
 - Lint, TypeScript, production build, browser console, and preview runtime-log checks pass.
 
 ### Current Gate
@@ -31,7 +33,7 @@ The MVP is not a campaign planner, finance platform, project-management suite, o
 - Phase 1 is complete.
 - Codex Asset Library backend work is committed, deployed, and verified in Production.
 - Authenticated upload, preview, metadata/status edit, audit, database delete, and physical Storage delete all pass.
-- The stable contract is ready for Claude Code to build the dedicated `/assets` interface.
+- The Asset Library UI is complete and reviewed locally; commit, preview deployment, and authenticated release smoke testing are the current gate.
 
 ## Execution Order
 
@@ -66,7 +68,7 @@ Exit criteria:
 
 ### 2. Build The Asset Library Foundation
 
-Status: Backend complete; UI next
+Status: Implementation complete locally; release verification pending
 
 Owner: Codex first, Claude Code second
 
@@ -82,9 +84,18 @@ Codex:
 
 Claude Code, after Codex handoff:
 
-- Build the Asset Library interface from the established data contract.
-- Add grid/list views, search, product/type filters, upload progress, empty states, previews, and metadata editing.
-- Keep the interface work-focused, responsive, and consistent with the existing visual system.
+- Completed: built the Asset Library interface from the established data contract.
+- Completed: added grid/list views, URL-backed search and filters, upload pending feedback, empty states, previews, metadata editing, and delete confirmation.
+- Completed: kept the interface work-focused and consistent with the existing visual system.
+
+Codex review:
+
+- Completed: verified no backend, migration, RLS, Storage, service-role, or audit contract changes were introduced by the UI pass.
+- Completed: fixed a race between debounced title search and other URL filters.
+- Completed: replaced the fixed mobile sidebar with a responsive mobile header and navigation drawer.
+- Completed: added modal keyboard focus containment and prevented archived products from being offered for upload.
+- Completed: reran lint, focused tests, production build, desktop/mobile layout checks, and browser console checks.
+- Pending: commit the reviewed work, deploy it to Preview, run authenticated admin/member smoke tests, then promote the reviewed deployment.
 
 Exit criteria:
 
