@@ -47,7 +47,7 @@ The MVP is not a campaign planner, finance platform, project-management suite, o
 - Phase 3 is complete and verified in Production; disposable Preview role accounts and provisioning records were removed.
 - Phase 4 is complete and verified in Production; its contract metadata migration is applied and verified live.
 - Phase 5 Knowledge Hub backend reliability is complete and verified in Production.
-- Phase 6 approval history and auditability is complete in Preview and awaiting merge and Production verification. Knowledge Hub visual polish and final template calibration remain deferred.
+- Phase 6 approval history and auditability is complete and verified in Production. Knowledge Hub visual polish and final template calibration remain deferred.
 
 ## Execution Order
 
@@ -225,7 +225,7 @@ Exit criteria:
 
 ### 6. Complete Approval History And Auditability
 
-Status: Backend, history UI, and authenticated Preview verification complete; Production release pending
+Status: Complete and verified in Production
 
 Owner: Codex first, Claude Code second
 
@@ -238,7 +238,7 @@ Codex:
 - Completed: applied and structurally verified live migrations `20260713113241_complete_approval_history` and `20260713113807_backfill_missing_content_creation_events`; 17 current records have snapshots, 68 historical/baseline events are present, every current record has create/generate events, and all consistency checks returned zero failures.
 - Completed: authenticated Preview QA across approved, draft, in-review, and Studio states. The history timeline shows actor, event, timestamp, notes/export details, and exact revision; draft/review export remains blocked; approved exact-revision export is enabled.
 - Completed: verified the durable clipboard export event after reload, clean browser logs, and no Preview warning/error/fatal runtime logs on deployment `dpl_3aVZx2Z6avBvwFwQex7WPyQfck32`.
-- In progress: merge and Production release verification.
+- Completed: merged PR #7 to `main` at `1475623`, deployed Production `dpl_CoZSt5pKjCGoCKMCLNCdU7wVJnaN`, and repeated approved, draft, in-review, history, and Studio export-gating checks with clean browser and runtime logs.
 
 Claude Code:
 
