@@ -221,4 +221,15 @@ The test exposed an existing provisioning vulnerability: `handle_new_user` trust
 - Applies live migrations `harden_user_provisioning` and `fix_user_provisioning_handshake`.
 - Verifies hostile signup is blocked and trusted member provisioning creates the intended organization/role before clean deletion.
 
-Production promotion remains gated on deploying this authentication hardening to Preview and rechecking existing-user login behavior.
+Authentication hardening Preview verification completed on 2026-07-13:
+
+- Commit: `47d5056069029fc180c4551e8c70d03a386cae9c`
+- Deployment: `dpl_9aob3SNXBpGHobUvvuGntn9Y9bAf`
+- Branch alias: `contentgate-git-codex-asset-li-ccfe90-debbies-projects-a8de6bb4.vercel.app`
+- State: `READY`
+- Unknown magic-link login was rejected with `Signups not allowed for otp`; no Auth user was created.
+- A server-provisioned member signed in successfully and loaded the Veltara dashboard with role `member`.
+- The member signed out and was deleted; zero Auth users, profiles, and pending provisioning records remain from the test.
+- The deployment build completed successfully and no warning/error/fatal runtime logs appeared in the checked window.
+
+All Asset Library Preview release gates now pass. Production promotion is pending PR #1 review and merge.

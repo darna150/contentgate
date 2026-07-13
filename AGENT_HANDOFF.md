@@ -85,6 +85,8 @@ Claude Code should not loosen backend security, approval, RLS, or export constra
 - Signed out and deleted the temporary Auth user; cascading profile cleanup and zero denied-write test rows were verified.
 - Found and closed a user-provisioning escalation path: magic links now use `shouldCreateUser: false`, and `handle_new_user` consumes a short-lived server-only provisioning record instead of trusting `raw_user_meta_data`.
 - Applied and verified live migrations `harden_user_provisioning` and `fix_user_provisioning_handshake`; hostile self-signup is blocked while trusted member provisioning succeeds.
+- Deployed authentication hardening commit `47d5056` as Preview `dpl_9aob3SNXBpGHobUvvuGntn9Y9bAf`.
+- Verified the Preview rejects an unknown magic-link address, accepts a server-provisioned member password login, cleans all temporary Auth/profile/provisioning records, and emits no warning/error/fatal runtime logs.
 
 ## Remaining Blocker
 
@@ -104,8 +106,7 @@ Claude Code verified:
 
 ## Next Agent Should Check
 
-- Commit and deploy the user-provisioning hardening to Preview, then verify existing-user password and magic-link login behavior.
-- Promote the reviewed Asset Library release after that authentication check, then record the Production deployment and smoke-test result.
+- Review and merge draft PR #1, promote the reviewed Asset Library release to Production, and record the deployment and smoke-test result.
 - After the Asset Library release, begin Phase 3 by defining the shared product/workspace query and permission contract before Claude Code restructures the product detail UI.
 - Consider a future server-side creative export endpoint for live-canvas templates. The official UI blocks draft export, but any browser-rendered canvas can still be screenshotted by a determined user.
 

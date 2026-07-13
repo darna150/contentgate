@@ -37,7 +37,7 @@ The MVP is not a campaign planner, finance platform, project-management suite, o
 - Phase 1 is complete.
 - Codex Asset Library backend work is committed, deployed, and verified in Production.
 - Authenticated upload, preview, metadata/status edit, audit, database delete, and physical Storage delete all pass.
-- Asset Library admin/member behavior is verified. Deploying and checking the user-provisioning hardening in Preview is the final gate before Production promotion.
+- Asset Library admin/member behavior and user-provisioning hardening are verified in Preview. PR #1 is ready for review, merge, and Production promotion.
 
 ## Execution Order
 
@@ -72,7 +72,7 @@ Exit criteria:
 
 ### 2. Build The Asset Library Foundation
 
-Status: Preview admin/member verification complete; security hardening release and Production promotion pending
+Status: Preview release gates complete; Production promotion pending
 
 Owner: Codex first, Claude Code second
 
@@ -103,7 +103,9 @@ Codex review:
 - Completed: ran the authenticated admin upload, preview, metadata edit, combined-filter/list-view, and delete-cleanup workflow with no Preview runtime errors.
 - Completed: verified the read-only member UI and live Asset Library insert denial through RLS; removed the temporary Auth user, profile, and all test markers.
 - Completed: blocked magic-link account creation and replaced editable-metadata membership assignment with a server-only provisioning handshake.
-- Pending: deploy the authentication hardening to Preview, verify existing-user login, then promote the reviewed release.
+- Completed: deployed authentication hardening commit `47d5056` as Vercel Preview `dpl_9aob3SNXBpGHobUvvuGntn9Y9bAf`.
+- Completed: verified unprovisioned magic-link signup is rejected, trusted member provisioning/password login succeeds, all temporary records are removed, and no Preview build/runtime errors appear.
+- Pending: review and merge PR #1, promote to Production, and run the Production smoke test.
 
 Exit criteria:
 
