@@ -120,6 +120,7 @@ Claude Code should not loosen backend security, approval, RLS, or export constra
 - Applied and verified live migrations `20260713113241_complete_approval_history` and `20260713113807_backfill_missing_content_creation_events`. All 17 current records have a snapshot, all have create/generate history, and structural consistency checks pass.
 - Completed rollback-only live lifecycle verification and authenticated Preview QA on deployment `dpl_3aVZx2Z6avBvwFwQex7WPyQfck32`. Approved, draft, in-review, and Studio states enforce the expected editing, review, and export controls with clean browser and Vercel runtime logs.
 - Recorded one real approved clipboard export during Preview QA. Its revision-specific audit event remains intentionally because Phase 6 history is append-only.
+- Merged Phase 6 PR #7 to `main` at `1475623`. Production deployment `dpl_CoZSt5pKjCGoCKMCLNCdU7wVJnaN` reached `READY`; approved history/export, draft gating, in-review controls, and Studio exact-revision export gating all pass with clean browser and runtime logs.
 
 ## Remaining Blocker
 
@@ -140,7 +141,7 @@ Claude Code verified:
 ## Next Agent Should Check
 
 - Run a live direct-generation `409` probe only with an isolated fixture or explicit approval to create the required inactive-product/active-template condition. Do not alter a real product or template solely for this test.
-- Phase 6 approval history is implemented and authenticated Preview QA is complete on `codex/phase6-approval-history`; merge the release and complete authenticated Production smoke testing before closing the phase.
+- Phase 6 approval history is complete and verified in Production. Start Phase 7 launch-readiness work from `MVP_ROADMAP.md`; keep Figma template calibration deferred until approved frames and replacement assets are supplied.
 - Run Figma visual calibration later, after Debbie supplies approved frame IDs and replacement assets. Preserve the v1 field, lifecycle, approval, and export contract during that work.
 - Consider a future server-side creative export endpoint for live-canvas templates. The official UI blocks draft export, but any browser-rendered canvas can still be screenshotted by a determined user.
 

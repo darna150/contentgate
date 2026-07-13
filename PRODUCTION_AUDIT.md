@@ -326,3 +326,11 @@ Verified on 2026-07-13:
 - Studio enabled generated-copy and creative download only for the approved exact revision; both controls were disabled for the draft revision.
 - Browser logs were empty. Vercel reported no warning/error/fatal runtime logs and no runtime error clusters in the checked window.
 - Focused asset, workspace, knowledge, approval, and template tests, TypeScript, lint, and the Next.js production build pass. The unchanged template-render test cannot execute in the managed sandbox because its renderer opens a local HTTP listener; the same renderer compiled successfully in the production build.
+
+Phase 6 was promoted to Production on 2026-07-13:
+
+- PR #7 merged to `main` at `1475623`; Production deployment `dpl_CoZSt5pKjCGoCKMCLNCdU7wVJnaN` reached `READY` on `contentgate-delta.vercel.app`.
+- Authenticated Production approved-content QA confirmed the immutable history timeline, revision 1 approval pointer, persisted clipboard export event, and enabled export controls.
+- Production draft content retained author edit/submit controls and no export section. In-review content exposed Approve/Reject, no save action, and no export section.
+- Production Studio enabled generated-copy and creative download for the exact approved revision and disabled both controls for the draft revision.
+- Browser logs were empty. Vercel reported no warning/error/fatal runtime logs and no runtime error clusters in the checked window.
