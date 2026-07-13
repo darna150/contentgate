@@ -8,6 +8,7 @@ import {
   type FieldLimits,
 } from "@/lib/template-fields";
 import { resolveEffectiveFieldLimits } from "@/lib/template-specs";
+import { isProductLifecycleActive } from "@/lib/product-workspace";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -118,15 +119,26 @@ export async function POST(req: Request) {
     .single();
   if (!tpl) return Response.json({ error: "Template not found." }, { status: 404 });
 
-  const [{ data: product }, { data: claims }, { data: docs }] = await Promise.all([
-    supabase.from("products").select("id, name, description, disclaimer_text").eq("id", tpl.product_id).single(),
+  const { data: product } = await supabase
+    .from("products")
+    .select("id, name, description, disclaimer_text, status")
+    .eq("id", tpl.product_id)
+    .single();
+  if (!product) return Response.json({ error: "Product not found." }, { status: 404 });
+  if (!isProductLifecycleActive(product.status)) {
+    return Response.json(
+      { error: "Content can only be generated for an active product." },
+      { status: 409 }
+    );
+  }
+
+  const [{ data: claims }, { data: docs }] = await Promise.all([
     supabase.from("product_claims").select("claim_text").eq("product_id", tpl.product_id).eq("status", "approved"),
     supabase
       .from("documents")
       .select("id, title, paragraphs")
       .eq("product_id", tpl.product_id),
   ]);
-  if (!product) return Response.json({ error: "Product not found." }, { status: 404 });
 
   const editableFields = (tpl.editable_fields as string[]) ?? [];
   const fieldLimits = resolveEffectiveFieldLimits(

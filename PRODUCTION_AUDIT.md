@@ -34,6 +34,20 @@ Production was subsequently updated from GitHub `main`:
 - State: `READY`
 - Post-deploy checks: login 200, unauthenticated dashboard redirected to login, unauthenticated render returned 401, and no warning/error/fatal runtime logs appeared in the checked one-hour window.
 
+Latest Production release on 2026-07-13:
+
+- Pull request: `#1` (`codex/asset-library-ui`)
+- Merge commit: `239db7c7249332cade358787052d818b8421c72f`
+- Deployment: `dpl_Ev74i2D367mSH9QPvFSnmCvwf5Qe`
+- Deployment URL: `contentgate-4ecmafiw7-debbies-projects-a8de6bb4.vercel.app`
+- Production alias: `contentgate-delta.vercel.app`
+- State: `READY`
+- Build completed without errors.
+- `/login` returned 200; unauthenticated `/assets` resolved to login; unauthenticated creative render returned 401.
+- Authenticated admin `/assets` rendered the Asset Library, upload control, product/type/status/tag filters, and governed empty state.
+- Authenticated `/dashboard` rendered organization counts, approval count, and recent content.
+- Vercel reported no runtime error clusters and no warning/error/fatal log entries in the checked release window.
+
 ## Preview Deployment
 
 Security/API hardening from this pass was deployed to Vercel Preview, not Production:
@@ -218,8 +232,46 @@ The test exposed an existing provisioning vulnerability: `handle_new_user` trust
 - Requires a short-lived `private.user_provisioning` record created through the service-role-only `provision_user` RPC.
 - Rejects unprovisioned self-signup and consumes the trusted record when creating the profile.
 - Grants `provision_user` only to `service_role`; `anon` and `authenticated` both fail the privilege check.
+
+## Phase 3 Product Workspace Foundation
+
+Started on branch `codex/product-workspaces` after the Production release:
+
+- Added a single authenticated, organization-and-product-scoped workspace loader for product profile, assets, source documents, claims, active templates, generated content, approval queue, and status counts.
+- Added shared permission rules for admin, approver, and member roles plus archived-product and missing-template behavior.
+- Added shared section empty-state codes and permission-aware action URLs.
+- Refactored `/products/[id]` to use the shared service without changing its current interface.
+- Documented the read boundary in `PRODUCT_WORKSPACE_CONTRACT.md`.
+- `git diff --check`, Asset Library tests, five workspace tests, lint, and the full Next.js production build pass.
 - Applies live migrations `harden_user_provisioning` and `fix_user_provisioning_handshake`.
 - Verifies hostile signup is blocked and trusted member provisioning creates the intended organization/role before clean deletion.
+
+## Phase 3 Product Workspace UI Review
+
+Claude Code implementation reviewed on 2026-07-13:
+
+- Branch: `codex/product-workspaces`
+- UI commit: `8a09011c6180839acd53703f3ea6dfd67d1ca759`
+- Draft pull request: `https://github.com/darna150/contentgate/pull/2`
+- Initial UI Preview: `dpl_5SHRQo5CDNk64Ge3C6PZicxk6ZqF`
+- Initial Preview state: `READY`, with no build errors or warning/error/fatal runtime logs in the checked window.
+- Confirmed the five workspace views reuse `getProductWorkspace(productId)` and introduce no UI-specific Supabase queries.
+- Review found that direct template detail still exposed generation/Studio outside the workspace lifecycle gate and that Knowledge Hub navigation dropped the product ID.
+- Corrected template detail to consume the workspace contract, made non-active product/template views reference-only, and enforced active product status in `/api/products/generate` before knowledge/model work.
+- Corrected Knowledge Hub navigation to carry and validate `?product=...`, select the newest matching session, or retain the product in a new-conversation state.
+- Added inactive/archived lifecycle and product-aware Knowledge Hub regression tests.
+- Local verification: `git diff --check`, eleven tests, lint, TypeScript, and the Next.js production build pass.
+- Correction commit: `9e63a991aa0734e4564bf46fd769fefe86add33d`
+- Corrected Preview: `dpl_9cnouYp7aqX1f6Fk2NRrVV6Y9Wg7`
+- Corrected Preview URL: `https://contentgate-i5pr98tt6-debbies-projects-a8de6bb4.vercel.app`
+- Corrected Preview state: `READY`; build completed without errors and no warning/error/fatal runtime logs appeared in the checked window.
+- Unauthenticated workspace access correctly redirected to `/login`.
+- Stable branch Preview: `https://contentgate-git-codex-product-bc1043-debbies-projects-a8de6bb4.vercel.app`
+- Authenticated admin QA confirms all five settled VitalBite workspace views, product-scoped Knowledge Hub navigation, and inactive DigestPro generation gating with no browser console errors.
+- Disposable member QA confirms generation on active configured products, read-only review access, no product administration or approval actions, and no inactive-product Generate or Studio control.
+- Disposable approver QA confirms generation on active configured products, Approve/Reject review actions, no product administration, and no inactive-product Generate or Studio control.
+- Both temporary users were signed out and deleted. Follow-up SQL confirms zero matching Auth users, profiles, and provisioning records.
+- A direct live `409` request was not issued because no inactive product currently has an active template; creating that condition would mutate shared Production data. Focused lifecycle tests and route review cover the guard until an isolated fixture is available.
 
 Authentication hardening Preview verification completed on 2026-07-13:
 

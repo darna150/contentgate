@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getProductWorkspace } from "@/lib/product-workspace-server";
 
 type QueueRow = {
   id: string;
@@ -7,30 +9,76 @@ type QueueRow = {
   target_language: string;
   audience: string | null;
   created_at: string;
-  templates: { name: string } | { name: string }[] | null;
-  creator: { full_name: string | null } | { full_name: string | null }[] | null;
+  templateName: string | null;
+  creatorName: string | null;
 };
 
-export default async function ApprovalsPage() {
+type Joined<T> = T | T[] | null;
+
+function one<T>(value: Joined<T>): T | null {
+  return Array.isArray(value) ? (value[0] ?? null) : value;
+}
+
+export default async function ApprovalsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ product?: string }>;
+}) {
+  const { product: productId } = await searchParams;
   let rows: QueueRow[] = [];
+  let productName: string | null = null;
   if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
-    const supabase = await createClient();
-    const { data } = await supabase
-      .from("generated_content")
-      .select(
-        "id, title, target_language, audience, created_at, templates(name), creator:profiles!generated_content_created_by_fkey(full_name)"
-      )
-      .eq("status", "in_review")
-      .order("created_at", { ascending: true });
-    rows = (data as QueueRow[]) ?? [];
+    if (productId) {
+      const workspace = await getProductWorkspace(productId);
+      if (!workspace) notFound();
+      productName = workspace.product.name;
+      rows = workspace.approvals.map((item) => ({
+        id: item.id,
+        title: item.title,
+        target_language: item.targetLanguage,
+        audience: item.audience,
+        created_at: item.createdAt,
+        templateName: item.templateVariant,
+        creatorName: item.creatorName,
+      }));
+    } else {
+      const supabase = await createClient();
+      const { data } = await supabase
+        .from("generated_content")
+        .select(
+          "id, title, target_language, audience, created_at, templates(name), product_templates(variant), creator:profiles!generated_content_created_by_fkey(full_name)"
+        )
+        .eq("status", "in_review")
+        .order("created_at", { ascending: true });
+      rows = (data ?? []).map((row) => ({
+        id: row.id,
+        title: row.title,
+        target_language: row.target_language,
+        audience: row.audience,
+        created_at: row.created_at,
+        templateName:
+          one(row.product_templates)?.variant ?? one(row.templates)?.name ?? null,
+        creatorName: one(row.creator)?.full_name ?? null,
+      }));
+    }
   }
 
   return (
     <div className="mx-auto flex max-w-[1280px] flex-col gap-6 px-10 py-9">
       <div className="flex flex-col gap-1.5">
+        {productId && productName && (
+          <Link
+            href={`/products/${productId}`}
+            className="text-[13px] font-semibold text-brand hover:underline"
+          >
+            ← {productName}
+          </Link>
+        )}
         <h1 className="font-serif text-[28px] font-semibold">Approval Queue</h1>
         <p className="text-[14.5px] text-ink-muted">
-          Content waiting for review. Only approved content can be exported.
+          {productName
+            ? `Content for ${productName} waiting for review.`
+            : "Content waiting for review. Only approved content can be exported."}
         </p>
       </div>
 
@@ -44,12 +92,6 @@ export default async function ApprovalsPage() {
       ) : (
         <div className="flex flex-col gap-1 rounded-card border border-edge bg-surface p-3">
           {rows.map((row) => {
-            const template = Array.isArray(row.templates)
-              ? row.templates[0]
-              : row.templates;
-            const creator = Array.isArray(row.creator)
-              ? row.creator[0]
-              : row.creator;
             return (
               <Link
                 key={row.id}
@@ -61,9 +103,9 @@ export default async function ApprovalsPage() {
                     {row.title}
                   </span>
                   <span className="text-[11.5px] text-ink-faint">
-                    {template?.name ?? "Custom"} · {row.target_language}
+                    {row.templateName ?? "Custom"} · {row.target_language}
                     {row.audience ? ` · ${row.audience}` : ""} · submitted by{" "}
-                    {creator?.full_name ?? "a teammate"} ·{" "}
+                    {row.creatorName ?? "a teammate"} ·{" "}
                     {new Date(row.created_at).toLocaleDateString("en-US", {
                       month: "short",
                       day: "numeric",

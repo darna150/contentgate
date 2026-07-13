@@ -31,13 +31,18 @@ The MVP is not a campaign planner, finance platform, project-management suite, o
 - Public user creation hardened so organization and role assignments require a short-lived server-only provisioning record.
 - Shared mobile app navigation corrected so primary app surfaces remain usable at phone widths.
 - Lint, TypeScript, production build, browser console, and preview runtime-log checks pass.
+- Asset Library PR #1 merged to `main` at `239db7c` and deployed successfully to Production.
+- Authenticated Production Asset Library and dashboard smoke tests pass with no runtime errors.
+- Phase 3 product-workspace read, permission, count, and empty-state contract implemented and tested.
+- Phase 3 product workspace UI implemented with Assets, Knowledge, Templates, Content, and Approvals views on one shared read boundary.
+- Codex review closed product-lifecycle and Knowledge Hub context gaps, including direct template/API generation enforcement for non-active products.
 
 ### Current Gate
 
-- Phase 1 is complete.
-- Codex Asset Library backend work is committed, deployed, and verified in Production.
-- Authenticated upload, preview, metadata/status edit, audit, database delete, and physical Storage delete all pass.
-- Asset Library admin/member behavior and user-provisioning hardening are verified in Preview. PR #1 is ready for review, merge, and Production promotion.
+- Phases 1 and 2 are complete and verified in Production.
+- Phase 3 implementation and Codex review fixes are complete on `codex/product-workspaces`.
+- Corrected Preview admin/member/approver role QA is complete; the disposable role accounts and provisioning records were removed.
+- Draft PR #2 is ready for final release review, merge, and Production verification.
 
 ## Execution Order
 
@@ -72,7 +77,7 @@ Exit criteria:
 
 ### 2. Build The Asset Library Foundation
 
-Status: Preview release gates complete; Production promotion pending
+Status: Complete
 
 Owner: Codex first, Claude Code second
 
@@ -105,7 +110,7 @@ Codex review:
 - Completed: blocked magic-link account creation and replaced editable-metadata membership assignment with a server-only provisioning handshake.
 - Completed: deployed authentication hardening commit `47d5056` as Vercel Preview `dpl_9aob3SNXBpGHobUvvuGntn9Y9bAf`.
 - Completed: verified unprovisioned magic-link signup is rejected, trusted member provisioning/password login succeeds, all temporary records are removed, and no Preview build/runtime errors appear.
-- Pending: review and merge PR #1, promote to Production, and run the Production smoke test.
+- Completed: merged PR #1 as `239db7c`, deployed Production `dpl_Ev74i2D367mSH9QPvFSnmCvwf5Qe`, and passed authenticated and unauthenticated smoke checks with no runtime errors.
 
 Exit criteria:
 
@@ -115,21 +120,34 @@ Exit criteria:
 
 ### 3. Make Product Workspaces The Core Navigation Unit
 
-Status: After Asset Library foundation
+Status: Preview QA complete; Production promotion pending
 
 Owner: Codex first, Claude Code second
 
 Codex:
 
-- Define one workspace query/service that returns product profile, assets, approved sources, claims, templates, content, and approval counts.
-- Remove duplicated cross-page data assembly where it creates inconsistent behavior.
-- Define workspace-level permission and empty-state rules.
+- Completed: defined `getProductWorkspace(productId)` to return the org-scoped product profile, assets, sources, claims, active templates, content, approval queue, and counts.
+- Completed: moved the product detail route onto the shared service instead of assembling profile, product, claims, sources, and templates itself.
+- Completed: defined tested admin/approver/member, archived-product, template-readiness, and section empty-state rules.
+- Completed: documented the UI and security boundary in `PRODUCT_WORKSPACE_CONTRACT.md`.
 
 Claude Code:
 
-- Rework the product detail experience into a clear workspace with Assets, Knowledge, Templates, Content, and Approvals views.
-- Preserve fast navigation into Knowledge Hub and Studio.
-- Complete desktop and mobile visual QA.
+- Completed: reworked the product detail experience into Assets, Knowledge, Templates, Content, and Approvals views.
+- Completed: preserved navigation into Knowledge Hub, template detail, content, approvals, and Studio.
+- Completed: ran desktop and mobile visual QA on the initial Preview implementation.
+
+Codex review:
+
+- Completed: verified all five views consume `getProductWorkspace(productId)` without adding UI-specific Supabase queries.
+- Completed: moved template detail onto the shared workspace contract and made non-active product/template views reference-only.
+- Completed: enforced active-product lifecycle rules inside the generation API before loading knowledge or calling the model.
+- Completed: made Knowledge Hub links product-aware and added deterministic product/session selection.
+- Completed: added inactive/archived generation and Knowledge Hub navigation regression tests.
+- Completed: ran authenticated admin/member/approver QA on the corrected Preview. Active configured products allow generation for all three roles; administration is admin-only; approval actions are approver/admin-only; inactive products expose no Generate or Studio control.
+- Completed: verified product-scoped Knowledge Hub navigation, all five settled workspace views, and a clean browser console.
+- Completed: signed out and deleted the disposable member and approver Auth users; zero profiles and zero provisioning records remain.
+- Pending: merge PR #2 and verify Production. A live `409` probe was not run because the current inactive product has no active template and creating that condition would mutate shared Production data; the lifecycle guard remains covered by focused regression tests and code review.
 
 Exit criteria:
 

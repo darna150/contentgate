@@ -87,6 +87,20 @@ Claude Code should not loosen backend security, approval, RLS, or export constra
 - Applied and verified live migrations `harden_user_provisioning` and `fix_user_provisioning_handshake`; hostile self-signup is blocked while trusted member provisioning succeeds.
 - Deployed authentication hardening commit `47d5056` as Preview `dpl_9aob3SNXBpGHobUvvuGntn9Y9bAf`.
 - Verified the Preview rejects an unknown magic-link address, accepts a server-provisioned member password login, cleans all temporary Auth/profile/provisioning records, and emits no warning/error/fatal runtime logs.
+- Marked PR #1 ready, merged it to `main` at `239db7c`, and verified Production deployment `dpl_Ev74i2D367mSH9QPvFSnmCvwf5Qe` at `contentgate-delta.vercel.app`.
+- Verified authenticated Production admin Asset Library and dashboard rendering, unauthenticated route protection, build health, and zero runtime error clusters.
+- Started Phase 3 on `codex/product-workspaces` and added `PRODUCT_WORKSPACE_CONTRACT.md`.
+- Implemented `getProductWorkspace(productId)` as the shared RLS-preserving read boundary for the product profile, assets, sources, claims, active templates, generated content, and product approval queue.
+- Refactored `/products/[id]` onto the workspace service and added tested role, lifecycle, configuration, and empty-state rules.
+- Claude Code implemented the Phase 3 tabbed product workspace as commit `8a09011`, covering Assets, Knowledge, Templates, Content, and Approvals.
+- Codex independently reproduced the tests/build and reviewed the UI for boundary, permission, lifecycle, and navigation regressions.
+- Moved product template detail onto `getProductWorkspace`, hid generation/Studio for non-active products or templates, and added an API lifecycle check before generation context is loaded.
+- Preserved product context through `/ask?product=...`; the Knowledge Hub now selects that product's newest session or offers a product-specific new conversation state.
+- Added lifecycle and Knowledge Hub navigation regression coverage; all eleven focused tests, lint, and the production build pass locally.
+- Pushed correction commit `9e63a99`; Vercel Preview `dpl_9cnouYp7aqX1f6Fk2NRrVV6Y9Wg7` reached `READY` with clean build and runtime logs.
+- Verified the stable branch Preview as admin: all five VitalBite workspace views settle correctly, `/ask?product=...` preserves VitalBite context, and inactive DigestPro exposes no Generate or Studio control.
+- Provisioned isolated disposable member and approver users through the trusted server-only handshake. Member generation/read controls, approver generation/review controls, and admin-only management boundaries all matched `PRODUCT_WORKSPACE_CONTRACT.md` with no browser console errors.
+- Signed out and deleted both disposable users; verified zero matching Auth users, profiles, and provisioning records remain.
 
 ## Remaining Blocker
 
@@ -106,8 +120,10 @@ Claude Code verified:
 
 ## Next Agent Should Check
 
-- Review and merge draft PR #1, promote the reviewed Asset Library release to Production, and record the deployment and smoke-test result.
-- After the Asset Library release, begin Phase 3 by defining the shared product/workspace query and permission contract before Claude Code restructures the product detail UI.
+- Mark PR #2 ready, merge it, and verify the Production deployment and authenticated product workspace.
+- Confirm the Production `/ask?product=...` handoff and inactive-product generation controls after promotion.
+- Run a live direct-generation `409` probe only with an isolated fixture or explicit approval to create the required inactive-product/active-template condition. Do not alter a real product or template solely for this test.
+- Begin Phase 4 template-engine standardization only after the Phase 3 release gate closes.
 - Consider a future server-side creative export endpoint for live-canvas templates. The official UI blocks draft export, but any browser-rendered canvas can still be screenshotted by a determined user.
 
 ## Do Not Break
