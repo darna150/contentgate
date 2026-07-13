@@ -311,3 +311,18 @@ Phase 5 was promoted to Production on 2026-07-13:
 - PR #5 merged to `main` at `f6a7cd6`; deployment `dpl_EPJ1rxCoPJ43BZHP9C8tSGVXdrmu` reached `READY` on `contentgate-delta.vercel.app`.
 - Production repeated the supported 70.3% VitalBite citation, unrelated-question no-evidence response, and full session reload checks successfully.
 - The disposable Production notebook session was deleted. No browser console warnings/errors or Vercel error/fatal runtime logs appeared during the Production verification window.
+
+## Phase 6 Approval History Preview
+
+Verified on 2026-07-13:
+
+- Branch `codex/phase6-approval-history` at commit `ac421a2` deployed as Preview `dpl_3aVZx2Z6avBvwFwQex7WPyQfck32` and reached `READY`.
+- Live additive migrations `20260713113241_complete_approval_history` and `20260713113807_backfill_missing_content_creation_events` applied successfully.
+- Structural checks found 17 current content rows, 17 immutable baseline/current snapshots, 68 historical/baseline events, zero missing current snapshots, zero duplicate revisions, and zero approved-revision pointer mismatches.
+- A rollback-only live transaction exercised create, direct-tamper protection, edit/revision increment, submit, approve, exact-revision export, approval revocation on edit, draft-export rejection, audit mirroring, and immutable-history mutation rejection without leaving test content behind.
+- Authenticated Preview approved-content QA showed the exact approved revision, immutable snapshot list, complete actor/timestamp history, and enabled export controls.
+- A real `clipboard_text` export from content detail was recorded against approved revision 1 and remained visible after reload. This legitimate QA event remains in the append-only audit trail by design.
+- Draft content showed author editing and submit controls but no export section. In-review content showed approver review controls, no save action, and no export section.
+- Studio enabled generated-copy and creative download only for the approved exact revision; both controls were disabled for the draft revision.
+- Browser logs were empty. Vercel reported no warning/error/fatal runtime logs and no runtime error clusters in the checked window.
+- Focused asset, workspace, knowledge, approval, and template tests, TypeScript, lint, and the Next.js production build pass. The unchanged template-render test cannot execute in the managed sandbox because its renderer opens a local HTTP listener; the same renderer compiled successfully in the production build.

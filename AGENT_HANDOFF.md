@@ -115,7 +115,11 @@ Claude Code should not loosen backend security, approval, RLS, or export constra
 - Deployed Phase 5 Preview `dpl_3fS3K4QmXS2EH2y8cnffMuoyW46a` and completed authenticated QA. A supported VitalBite answer cited and highlighted exact paragraph 2, an unsupported question failed safely, and both exchanges persisted after reload.
 - Deleted the disposable notebook session after QA. Two `knowledge_queries` rows remain intentionally as the immutable usage/audit record; browser and Vercel error logs were clean.
 - Merged Phase 5 PR #5 to `main` at `f6a7cd6`. Production deployment `dpl_EPJ1rxCoPJ43BZHP9C8tSGVXdrmu` reached `READY`; the supported citation, safe no-evidence, and reload workflow passed again with clean browser and runtime logs.
-- Deleted the Production test notebook session after verification. Phase 6 approval history and auditability is the next backend workstream.
+- Deleted the Production test notebook session after verification and moved into Phase 6 approval history and auditability.
+- Implemented Phase 6 immutable generated-content revisions, canonical workflow/export events, transactional approval transitions, exact-approved-revision export gates, approval revocation on edit, and the content-detail history timeline.
+- Applied and verified live migrations `20260713113241_complete_approval_history` and `20260713113807_backfill_missing_content_creation_events`. All 17 current records have a snapshot, all have create/generate history, and structural consistency checks pass.
+- Completed rollback-only live lifecycle verification and authenticated Preview QA on deployment `dpl_3aVZx2Z6avBvwFwQex7WPyQfck32`. Approved, draft, in-review, and Studio states enforce the expected editing, review, and export controls with clean browser and Vercel runtime logs.
+- Recorded one real approved clipboard export during Preview QA. Its revision-specific audit event remains intentionally because Phase 6 history is append-only.
 
 ## Remaining Blocker
 
@@ -136,7 +140,7 @@ Claude Code verified:
 ## Next Agent Should Check
 
 - Run a live direct-generation `409` probe only with an isolated fixture or explicit approval to create the required inactive-product/active-template condition. Do not alter a real product or template solely for this test.
-- Phase 6 approval history is implemented on `codex/phase6-approval-history`. Live additive migrations `20260713113241_complete_approval_history` and `20260713113807_backfill_missing_content_creation_events` are applied and structurally verified; complete authenticated Preview/Production lifecycle QA before closing the phase.
+- Phase 6 approval history is implemented and authenticated Preview QA is complete on `codex/phase6-approval-history`; merge the release and complete authenticated Production smoke testing before closing the phase.
 - Run Figma visual calibration later, after Debbie supplies approved frame IDs and replacement assets. Preserve the v1 field, lifecycle, approval, and export contract during that work.
 - Consider a future server-side creative export endpoint for live-canvas templates. The official UI blocks draft export, but any browser-rendered canvas can still be screenshotted by a determined user.
 

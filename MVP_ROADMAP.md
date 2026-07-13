@@ -47,7 +47,7 @@ The MVP is not a campaign planner, finance platform, project-management suite, o
 - Phase 3 is complete and verified in Production; disposable Preview role accounts and provisioning records were removed.
 - Phase 4 is complete and verified in Production; its contract metadata migration is applied and verified live.
 - Phase 5 Knowledge Hub backend reliability is complete and verified in Production.
-- Phase 6 approval history and auditability is next. Knowledge Hub visual polish and final template calibration remain deferred.
+- Phase 6 approval history and auditability is complete in Preview and awaiting merge and Production verification. Knowledge Hub visual polish and final template calibration remain deferred.
 
 ## Execution Order
 
@@ -225,7 +225,7 @@ Exit criteria:
 
 ### 6. Complete Approval History And Auditability
 
-Status: Backend and core history UI implemented; release verification in progress
+Status: Backend, history UI, and authenticated Preview verification complete; Production release pending
 
 Owner: Codex first, Claude Code second
 
@@ -236,7 +236,9 @@ Codex:
 - Completed: gated Markdown, clipboard, and Studio creative exports against the exact approved revision and recorded actor, format, revision, surface, size, and timestamp.
 - Completed: added author/reviewer permission and export-revision tests, and hid editable controls from non-authors.
 - Completed: applied and structurally verified live migrations `20260713113241_complete_approval_history` and `20260713113807_backfill_missing_content_creation_events`; 17 current records have snapshots, 68 historical/baseline events are present, every current record has create/generate events, and all consistency checks returned zero failures.
-- In progress: authenticated Preview and Production lifecycle QA, merge, and release record.
+- Completed: authenticated Preview QA across approved, draft, in-review, and Studio states. The history timeline shows actor, event, timestamp, notes/export details, and exact revision; draft/review export remains blocked; approved exact-revision export is enabled.
+- Completed: verified the durable clipboard export event after reload, clean browser logs, and no Preview warning/error/fatal runtime logs on deployment `dpl_3aVZx2Z6avBvwFwQex7WPyQfck32`.
+- In progress: merge and Production release verification.
 
 Claude Code:
 
