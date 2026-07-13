@@ -12,7 +12,7 @@ Last updated: 2026-07-13
 ## Storage And Uploads
 
 - `documents` is private and uses short-lived signed downloads.
-- `product-assets` moves to private delivery only after the signed-URL build is live.
+- `product-assets` is private and uses one-hour signed URLs for organization-scoped reads.
 - Product images are limited to 10 MB and approved image MIME types in application code and Storage. Sharp verifies that file bytes match the declared image type.
 - Documents are limited to 10 MB and an explicit parser-supported extension/MIME allowlist in application code and Storage.
 - Database backups do not contain Storage object bytes. A separate asset export/replication process is required before external customer launch if deleted-file recovery is required.
