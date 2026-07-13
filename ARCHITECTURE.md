@@ -1,6 +1,6 @@
 # ContentGate Architecture
 
-Last updated: 2026-07-06
+Last updated: 2026-07-13
 
 ## Current Stack
 
@@ -89,6 +89,22 @@ AI copy generation must:
 - Profile `org_id` and `role` are privileged membership fields.
 - Documents and claims are compliance inputs and should be admin-controlled.
 - Direct creative render/export URLs must not leak unapproved generated assets.
+- Product assets and source documents use private Storage buckets. Authenticated
+  server reads issue one-hour signed URLs after organization-scoped RLS checks.
+- AI generation and Knowledge Hub calls consume atomic, per-user database rate
+  limits before invoking Anthropic.
+- `/api/health` checks application-to-database connectivity without returning
+  project details; scheduled GitHub Actions monitor the Production alias.
+
+## Release Boundary
+
+- Pull requests must pass migration integrity, dependency audit, lint,
+  TypeScript, all focused tests, template rendering, and the production build.
+- Vercel creates a Preview for each branch. Only reviewed PRs merge to `main`,
+  which is the Production deployment source.
+- Database migrations are additive. Risky delivery changes, such as switching a
+  bucket from public URLs to signed URLs, are sequenced after compatible code is live.
+- See `LAUNCH_RUNBOOK.md` for smoke tests, incident response, and rollback.
 
 ## Agent Ownership
 

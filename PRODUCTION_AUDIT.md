@@ -325,7 +325,8 @@ Verified on 2026-07-13:
 - Draft content showed author editing and submit controls but no export section. In-review content showed approver review controls, no save action, and no export section.
 - Studio enabled generated-copy and creative download only for the approved exact revision; both controls were disabled for the draft revision.
 - Browser logs were empty. Vercel reported no warning/error/fatal runtime logs and no runtime error clusters in the checked window.
-- Focused asset, workspace, knowledge, approval, and template tests, TypeScript, lint, and the Next.js production build pass. The unchanged template-render test cannot execute in the managed sandbox because its renderer opens a local HTTP listener; the same renderer compiled successfully in the production build.
+
+- Focused asset, workspace, knowledge, approval, template, rate-limit, document-upload, migration-integrity, and worst-case template-render tests pass. The renderer test passed with its temporary local listener permitted; TypeScript, lint, and the Next.js production build also pass.
 
 Phase 6 was promoted to Production on 2026-07-13:
 
@@ -334,3 +335,20 @@ Phase 6 was promoted to Production on 2026-07-13:
 - Production draft content retained author edit/submit controls and no export section. In-review content exposed Approve/Reject, no save action, and no export section.
 - Production Studio enabled generated-copy and creative download for the exact approved revision and disabled both controls for the draft revision.
 - Browser logs were empty. Vercel reported no warning/error/fatal runtime logs and no runtime error clusters in the checked window.
+
+## Phase 7 Launch-Readiness Baseline
+
+Audited on 2026-07-13 before release:
+
+- No GitHub Actions CI or scheduled Production smoke workflow existed.
+- `product-assets` was public with no bucket-level file size or MIME restrictions; application uploads already verified image bytes with Sharp.
+- `documents` was private but had no bucket-level file size or MIME restrictions; the server-action and documented size limits disagreed.
+- AI routes authenticated callers but had no durable per-user request limit.
+- Supabase advisors reported anonymous execution of `auth_org_id`/`auth_role`, signed-in execution of intentional workflow RPCs, leaked-password protection disabled, missing foreign-key indexes, and high-frequency RLS initialization-plan warnings.
+- The live project is `ACTIVE_HEALTHY` on Postgres 17 in `ap-northeast-1`. Supabase plan/backup retention and leaked-password protection require Dashboard confirmation before external customer launch.
+- Phase 7 migrations `20260713121504_launch_readiness_security`, `20260713121624_finalize_rate_limit_hardening`, `20260713121734_prepare_private_asset_reads`, and `20260713122123_split_product_configuration_policies` were applied successfully after rollback-only rehearsal. Verification covered function compilation, an authenticated rate-limit call, Storage settings, grants, organization-scoped asset reads, policy creation, and index creation.
+- The final advisor pass cleared missing foreign-key indexes, repeated RLS initialization work, the private rate-limit table findings, and overlapping product configuration policies. Remaining `SECURITY DEFINER` notices are limited to the five intentionally authenticated identity/workflow RPCs; leaked-password protection still requires Dashboard enablement.
+- `product-assets` remains public only until the compatible signed-URL application build is live in Production; `make_product_assets_private` is the final ordered release migration.
+- GitHub `main` protection now strictly requires the `verify` GitHub Actions job and `Vercel` deployment check, applies to administrators, requires linear history and resolved conversations, and blocks force pushes and deletion.
+- Preview deployment `dpl_H8inug8gVhtgtbDFPajmw9scQ1pm` reached `READY`. `/api/health` returned `200 {"status":"ok"}` with `no-store`, authenticated dashboard and VitalBite workspace data loaded, and browser/Vercel warning/error/fatal logs were empty.
+- Authenticated admin QA uploaded a 1.6 MB PNG through the hardened Asset Library flow. The rendered `1080 x 1080` image used a one-hour Supabase `/storage/v1/object/sign/product-assets/` URL. Cleanup removed both the metadata row and Storage object; independent live counts returned zero.

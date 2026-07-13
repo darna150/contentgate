@@ -11,6 +11,7 @@ import {
   type WorkspaceRole,
 } from "@/lib/product-workspace";
 import { createClient } from "@/lib/supabase/server";
+import { createProductAssetPreviewUrlMap } from "@/lib/product-assets-server";
 import type { FieldLimits } from "@/lib/template-fields";
 import { isTemplateContractReady } from "@/lib/template-contract";
 
@@ -233,6 +234,11 @@ export async function getProductWorkspace(
   assertQuery(templateResult.error, "templates");
   assertQuery(contentResult.error, "content");
 
+  const assetPreviewUrls = await createProductAssetPreviewUrlMap(
+    supabase,
+    ((assetResult.data ?? []) as AssetRow[]).map((asset) => asset.storage_path)
+  );
+
   const assets = ((assetResult.data ?? []) as AssetRow[]).map((asset) => ({
     id: asset.id,
     assetType: asset.asset_type,
@@ -247,9 +253,7 @@ export async function getProductWorkspace(
     tags: asset.tags ?? [],
     approvalStatus: asset.approval_status,
     storagePath: asset.storage_path,
-    previewUrl: supabase.storage
-      .from("product-assets")
-      .getPublicUrl(asset.storage_path).data.publicUrl,
+    previewUrl: assetPreviewUrls.get(asset.storage_path) ?? "",
     createdAt: asset.created_at,
     updatedAt: asset.updated_at,
   }));

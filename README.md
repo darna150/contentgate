@@ -15,9 +15,10 @@ Claude API · Vercel.
 
 1. [supabase.com](https://supabase.com) → New project (name: `contentgate`).
 2. SQL Editor → paste & run `supabase/migrations/20260612000001_init.sql`.
-3. SQL Editor → paste & run `supabase/seed.sql` (demo org + 3 templates).
-4. Authentication → Sign In / Up: enable **Email** provider.
-5. Before creating an Auth user, call the server-only `provision_user` RPC with
+3. Apply the remaining migrations in timestamp order.
+4. SQL Editor → run `supabase/seed.sql` only for a disposable demo project.
+5. Authentication → Sign In / Up: enable **Email** provider.
+6. Before creating an Auth user, call the server-only `provision_user` RPC with
    their email, organization, role, and name. Then create the user through the
    Supabase Admin API. Public sign-up is rejected by the profile trigger;
    browser login only signs in existing users.
@@ -47,12 +48,26 @@ npm install
 npm run dev
 ```
 
+Before opening a pull request, run:
+
+```sh
+npm run lint
+npm run typecheck
+npm test
+npm run build
+```
+
+Production operations and rollback steps live in `LAUNCH_RUNBOOK.md`.
+
 ## Architecture notes
 
 - Multi-tenant: `org_id` on every table, RLS everywhere
   (migration is the source of truth).
 - Editing approved content auto-reverts it to draft (database trigger).
-- Approve/reject/export run through server actions using the service-role
-  client (`src/lib/supabase/admin.ts`, guarded by `server-only`).
+- Submit/approve/reject/export run through authenticated, transaction-safe RPCs
+  that validate organization, role, workflow state, and exact revision.
+- Product assets are served through short-lived signed URLs from a private
+  bucket; documents are private and downloaded through signed URLs.
+- Expensive AI routes use durable per-user database rate limits.
 - Verticals are data, not code: industry lives on `organizations.industry`,
   templates and documents are per-org rows.

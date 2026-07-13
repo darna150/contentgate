@@ -9,6 +9,7 @@ import {
 import { resolveEffectiveFieldLimits } from "@/lib/template-specs";
 import { isTemplateContractReady } from "@/lib/template-contract";
 import { isProductLifecycleActive } from "@/lib/product-workspace";
+import { consumeApiRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -78,6 +79,14 @@ export async function POST(req: Request) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+
+  try {
+    const rateLimit = await consumeApiRateLimit(supabase, "content.generate");
+    if (!rateLimit.allowed) return rateLimitResponse(rateLimit);
+  } catch (error) {
+    console.error("content generation rate limit failed:", error);
+    return Response.json({ error: "Generation is temporarily unavailable." }, { status: 503 });
+  }
 
   let requestBody: Body;
   try {
