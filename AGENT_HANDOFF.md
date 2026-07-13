@@ -71,6 +71,22 @@ Claude Code should not loosen backend security, approval, RLS, or export constra
 - Completed an authenticated production Asset Library smoke test in Chrome.
 - The first delete test exposed a Storage API requirement for scoped object visibility; added and applied `allow_admin_asset_storage_read`, cleaned the orphaned test object through the Storage API, and reran delete successfully.
 - Confirmed all temporary test rows and objects were removed and create/update/delete audit events were recorded.
+- Reviewed Claude Code's dedicated `/assets` implementation against `ASSET_LIBRARY_CONTRACT.md`; no backend contract or security-boundary changes were introduced.
+- Verified the UI includes URL-backed search and product/type/status/tag filters, grid/list views, previews, metadata editing, upload feedback, delete confirmation, and admin/member control separation.
+- Fixed a reproduced filter race where the delayed title search could erase a newly selected filter.
+- Replaced the fixed-width phone sidebar with a shared mobile header and navigation drawer; verified 375px and 1440px layouts have no horizontal overflow.
+- Added keyboard focus containment to shared asset dialogs, limited upload choices to active products, and aligned all-status UI copy with the governed asset contract.
+- Re-ran `git diff --check`, lint, focused asset tests, production build, and local browser console/layout verification successfully.
+- Committed the reviewed Asset Library UI as `52d6abb`, pushed `codex/asset-library-ui`, and opened draft PR #1.
+- Verified Vercel Preview `dpl_3A9W8nPQENe7YmFpTZPhNWDXx24y` at `https://contentgate-qxc4qobn5-debbies-projects-a8de6bb4.vercel.app`.
+- Completed the authenticated Preview admin workflow: upload, image preview, metadata/alt-text/tag edit, URL-backed combined filtering, list view, and permanent delete.
+- Confirmed the disposable QA row and Storage object were removed and the Preview emitted no warning/error/fatal runtime logs in the checked window.
+- Created a temporary member, verified `/assets` exposes search/filter/read states but no upload/edit/delete controls, and confirmed a direct member insert fails with RLS error `42501`.
+- Signed out and deleted the temporary Auth user; cascading profile cleanup and zero denied-write test rows were verified.
+- Found and closed a user-provisioning escalation path: magic links now use `shouldCreateUser: false`, and `handle_new_user` consumes a short-lived server-only provisioning record instead of trusting `raw_user_meta_data`.
+- Applied and verified live migrations `harden_user_provisioning` and `fix_user_provisioning_handshake`; hostile self-signup is blocked while trusted member provisioning succeeds.
+- Deployed authentication hardening commit `47d5056` as Preview `dpl_9aob3SNXBpGHobUvvuGntn9Y9bAf`.
+- Verified the Preview rejects an unknown magic-link address, accepts a server-provisioned member password login, cleans all temporary Auth/profile/provisioning records, and emits no warning/error/fatal runtime logs.
 
 ## Remaining Blocker
 
@@ -90,8 +106,8 @@ Claude Code verified:
 
 ## Next Agent Should Check
 
-- Claude Code should build the dedicated `/assets` grid/list and filters against `listProductAssets`; it should not alter the data, RLS, storage, or audit contract.
-- Add clear pending/success/error feedback to asset forms and ensure cards refresh immediately after server actions.
+- Review and merge draft PR #1, promote the reviewed Asset Library release to Production, and record the deployment and smoke-test result.
+- After the Asset Library release, begin Phase 3 by defining the shared product/workspace query and permission contract before Claude Code restructures the product detail UI.
 - Consider a future server-side creative export endpoint for live-canvas templates. The official UI blocks draft export, but any browser-rendered canvas can still be screenshotted by a determined user.
 
 ## Do Not Break

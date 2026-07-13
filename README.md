@@ -17,8 +17,10 @@ Claude API · Vercel.
 2. SQL Editor → paste & run `supabase/migrations/20260612000001_init.sql`.
 3. SQL Editor → paste & run `supabase/seed.sql` (demo org + 3 templates).
 4. Authentication → Sign In / Up: enable **Email** provider.
-5. Sign up yourself once via the app's magic link (or Dashboard → Auth →
-   Add user). The first user automatically becomes **admin** of the seed org.
+5. Before creating an Auth user, call the server-only `provision_user` RPC with
+   their email, organization, role, and name. Then create the user through the
+   Supabase Admin API. Public sign-up is rejected by the profile trigger;
+   browser login only signs in existing users.
 
 ### 2. Environment variables
 

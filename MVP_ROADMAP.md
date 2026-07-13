@@ -24,6 +24,12 @@ The MVP is not a campaign planner, finance platform, project-management suite, o
 - Production login protection, dashboard routing, export authorization, and runtime logs checked.
 - Asset Library metadata, storage, permission, mutation, filtering, and audit contract implemented.
 - Asset Library migrations applied and verified on the live Supabase project.
+- Dedicated Asset Library UI implemented and reviewed locally, including grid/list views, URL filters, preview, metadata editing, upload, delete confirmation, and role-aware controls.
+- Asset Library UI committed as `52d6abb`, pushed on `codex/asset-library-ui`, opened as draft PR #1, and deployed to Vercel Preview.
+- Authenticated Preview admin upload, preview, metadata edit, combined filtering, list view, and delete cleanup all pass with no warning/error/fatal runtime logs.
+- Authenticated Preview member controls and live RLS denial verified with a temporary account; the account and all test data were removed.
+- Public user creation hardened so organization and role assignments require a short-lived server-only provisioning record.
+- Shared mobile app navigation corrected so primary app surfaces remain usable at phone widths.
 - Lint, TypeScript, production build, browser console, and preview runtime-log checks pass.
 
 ### Current Gate
@@ -31,7 +37,7 @@ The MVP is not a campaign planner, finance platform, project-management suite, o
 - Phase 1 is complete.
 - Codex Asset Library backend work is committed, deployed, and verified in Production.
 - Authenticated upload, preview, metadata/status edit, audit, database delete, and physical Storage delete all pass.
-- The stable contract is ready for Claude Code to build the dedicated `/assets` interface.
+- Asset Library admin/member behavior and user-provisioning hardening are verified in Preview. PR #1 is ready for review, merge, and Production promotion.
 
 ## Execution Order
 
@@ -66,7 +72,7 @@ Exit criteria:
 
 ### 2. Build The Asset Library Foundation
 
-Status: Backend complete; UI next
+Status: Preview release gates complete; Production promotion pending
 
 Owner: Codex first, Claude Code second
 
@@ -82,9 +88,24 @@ Codex:
 
 Claude Code, after Codex handoff:
 
-- Build the Asset Library interface from the established data contract.
-- Add grid/list views, search, product/type filters, upload progress, empty states, previews, and metadata editing.
-- Keep the interface work-focused, responsive, and consistent with the existing visual system.
+- Completed: built the Asset Library interface from the established data contract.
+- Completed: added grid/list views, URL-backed search and filters, upload pending feedback, empty states, previews, metadata editing, and delete confirmation.
+- Completed: kept the interface work-focused and consistent with the existing visual system.
+
+Codex review:
+
+- Completed: verified no backend, migration, RLS, Storage, service-role, or audit contract changes were introduced by the UI pass.
+- Completed: fixed a race between debounced title search and other URL filters.
+- Completed: replaced the fixed mobile sidebar with a responsive mobile header and navigation drawer.
+- Completed: added modal keyboard focus containment and prevented archived products from being offered for upload.
+- Completed: reran lint, focused tests, production build, desktop/mobile layout checks, and browser console checks.
+- Completed: committed and pushed the reviewed UI, opened draft PR #1, and deployed commit `52d6abb` as Vercel Preview `dpl_3A9W8nPQENe7YmFpTZPhNWDXx24y`.
+- Completed: ran the authenticated admin upload, preview, metadata edit, combined-filter/list-view, and delete-cleanup workflow with no Preview runtime errors.
+- Completed: verified the read-only member UI and live Asset Library insert denial through RLS; removed the temporary Auth user, profile, and all test markers.
+- Completed: blocked magic-link account creation and replaced editable-metadata membership assignment with a server-only provisioning handshake.
+- Completed: deployed authentication hardening commit `47d5056` as Vercel Preview `dpl_9aob3SNXBpGHobUvvuGntn9Y9bAf`.
+- Completed: verified unprovisioned magic-link signup is rejected, trusted member provisioning/password login succeeds, all temporary records are removed, and no Preview build/runtime errors appear.
+- Pending: review and merge PR #1, promote to Production, and run the Production smoke test.
 
 Exit criteria:
 

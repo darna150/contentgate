@@ -171,3 +171,65 @@ Authenticated admin smoke test on 2026-07-13:
 - No temporary Asset Library rows or files remain.
 - Supabase security advisor reports no Asset Library warnings; only expected fresh-index `unused_index` informational notices remain.
 - Vercel reported no runtime error groups and no warning/error/fatal logs for the deployment in the checked one-hour window.
+
+## Asset Library UI Local Review
+
+Completed on 2026-07-13 against Claude Code's uncommitted UI handoff:
+
+- Confirmed the UI reused `listProductAssets`, `uploadProductAsset`, `updateProductAssetMetadata`, and `deleteProductAsset` without changing migrations, RLS, Storage policies, service-role use, or audit behavior.
+- Reproduced and fixed a URL-filter race between debounced title search and product/type/status/view changes.
+- Reproduced and fixed the shared 248px sidebar squeezing phone content to 127px and causing horizontal overflow.
+- Verified the corrected shell at 375x812: mobile header and drawer fit the viewport, document width equals viewport width, and body scrolling is locked while the drawer is open.
+- Verified the corrected shell at 1440x900: the 248px desktop rail remains intact and the main region fills the remaining width without overflow.
+- Verified the rapid combined-filter path resolves to `?q=logo&type=packshot` rather than dropping the type filter.
+- `git diff --check`, `npm run lint`, `npm run test:assets`, and `npm run build` pass.
+- The final local browser pass produced no new warning or error console entries.
+
+## Asset Library UI Preview Verification
+
+Released to Preview on 2026-07-13:
+
+- Branch: `codex/asset-library-ui`
+- Commit: `52d6abb0cbcede4ec42f3dd8edc0f8ff793eac41`
+- Draft pull request: `https://github.com/darna150/contentgate/pull/1`
+- Vercel deployment: `dpl_3A9W8nPQENe7YmFpTZPhNWDXx24y`
+- Preview URL: `https://contentgate-qxc4qobn5-debbies-projects-a8de6bb4.vercel.app`
+- State: `READY`
+
+Authenticated admin smoke test:
+
+- Uploaded a 1080x1080 JPEG supporting image to Apex Canine and verified its approved status, dimensions, MIME type, size, tags, and preview.
+- Edited the title, alt text, description, and tags and confirmed the refreshed card and list row reflected the saved values.
+- Verified title, product, type, status, and tag filters combine into the URL and the grid/list control changes the rendered layout.
+- Permanently deleted the disposable asset; the filtered library returned to zero assets and no QA data remains.
+- Vercel returned no warning/error/fatal runtime logs for the Preview deployment in the checked one-hour window.
+
+Authenticated member verification completed on 2026-07-13:
+
+- Created a temporary member in Veltara Animal Health and signed in through an isolated Preview session.
+- Confirmed search and type filters synchronize to `?q=logo&type=logo`.
+- Confirmed upload, edit, and delete controls are absent for the member role.
+- Confirmed a direct member insert into `product_assets` is rejected by RLS with PostgreSQL error `42501`.
+- Signed out and deleted the temporary Auth user; zero Auth users, profiles, Asset Library rows, and pending test records remain.
+
+The test exposed an existing provisioning vulnerability: `handle_new_user` trusted organization and role values from user-editable metadata, while magic-link login allowed account creation by default. The release branch now:
+
+- Sets `shouldCreateUser: false` for magic-link login.
+- Requires a short-lived `private.user_provisioning` record created through the service-role-only `provision_user` RPC.
+- Rejects unprovisioned self-signup and consumes the trusted record when creating the profile.
+- Grants `provision_user` only to `service_role`; `anon` and `authenticated` both fail the privilege check.
+- Applies live migrations `harden_user_provisioning` and `fix_user_provisioning_handshake`.
+- Verifies hostile signup is blocked and trusted member provisioning creates the intended organization/role before clean deletion.
+
+Authentication hardening Preview verification completed on 2026-07-13:
+
+- Commit: `47d5056069029fc180c4551e8c70d03a386cae9c`
+- Deployment: `dpl_9aob3SNXBpGHobUvvuGntn9Y9bAf`
+- Branch alias: `contentgate-git-codex-asset-li-ccfe90-debbies-projects-a8de6bb4.vercel.app`
+- State: `READY`
+- Unknown magic-link login was rejected with `Signups not allowed for otp`; no Auth user was created.
+- A server-provisioned member signed in successfully and loaded the Veltara dashboard with role `member`.
+- The member signed out and was deleted; zero Auth users, profiles, and pending provisioning records remain from the test.
+- The deployment build completed successfully and no warning/error/fatal runtime logs appeared in the checked window.
+
+All Asset Library Preview release gates now pass. Production promotion is pending PR #1 review and merge.
