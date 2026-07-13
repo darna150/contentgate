@@ -28,7 +28,10 @@ test("renders worst-case copy for every active layout and output size", async ()
   const server = createServer(async (request, response) => {
     try {
       const pathname = new URL(request.url ?? "/", "http://localhost").pathname;
-      if (!pathname.startsWith("/assets/")) {
+      if (
+        !pathname.startsWith("/assets/") &&
+        !pathname.startsWith("/template-packages/")
+      ) {
         response.writeHead(404).end();
         return;
       }
