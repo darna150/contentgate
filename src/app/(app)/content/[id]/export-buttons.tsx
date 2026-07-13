@@ -15,11 +15,30 @@ export function ExportButtons({
   templateId: string;
 }) {
   const [copied, setCopied] = useState(false);
+  const [copying, setCopying] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function onCopy() {
-    await navigator.clipboard.writeText(body);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    setCopying(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/export/${id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          format: "clipboard_text",
+          surface: "content_detail",
+        }),
+      });
+      if (!response.ok) throw new Error("Export could not be recorded.");
+      await navigator.clipboard.writeText(body);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setError("Copy failed. Refresh the page and try again.");
+    } finally {
+      setCopying(false);
+    }
   }
 
   return (
@@ -32,9 +51,10 @@ export function ExportButtons({
         <button
           type="button"
           onClick={onCopy}
-          className="flex-1 rounded-control bg-brand px-4 py-2.5 text-[13.5px] font-semibold text-white transition-opacity hover:opacity-90"
+          disabled={copying}
+          className="flex-1 rounded-control bg-brand px-4 py-2.5 text-[13.5px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
         >
-          {copied ? "Copied!" : "Copy text"}
+          {copying ? "Recording…" : copied ? "Copied!" : "Copy text"}
         </button>
         <a
           href={`/api/export/${id}`}
@@ -49,6 +69,7 @@ export function ExportButtons({
       >
         Create image asset →
       </Link>
+      {error && <p className="text-[12px] text-reject">{error}</p>}
     </div>
   );
 }

@@ -67,6 +67,7 @@ type Content = {
   status: string;
   structured_fields: Record<string, string>;
   manuallyEdited: boolean;
+  canEdit: boolean;
 } | null;
 
 const LANGUAGES = ["English", "Filipino", "Spanish", "Portuguese", "Vietnamese", "Thai"];
@@ -252,6 +253,7 @@ export function StudioEditor({
     isLiveCanvas &&
     mode === "generated" &&
     content !== null &&
+    content.canEdit &&
     (content.status === "draft" || content.status === "rejected");
   const issuesByField = useMemo(
     () =>
@@ -486,6 +488,7 @@ export function StudioEditor({
           revisions: selectedRevision ? [selectedRevision] : [],
           replaceContentId:
             content &&
+            content.canEdit &&
             (content.status === "draft" || content.status === "rejected")
               ? content.id
               : undefined,
@@ -502,6 +505,7 @@ export function StudioEditor({
         status: "draft",
         structured_fields: result.structured_fields as Record<string, string>,
         manuallyEdited: false,
+        canEdit: true,
       };
       setContent(nextContent);
       setMode("generated");
@@ -524,19 +528,54 @@ export function StudioEditor({
   }
 
   async function copyText() {
-    const text = selectedTemplate.editable_fields
-      .map((key) => activeFields[key])
-      .filter(Boolean)
-      .join("\n\n");
-    await navigator.clipboard.writeText(text);
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 1600);
+    setError(null);
+    try {
+      if (mode === "generated") {
+        if (!content || !generatedExportAllowed) {
+          throw new Error("Generated copy must be approved before export.");
+        }
+        const response = await fetch(`/api/export/${content.id}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            format: "clipboard_text",
+            surface: "studio",
+            size,
+          }),
+        });
+        if (!response.ok) throw new Error("Export could not be recorded.");
+      }
+      const text = selectedTemplate.editable_fields
+        .map((key) => activeFields[key])
+        .filter(Boolean)
+        .join("\n\n");
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1600);
+    } catch {
+      setError("Copy is available only for the currently approved revision.");
+    }
   }
 
   async function download() {
     setDownloading(true);
     setError(null);
     try {
+      if (mode === "generated") {
+        if (!content || !generatedExportAllowed) {
+          throw new Error("Generated content must be approved before export.");
+        }
+        const response = await fetch(`/api/export/${content.id}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            format: isLiveCanvas ? exportFormat : "png",
+            surface: "studio",
+            size,
+          }),
+        });
+        if (!response.ok) throw new Error("Export could not be recorded.");
+      }
       const filename = `${selectedProduct.name}-${selectedTemplate.variant}-${mode}-${size}`
         .replace(/[^\w]+/g, "-")
         .toLowerCase();
@@ -847,6 +886,7 @@ export function StudioEditor({
             )}
             {mode === "generated" &&
               content &&
+              content.canEdit &&
               (content.status === "draft" || content.status === "rejected") && (
                 <button
                   type="button"
@@ -878,7 +918,13 @@ export function StudioEditor({
             <button
               type="button"
               onClick={copyText}
-              className="rounded-control border border-edge-strong px-3 py-2 text-[12.5px] font-semibold"
+              disabled={mode === "generated" && !generatedExportAllowed}
+              title={
+                mode === "generated" && !generatedExportAllowed
+                  ? "Generated copy can be copied after approval"
+                  : undefined
+              }
+              className="rounded-control border border-edge-strong px-3 py-2 text-[12.5px] font-semibold disabled:opacity-50"
             >
               {copied ? "Copied" : `Copy ${mode} copy`}
             </button>

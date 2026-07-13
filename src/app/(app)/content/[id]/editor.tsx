@@ -7,10 +7,12 @@ export function ContentEditor({
   id,
   initialBody,
   status,
+  editable,
 }: {
   id: string;
   initialBody: string;
   status: string;
+  editable: boolean;
 }) {
   const [body, setBody] = useState(initialBody);
   const [savedBody, setSavedBody] = useState(initialBody);
@@ -58,10 +60,13 @@ export function ContentEditor({
       <textarea
         value={body}
         onChange={(e) => setBody(e.target.value)}
+        readOnly={!editable}
         rows={16}
-        className="w-full resize-y rounded-control border border-edge-strong bg-surface px-4 py-3.5 text-sm leading-[1.7] outline-none focus:border-brand"
+        className={`w-full resize-y rounded-control border border-edge-strong px-4 py-3.5 text-sm leading-[1.7] outline-none focus:border-brand ${
+          editable ? "bg-surface" : "bg-page text-ink-muted"
+        }`}
       />
-      <div className="flex items-center gap-3">
+      {editable && <div className="flex items-center gap-3">
         <button
           type="button"
           onClick={onSave}
@@ -90,7 +95,7 @@ export function ContentEditor({
             {message.text}
           </span>
         )}
-      </div>
+      </div>}
     </div>
   );
 }

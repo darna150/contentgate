@@ -24,6 +24,9 @@ export default async function StudioPage({
 }) {
   const query = await searchParams;
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   const [{ data: productRows }, { data: templateRows }, { data: organization }] = await Promise.all([
     supabase
       .from("products")
@@ -64,7 +67,7 @@ export default async function StudioPage({
     ? await supabase
         .from("generated_content")
         .select(
-          "id, title, status, structured_fields, prompt_context, product_id, product_template_id"
+          "id, title, status, structured_fields, prompt_context, created_by, product_id, product_template_id"
         )
         .eq("id", query.content)
         .single()
@@ -91,6 +94,7 @@ export default async function StudioPage({
     status: string;
     structured_fields: Record<string, string>;
     manuallyEdited: boolean;
+    canEdit: boolean;
   } | null = null;
   if (
     requestedContent &&
@@ -104,6 +108,7 @@ export default async function StudioPage({
         title: requestedContent.title,
         status: requestedContent.status,
         structured_fields: (requestedContent.structured_fields ?? {}) as Record<string, string>,
+        canEdit: requestedContent.created_by === user?.id,
         manuallyEdited:
           Array.isArray(
             (requestedContent.prompt_context as { manually_edited_fields?: unknown[] } | null)

@@ -13,6 +13,7 @@ export function StructuredReview({
   order,
   evidence,
   limits,
+  editable,
 }: {
   id: string;
   status: string;
@@ -20,6 +21,7 @@ export function StructuredReview({
   order: string[];
   evidence: Evidence[];
   limits: FieldLimits;
+  editable: boolean;
 }) {
   const router = useRouter();
   const [fields, setFields] = useState(initialFields);
@@ -90,13 +92,14 @@ export function StructuredReview({
                 <textarea
                   value={fields[key] ?? ""}
                   onChange={(e) => setField(key, e.target.value)}
+                  readOnly={!editable}
                   disabled={busy}
                   maxLength={limits[key]?.max_chars}
                   rows={rows}
                   className={
                     isHeadline
-                      ? "resize-y rounded-control border border-edge-strong bg-surface px-3.5 py-2.5 text-[14px] font-semibold leading-snug outline-none focus:border-brand"
-                      : "resize-y rounded-control border border-edge-strong bg-surface px-3.5 py-2.5 text-[13.5px] leading-relaxed outline-none focus:border-brand"
+                      ? `resize-y rounded-control border border-edge-strong px-3.5 py-2.5 text-[14px] font-semibold leading-snug outline-none focus:border-brand ${editable ? "bg-surface" : "bg-page text-ink-muted"}`
+                      : `resize-y rounded-control border border-edge-strong px-3.5 py-2.5 text-[13.5px] leading-relaxed outline-none focus:border-brand ${editable ? "bg-surface" : "bg-page text-ink-muted"}`
                   }
                 />
                 {sources.length > 0 && (
@@ -116,7 +119,7 @@ export function StructuredReview({
           })}
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 border-t border-edge pt-4">
+        {editable && <div className="flex flex-wrap items-center gap-3 border-t border-edge pt-4">
           <button
             type="button"
             onClick={onSave}
@@ -145,7 +148,7 @@ export function StructuredReview({
               {message.text}
             </span>
           )}
-        </div>
+        </div>}
       </div>
     </div>
   );

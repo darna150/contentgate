@@ -1,6 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { flattenFields, revisionInstruction, type Evidence } from "@/lib/templates";
 import {
   fieldLimitInstruction,
@@ -378,23 +377,6 @@ export async function POST(req: Request) {
 
   if (writeError || !row) {
     return Response.json({ error: `Could not save draft: ${writeError?.message}` }, { status: 500 });
-  }
-
-  if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    await createAdminClient().from("audit_log").insert({
-      org_id: profile.org_id,
-      actor_id: user.id,
-      action: revisions.length ? "content.revised" : "content.created",
-      entity_type: "generated_content",
-      entity_id: row.id,
-      detail: {
-        product: product.name,
-        variant: tpl.variant,
-        revisions,
-        evidence_accepted: evidence.length,
-        evidence_rejected: rejectedEvidenceCount,
-      },
-    });
   }
 
   return Response.json({

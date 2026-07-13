@@ -23,6 +23,7 @@ import {
   usesRegisteredTemplateContract,
 } from "@/lib/template-contract";
 import { renderContractTemplate } from "@/lib/template-renderer";
+import { canExportContent, type ContentStatus } from "@/lib/content-governance";
 
 export const runtime = "nodejs";
 
@@ -42,13 +43,17 @@ export async function GET(req: Request) {
   const { data: content } = await supabase
     .from("generated_content")
     .select(
-      "id, status, structured_fields, products(name, disclaimer_text), product_templates(layout_key, category, template_definition, status)"
+      "id, status, current_revision_number, approved_revision_number, structured_fields, products(name, disclaimer_text), product_templates(layout_key, category, template_definition, status)"
     )
     .eq("id", contentId)
     .single();
   if (!content) return new Response("Not found", { status: 404 });
-  if (content.status !== "approved") {
-    return new Response("Only approved content can be rendered.", {
+  if (!canExportContent({
+    status: content.status as ContentStatus,
+    currentRevision: content.current_revision_number,
+    approvedRevision: content.approved_revision_number,
+  })) {
+    return new Response("Only the currently approved revision can be rendered.", {
       status: 403,
       headers: { "Cache-Control": "no-store" },
     });
