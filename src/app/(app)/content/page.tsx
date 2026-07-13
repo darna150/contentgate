@@ -42,6 +42,7 @@ export default async function ContentPage({
       .select(
         "id, title, status, target_language, audience, created_at, products(name), product_templates(variant)"
       )
+      .not("product_id", "is", null)
       .order("created_at", { ascending: false });
     if (filter !== "all") query = query.eq("status", filter);
     const { data } = await query;

@@ -20,14 +20,19 @@ export default async function DashboardPage() {
     const supabase = await createClient();
     const [docs, content, pending, recentRes] = await Promise.all([
       supabase.from("documents").select("id", { count: "exact", head: true }),
-      supabase.from("generated_content").select("id", { count: "exact", head: true }),
       supabase
         .from("generated_content")
         .select("id", { count: "exact", head: true })
+        .not("product_id", "is", null),
+      supabase
+        .from("generated_content")
+        .select("id", { count: "exact", head: true })
+        .not("product_id", "is", null)
         .eq("status", "in_review"),
       supabase
         .from("generated_content")
         .select("id, title, status, target_language, created_at")
+        .not("product_id", "is", null)
         .order("created_at", { ascending: false })
         .limit(5),
     ]);
