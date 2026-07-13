@@ -158,7 +158,7 @@ Exit criteria:
 
 ### 4. Standardize The Template Engine
 
-Status: Engineering complete; Figma visual calibration intentionally deferred
+Status: Engineering and authenticated Preview QA complete; Figma visual calibration intentionally deferred
 
 Owner: Codex first, Claude Code second
 
@@ -170,6 +170,8 @@ Codex:
 - Completed: enforced the same declared sizes and approval/export boundary for server rendering and live canvas.
 - Completed: kept all unregistered legacy templates inactive and blocked active contract drift in both code and database metadata.
 - Completed: added a normalized design-source boundary so Canva metadata can move to Figma without changing generation or approval workflows.
+- Completed: verified the authenticated Phase 4 Preview across Apex Canine, CaniGuard 5, and VitalBite. Each active layout exposes only its declared output sizes, draft export stays disabled, and approved export is enabled.
+- Completed: verified no browser console warnings/errors and no Vercel error/fatal runtime logs during the authenticated Preview workflow.
 
 Claude Code:
 
@@ -179,6 +181,7 @@ Claude Code:
 Exit criteria:
 
 - Complete: every active template passes field-limit and render checks.
+- Complete: the authenticated Preview enforces the declared output-size and approval/export contract.
 - Deferred until Figma migration: final pixel comparison against the replacement approved designs.
 - Complete: adding a new template follows one repeatable onboarding process documented in `TEMPLATE_ENGINE_CONTRACT.md` and `TEMPLATE_ONBOARDING.md`.
 

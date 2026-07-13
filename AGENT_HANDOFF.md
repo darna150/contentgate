@@ -105,6 +105,8 @@ Claude Code should not loosen backend security, approval, RLS, or export constra
 - Added `TEMPLATE_ENGINE_CONTRACT.md` with the Figma migration boundary and updated template onboarding to make Figma the future visual source of truth.
 - Applied and verified `standardize_template_engine_contract` on the live Supabase project. All four active templates now declare contract version 1, `react-image-v1`, exact sizes, and Canva as the current normalized design source; the active-template metadata constraint is validated.
 - Verified the full test suite, nonblank PNG render matrix, TypeScript, and lint. Final visual calibration is intentionally deferred until approved Figma frames exist.
+- Deployed Phase 4 Preview `dpl_6nyU2Hn8K7eegrK463HYawq3Yeqc` and completed authenticated admin QA. Apex social exposes Square/Story, Apex flyer exposes only A4, and the CaniGuard 5 and VitalBite templates expose only Square.
+- Verified the VitalBite draft keeps Download PNG disabled while approved content enables it. The browser console and Vercel error/fatal runtime logs were clean in the checked window.
 
 ## Remaining Blocker
 
@@ -127,7 +129,7 @@ Claude Code verified:
 - Mark PR #2 ready, merge it, and verify the Production deployment and authenticated product workspace.
 - Confirm the Production `/ask?product=...` handoff and inactive-product generation controls after promotion.
 - Run a live direct-generation `409` probe only with an isolated fixture or explicit approval to create the required inactive-product/active-template condition. Do not alter a real product or template solely for this test.
-- After PR #2 is in Production, rebase or retarget `codex/template-engine-standardization`, deploy its Preview, and run authenticated Studio/generation/approval/export QA before the Phase 4 code release.
+- After PR #2 is in Production, rebase or retarget `codex/template-engine-standardization` and release the already verified Phase 4 code through its normal reviewed promotion path.
 - Run Figma visual calibration later, after Debbie supplies approved frame IDs and replacement assets. Preserve the v1 field, lifecycle, approval, and export contract during that work.
 - Consider a future server-side creative export endpoint for live-canvas templates. The official UI blocks draft export, but any browser-rendered canvas can still be screenshotted by a determined user.
 
