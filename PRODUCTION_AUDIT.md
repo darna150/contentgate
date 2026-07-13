@@ -266,7 +266,12 @@ Claude Code implementation reviewed on 2026-07-13:
 - Corrected Preview URL: `https://contentgate-i5pr98tt6-debbies-projects-a8de6bb4.vercel.app`
 - Corrected Preview state: `READY`; build completed without errors and no warning/error/fatal runtime logs appeared in the checked window.
 - Unauthenticated workspace access correctly redirected to `/login`.
-- Authenticated admin/member/approver role QA remains pending before PR #2 can be marked ready.
+- Stable branch Preview: `https://contentgate-git-codex-product-bc1043-debbies-projects-a8de6bb4.vercel.app`
+- Authenticated admin QA confirms all five settled VitalBite workspace views, product-scoped Knowledge Hub navigation, and inactive DigestPro generation gating with no browser console errors.
+- Disposable member QA confirms generation on active configured products, read-only review access, no product administration or approval actions, and no inactive-product Generate or Studio control.
+- Disposable approver QA confirms generation on active configured products, Approve/Reject review actions, no product administration, and no inactive-product Generate or Studio control.
+- Both temporary users were signed out and deleted. Follow-up SQL confirms zero matching Auth users, profiles, and provisioning records.
+- A direct live `409` request was not issued because no inactive product currently has an active template; creating that condition would mutate shared Production data. Focused lifecycle tests and route review cover the guard until an isolated fixture is available.
 
 Authentication hardening Preview verification completed on 2026-07-13:
 

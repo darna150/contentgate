@@ -41,7 +41,8 @@ The MVP is not a campaign planner, finance platform, project-management suite, o
 
 - Phases 1 and 2 are complete and verified in Production.
 - Phase 3 implementation and Codex review fixes are complete on `codex/product-workspaces`.
-- Draft PR #2 requires one corrected Preview QA pass before it is marked ready, merged, and promoted to Production.
+- Corrected Preview admin/member/approver role QA is complete; the disposable role accounts and provisioning records were removed.
+- Draft PR #2 is ready for final release review, merge, and Production verification.
 
 ## Execution Order
 
@@ -119,7 +120,7 @@ Exit criteria:
 
 ### 3. Make Product Workspaces The Core Navigation Unit
 
-Status: Implementation complete; corrected Preview release gate pending
+Status: Preview QA complete; Production promotion pending
 
 Owner: Codex first, Claude Code second
 
@@ -143,7 +144,10 @@ Codex review:
 - Completed: enforced active-product lifecycle rules inside the generation API before loading knowledge or calling the model.
 - Completed: made Knowledge Hub links product-aware and added deterministic product/session selection.
 - Completed: added inactive/archived generation and Knowledge Hub navigation regression tests.
-- Pending: run authenticated admin/member/approver QA on the corrected Preview, then merge PR #2 and verify Production.
+- Completed: ran authenticated admin/member/approver QA on the corrected Preview. Active configured products allow generation for all three roles; administration is admin-only; approval actions are approver/admin-only; inactive products expose no Generate or Studio control.
+- Completed: verified product-scoped Knowledge Hub navigation, all five settled workspace views, and a clean browser console.
+- Completed: signed out and deleted the disposable member and approver Auth users; zero profiles and zero provisioning records remain.
+- Pending: merge PR #2 and verify Production. A live `409` probe was not run because the current inactive product has no active template and creating that condition would mutate shared Production data; the lifecycle guard remains covered by focused regression tests and code review.
 
 Exit criteria:
 

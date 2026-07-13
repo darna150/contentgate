@@ -98,6 +98,9 @@ Claude Code should not loosen backend security, approval, RLS, or export constra
 - Preserved product context through `/ask?product=...`; the Knowledge Hub now selects that product's newest session or offers a product-specific new conversation state.
 - Added lifecycle and Knowledge Hub navigation regression coverage; all eleven focused tests, lint, and the production build pass locally.
 - Pushed correction commit `9e63a99`; Vercel Preview `dpl_9cnouYp7aqX1f6Fk2NRrVV6Y9Wg7` reached `READY` with clean build and runtime logs.
+- Verified the stable branch Preview as admin: all five VitalBite workspace views settle correctly, `/ask?product=...` preserves VitalBite context, and inactive DigestPro exposes no Generate or Studio control.
+- Provisioned isolated disposable member and approver users through the trusted server-only handshake. Member generation/read controls, approver generation/review controls, and admin-only management boundaries all matched `PRODUCT_WORKSPACE_CONTRACT.md` with no browser console errors.
+- Signed out and deleted both disposable users; verified zero matching Auth users, profiles, and provisioning records remain.
 
 ## Remaining Blocker
 
@@ -117,10 +120,9 @@ Claude Code verified:
 
 ## Next Agent Should Check
 
-- Deploy the corrected `codex/product-workspaces` head and run authenticated Preview QA as admin, member, and approver.
-- Confirm inactive/archived template detail stays reference-only and a direct generation request returns `409` without creating content.
-- Confirm `/ask?product=...` reopens that product's newest session or starts from the correct product-specific empty state.
-- Mark PR #2 ready only after desktop/mobile layout, browser console, runtime logs, and role controls pass; then merge and verify Production.
+- Mark PR #2 ready, merge it, and verify the Production deployment and authenticated product workspace.
+- Confirm the Production `/ask?product=...` handoff and inactive-product generation controls after promotion.
+- Run a live direct-generation `409` probe only with an isolated fixture or explicit approval to create the required inactive-product/active-template condition. Do not alter a real product or template solely for this test.
 - Begin Phase 4 template-engine standardization only after the Phase 3 release gate closes.
 - Consider a future server-side creative export endpoint for live-canvas templates. The official UI blocks draft export, but any browser-rendered canvas can still be screenshotted by a determined user.
 
