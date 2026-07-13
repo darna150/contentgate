@@ -108,6 +108,7 @@ Claude Code should not loosen backend security, approval, RLS, or export constra
 - Verified the full test suite, nonblank PNG render matrix, TypeScript, and lint. Final visual calibration is intentionally deferred until approved Figma frames exist.
 - Deployed Phase 4 Preview `dpl_6nyU2Hn8K7eegrK463HYawq3Yeqc` and completed authenticated admin QA. Apex social exposes Square/Story, Apex flyer exposes only A4, and the CaniGuard 5 and VitalBite templates expose only Square.
 - Verified the VitalBite draft keeps Download PNG disabled while approved content enables it. The browser console and Vercel error/fatal runtime logs were clean in the checked window.
+- Merged Phase 4 PR #3 to `main` at `b517c31`. Production deployment `dpl_EUt85bDDiKwsMoDuwnCmNDwYFFRE` reached `READY`; authenticated template-size and approval/export checks pass with clean browser and runtime logs.
 
 ## Remaining Blocker
 
@@ -128,7 +129,7 @@ Claude Code verified:
 ## Next Agent Should Check
 
 - Run a live direct-generation `409` probe only with an isolated fixture or explicit approval to create the required inactive-product/active-template condition. Do not alter a real product or template solely for this test.
-- Release `codex/template-engine-standardization` through a reviewed pull request, then verify the Phase 4 Production Studio and approval/export boundaries.
+- Begin Phase 5 Knowledge Hub reliability work from the released `main` branch and preserve the product-scoped session behavior verified in Phase 3.
 - Run Figma visual calibration later, after Debbie supplies approved frame IDs and replacement assets. Preserve the v1 field, lifecycle, approval, and export contract during that work.
 - Consider a future server-side creative export endpoint for live-canvas templates. The official UI blocks draft export, but any browser-rendered canvas can still be screenshotted by a determined user.
 
