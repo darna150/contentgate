@@ -29,7 +29,8 @@ MVP. New uploads default to `approved` because upload is admin-only.
 - Uploads are inspected with `sharp`; unreadable image bytes are rejected.
 - The bucket remains public so existing product and Studio images continue to render.
 - Public object listing is disabled. Discovery must use the RLS-protected `product_assets` table.
-- Only authenticated admins may insert or delete objects in their organization folder.
+- Only authenticated admins may inspect, insert, or delete objects in their organization folder.
+- Scoped admin object visibility is required by the Storage API to resolve deletes; public bucket listing remains blocked.
 - Object replacement is intentionally unsupported in the MVP. Upload a new version instead.
 
 ## Server Contract
@@ -63,4 +64,3 @@ and clear empty/error/permission states.
 Do not change the storage path, public-listing rule, RLS policies, service-role
 boundary, accepted file rules, or audit behavior without returning the backend
 change to Codex for review.
-

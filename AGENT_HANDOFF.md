@@ -65,8 +65,12 @@ Claude Code should not loosen backend security, approval, RLS, or export constra
 - Fixed approved content deep links so Studio derives the canonical product/template from the saved content record instead of falling back to the first active product.
 - Verified the corrected preview loads approved VitalBite content in Generated mode with approved export controls and no browser or Vercel runtime errors.
 - Completed the Codex Asset Library backend foundation and documented it in `ASSET_LIBRARY_CONTRACT.md`.
-- Applied and verified three additive live Supabase migrations: metadata/indexes, explicit asset RLS, and storage-listing hardening.
+- Applied and verified four additive live Supabase migrations: metadata/indexes, explicit asset RLS, storage-listing hardening, and scoped admin object visibility for Storage deletes.
 - Added verified image metadata extraction, admin upload/edit/delete actions, audit events, reusable filtering/preview data, and focused contract tests.
+- Deployed commit `e20da6f` to Production as `dpl_4qzkufrnNnGbLnSEhdHNSkLNGzB9`.
+- Completed an authenticated production Asset Library smoke test in Chrome.
+- The first delete test exposed a Storage API requirement for scoped object visibility; added and applied `allow_admin_asset_storage_read`, cleaned the orphaned test object through the Storage API, and reran delete successfully.
+- Confirmed all temporary test rows and objects were removed and create/update/delete audit events were recorded.
 
 ## Remaining Blocker
 
@@ -86,9 +90,8 @@ Claude Code verified:
 
 ## Next Agent Should Check
 
-- Commit/deploy the Asset Library application changes after local verification.
-- Run one authenticated production smoke test: upload a small PNG, edit its title/tags/status, confirm its preview, then delete it.
 - Claude Code should build the dedicated `/assets` grid/list and filters against `listProductAssets`; it should not alter the data, RLS, storage, or audit contract.
+- Add clear pending/success/error feedback to asset forms and ensure cards refresh immediately after server actions.
 - Consider a future server-side creative export endpoint for live-canvas templates. The official UI blocks draft export, but any browser-rendered canvas can still be screenshotted by a determined user.
 
 ## Do Not Break

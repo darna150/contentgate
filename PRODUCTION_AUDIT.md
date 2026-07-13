@@ -139,6 +139,7 @@ Applied to live Supabase project `egjssfcenboalijfdmsi` on 2026-07-13:
 - `asset_library_foundation`
 - `asset_library_policy_indexes`
 - `harden_asset_storage_listing`
+- `allow_admin_asset_storage_read`
 
 Verified:
 
@@ -146,6 +147,27 @@ Verified:
 - Asset reads are organization-scoped; inserts, updates, and deletes are explicit admin-only policies.
 - Admin insert passed inside a rolled-back RLS transaction; an unauthorized identity was rejected.
 - No policy test rows remain.
-- Storage upload/delete remains admin-only and organization-folder-scoped.
+- Storage inspection/upload/delete remains admin-only and organization-folder-scoped.
 - Public bucket enumeration was removed while public object URLs remain available.
 - Supabase security advisor reports no Asset Library warnings after the changes.
+
+## Asset Library Production Verification
+
+- Commit: `e20da6fe0e35cf69d26d72a8d04831b07c3080e6`
+- Deployment: `dpl_4qzkufrnNnGbLnSEhdHNSkLNGzB9`
+- URL: `contentgate-2x6e2i49x-debbies-projects-a8de6bb4.vercel.app`
+- Production alias: `contentgate-delta.vercel.app`
+- State: `READY`
+
+Authenticated admin smoke test on 2026-07-13:
+
+- Uploaded a generated 96x64 PNG as a supporting image.
+- Verified title, normalized tags, MIME type, 321-byte size, dimensions, approved status, organization/product path, and preview.
+- Edited title, alt text, description, tags, and status from approved to pending.
+- Verified `product_asset.created` and `product_asset.updated` audit events and previous-value details.
+- The first delete removed the metadata row but exposed that the Storage API also needs scoped `SELECT` visibility to resolve an object before deletion.
+- Applied `allow_admin_asset_storage_read`, removed the one orphaned temporary object through the Storage API, and reran the complete upload/delete path.
+- Final verification returned zero asset rows, zero Storage objects, and one delete audit event for the second test asset.
+- No temporary Asset Library rows or files remain.
+- Supabase security advisor reports no Asset Library warnings; only expected fresh-index `unused_index` informational notices remain.
+- Vercel reported no runtime error groups and no warning/error/fatal logs for the deployment in the checked one-hour window.

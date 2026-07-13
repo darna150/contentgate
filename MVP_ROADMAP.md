@@ -29,9 +29,9 @@ The MVP is not a campaign planner, finance platform, project-management suite, o
 ### Current Gate
 
 - Phase 1 is complete.
-- Codex Asset Library backend work is complete locally and in Supabase.
-- Commit and deploy the matching app code, then complete authenticated upload/edit/delete smoke testing.
-- Hand the stable contract to Claude Code for the dedicated `/assets` interface.
+- Codex Asset Library backend work is committed, deployed, and verified in Production.
+- Authenticated upload, preview, metadata/status edit, audit, database delete, and physical Storage delete all pass.
+- The stable contract is ready for Claude Code to build the dedicated `/assets` interface.
 
 ## Execution Order
 
@@ -78,6 +78,7 @@ Codex:
 - Completed: implemented verified image upload, metadata edit, filtering/preview data, and safe delete behavior.
 - Completed: added upload, update, and delete audit events.
 - Completed: added storage-path unit tests and exercised allow/deny RLS behavior on the live database.
+- Completed: production smoke testing caught and fixed the Storage API's need for scoped admin object visibility during delete.
 
 Claude Code, after Codex handoff:
 
