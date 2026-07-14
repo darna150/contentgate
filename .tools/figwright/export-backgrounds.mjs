@@ -1,10 +1,15 @@
 import { mkdir, rename } from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 
-const projectRoot = "/Users/debbiemelgarejo/Documents/Content Gate/contentgate";
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const projectRoot = path.resolve(__dirname, "../..");
+const figwrightMcpPath =
+  process.env.FIGWRIGHT_MCP_PATH ??
+  path.join(projectRoot, "node_modules/@figwright/mcp/dist/index.mjs");
 const groups = [
   {
     pageId: "2:2",
@@ -32,7 +37,7 @@ const groups = [
 
 const transport = new StdioClientTransport({
   command: "node",
-  args: [path.join(projectRoot, "node_modules/@figwright/mcp/dist/index.mjs")],
+  args: [figwrightMcpPath],
   stderr: "inherit",
 });
 const client = new Client({ name: "contentgate-background-export", version: "1.0.0" });

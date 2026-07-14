@@ -21,7 +21,11 @@
     "test:rate-limits": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test src/lib/rate-limit.test.ts",
     "test:documents": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test src/lib/document-extraction.test.ts",
     "test:template-render": "tsx --test src/lib/template-renderer.test.tsx",
-    "smoke": "node scripts/smoke-test.mjs"
+    "smoke": "node scripts/smoke-test.mjs",
+    "figwright:list": "node .tools/figwright/client.mjs list",
+    "figwright:export-backgrounds": "node .tools/figwright/export-backgrounds.mjs",
+    "contentgate:render-samples": "tsx .tools/render-contentgate-samples.tsx",
+    "contentgate:contact-sheets": "node .tools/render-contact-sheet.mjs"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.83",
