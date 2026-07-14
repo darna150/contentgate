@@ -162,6 +162,33 @@ After publishing, an admin can attach that version to a product with `POST /api/
 
 The assignment endpoint validates that the product belongs to the current organization, the template version is published, and the default variant exists in the manifest.
 
+## Local Bundle Preflight
+
+Before a new client template is imported, run the same preflight locally against the exported bundle directory:
+
+```bash
+npm run template-platform:preflight-bundle -- ./path/to/client-template-v1
+```
+
+The bundle directory must contain `manifest.json` and every asset path declared in the manifest. Optional sample copy fixtures can be checked too:
+
+```bash
+npm run template-platform:preflight-bundle -- ./path/to/client-template-v1 \
+  --sample ./path/to/client-template-v1/fixtures/default.json \
+  --sample ./path/to/client-template-v1/fixtures/long-copy.json
+```
+
+This verifies:
+
+- manifest structure;
+- publish-readiness rules;
+- asset files exist inside the bundle folder;
+- asset checksums match the manifest;
+- required sample fields are present;
+- sample copy fits every declared variant.
+
+Only bundles that pass local preflight should be imported, published, and assigned to products.
+
 For local/demo setup, the ContentGate bundles can be installed with:
 
 ```bash

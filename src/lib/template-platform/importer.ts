@@ -78,7 +78,7 @@ function assetSourceByPath(sources: readonly TemplateBundleAssetSource[]) {
   return new Map(sources.map((source) => [source.path, source]));
 }
 
-function assetPayloadIssues(
+export function validateTemplateBundleAssetPayloads(
   manifestAssets: readonly TemplateBundleAsset[],
   sources: readonly TemplateBundleAssetSource[]
 ) {
@@ -177,7 +177,7 @@ export async function importTemplateBundle(
     return compileResult;
   }
 
-  const payloadIssues = assetPayloadIssues(request.manifest.assets, request.assets);
+  const payloadIssues = validateTemplateBundleAssetPayloads(request.manifest.assets, request.assets);
   if (payloadIssues.length > 0) {
     await recordFailedImport({
       repository,
