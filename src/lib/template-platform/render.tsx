@@ -11,24 +11,42 @@ export type TemplateBundleRenderResult = {
 
 const INTER_STACK = `"Inter", "ContentGate Sans", ui-sans-serif, system-ui, sans-serif`;
 const CONTENTGATE_LOGO_SRC = "/brand/contentgate/logo-primary-transparent.svg";
+const CONTENTGATE_LOGO_WHITE_SRC = "/brand/contentgate/logo-mono-white.svg";
 
 const CONTENTGATE_LOGO_OVERLAYS: Record<
   string,
-  Record<string, { x: number; y: number; width: number; height: number }>
+  Record<
+    string,
+    {
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+      cover: string;
+      src?: string;
+    }
+  >
 > = {
   "contentgate-local-friendly": {
-    square: { x: 97, y: 84, width: 242, height: 49 },
-    story: { x: 97, y: 142, width: 260, height: 52 },
-    link_ad: { x: 72, y: 52, width: 220, height: 44 },
-    leaderboard: { x: 42, y: 22, width: 178, height: 36 },
-    medium_rectangle: { x: 50, y: 29, width: 156, height: 31 },
+    square: { x: 76, y: 59, width: 380, height: 64, cover: "#FBF7EF" },
+    story: {
+      x: 86,
+      y: 106,
+      width: 407,
+      height: 68,
+      cover: "#123C33",
+      src: CONTENTGATE_LOGO_WHITE_SRC,
+    },
+    link_ad: { x: 72, y: 50, width: 276, height: 47, cover: "#FBF7EF" },
+    leaderboard: { x: 24, y: 23, width: 216, height: 37, cover: "#FBF7EF" },
+    medium_rectangle: { x: 22, y: 24, width: 179, height: 31, cover: "#FBF7EF" },
   },
   "contentgate-local-premium": {
-    square: { x: 72, y: 86, width: 242, height: 49 },
-    portrait: { x: 81, y: 96, width: 250, height: 50 },
-    story: { x: 86, y: 142, width: 260, height: 52 },
-    link_ad: { x: 66, y: 54, width: 220, height: 44 },
-    medium_rectangle: { x: 22, y: 32, width: 142, height: 28 },
+    square: { x: 72, y: 103, width: 398, height: 61, cover: "#FBF7EF" },
+    portrait: { x: 76, y: 74, width: 378, height: 58, cover: "#FBF7EF" },
+    story: { x: 86, y: 100, width: 425, height: 66, cover: "#FBF7EF" },
+    link_ad: { x: 66, y: 79, width: 288, height: 45, cover: "#FBF7EF" },
+    medium_rectangle: { x: 22, y: 29, width: 170, height: 27, cover: "#FBF7EF" },
   },
 };
 
@@ -167,17 +185,17 @@ export function renderTemplateBundleVariant(input: {
               aria-hidden="true"
               style={{
                 position: "absolute",
-                left: logoOverlay.x - 6,
-                top: logoOverlay.y - 6,
-                width: logoOverlay.width + 12,
-                height: logoOverlay.height + 12,
-                background: "#FBF7EF",
+                left: logoOverlay.x - 3,
+                top: logoOverlay.y - 3,
+                width: logoOverlay.width + 6,
+                height: logoOverlay.height + 6,
+                background: logoOverlay.cover,
                 pointerEvents: "none",
               }}
             />
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={CONTENTGATE_LOGO_SRC}
+              src={logoOverlay.src ?? CONTENTGATE_LOGO_SRC}
               alt=""
               aria-hidden="true"
               style={{
