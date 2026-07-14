@@ -80,7 +80,7 @@ const targets: ContentGateBundleTarget[] = [
       key: "contentgate-local-friendly",
       name: "ContentGate Local Friendly",
     },
-    versionName: "v1",
+    versionName: "figwright-v1",
     sourceVersion: "figwright-set-a",
     frames: [
       { key: "square", label: "Square", channel: "social", nodeId: "2:15" },
@@ -98,7 +98,7 @@ const targets: ContentGateBundleTarget[] = [
       key: "contentgate-local-premium",
       name: "ContentGate Local Premium",
     },
-    versionName: "v1",
+    versionName: "figwright-v1",
     sourceVersion: "figwright-set-b",
     frames: [
       { key: "square", label: "Square", channel: "social", nodeId: "4:16" },

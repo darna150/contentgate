@@ -266,9 +266,14 @@ By default the script loads `.env.local`, resolves the first organization, finds
 npm run template-platform:install-contentgate -- --org-id <org-id>
 npm run template-platform:install-contentgate -- --product-id <product-id>
 npm run template-platform:install-contentgate -- --product-name "ContentGate"
+npm run template-platform:install-contentgate -- --bundle-source figwright
+npm run template-platform:install-contentgate -- --bundle-source legacy
+npm run template-platform:install-contentgate -- --bundle-root ./.template-bundles/figwright-contentgate
 npm run template-platform:install-contentgate -- --no-assign
 npm run template-platform:install-contentgate -- --dry-run
 ```
+
+The installer defaults to `--bundle-source auto`: it uses Figwright-exported bundle directories when present and falls back to the legacy in-code ContentGate bundle builder otherwise. The current Figwright exporter writes `figwright-v1` template versions so it can coexist with older `v1` imports and product assignments can be promoted explicitly.
 
 ## Version Lifecycle
 

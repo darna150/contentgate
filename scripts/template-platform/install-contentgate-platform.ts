@@ -6,8 +6,10 @@ import { createClient } from "@supabase/supabase-js";
 import { buildContentGateTemplateBundle } from "../../src/lib/template-platform/contentgate-bundle.ts";
 import {
   importTemplateBundle,
+  type TemplateBundleAssetSource,
   type TemplateBundleImportRepository,
 } from "../../src/lib/template-platform/importer.ts";
+import { loadTemplateBundleDirectory } from "../../src/lib/template-platform/bundle-directory.ts";
 import {
   formatTemplateBundlePreflightReport,
   preflightTemplateBundle,
@@ -118,10 +120,13 @@ function createCliTemplateBundleRepository(
 
 type ContentGateTarget = {
   layoutKey: "contentgate_local_friendly" | "contentgate_local_premium";
+  figwrightBundleFolder: string;
   defaultVariantKey: string;
 };
 
 type CliOptions = {
+  bundleRoot?: string;
+  bundleSource: "auto" | "figwright" | "legacy";
   orgId?: string;
   productIds: string[];
   productName?: string;
@@ -141,10 +146,12 @@ const CONTENTGATE_PRODUCT_ID = "20000000-0000-0000-0000-000000000001";
 const targets: ContentGateTarget[] = [
   {
     layoutKey: "contentgate_local_friendly",
+    figwrightBundleFolder: "local-friendly-v1",
     defaultVariantKey: "square",
   },
   {
     layoutKey: "contentgate_local_premium",
+    figwrightBundleFolder: "local-premium-v1",
     defaultVariantKey: "square",
   },
 ];
@@ -169,6 +176,8 @@ function loadDotEnvLocal() {
 
 function parseArgs(args: string[]): CliOptions {
   const options: CliOptions = {
+    bundleRoot: join(process.cwd(), ".template-bundles", "figwright-contentgate"),
+    bundleSource: "auto",
     productIds: [],
     productName: "ContentGate",
     assign: true,
@@ -197,6 +206,17 @@ function parseArgs(args: string[]): CliOptions {
       case "--dry-run":
         options.dryRun = true;
         break;
+      case "--bundle-root":
+        options.bundleRoot = next;
+        index += 1;
+        break;
+      case "--bundle-source":
+        if (next !== "auto" && next !== "figwright" && next !== "legacy") {
+          throw new Error("--bundle-source must be auto, figwright, or legacy.");
+        }
+        options.bundleSource = next;
+        index += 1;
+        break;
       default:
         throw new Error(`Unknown option: ${arg}`);
     }
@@ -213,6 +233,47 @@ function requireEnv(name: string) {
 
 function defaultStoragePrefix(manifest: TemplateBundleManifest) {
   return ["template-bundles", manifest.family.key, manifest.version.name].join("/");
+}
+
+type InstallableContentGateBundle = {
+  source: "figwright" | "legacy";
+  manifest: TemplateBundleManifest;
+  assets: TemplateBundleAssetSource[];
+};
+
+async function loadContentGateBundle(input: {
+  options: CliOptions;
+  target: ContentGateTarget;
+}): Promise<InstallableContentGateBundle> {
+  const figwrightDirectory = join(
+    input.options.bundleRoot ?? "",
+    input.target.figwrightBundleFolder,
+    "bundle"
+  );
+  const shouldTryFigwright =
+    input.options.bundleSource === "figwright" ||
+    (input.options.bundleSource === "auto" && existsSync(join(figwrightDirectory, "manifest.json")));
+
+  if (shouldTryFigwright) {
+    if (!existsSync(join(figwrightDirectory, "manifest.json"))) {
+      throw new Error(
+        `Figwright bundle is missing: ${figwrightDirectory}. Run npm run figwright:export-contentgate-bundles first.`
+      );
+    }
+    const bundle = await loadTemplateBundleDirectory(figwrightDirectory);
+    return {
+      source: "figwright",
+      manifest: bundle.manifest,
+      assets: bundle.assets,
+    };
+  }
+
+  const bundle = await buildContentGateTemplateBundle(input.target.layoutKey);
+  return {
+    source: "legacy",
+    manifest: bundle.manifest,
+    assets: bundle.assets,
+  };
 }
 
 function asIdRow(value: unknown): { id: string } | null {
@@ -355,12 +416,21 @@ async function assignTemplateToProducts(input: {
 }
 
 async function installTarget(input: {
+  options: CliOptions;
   supabase: AdminClient;
   orgId: string;
   productIds: string[];
   target: ContentGateTarget;
 }) {
-  const bundle = await buildContentGateTemplateBundle(input.target.layoutKey);
+  const bundle = await loadContentGateBundle({
+    options: input.options,
+    target: input.target,
+  });
+  const report = await preflightTemplateBundle({ manifest: bundle.manifest });
+  if (!report.ok) {
+    throw new Error(formatTemplateBundlePreflightReport(report));
+  }
+
   let version = await findExistingTemplateVersion({
     supabase: input.supabase,
     orgId: input.orgId,
@@ -391,9 +461,9 @@ async function installTarget(input: {
       status: result.value.rows.version.status,
       manifest: result.value.rows.version.manifest,
     };
-    console.log(`Imported ${bundle.manifest.family.key}: ${version.id}`);
+    console.log(`Imported ${bundle.manifest.family.key}@${bundle.manifest.version.name} from ${bundle.source}: ${version.id}`);
   } else {
-    console.log(`Found ${bundle.manifest.family.key}: ${version.id}`);
+    console.log(`Found ${bundle.manifest.family.key}@${bundle.manifest.version.name} from ${bundle.source}: ${version.id}`);
   }
 
   const publishStatus = await publishTemplateVersion({
@@ -419,12 +489,12 @@ async function main() {
   if (options.dryRun) {
     console.log("Dry run: building and validating local ContentGate platform bundles.");
     for (const target of targets) {
-      const bundle = await buildContentGateTemplateBundle(target.layoutKey);
+      const bundle = await loadContentGateBundle({ options, target });
       const report = await preflightTemplateBundle({ manifest: bundle.manifest });
       console.log(formatTemplateBundlePreflightReport(report));
       if (!report.ok) throw new Error(`${bundle.manifest.family.key} failed preflight.`);
       console.log(
-        `${bundle.manifest.family.key}: ${bundle.manifest.variants.length} variants, ${bundle.assets.length} assets`
+        `${bundle.manifest.family.key}@${bundle.manifest.version.name} from ${bundle.source}: ${bundle.manifest.variants.length} variants, ${bundle.assets.length} assets`
       );
     }
     return;
@@ -448,7 +518,7 @@ async function main() {
   if (productIds.length > 0) console.log(`Assigning to products: ${productIds.join(", ")}`);
 
   for (const target of targets) {
-    await installTarget({ supabase, orgId, productIds, target });
+    await installTarget({ options, supabase, orgId, productIds, target });
   }
 }
 
