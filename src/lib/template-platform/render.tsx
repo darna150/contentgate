@@ -1,7 +1,5 @@
 import React from "react";
 
-import { renderPublishedTemplatePackage } from "../published-template-package";
-import type { TemplateSizeKey } from "../template-contract";
 import type { TemplateBundleManifest, TemplateBundleTextSlot } from "./manifest";
 import { resolveTemplateBundleRuntimeVariant } from "./runtime";
 
@@ -12,15 +10,6 @@ export type TemplateBundleRenderResult = {
 };
 
 const INTER_STACK = `"Inter", "ContentGate Sans", ui-sans-serif, system-ui, sans-serif`;
-
-const CONTENTGATE_PLATFORM_LAYOUTS: Record<string, string> = {
-  "contentgate-local-friendly": "contentgate_local_friendly",
-  "contentgate-local-premium": "contentgate_local_premium",
-};
-
-function contentGateLayoutKey(manifest: TemplateBundleManifest) {
-  return CONTENTGATE_PLATFORM_LAYOUTS[manifest.family.key] ?? null;
-}
 
 function slotFontWeight(slot: TemplateBundleTextSlot) {
   return slot.fontKey.includes("bold")
@@ -52,7 +41,7 @@ function renderTextSlot(slot: TemplateBundleTextSlot, fields: Record<string, unk
         top: slot.y,
         width: slot.width,
         height: slot.height,
-        overflow: "visible",
+        overflow: "hidden",
         color: slot.color,
         display: "flex",
         flexDirection: "column",
@@ -75,13 +64,18 @@ function renderTextSlot(slot: TemplateBundleTextSlot, fields: Record<string, unk
       <span
         data-template-content
         style={{
-          display: "block",
+          display: "-webkit-box",
           width: "100%",
           minWidth: 0,
           flexShrink: 0,
+          maxHeight: "100%",
+          overflow: "hidden",
           textAlign: slot.align ?? "left",
           whiteSpace: "pre-wrap",
           wordBreak: "normal",
+          overflowWrap: "normal",
+          WebkitBoxOrient: "vertical",
+          WebkitLineClamp: slot.maxLines,
         }}
       >
         {text}
@@ -90,31 +84,22 @@ function renderTextSlot(slot: TemplateBundleTextSlot, fields: Record<string, unk
   );
 }
 
+function resolveImageSource(path: string, assetUrlByPath?: Record<string, string>) {
+  const signedUrl = assetUrlByPath?.[path];
+  if (signedUrl) return signedUrl;
+  if (path.startsWith("http://") || path.startsWith("https://") || path.startsWith("/")) {
+    return path;
+  }
+  return `/${path}`;
+}
+
 export function renderTemplateBundleVariant(input: {
   manifest: TemplateBundleManifest;
   variantKey: string;
   fields: Record<string, unknown>;
+  assetUrlByPath?: Record<string, string>;
   original?: boolean;
-  origin?: string;
 }): TemplateBundleRenderResult | null {
-  const contentGateLayout = contentGateLayoutKey(input.manifest);
-  if (contentGateLayout) {
-    const rendered = renderPublishedTemplatePackage({
-      layoutKey: contentGateLayout,
-      sizeKey: input.variantKey as TemplateSizeKey,
-      fields: Object.fromEntries(
-        Object.entries(input.fields).map(([key, value]) => [key, String(value ?? "")])
-      ),
-      disclaimer: "",
-      origin: input.origin ?? "",
-      original: input.original,
-      definition: {},
-    });
-    return rendered
-      ? { element: rendered.element, width: rendered.w, height: rendered.h }
-      : null;
-  }
-
   const runtime = resolveTemplateBundleRuntimeVariant(input.manifest, input.variantKey);
   if (!runtime) return null;
   const imagePath = input.original
@@ -137,7 +122,7 @@ export function renderTemplateBundleVariant(input: {
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={`${input.origin ?? ""}/${imagePath}`}
+          src={resolveImageSource(imagePath, input.assetUrlByPath)}
           alt=""
           style={{
             position: "absolute",
@@ -145,6 +130,7 @@ export function renderTemplateBundleVariant(input: {
             width: "100%",
             height: "100%",
             display: "block",
+            objectFit: "fill",
           }}
         />
         {!input.original &&

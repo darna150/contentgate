@@ -52,7 +52,13 @@ export function GenerateVariant({
         return;
       }
       if (j.platform) {
-        router.push(`/content/${j.contentId}`);
+        const params = new URLSearchParams({
+          product: productId,
+          template: `platform:${platformAssignmentId ?? ""}`,
+          content: j.contentId,
+          size: (j.outputSize as string) ?? outputSize,
+        });
+        router.push(`/studio?${params.toString()}`);
         return;
       }
       const params = new URLSearchParams({

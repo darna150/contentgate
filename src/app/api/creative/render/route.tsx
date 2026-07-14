@@ -22,6 +22,7 @@ import { loadContentGateFonts } from "@/lib/contentgate-fonts";
 import type { TemplateBundleManifest } from "@/lib/template-platform/manifest";
 import { renderTemplateBundleVariant } from "@/lib/template-platform/render";
 import { resolveTemplateBundleRuntimeVariant } from "@/lib/template-platform/runtime";
+import { createTemplateBundleAssetUrlMap } from "@/lib/template-platform/storage-urls";
 import {
   isTemplateSizeAllowed,
   usesRegisteredTemplateContract,
@@ -90,7 +91,9 @@ export async function GET(req: Request) {
       manifest,
       variantKey,
       fields,
-      origin: new URL(req.url).origin,
+      assetUrlByPath: Object.fromEntries(
+        await createTemplateBundleAssetUrlMap(supabase, [manifest])
+      ),
     });
     if (!rendered) return new Response("Template render failed", { status: 500 });
     const fonts = await loadContentGateFonts();

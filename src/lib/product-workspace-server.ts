@@ -19,8 +19,9 @@ import {
   normalizeTemplatePlatformAssignment,
   type TemplatePlatformAssignmentRow,
 } from "@/lib/template-platform/assignments";
-import { TEMPLATE_BUNDLE_STORAGE_BUCKET } from "@/lib/template-platform/importer";
-import type { TemplateBundleManifest } from "@/lib/template-platform/manifest";
+import {
+  createTemplateBundleAssetUrlMap,
+} from "@/lib/template-platform/storage-urls";
 
 type Joined<T> = T | T[] | null;
 
@@ -179,45 +180,12 @@ type ContentRow = {
   creator: Joined<{ full_name: string | null }>;
 };
 
-const TEMPLATE_BUNDLE_URL_TTL_SECONDS = 60 * 60;
-
 function one<T>(value: Joined<T>): T | null {
   return Array.isArray(value) ? (value[0] ?? null) : value;
 }
 
 function assertQuery(error: { message: string } | null, label: string) {
   if (error) throw new Error(`Could not load workspace ${label}: ${error.message}`);
-}
-
-function templateBundleStoragePath(
-  manifest: TemplateBundleManifest,
-  assetPath: string
-) {
-  return [
-    "template-bundles",
-    manifest.family.key,
-    manifest.version.name,
-    assetPath,
-  ].join("/");
-}
-
-async function createTemplateBundlePreviewUrlMap(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  storagePaths: string[]
-) {
-  const paths = Array.from(new Set(storagePaths.filter(Boolean)));
-  if (paths.length === 0) return new Map<string, string>();
-
-  const { data, error } = await supabase.storage
-    .from(TEMPLATE_BUNDLE_STORAGE_BUCKET)
-    .createSignedUrls(paths, TEMPLATE_BUNDLE_URL_TTL_SECONDS);
-  if (error) throw new Error(`Could not sign template bundle URLs: ${error.message}`);
-
-  return new Map(
-    (data ?? [])
-      .filter((item) => item.signedUrl)
-      .map((item) => [item.path, item.signedUrl] as const)
-  );
 }
 
 export async function getProductWorkspace(
@@ -374,21 +342,9 @@ export async function getProductWorkspace(
   const normalizedPlatformTemplates = ((platformTemplateResult.data ?? []) as TemplatePlatformAssignmentRow[])
     .map(normalizeTemplatePlatformAssignment)
     .filter((template): template is NonNullable<typeof template> => Boolean(template));
-  const templateBundlePreviewUrls = await createTemplateBundlePreviewUrlMap(
+  const templateBundlePreviewUrls = await createTemplateBundleAssetUrlMap(
     supabase,
-    normalizedPlatformTemplates.flatMap((template) =>
-      template.manifest.variants.flatMap((variant) => {
-        const reference = template.manifest.assets.find(
-          (asset) => asset.key === variant.referenceAsset
-        );
-        const background = template.manifest.assets.find(
-          (asset) => asset.key === variant.backgroundAsset
-        );
-        return [reference?.path, background?.path]
-          .filter((path): path is string => Boolean(path))
-          .map((path) => templateBundleStoragePath(template.manifest, path));
-      })
-    )
+    normalizedPlatformTemplates.map((template) => template.manifest)
   );
   const platformTemplates = normalizedPlatformTemplates.map((template) => {
       const fieldsBySize = Object.fromEntries(
@@ -406,10 +362,7 @@ export async function getProductWorkspace(
           const asset = variant
             ? template.manifest.assets.find((item) => item.key === variant.referenceAsset)
             : null;
-          const storagePath = asset
-            ? templateBundleStoragePath(template.manifest, asset.path)
-            : "";
-          return [size, templateBundlePreviewUrls.get(storagePath) ?? ""];
+          return [size, asset ? templateBundlePreviewUrls.get(asset.path) ?? "" : ""];
         })
       );
       const backgroundAssetBySize = Object.fromEntries(
@@ -418,10 +371,7 @@ export async function getProductWorkspace(
           const asset = variant
             ? template.manifest.assets.find((item) => item.key === variant.backgroundAsset)
             : null;
-          const storagePath = asset
-            ? templateBundleStoragePath(template.manifest, asset.path)
-            : "";
-          return [size, templateBundlePreviewUrls.get(storagePath) ?? ""];
+          return [size, asset ? templateBundlePreviewUrls.get(asset.path) ?? "" : ""];
         })
       );
       return {

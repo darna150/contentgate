@@ -27,9 +27,27 @@ test("renders platform bundle generated mode with background and text slots", as
   assert.equal(rendered.width, 728);
   assert.equal(rendered.height, 90);
   const html = renderToStaticMarkup(rendered.element);
-  assert.doesNotMatch(html, /set-a\/backgrounds\/leaderboard\.png/);
+  assert.match(html, /set-a\/backgrounds\/leaderboard\.png/);
   assert.match(html, /On-brand local content/);
-  assert.match(html, /data-template-package="contentgate-localized-ads-set-a-v1"/);
+  assert.match(html, /data-template-platform-bundle="contentgate-local-friendly"/);
+  assert.match(html, /overflow:hidden/);
+});
+
+test("renders platform bundle with signed asset URLs when provided", async () => {
+  const bundle = await buildContentGateTemplateBundle("contentgate_local_friendly");
+  const rendered = renderTemplateBundleVariant({
+    manifest: bundle.manifest,
+    variantKey: "leaderboard",
+    fields: {},
+    assetUrlByPath: {
+      "template-packages/contentgate/set-a/backgrounds/leaderboard.png":
+        "https://storage.example.test/signed-background.png",
+    },
+  });
+
+  assert.ok(rendered);
+  const html = renderToStaticMarkup(rendered.element);
+  assert.match(html, /https:\/\/storage\.example\.test\/signed-background\.png/);
 });
 
 test("renders platform bundle original mode with reference only", async () => {

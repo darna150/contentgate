@@ -63,6 +63,7 @@ type Template = {
   variant: string;
   layout_key: string;
   platformAssignmentId?: string;
+  platformAssetUrlByPath?: Record<string, string>;
   platformManifest?: TemplateBundleManifest;
   editable_fields: string[];
   default_copy: Record<string, string>;
@@ -110,6 +111,7 @@ function renderContentGateCanvas(input: {
 
 function renderPlatformCanvas(input: {
   manifest: TemplateBundleManifest;
+  assetUrlByPath?: Record<string, string>;
   sizeKey: SizeKey;
   fields: Record<string, string>;
   original: boolean;
@@ -118,6 +120,7 @@ function renderPlatformCanvas(input: {
     manifest: input.manifest,
     variantKey: input.sizeKey,
     fields: input.fields,
+    assetUrlByPath: input.assetUrlByPath,
     original: input.original,
   });
   if (!rendered) {
@@ -192,7 +195,8 @@ function LiveCanvasFrame({
     const updateScale = () => {
       const availableWidth = Math.max(1, viewport.clientWidth - 48);
       const availableHeight = Math.max(1, Math.min(760, window.innerHeight - 250));
-      setScale(Math.min(1, availableWidth / width, availableHeight / height));
+      const maxPreviewScale = width <= 728 || height <= 250 ? 2 : 1;
+      setScale(Math.min(maxPreviewScale, availableWidth / width, availableHeight / height));
     };
     updateScale();
     const observer = new ResizeObserver(updateScale);
@@ -413,6 +417,7 @@ export function StudioEditor({
           : isPlatformTemplate && selectedTemplate.platformManifest
             ? renderPlatformCanvas({
                 manifest: selectedTemplate.platformManifest,
+                assetUrlByPath: selectedTemplate.platformAssetUrlByPath,
                 sizeKey: size,
                 fields: activeFields,
                 original: mode === "original",

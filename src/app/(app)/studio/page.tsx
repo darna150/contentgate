@@ -11,6 +11,7 @@ import {
   getTemplateBundleSupportedSizes,
   resolveTemplateBundleRuntimeVariant,
 } from "@/lib/template-platform/runtime";
+import { createTemplateBundleAssetUrlMap } from "@/lib/template-platform/storage-urls";
 import { StudioEditor } from "./studio-editor";
 
 type Product = { id: string; name: string; disclaimer_text: string | null };
@@ -21,6 +22,7 @@ type Template = {
   variant: string;
   layout_key: string;
   platformAssignmentId?: string;
+  platformAssetUrlByPath?: Record<string, string>;
   platformManifest?: TemplateBundleManifest;
   editable_fields: string[];
   default_copy: Record<string, string>;
@@ -68,7 +70,10 @@ function platformTemplateId(assignmentId: string) {
   return `platform:${assignmentId}`;
 }
 
-function platformAssignmentsToTemplates(rows: PlatformAssignmentRow[]): Template[] {
+function platformAssignmentsToTemplates(
+  rows: PlatformAssignmentRow[],
+  assetUrlsByVersionId: Map<string, Record<string, string>>
+): Template[] {
   return rows.flatMap((row) => {
     if (row.status !== "active") return [];
     const family = one(row.template_families);
@@ -88,6 +93,7 @@ function platformAssignmentsToTemplates(rows: PlatformAssignmentRow[]): Template
         variant: `${family.name} · Platform v1`,
         layout_key: `template-platform:${family.family_key}`,
         platformAssignmentId: row.id,
+        platformAssetUrlByPath: assetUrlsByVersionId.get(version.id) ?? {},
         platformManifest: version.manifest,
         editable_fields: runtime.fields.map((field) => field.key),
         default_copy: Object.fromEntries(
@@ -168,8 +174,22 @@ export default async function StudioPage({
         template.template_definition
       ),
     }));
+  const normalizedPlatformAssignmentRows = (platformAssignmentRows ?? []) as PlatformAssignmentRow[];
+  const platformVersions = normalizedPlatformAssignmentRows
+    .map((row) => one(row.template_versions))
+    .filter(
+      (version): version is NonNullable<typeof version> =>
+        Boolean(version?.id && version.manifest)
+    );
+  const platformAssetUrlMaps = await Promise.all(
+    platformVersions.map(async (version) => [
+      version.id,
+      Object.fromEntries(await createTemplateBundleAssetUrlMap(supabase, [version.manifest])),
+    ] as const)
+  );
   const platformTemplates = platformAssignmentsToTemplates(
-    (platformAssignmentRows ?? []) as PlatformAssignmentRow[]
+    normalizedPlatformAssignmentRows,
+    new Map(platformAssetUrlMaps)
   );
   const templates = [...platformTemplates, ...legacyTemplates];
 
@@ -204,6 +224,21 @@ export default async function StudioPage({
     productTemplates.find((template) => template.id === requestedTemplateId) ??
     productTemplates[0] ??
     null;
+  const requestedPlatformAssignmentId =
+    typeof (requestedContent?.prompt_context as { platform_assignment_id?: unknown } | null)
+      ?.platform_assignment_id === "string"
+      ? ((requestedContent?.prompt_context as { platform_assignment_id: string })
+          .platform_assignment_id)
+      : null;
+  const requestedContentMatchesSelectedTemplate =
+    Boolean(
+      requestedContent &&
+        selectedTemplate &&
+        requestedContent.product_id === selectedProduct?.id &&
+        (requestedContent.product_template_id === selectedTemplate.id ||
+          (selectedTemplate.platformAssignmentId &&
+            requestedPlatformAssignmentId === selectedTemplate.platformAssignmentId))
+    );
 
   let initialContent: {
     id: string;
@@ -214,35 +249,26 @@ export default async function StudioPage({
     manuallyEdited: boolean;
     canEdit: boolean;
   } | null = null;
-  if (
-    requestedContent &&
-    selectedProduct &&
-    selectedTemplate &&
-    requestedContent.product_id === selectedProduct.id &&
-    requestedContent.product_template_id === selectedTemplate.id
-  ) {
-      initialContent = {
-        id: requestedContent.id,
-        title: requestedContent.title,
-        status: requestedContent.status,
-        structured_fields: (requestedContent.structured_fields ?? {}) as Record<string, string>,
-        outputSize: isSizeKey(
-          (requestedContent.prompt_context as { output_size?: unknown } | null)
-            ?.output_size
-        )
-          ? ((requestedContent.prompt_context as { output_size: TemplateSizeKey })
-              .output_size)
-          : null,
-        canEdit: requestedContent.created_by === user?.id,
-        manuallyEdited:
-          Array.isArray(
-            (requestedContent.prompt_context as { manually_edited_fields?: unknown[] } | null)
-              ?.manually_edited_fields
-          ) &&
-          (
-            requestedContent.prompt_context as { manually_edited_fields?: unknown[] }
-          ).manually_edited_fields!.length > 0,
-      };
+  if (requestedContentMatchesSelectedTemplate && requestedContent) {
+    initialContent = {
+      id: requestedContent.id,
+      title: requestedContent.title,
+      status: requestedContent.status,
+      structured_fields: (requestedContent.structured_fields ?? {}) as Record<string, string>,
+      outputSize: isSizeKey(
+        (requestedContent.prompt_context as { output_size?: unknown } | null)?.output_size
+      )
+        ? ((requestedContent.prompt_context as { output_size: TemplateSizeKey }).output_size)
+        : null,
+      canEdit: requestedContent.created_by === user?.id,
+      manuallyEdited:
+        Array.isArray(
+          (requestedContent.prompt_context as { manually_edited_fields?: unknown[] } | null)
+            ?.manually_edited_fields
+        ) &&
+        (requestedContent.prompt_context as { manually_edited_fields?: unknown[] })
+          .manually_edited_fields!.length > 0,
+    };
   }
 
   return (

@@ -17,6 +17,7 @@ import {
   resolveTemplateBundleRuntimeVariant,
 } from "@/lib/template-platform/runtime";
 import { renderTemplateBundleVariant } from "@/lib/template-platform/render";
+import { createTemplateBundleAssetUrlMap } from "@/lib/template-platform/storage-urls";
 import {
   TEMPLATE_OUTPUT_SIZES,
   type TemplateSizeKey,
@@ -170,6 +171,11 @@ export default async function ContentDetailPage({
       : null;
   if (studioParams && outputSize) studioParams.set("size", outputSize);
   if (platformStudioParams && outputSize) platformStudioParams.set("size", outputSize);
+  const platformAssetUrlByPath = platformManifest
+    ? Object.fromEntries(
+        await createTemplateBundleAssetUrlMap(supabase, [platformManifest])
+      )
+    : {};
 
   const subtitle = isPlatformStructured
     ? `${product?.name ?? "Product"} · ${platformVersion?.version_label ?? "Platform template"} · ${content.target_language}`
@@ -181,10 +187,15 @@ export default async function ContentDetailPage({
         manifest: platformManifest,
         variantKey: platformVariantKey,
         fields: structuredFields,
+        assetUrlByPath: platformAssetUrlByPath,
       })
     : null;
   const platformPreviewScale = platformPreview
-    ? Math.min(760 / platformPreview.width, 1)
+    ? Math.min(
+        760 / platformPreview.width,
+        560 / platformPreview.height,
+        platformPreview.width <= 728 || platformPreview.height <= 250 ? 2 : 1
+      )
     : 1;
 
   return (
@@ -238,7 +249,7 @@ export default async function ContentDetailPage({
                   Platform v1
                 </span>
               </div>
-              <div className="overflow-auto rounded-[10px] border border-edge bg-page p-4">
+              <div className="overflow-hidden rounded-[10px] border border-edge bg-page p-4">
                 <div
                   className="mx-auto overflow-hidden"
                   style={{
@@ -250,7 +261,7 @@ export default async function ContentDetailPage({
                     style={{
                       width: platformPreview.width,
                       height: platformPreview.height,
-                      transform: `scale(${Math.min(760 / platformPreview.width, 1)})`,
+                      transform: `scale(${platformPreviewScale})`,
                       transformOrigin: "top left",
                     }}
                   >
