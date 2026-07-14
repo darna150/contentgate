@@ -64,7 +64,7 @@ export type TemplateContractIssue = {
 export type TemplateLayoutContract = {
   layoutKey: string;
   engine: "react-image-v1";
-  renderer: "apex-canine" | "caniguard5" | "contentgate" | "published-design" | "vitalbite";
+  renderer: "apex-canine" | "caniguard5" | "published-design" | "vitalbite";
   sizes: readonly TemplateSizeKey[];
   editableFields: readonly string[];
   requiredLockedFields: readonly string[];

@@ -35,7 +35,6 @@ import {
   vitalBiteLayoutDensity,
   renderVitalBite,
 } from "@/lib/vitalbite-render";
-import { renderContentGate } from "@/lib/contentgate-render";
 import { renderPublishedTemplatePackage } from "@/lib/published-template-package";
 import { exportCanvas, type ExportFormat } from "@/lib/canvas-export";
 import { fieldLabel, REVISION_OPTIONS } from "@/lib/templates";
@@ -80,6 +79,24 @@ const GENERATION_MESSAGES = [
   "Checking copy against the source material.",
   "Polishing the preview for its close-up.",
 ] as const;
+
+function renderContentGateCanvas(input: {
+  layoutKey: string;
+  sizeKey: SizeKey;
+  fields: Record<string, string>;
+  disclaimer: string;
+  origin: string;
+  original: boolean;
+  definition: Record<string, unknown>;
+}): ReactElement {
+  const rendered = renderPublishedTemplatePackage(input);
+  if (!rendered) {
+    throw new Error(
+      `No published template package for ${input.layoutKey}/${input.sizeKey}.`
+    );
+  }
+  return rendered.element;
+}
 
 function GenerationLoader() {
   const [messageIndex, setMessageIndex] = useState(0);
@@ -330,23 +347,15 @@ export function StudioEditor({
             original: mode === "original",
           }).element
         : isContentGate
-          ? (renderPublishedTemplatePackage({
-                layoutKey: selectedTemplate.layout_key,
-                sizeKey: size,
-                fields: activeFields,
-                disclaimer: selectedProduct.disclaimer_text ?? "",
-                origin: "",
-                original: mode === "original",
-                definition: selectedTemplate.template_definition,
-              }) ??
-              renderContentGate({
-                layoutKey: selectedTemplate.layout_key,
-                sizeKey: size,
-                fields: activeFields,
-                disclaimer: selectedProduct.disclaimer_text ?? "",
-                origin: "",
-                original: mode === "original",
-              })).element
+          ? renderContentGateCanvas({
+              layoutKey: selectedTemplate.layout_key,
+              sizeKey: size,
+              fields: activeFields,
+              disclaimer: selectedProduct.disclaimer_text ?? "",
+              origin: "",
+              original: mode === "original",
+              definition: selectedTemplate.template_definition,
+            })
           : renderVitalBite({
               sizeKey: size,
               fields: activeFields,
