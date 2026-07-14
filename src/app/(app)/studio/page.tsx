@@ -1,6 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
 import { stripInternalTemplateDefinition } from "@/lib/published-template-package";
-import { isTemplateContractReady } from "@/lib/template-contract";
+import {
+  isTemplateContractReady,
+  TEMPLATE_OUTPUT_SIZES,
+  type TemplateSizeKey,
+} from "@/lib/template-contract";
 import { resolveEffectiveFieldLimits } from "@/lib/template-specs";
 import { StudioEditor } from "./studio-editor";
 
@@ -18,12 +22,17 @@ type Template = {
   template_definition: Record<string, unknown>;
 };
 
+function isSizeKey(value: unknown): value is TemplateSizeKey {
+  return typeof value === "string" && value in TEMPLATE_OUTPUT_SIZES;
+}
+
 export default async function StudioPage({
   searchParams,
 }: {
-  searchParams: Promise<{ product?: string; template?: string; content?: string }>;
+  searchParams: Promise<{ product?: string; template?: string; content?: string; size?: string }>;
 }) {
   const query = await searchParams;
+  const requestedSize = isSizeKey(query.size) ? query.size : null;
   const supabase = await createClient();
   const {
     data: { user },
@@ -100,6 +109,7 @@ export default async function StudioPage({
     title: string;
     status: string;
     structured_fields: Record<string, string>;
+    outputSize: TemplateSizeKey | null;
     manuallyEdited: boolean;
     canEdit: boolean;
   } | null = null;
@@ -115,6 +125,13 @@ export default async function StudioPage({
         title: requestedContent.title,
         status: requestedContent.status,
         structured_fields: (requestedContent.structured_fields ?? {}) as Record<string, string>,
+        outputSize: isSizeKey(
+          (requestedContent.prompt_context as { output_size?: unknown } | null)
+            ?.output_size
+        )
+          ? ((requestedContent.prompt_context as { output_size: TemplateSizeKey })
+              .output_size)
+          : null,
         canEdit: requestedContent.created_by === user?.id,
         manuallyEdited:
           Array.isArray(
@@ -143,6 +160,7 @@ export default async function StudioPage({
           selectedProduct={selectedProduct}
           selectedTemplate={selectedTemplate}
           initialContent={initialContent}
+          initialSize={initialContent?.outputSize ?? requestedSize}
           organizationName={organization?.name ?? "Current workspace"}
         />
       ) : (

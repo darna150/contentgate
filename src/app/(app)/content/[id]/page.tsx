@@ -8,13 +8,22 @@ import { ApprovalActions } from "./approval-actions";
 import { ExportButtons } from "./export-buttons";
 import type { Evidence } from "@/lib/templates";
 import { resolveEffectiveFieldLimits } from "@/lib/template-specs";
-import type { FieldLimits } from "@/lib/template-fields";
+import { mergeFieldLimits, type FieldLimits } from "@/lib/template-fields";
+import { getPublishedTemplateFrameFieldLimits } from "@/lib/published-template-package";
+import {
+  TEMPLATE_OUTPUT_SIZES,
+  type TemplateSizeKey,
+} from "@/lib/template-contract";
 import {
   ContentHistory,
   type ContentHistoryEvent,
   type ContentRevisionSummary,
 } from "./content-history";
 import { canEditContent, type ContentStatus } from "@/lib/content-governance";
+
+function isSizeKey(value: unknown): value is TemplateSizeKey {
+  return typeof value === "string" && value in TEMPLATE_OUTPUT_SIZES;
+}
 
 function CheckIcon() {
   return (
@@ -46,7 +55,7 @@ export default async function ContentDetailPage({
   const { data: content } = await supabase
     .from("generated_content")
     .select(
-      "id, title, body, status, target_language, audience, source_document_ids, rejection_note, created_at, approved_at, created_by, product_id, product_template_id, structured_fields, citations, current_revision_number, approved_revision_number, products(name), product_templates(layout_key, variant, category, editable_fields, field_limits), creator:profiles!generated_content_created_by_fkey(full_name), approver:profiles!generated_content_approved_by_fkey(full_name)"
+      "id, title, body, status, target_language, audience, source_document_ids, rejection_note, created_at, approved_at, created_by, product_id, product_template_id, structured_fields, prompt_context, citations, current_revision_number, approved_revision_number, products(name), product_templates(layout_key, variant, category, editable_fields, field_limits, template_definition), creator:profiles!generated_content_created_by_fkey(full_name), approver:profiles!generated_content_approved_by_fkey(full_name)"
     )
     .eq("id", id)
     .single();
@@ -81,6 +90,13 @@ export default async function ContentDetailPage({
   const approver = Array.isArray(content.approver) ? content.approver[0] : content.approver;
 
   const isStructured = !!content.product_id && !!ptemplate;
+  const promptContext =
+    content.prompt_context && typeof content.prompt_context === "object"
+      ? (content.prompt_context as Record<string, unknown>)
+      : null;
+  const outputSize = isSizeKey(promptContext?.output_size)
+    ? promptContext.output_size
+    : null;
   const order: string[] = (ptemplate?.editable_fields as string[]) ?? [];
   const structuredFields = (content.structured_fields ?? {}) as Record<string, string>;
   const evidence = (content.citations ?? []) as Evidence[];
@@ -89,10 +105,28 @@ export default async function ContentDetailPage({
     authorId: content.created_by,
     status: content.status as ContentStatus,
   });
-  const effectiveLimits = resolveEffectiveFieldLimits(
+  const baseLimits = resolveEffectiveFieldLimits(
     ptemplate?.layout_key,
     (ptemplate?.field_limits ?? {}) as FieldLimits
   );
+  const frameLimits =
+    outputSize && ptemplate?.layout_key
+      ? getPublishedTemplateFrameFieldLimits(
+          ptemplate.layout_key,
+          outputSize,
+          ptemplate.template_definition
+        )
+      : null;
+  const effectiveLimits = mergeFieldLimits(baseLimits, frameLimits);
+  const studioParams =
+    isStructured && content.product_id && content.product_template_id
+      ? new URLSearchParams({
+          product: content.product_id,
+          template: content.product_template_id,
+          content: content.id,
+        })
+      : null;
+  if (studioParams && outputSize) studioParams.set("size", outputSize);
 
   const subtitle = isStructured
     ? `${product?.name ?? "Product"} · ${ptemplate?.variant ?? ""} · ${content.target_language}`
@@ -168,7 +202,7 @@ export default async function ContentDetailPage({
           {content.status === "in_review" && viewerIsApprover && <ApprovalActions id={content.id} />}
           {isStructured && (
             <Link
-              href={`/studio?product=${content.product_id}&template=${content.product_template_id}&content=${content.id}`}
+              href={`/studio?${studioParams?.toString() ?? ""}`}
               className="rounded-control border border-brand bg-brand-tint px-4 py-2.5 text-center text-[13.5px] font-semibold text-brand"
             >
               Preview in Studio
@@ -180,6 +214,7 @@ export default async function ContentDetailPage({
               body={content.body}
               productId={content.product_id}
               templateId={content.product_template_id}
+              outputSize={outputSize}
             />
           )}
           <ContentHistory

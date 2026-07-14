@@ -35,12 +35,16 @@ import {
   vitalBiteLayoutDensity,
   renderVitalBite,
 } from "@/lib/vitalbite-render";
-import { renderPublishedTemplatePackage } from "@/lib/published-template-package";
+import {
+  getPublishedTemplateFrameFieldLimits,
+  renderPublishedTemplatePackage,
+} from "@/lib/published-template-package";
 import { exportCanvas, type ExportFormat } from "@/lib/canvas-export";
 import { fieldLabel, REVISION_OPTIONS } from "@/lib/templates";
 import {
   fieldIssues,
   fieldLimitText,
+  mergeFieldLimits,
   type FieldLimits,
 } from "@/lib/template-fields";
 import {
@@ -67,6 +71,7 @@ type Content = {
   title: string;
   status: string;
   structured_fields: Record<string, string>;
+  outputSize: SizeKey | null;
   manuallyEdited: boolean;
   canEdit: boolean;
 } | null;
@@ -211,6 +216,7 @@ export function StudioEditor({
   selectedProduct,
   selectedTemplate,
   initialContent,
+  initialSize,
   organizationName,
 }: {
   products: Product[];
@@ -218,6 +224,7 @@ export function StudioEditor({
   selectedProduct: Product;
   selectedTemplate: Template;
   initialContent: Content;
+  initialSize: SizeKey | null;
   organizationName: string;
 }) {
   const router = useRouter();
@@ -233,7 +240,9 @@ export function StudioEditor({
     definition: selectedTemplate.template_definition,
     status: "active",
   });
-  const [size, setSize] = useState<SizeKey>(sizes[0]);
+  const [size, setSize] = useState<SizeKey>(
+    initialSize && sizes.includes(initialSize) ? initialSize : sizes[0]
+  );
   const [language, setLanguage] = useState("English");
   const [selectedRevision, setSelectedRevision] = useState<string | null>(null);
   const [mode, setMode] = useState<"original" | "generated">(
@@ -269,6 +278,22 @@ export function StudioEditor({
     [templates, selectedProduct.id]
   );
   const activeFields = draftFields;
+  const activeFieldLimits = useMemo(() => {
+    const frameLimits = isContentGate
+      ? getPublishedTemplateFrameFieldLimits(
+          selectedTemplate.layout_key,
+          size,
+          selectedTemplate.template_definition
+        )
+      : null;
+    return mergeFieldLimits(selectedTemplate.field_limits, frameLimits);
+  }, [
+    isContentGate,
+    selectedTemplate.field_limits,
+    selectedTemplate.layout_key,
+    selectedTemplate.template_definition,
+    size,
+  ]);
   const editablePilot =
     isLiveCanvas &&
     mode === "generated" &&
@@ -280,13 +305,13 @@ export function StudioEditor({
       Object.fromEntries(
         selectedTemplate.editable_fields.map((key) => [
           key,
-          fieldIssues(draftFields[key], selectedTemplate.field_limits[key]),
+          fieldIssues(draftFields[key], activeFieldLimits[key]),
         ])
       ),
     [
+      activeFieldLimits,
       draftFields,
       selectedTemplate.editable_fields,
-      selectedTemplate.field_limits,
     ]
   );
   const hasIssues = selectedTemplate.editable_fields.some(
@@ -473,6 +498,9 @@ export function StudioEditor({
         ? content.structured_fields
         : selectedTemplate.default_copy
     );
+    if (nextMode === "generated" && content?.outputSize) {
+      setSize(content.outputSize);
+    }
     setSaveState("idle");
   }
 
@@ -515,6 +543,7 @@ export function StudioEditor({
         body: JSON.stringify({
           productTemplateId: selectedTemplate.id,
           language,
+          outputSize: size,
           revisions: selectedRevision ? [selectedRevision] : [],
           replaceContentId:
             content &&
@@ -534,6 +563,7 @@ export function StudioEditor({
         title: result.title as string,
         status: "draft",
         structured_fields: result.structured_fields as Record<string, string>,
+        outputSize: (result.outputSize as SizeKey | null) ?? size,
         manuallyEdited: false,
         canEdit: true,
       };
@@ -547,7 +577,7 @@ export function StudioEditor({
       setSelectedRevision(null);
       setPreviewBust(Date.now());
       router.replace(
-        `/studio?product=${selectedProduct.id}&template=${selectedTemplate.id}&content=${nextContent.id}`,
+        `/studio?product=${selectedProduct.id}&template=${selectedTemplate.id}&content=${nextContent.id}&size=${nextContent.outputSize ?? size}`,
         { scroll: false }
       );
     } catch {
@@ -821,7 +851,7 @@ export function StudioEditor({
                 className="flex flex-col gap-1.5 border-b border-edge pb-3 last:border-0 last:pb-0"
               >
                 <span className="text-[11px] font-semibold text-ink-faint">
-                  {fieldLabel(key)} · {fieldLimitText(selectedTemplate.field_limits[key])}
+                  {fieldLabel(key)} · {fieldLimitText(activeFieldLimits[key])}
                 </span>
                 {editablePilot ? (
                   <textarea
@@ -829,7 +859,7 @@ export function StudioEditor({
                     onChange={(event) => updateField(key, event.target.value)}
                     rows={Math.min(
                       5,
-                      Math.max(1, selectedTemplate.field_limits[key]?.max_lines ?? 2)
+                      Math.max(1, activeFieldLimits[key]?.max_lines ?? 2)
                     )}
                     className={`resize-none rounded-control border bg-surface px-3 py-2 text-[12.5px] leading-relaxed outline-none transition-colors ${
                       issuesByField[key].length || overflowFields.includes(key)
@@ -969,9 +999,10 @@ export function StudioEditor({
                 key={key}
                 type="button"
                 onClick={() => setSize(key)}
+                disabled={mode === "generated" && !!content?.outputSize && content.outputSize !== key}
                 className={`rounded-control border px-3 py-2 text-[12px] font-semibold ${
                   size === key ? "border-brand bg-brand-tint text-brand" : "border-edge"
-                }`}
+                } disabled:cursor-not-allowed disabled:opacity-40`}
               >
                 {SIZES[key].label}
               </button>
@@ -980,6 +1011,7 @@ export function StudioEditor({
             {content && mode === "generated" && (
               <span className="rounded-full bg-brand-tint px-2.5 py-1 text-[10.5px] font-bold uppercase text-brand">
                 {content.status}
+                {content.outputSize ? ` · ${SIZES[content.outputSize].label}` : ""}
               </span>
             )}
             {isLiveCanvas && (

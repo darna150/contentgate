@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { fieldLabel } from "@/lib/templates";
 import { originalTemplatePreviewUrl, SIZES } from "@/lib/creative";
-import { defaultTemplateSize } from "@/lib/template-contract";
+import {
+  defaultTemplateSize,
+  getTemplateSupportedSizes,
+} from "@/lib/template-contract";
 import type {
   ProductWorkspace,
   ProductWorkspaceTemplate,
@@ -70,6 +73,12 @@ export function TemplatesView({ workspace }: { workspace: ProductWorkspace }) {
                 definition: t.templateDefinition,
                 status: t.status,
               });
+              const supportedSizes = getTemplateSupportedSizes({
+                layoutKey: t.layoutKey,
+                category: t.category,
+                definition: t.templateDefinition,
+                status: t.status,
+              });
               const dims = SIZES[sizeKey];
               const previewSrc = originalTemplatePreviewUrl(
                 t.id,
@@ -116,6 +125,8 @@ export function TemplatesView({ workspace }: { workspace: ProductWorkspace }) {
                         productId={product.id}
                         templateId={t.id}
                         variant={t.variant}
+                        sizes={supportedSizes}
+                        initialSize={sizeKey}
                         compact
                       />
                     )}

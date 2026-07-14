@@ -1,6 +1,7 @@
 import React from "react";
 
 import { fitCopy } from "./render-copy";
+import type { FieldLimits } from "./template-fields";
 import {
   TEMPLATE_OUTPUT_SIZES,
   type TemplateSizeKey,
@@ -116,6 +117,7 @@ const RUST = "#B85D40";
 const MUTED = "#52615B";
 const WHITE = "#FFFFFF";
 const LINE = "#DCE5DE";
+const INTER_STACK = '"Inter", "ContentGate Sans", ui-sans-serif, system-ui, sans-serif';
 
 function cleanText(value: unknown) {
   return String(value ?? "").replace(/\s+/g, " ").trim();
@@ -132,6 +134,35 @@ function fitText(value: unknown, slot: TextSlot) {
   const clipped = wrapped.slice(0, slot.maxChars).trimEnd();
   const boundary = clipped.lastIndexOf(" ");
   return boundary > slot.maxChars * 0.55 ? clipped.slice(0, boundary) : clipped;
+}
+
+function resolvePublishedFrame(
+  layoutKey: string,
+  sizeKey: TemplateSizeKey,
+  definition?: unknown
+) {
+  const resolved = resolvePublishedTemplatePackage(layoutKey, definition);
+  const fallback = PACKAGE_REGISTRY[layoutKey] ?? null;
+  const pkg = resolved?.frames[sizeKey] ? resolved : fallback;
+  return { pkg, frameSpec: pkg?.frames[sizeKey] ?? null };
+}
+
+export function getPublishedTemplateFrameFieldLimits(
+  layoutKey: string,
+  sizeKey: TemplateSizeKey,
+  definition?: unknown
+): FieldLimits | null {
+  const { frameSpec } = resolvePublishedFrame(layoutKey, sizeKey, definition);
+  if (!frameSpec) return null;
+  return Object.fromEntries(
+    frameSpec.textSlots.map((slot) => [
+      slot.field,
+      {
+        max_chars: slot.maxChars,
+        max_lines: slot.maxLines,
+      },
+    ])
+  );
 }
 
 function BrandMark({
@@ -360,6 +391,8 @@ function renderLayer(layer: Layer, index: number) {
 }
 
 function renderTextSlot(slot: TextSlot, fields: Record<string, string>) {
+  const family = slot.family ? `"${slot.family}", ${INTER_STACK}` : INTER_STACK;
+
   return (
     <div
       key={slot.field}
@@ -370,11 +403,11 @@ function renderTextSlot(slot: TextSlot, fields: Record<string, string>) {
         top: slot.y,
         width: slot.w,
         height: slot.h,
-        overflow: "visible",
+        overflow: "hidden",
         color: slot.color,
         display: "flex",
         flexDirection: "column",
-        fontFamily: slot.family ?? "ContentGate Sans",
+        fontFamily: family,
         fontSize: slot.fontSize,
         fontWeight: slot.weight,
         lineHeight: slot.lineHeight,
@@ -397,6 +430,9 @@ function renderTextSlot(slot: TextSlot, fields: Record<string, string>) {
           display: "flex",
           width: "100%",
           height: "100%",
+          maxWidth: "100%",
+          maxHeight: "100%",
+          overflow: "hidden",
           alignItems:
             slot.verticalAlign === "top"
               ? "flex-start"
@@ -410,6 +446,8 @@ function renderTextSlot(slot: TextSlot, fields: Record<string, string>) {
                 ? "flex-end"
                 : "flex-start",
           textAlign: slot.align ?? "left",
+          whiteSpace: "pre-wrap",
+          wordBreak: "normal",
         }}
       >
         {fitText(fields[slot.field], slot)}
@@ -549,7 +587,7 @@ function friendlyPackage(): PublishedTemplatePackage {
           { kind: "rule", x: 190, y: 18, w: 5, h: 54, color: RUST },
         ],
         [
-          { field: "headline", x: 250, y: 16, w: 355, h: 28, fontSize: 20, lineHeight: 1.04, weight: 700, color: GREEN, maxChars: 42, maxLines: 1, family: "Inter" },
+          { field: "headline", x: 250, y: 16, w: 355, h: 28, fontSize: 20, lineHeight: 1.04, weight: 700, color: GREEN, maxChars: 31, maxLines: 1, lineChars: 31, family: "Inter" },
           { field: "subheadline", x: 250, y: 46, w: 260, h: 20, fontSize: 13, lineHeight: 1.04, weight: 400, color: MUTED, maxChars: 78, maxLines: 1, lineChars: 42, family: "Inter" },
           { field: "cta", x: 560, y: 24, w: 132, h: 42, fontSize: 15, lineHeight: 1.04, weight: 600, color: WHITE, maxChars: 18, maxLines: 1, align: "center", family: "Inter" },
         ],
@@ -730,10 +768,11 @@ export function stripInternalTemplateDefinition(
 export function renderPublishedTemplatePackage(
   input: TemplateRenderInput
 ): RenderResult | null {
-  const resolved = resolvePublishedTemplatePackage(input.layoutKey, input.definition);
-  const fallback = PACKAGE_REGISTRY[input.layoutKey] ?? null;
-  const pkg = resolved?.frames[input.sizeKey] ? resolved : fallback;
-  const frameSpec = pkg?.frames[input.sizeKey];
+  const { pkg, frameSpec } = resolvePublishedFrame(
+    input.layoutKey,
+    input.sizeKey,
+    input.definition
+  );
   if (!pkg || !frameSpec) return null;
   const dimensions = TEMPLATE_OUTPUT_SIZES[input.sizeKey];
   const renderedImage = input.original

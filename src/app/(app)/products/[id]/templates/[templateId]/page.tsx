@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { originalTemplatePreviewUrl, SIZES } from "@/lib/creative";
 import {
-  defaultSizeFor,
-  originalTemplatePreviewUrl,
-  SIZES,
-} from "@/lib/creative";
+  defaultTemplateSize,
+  getTemplateSupportedSizes,
+} from "@/lib/template-contract";
 import { getProductWorkspace } from "@/lib/product-workspace-server";
 import { resolveEffectiveFieldLimits } from "@/lib/template-specs";
 import { fieldLabel } from "@/lib/templates";
@@ -34,7 +34,18 @@ export default async function ProductTemplatePage({
     template.fieldLimits
   );
   const locked = template.lockedFields;
-  const sizeKey = defaultSizeFor(template.category);
+  const sizeKey = defaultTemplateSize({
+    layoutKey: template.layoutKey,
+    category: template.category,
+    definition: template.templateDefinition,
+    status: template.status,
+  });
+  const supportedSizes = getTemplateSupportedSizes({
+    layoutKey: template.layoutKey,
+    category: template.category,
+    definition: template.templateDefinition,
+    status: template.status,
+  });
   const size = SIZES[sizeKey];
   const preview = originalTemplatePreviewUrl(
     template.id,
@@ -81,7 +92,7 @@ export default async function ProductTemplatePage({
           <div className="flex flex-wrap gap-2">
             {canGenerate && (
               <Link
-                href={`/studio?product=${id}&template=${template.id}`}
+                href={`/studio?product=${id}&template=${template.id}&size=${sizeKey}`}
                 className="flex-1 rounded-control bg-brand px-4 py-2.5 text-center text-[13.5px] font-semibold text-white"
               >
                 Open in Studio
@@ -142,6 +153,8 @@ export default async function ProductTemplatePage({
                 productId={product.id}
                 templateId={template.id}
                 variant={template.variant}
+                sizes={supportedSizes}
+                initialSize={sizeKey}
               />
             )}
           </div>

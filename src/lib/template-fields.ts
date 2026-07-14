@@ -11,6 +11,34 @@ export type FieldIssue = {
   message: string;
 };
 
+function minDefined(a?: number, b?: number) {
+  if (a == null) return b;
+  if (b == null) return a;
+  return Math.min(a, b);
+}
+
+export function mergeFieldLimit(
+  base: FieldLimit | undefined,
+  frame: FieldLimit | undefined
+): FieldLimit | undefined {
+  if (!base && !frame) return undefined;
+  return {
+    max_chars: minDefined(base?.max_chars, frame?.max_chars),
+    max_words: minDefined(base?.max_words, frame?.max_words),
+    max_lines: minDefined(base?.max_lines, frame?.max_lines),
+  };
+}
+
+export function mergeFieldLimits(base: FieldLimits, frame: FieldLimits | null): FieldLimits {
+  if (!frame) return base;
+  const merged: FieldLimits = { ...base };
+  for (const key of new Set([...Object.keys(base), ...Object.keys(frame)])) {
+    const limit = mergeFieldLimit(base[key], frame[key]);
+    if (limit) merged[key] = limit;
+  }
+  return merged;
+}
+
 export function fieldLimitText(limit?: FieldLimit): string {
   if (!limit) return "No configured limit";
   const parts: string[] = [];

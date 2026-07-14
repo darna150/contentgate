@@ -4,10 +4,17 @@ import { flattenFields, revisionInstruction, type Evidence } from "@/lib/templat
 import {
   fieldLimitInstruction,
   fitTemplateFields,
+  mergeFieldLimits,
   type FieldLimits,
 } from "@/lib/template-fields";
 import { resolveEffectiveFieldLimits } from "@/lib/template-specs";
-import { isTemplateContractReady } from "@/lib/template-contract";
+import {
+  isTemplateContractReady,
+  isTemplateSizeAllowed,
+  TEMPLATE_OUTPUT_SIZES,
+  type TemplateSizeKey,
+} from "@/lib/template-contract";
+import { getPublishedTemplateFrameFieldLimits } from "@/lib/published-template-package";
 import { isProductLifecycleActive } from "@/lib/product-workspace";
 import { consumeApiRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
@@ -17,6 +24,7 @@ export const maxDuration = 60;
 type Body = {
   productTemplateId: string;
   language?: string;
+  outputSize?: string;
   revisions?: string[]; // controlled revision keys, applied as extra instructions
   replaceContentId?: string; // when revising, update this draft in place
 };
@@ -69,6 +77,12 @@ function filterApprovedEvidence(
   });
 }
 
+function asTemplateSizeKey(value: unknown): TemplateSizeKey | null {
+  return typeof value === "string" && value in TEMPLATE_OUTPUT_SIZES
+    ? (value as TemplateSizeKey)
+    : null;
+}
+
 export async function POST(req: Request) {
   if (!process.env.ANTHROPIC_API_KEY) {
     return Response.json({ error: "Generation is not configured." }, { status: 503 });
@@ -97,6 +111,7 @@ export async function POST(req: Request) {
   const {
     productTemplateId,
     language = "English",
+    outputSize,
     revisions = [],
     replaceContentId,
   } = requestBody;
@@ -127,6 +142,24 @@ export async function POST(req: Request) {
     .eq("status", "active")
     .single();
   if (!tpl) return Response.json({ error: "Template not found." }, { status: 404 });
+  const outputSizeKey = asTemplateSizeKey(outputSize);
+  if (outputSize != null && !outputSizeKey) {
+    return Response.json({ error: "Unsupported output size." }, { status: 400 });
+  }
+  if (
+    outputSizeKey &&
+    !isTemplateSizeAllowed(
+      {
+        layoutKey: tpl.layout_key,
+        category: tpl.category,
+        definition: tpl.template_definition,
+        status: "active",
+      },
+      outputSizeKey
+    )
+  ) {
+    return Response.json({ error: "Unsupported output size for this template." }, { status: 400 });
+  }
 
   const templateReady = isTemplateContractReady({
     layoutKey: tpl.layout_key,
@@ -167,10 +200,18 @@ export async function POST(req: Request) {
   ]);
 
   const editableFields = (tpl.editable_fields as string[]) ?? [];
-  const fieldLimits = resolveEffectiveFieldLimits(
+  const baseFieldLimits = resolveEffectiveFieldLimits(
     tpl.layout_key,
     (tpl.field_limits ?? {}) as FieldLimits
   );
+  const frameFieldLimits = outputSizeKey
+    ? getPublishedTemplateFrameFieldLimits(
+        tpl.layout_key,
+        outputSizeKey,
+        tpl.template_definition
+      )
+    : null;
+  const fieldLimits = mergeFieldLimits(baseFieldLimits, frameFieldLimits);
   const defaultCopy = (tpl.default_copy ?? {}) as Record<string, string>;
   const approvedClaims = (claims ?? []).map((c) => c.claim_text);
   const sourceDocs = docs ?? [];
@@ -210,6 +251,9 @@ export async function POST(req: Request) {
     ``,
     `TASK: ${tpl.generation_instructions}`,
     extraInstructions ? `\nADDITIONAL DIRECTION: ${extraInstructions}` : ``,
+    outputSizeKey
+      ? `\nSELECTED OUTPUT SIZE: ${TEMPLATE_OUTPUT_SIZES[outputSizeKey].label} (${TEMPLATE_OUTPUT_SIZES[outputSizeKey].w}x${TEMPLATE_OUTPUT_SIZES[outputSizeKey].h}). Generate copy only for this size and stay inside its field limits.`
+      : ``,
     ``,
     `Produce exactly these fields: ${editableFields.join(", ")}.`,
     `FIELD LIMITS:`,
@@ -329,6 +373,7 @@ export async function POST(req: Request) {
         source_document_ids: sourceDocs.map((d) => d.id),
         prompt_context: {
           language,
+          output_size: outputSizeKey,
           revisions,
           field_limits: fieldLimits,
           generated_fields: structured,
@@ -366,6 +411,7 @@ export async function POST(req: Request) {
         target_language: language,
         prompt_context: {
           language,
+          output_size: outputSizeKey,
           revisions,
           field_limits: fieldLimits,
           generated_fields: structured,
@@ -391,6 +437,7 @@ export async function POST(req: Request) {
   return Response.json({
     contentId: row.id,
     structured_fields: structured,
+    outputSize: outputSizeKey,
     evidence,
     title,
   });
