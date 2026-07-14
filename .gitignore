@@ -22,6 +22,7 @@
 
 # misc
 .DS_Store
+.tools/figwright/figwright-plugin-v0.3.0.zip
 *.pem
 
 # debug

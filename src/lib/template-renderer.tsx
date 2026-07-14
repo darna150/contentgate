@@ -4,6 +4,9 @@ import { renderApexCanine } from "./apex-canine-render";
 import { loadApexCanineFonts } from "./apex-canine-fonts";
 import { renderCaniGuard5 } from "./caniguard5-render";
 import { loadCaniGuard5Fonts } from "./caniguard5-fonts";
+import { renderContentGate } from "./contentgate-render";
+import { loadContentGateFonts } from "./contentgate-fonts";
+import { renderPublishedTemplatePackage } from "./published-template-package";
 import {
   getTemplateLayoutContract,
   type TemplateSizeKey,
@@ -21,6 +24,7 @@ export type TemplateRenderInput = {
   disclaimer: string;
   origin: string;
   original?: boolean;
+  definition?: unknown;
 };
 
 export type TemplateRenderResult = {
@@ -51,6 +55,21 @@ export async function renderContractTemplate(
     return {
       ...rendered,
       fonts: (await loadCaniGuard5Fonts()) as ImageResponseFont[],
+    };
+  }
+  if (contract.renderer === "contentgate") {
+    const rendered = renderContentGate(input);
+    return {
+      ...rendered,
+      fonts: (await loadContentGateFonts()) as ImageResponseFont[],
+    };
+  }
+  if (contract.renderer === "published-design") {
+    const rendered = renderPublishedTemplatePackage(input);
+    if (!rendered) return null;
+    return {
+      ...rendered,
+      fonts: (await loadContentGateFonts()) as ImageResponseFont[],
     };
   }
 

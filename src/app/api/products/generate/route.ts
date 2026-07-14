@@ -195,8 +195,8 @@ export async function POST(req: Request) {
     .join(" ");
 
   const system = [
-    `You write compliant marketing copy for the animal-health product "${product.name}".`,
-    `Use ONLY the approved claims and approved source text provided. Never invent claims, figures, dosages, species, or regulatory statements. If a benefit is not supported by an approved claim, do not make it.`,
+    `You write compliant brand-content and localized marketing copy for "${product.name}".`,
+    `Use ONLY the approved claims and approved source text provided. Never invent features, integrations, pricing, customer guarantees, legal claims, or workflow capabilities. If a benefit is not supported by an approved claim or source, do not make it.`,
     `Write in ${language}.`,
     `Return your answer only through the provided tool.`,
   ].join(" ");

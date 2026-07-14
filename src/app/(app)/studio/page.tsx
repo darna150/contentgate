@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { stripInternalTemplateDefinition } from "@/lib/published-template-package";
 import { isTemplateContractReady } from "@/lib/template-contract";
 import { resolveEffectiveFieldLimits } from "@/lib/template-specs";
 import { StudioEditor } from "./studio-editor";
@@ -61,7 +62,13 @@ export default async function StudioPage({
         console.error("Active template failed the engine contract:", template.id);
       }
       return ready;
-    });
+    })
+    .map((template) => ({
+      ...template,
+      template_definition: stripInternalTemplateDefinition(
+        template.template_definition
+      ),
+    }));
 
   const { data: requestedContent } = query.content
     ? await supabase

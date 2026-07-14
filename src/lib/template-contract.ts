@@ -4,8 +4,12 @@ export const TEMPLATE_CONTRACT_VERSION = 1 as const;
 
 export const TEMPLATE_OUTPUT_SIZES = {
   square: { label: "Square", w: 1080, h: 1080 },
+  portrait: { label: "Portrait", w: 1080, h: 1350 },
   story: { label: "Story", w: 1080, h: 1920 },
   feed: { label: "Feed", w: 1200, h: 630 },
+  link_ad: { label: "Link Ad", w: 1200, h: 628 },
+  leaderboard: { label: "Leaderboard", w: 728, h: 90 },
+  medium_rectangle: { label: "Medium Rectangle", w: 300, h: 250 },
   a4: { label: "A4 Flyer", w: 1240, h: 1754 },
 } as const;
 
@@ -60,7 +64,7 @@ export type TemplateContractIssue = {
 export type TemplateLayoutContract = {
   layoutKey: string;
   engine: "react-image-v1";
-  renderer: "apex-canine" | "caniguard5" | "vitalbite";
+  renderer: "apex-canine" | "caniguard5" | "contentgate" | "published-design" | "vitalbite";
   sizes: readonly TemplateSizeKey[];
   editableFields: readonly string[];
   requiredLockedFields: readonly string[];
@@ -157,6 +161,46 @@ export const TEMPLATE_LAYOUT_CONTRACTS: Record<string, TemplateLayoutContract> =
       "layout",
       "typography",
       "colors",
+    ],
+    layoutPolicy: "locked_adaptive_presets",
+    layoutPresets: ADAPTIVE_PRESETS,
+    overflowPolicy: "block_save_review_and_export",
+    liveCanvas: true,
+  },
+  contentgate_local_friendly: {
+    layoutKey: "contentgate_local_friendly",
+    engine: "react-image-v1",
+    renderer: "published-design",
+    sizes: ["square", "story", "link_ad", "leaderboard", "medium_rectangle"],
+    editableFields: ["headline", "subheadline", "local_detail", "cta", "proof_note"],
+    requiredLockedFields: [
+      "logo",
+      "screen_image",
+      "layout",
+      "typography",
+      "colors",
+      "brand_controls",
+      "approval_flow",
+    ],
+    layoutPolicy: "locked_adaptive_presets",
+    layoutPresets: ADAPTIVE_PRESETS,
+    overflowPolicy: "block_save_review_and_export",
+    liveCanvas: true,
+  },
+  contentgate_local_premium: {
+    layoutKey: "contentgate_local_premium",
+    engine: "react-image-v1",
+    renderer: "published-design",
+    sizes: ["square", "portrait", "story", "link_ad", "medium_rectangle"],
+    editableFields: ["headline", "subheadline", "local_detail", "cta", "proof_note"],
+    requiredLockedFields: [
+      "logo",
+      "screen_image",
+      "layout",
+      "typography",
+      "colors",
+      "brand_controls",
+      "approval_flow",
     ],
     layoutPolicy: "locked_adaptive_presets",
     layoutPresets: ADAPTIVE_PRESETS,

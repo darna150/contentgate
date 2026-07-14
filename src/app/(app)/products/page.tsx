@@ -30,7 +30,11 @@ export default async function ProductsPage() {
       const ids = products.map((p) => p.id);
       const [{ data: claims }, { data: tpls }] = await Promise.all([
         supabase.from("product_claims").select("product_id").in("product_id", ids),
-        supabase.from("product_templates").select("product_id").in("product_id", ids),
+        supabase
+          .from("product_templates")
+          .select("product_id")
+          .in("product_id", ids)
+          .eq("status", "active"),
       ]);
       counts = Object.fromEntries(products.map((p) => [p.id, { claims: 0, templates: 0 }]));
       for (const c of claims ?? []) counts[c.product_id].claims++;

@@ -49,6 +49,7 @@ export default async function ApprovalsPage({
           "id, title, target_language, audience, created_at, templates(name), product_templates(variant), creator:profiles!generated_content_created_by_fkey(full_name)"
         )
         .eq("status", "in_review")
+        .not("product_id", "is", null)
         .order("created_at", { ascending: true });
       rows = (data ?? []).map((row) => ({
         id: row.id,

@@ -1,20 +1,21 @@
 # Template Onboarding Standard
 
-Last updated: 2026-07-13
+Last updated: 2026-07-14
 
 ## Reference Pattern
 
-Apex Canine is the approved reference implementation. Every new production product/template should follow the same pattern before it is activated in the UI.
+The approved reference pattern is now a published template package. Figma remains the internal design source; ContentGate clients see only approved template sets, controlled editable slots, approvals, and exports.
 
 ## Required Inputs
 
 - Product or brand workspace.
-- Approved Figma reference frames. Canva may remain as legacy reference metadata during migration.
-- Locked artwork/background assets.
+- Approved Figma reference frames.
+- Locked artwork/background assets or exported locked frame backgrounds.
 - Product images and logos.
 - Product-specific fonts.
 - Approved source documents and claims.
 - Field list for editable copy.
+- Optional approved image-slot list and crop rules.
 - Field limits and line limits.
 - Export sizes.
 
@@ -22,9 +23,9 @@ Apex Canine is the approved reference implementation. Every new production produ
 
 1. Add product-specific font files under `public/fonts` when needed.
 2. Declare the exact browser font families in `src/app/globals.css`.
-3. Register the layout, exact output sizes, fields, locks, and renderer in `src/lib/template-contract.ts`.
-4. Add or update the product renderer in `src/lib` and route it through `src/lib/template-renderer.tsx`.
-5. Define a renderer `CONTRACTS` object for pixel-exact text zones.
+3. Register the layout, exact output sizes, fields, locks, and `published-design` renderer in `src/lib/template-contract.ts`.
+4. Publish the template geometry through `template_definition.published_package` or add a temporary package registry entry in `src/lib/published-template-package.tsx`.
+5. Define exact text slots and image slots for every output size.
 6. Add short, standard, and long density presets only when the approved design needs them.
 7. Run `fitCopy()` or equivalent field fitting on every editable text field.
 8. Set `overflow: hidden` only as a guard, not as a substitute for correct contracts.
@@ -40,6 +41,7 @@ Apex Canine is the approved reference implementation. Every new production produ
    - `template_definition.engine`
    - `template_definition.sizes`
    - `template_definition.design_source`
+   - `template_definition.published_package`
 11. Keep templates inactive until the contract validator accepts them.
 12. Add the layout and every output size to the automated render/stress matrix.
 13. Verify generated preview updates after regeneration.
@@ -55,7 +57,8 @@ A template should only become active when:
 - Draft/rejected content cannot be exported through direct URLs.
 - The approved export path has been tested.
 - The Figma frame IDs and exported locked assets match the registered sizes.
+- Internal design provenance is not sent to client-facing Studio/workspace props.
 
 ## Claude Code Notes
 
-Claude Code should handle visual calibration after the approved Figma frames exist. It should not loosen the template contract, backend approval, RLS, or export constraints to make a UI easier to demo.
+Claude Code should handle visual calibration after the approved Figma frames exist. It should not loosen the template contract, backend approval, RLS, or export constraints to make a UI easier to demo, and it should not create new product-specific renderers for normal client template refreshes.

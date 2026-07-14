@@ -14,6 +14,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createProductAssetPreviewUrlMap } from "@/lib/product-assets-server";
 import type { FieldLimits } from "@/lib/template-fields";
 import { isTemplateContractReady } from "@/lib/template-contract";
+import { stripInternalTemplateDefinition } from "@/lib/published-template-package";
 
 type Joined<T> = T | T[] | null;
 
@@ -275,6 +276,8 @@ export async function getProductWorkspace(
     const fieldLimits = (template.field_limits ?? {}) as FieldLimits;
     const lockedFields = (template.locked_fields ?? []) as string[];
     const templateDefinition = (template.template_definition ?? {}) as Record<string, unknown>;
+    const clientTemplateDefinition =
+      stripInternalTemplateDefinition(templateDefinition);
     return {
       id: template.id,
       category: template.category,
@@ -285,7 +288,7 @@ export async function getProductWorkspace(
       defaultCopy: (template.default_copy ?? {}) as Record<string, string>,
       fieldLimits,
       lockedFields,
-      templateDefinition,
+      templateDefinition: clientTemplateDefinition,
       contractReady: isTemplateContractReady({
         layoutKey: template.layout_key,
         category: template.category,

@@ -71,12 +71,12 @@ export async function POST(req: Request) {
   const approvedContext = buildKnowledgeContext(evidence);
 
   const system = `You are a product knowledge assistant for ${product.name}.
-Your role is to answer questions from field representatives, distributors, and marketing teams.
+Your role is to answer questions from brand, content, regional, and local marketing teams.
 
 STRICT RULES:
 - Answer ONLY from the approved sources below. Never invent claims, data, or specifications.
 - If the answer is not in the approved sources, set not_found to true and say so clearly.
-- Be concise, direct, and helpful. Write for someone who needs a quick, reliable answer in the field.
+- Be concise, direct, and helpful. Write for someone creating localized brand content.
 - Cite every supported answer using the exact document_id and paragraph number shown below.
 - The citation excerpt must be an exact passage from that paragraph.
 
@@ -113,7 +113,7 @@ ${product.disclaimer_text ? `MANDATORY DISCLAIMER (always applies): ${product.di
             answer: {
               type: "string",
               description:
-                "A clear, direct answer for a field rep or distributor. Plain language.",
+                "A clear, direct answer for a brand, content, regional, or local marketing teammate. Plain language.",
             },
             citations: {
               type: "array",
