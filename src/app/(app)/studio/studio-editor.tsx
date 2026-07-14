@@ -780,7 +780,7 @@ export function StudioEditor({
         </label>
       </div>
 
-      <div className="grid grid-cols-[320px_1fr] items-start gap-6">
+      <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
         <div className="flex flex-col gap-5">
           <div className="flex flex-col gap-3 rounded-card border border-edge bg-surface p-5">
             <div className="grid grid-cols-2 rounded-control bg-page p-1">
@@ -1034,9 +1034,11 @@ export function StudioEditor({
           </div>
         </div>
 
-        <div className="flex flex-col gap-4">
-          <div className="flex items-center gap-2 rounded-card border border-edge bg-surface p-3">
-            <span className="px-1 text-[12px] font-semibold text-ink-muted">Output size</span>
+        <div className="flex min-w-0 flex-col gap-4">
+          <div className="flex flex-wrap items-center gap-2 rounded-card border border-edge bg-surface p-3">
+            <span className="px-1 text-[12px] font-semibold text-ink-muted">
+              Output size
+            </span>
             {sizes.map((key) => (
               <button
                 key={key}
@@ -1050,7 +1052,7 @@ export function StudioEditor({
                 {SIZES[key].label}
               </button>
             ))}
-            <div className="flex-1" />
+            <div className="hidden flex-1 xl:block" />
             {content && mode === "generated" && (
               <span className="rounded-full bg-brand-tint px-2.5 py-1 text-[10.5px] font-bold uppercase text-brand">
                 {content.status}

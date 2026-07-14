@@ -239,7 +239,7 @@ export default async function ContentDetailPage({
         </div>
       )}
 
-      <div className="grid grid-cols-[1.6fr_1fr] items-start gap-5">
+      <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-[minmax(0,1.6fr)_minmax(320px,1fr)]">
         <div className="min-w-0">
           {platformPreview && (
             <div className="mb-5 flex flex-col gap-3 rounded-card border border-edge bg-surface p-4">
@@ -294,7 +294,7 @@ export default async function ContentDetailPage({
           )}
         </div>
 
-        <div className="flex flex-col gap-5">
+        <div className="min-w-0 flex flex-col gap-5">
           {content.status === "in_review" && viewerIsApprover && <ApprovalActions id={content.id} />}
           {(studioParams || platformStudioParams) && (
             <Link
