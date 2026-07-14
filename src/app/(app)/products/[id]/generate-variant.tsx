@@ -5,6 +5,12 @@ import { useState } from "react";
 import { SIZES, type SizeKey } from "@/lib/creative";
 
 const LANGUAGES = ["English", "Filipino", "Spanish", "Portuguese", "Vietnamese", "Thai"];
+const LOADER_MESSAGES = [
+  "Reading approved sources",
+  "Writing copy for the selected size",
+  "Checking the locked template fields",
+  "Opening Studio preview",
+] as const;
 
 export function GenerateVariant({
   productId,
@@ -77,6 +83,40 @@ export function GenerateVariant({
 
   return (
     <div className="flex shrink-0 items-center gap-2">
+      {busy && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-page/75 p-6 backdrop-blur-[3px]"
+          role="status"
+          aria-live="polite"
+          aria-label="Generating template preview"
+        >
+          <div className="flex w-full max-w-[380px] flex-col items-center gap-4 rounded-card border border-edge bg-surface px-7 py-6 text-center shadow-xl">
+            <div className="relative flex h-12 w-12 items-center justify-center">
+              <span className="absolute inset-0 animate-ping rounded-full bg-brand/15 motion-reduce:animate-none" />
+              <span className="relative flex h-10 w-10 items-center justify-center rounded-full bg-brand text-lg font-bold text-white">
+                C
+              </span>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <p className="text-[14px] font-bold text-ink">Generating your draft</p>
+              <p className="text-[12.5px] text-ink-muted">
+                This can take a moment while ContentGate fits copy to the selected format.
+              </p>
+            </div>
+            <div className="grid w-full gap-2 text-left">
+              {LOADER_MESSAGES.map((message, index) => (
+                <div key={message} className="flex items-center gap-2 text-[12px] text-ink-muted">
+                  <span
+                    className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand"
+                    style={{ animationDelay: `${index * 180}ms` }}
+                  />
+                  {message}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
       <select
         value={outputSize}
         onChange={(e) => setOutputSize(e.target.value as SizeKey)}

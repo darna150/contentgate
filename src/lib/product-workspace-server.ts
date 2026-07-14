@@ -19,9 +19,7 @@ import {
   normalizeTemplatePlatformAssignment,
   type TemplatePlatformAssignmentRow,
 } from "@/lib/template-platform/assignments";
-import {
-  createTemplateBundleAssetUrlMap,
-} from "@/lib/template-platform/storage-urls";
+import type { TemplateBundleManifest } from "@/lib/template-platform/manifest";
 
 type Joined<T> = T | T[] | null;
 
@@ -188,6 +186,19 @@ function assertQuery(error: { message: string } | null, label: string) {
   if (error) throw new Error(`Could not load workspace ${label}: ${error.message}`);
 }
 
+function publicTemplateBundleAssetPath(
+  manifest: TemplateBundleManifest,
+  assetPath: string
+) {
+  return [
+    "",
+    "template-bundles",
+    manifest.family.key,
+    manifest.version.name,
+    assetPath,
+  ].join("/");
+}
+
 export async function getProductWorkspace(
   productId: string
 ): Promise<ProductWorkspace | null> {
@@ -342,10 +353,6 @@ export async function getProductWorkspace(
   const normalizedPlatformTemplates = ((platformTemplateResult.data ?? []) as TemplatePlatformAssignmentRow[])
     .map(normalizeTemplatePlatformAssignment)
     .filter((template): template is NonNullable<typeof template> => Boolean(template));
-  const templateBundlePreviewUrls = await createTemplateBundleAssetUrlMap(
-    supabase,
-    normalizedPlatformTemplates.map((template) => template.manifest)
-  );
   const platformTemplates = normalizedPlatformTemplates.map((template) => {
       const fieldsBySize = Object.fromEntries(
         template.supportedSizes.map((size) => {
@@ -362,7 +369,10 @@ export async function getProductWorkspace(
           const asset = variant
             ? template.manifest.assets.find((item) => item.key === variant.referenceAsset)
             : null;
-          return [size, asset ? templateBundlePreviewUrls.get(asset.path) ?? "" : ""];
+          return [
+            size,
+            asset ? publicTemplateBundleAssetPath(template.manifest, asset.path) : "",
+          ];
         })
       );
       const backgroundAssetBySize = Object.fromEntries(
@@ -371,7 +381,10 @@ export async function getProductWorkspace(
           const asset = variant
             ? template.manifest.assets.find((item) => item.key === variant.backgroundAsset)
             : null;
-          return [size, asset ? templateBundlePreviewUrls.get(asset.path) ?? "" : ""];
+          return [
+            size,
+            asset ? publicTemplateBundleAssetPath(template.manifest, asset.path) : "",
+          ];
         })
       );
       return {

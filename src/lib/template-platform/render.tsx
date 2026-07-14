@@ -10,6 +10,27 @@ export type TemplateBundleRenderResult = {
 };
 
 const INTER_STACK = `"Inter", "ContentGate Sans", ui-sans-serif, system-ui, sans-serif`;
+const CONTENTGATE_LOGO_SRC = "/brand/contentgate/logo-primary-transparent.svg";
+
+const CONTENTGATE_LOGO_OVERLAYS: Record<
+  string,
+  Record<string, { x: number; y: number; width: number; height: number }>
+> = {
+  "contentgate-local-friendly": {
+    square: { x: 97, y: 84, width: 242, height: 49 },
+    story: { x: 97, y: 142, width: 260, height: 52 },
+    link_ad: { x: 72, y: 52, width: 220, height: 44 },
+    leaderboard: { x: 42, y: 22, width: 178, height: 36 },
+    medium_rectangle: { x: 50, y: 29, width: 156, height: 31 },
+  },
+  "contentgate-local-premium": {
+    square: { x: 72, y: 86, width: 242, height: 49 },
+    portrait: { x: 81, y: 96, width: 250, height: 50 },
+    story: { x: 86, y: 142, width: 260, height: 52 },
+    link_ad: { x: 66, y: 54, width: 220, height: 44 },
+    medium_rectangle: { x: 22, y: 32, width: 142, height: 28 },
+  },
+};
 
 function slotFontWeight(slot: TemplateBundleTextSlot) {
   return slot.fontKey.includes("bold")
@@ -93,6 +114,10 @@ function resolveImageSource(path: string, assetUrlByPath?: Record<string, string
   return `/${path}`;
 }
 
+function contentGateLogoOverlay(familyKey: string, variantKey: string) {
+  return CONTENTGATE_LOGO_OVERLAYS[familyKey]?.[variantKey] ?? null;
+}
+
 export function renderTemplateBundleVariant(input: {
   manifest: TemplateBundleManifest;
   variantKey: string;
@@ -105,6 +130,9 @@ export function renderTemplateBundleVariant(input: {
   const imagePath = input.original
     ? runtime.referenceAssetPath
     : runtime.backgroundAssetPath;
+  const logoOverlay = input.original
+    ? null
+    : contentGateLogoOverlay(input.manifest.family.key, input.variantKey);
 
   return {
     width: runtime.variant.width,
@@ -133,6 +161,24 @@ export function renderTemplateBundleVariant(input: {
             objectFit: "fill",
           }}
         />
+        {logoOverlay && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={CONTENTGATE_LOGO_SRC}
+            alt=""
+            aria-hidden="true"
+            style={{
+              position: "absolute",
+              left: logoOverlay.x,
+              top: logoOverlay.y,
+              width: logoOverlay.width,
+              height: logoOverlay.height,
+              display: "block",
+              objectFit: "contain",
+              pointerEvents: "none",
+            }}
+          />
+        )}
         {!input.original &&
           runtime.variant.slots
             .filter((slot): slot is TemplateBundleTextSlot => slot.kind === "text")
