@@ -1,24 +1,7 @@
-import Link from "next/link";
-import { fieldLabel } from "@/lib/templates";
-import { originalTemplatePreviewUrl, SIZES } from "@/lib/creative";
-import {
-  defaultTemplateSize,
-  getTemplateSupportedSizes,
-} from "@/lib/template-contract";
-import type {
-  ProductWorkspace,
-  ProductWorkspaceTemplate,
-} from "@/lib/product-workspace-server";
+import { SIZES } from "@/lib/creative";
+import type { ProductWorkspace } from "@/lib/product-workspace-server";
 import { GenerateVariant } from "../generate-variant";
 import { SectionEmpty } from "./empty-state";
-
-const CATEGORY_LABELS: Record<string, string> = {
-  social: "Social",
-  flyer: "Flyer",
-  one_pager: "One-pager",
-  email: "Email",
-  presentation: "Presentation",
-};
 
 function imageSrc(path: string) {
   if (path.startsWith("http://") || path.startsWith("https://") || path.startsWith("/")) {
@@ -28,11 +11,11 @@ function imageSrc(path: string) {
 }
 
 export function TemplatesView({ workspace }: { workspace: ProductWorkspace }) {
-  const { product, activeTemplates, activePlatformTemplates, permissions, sections } = workspace;
+  const { product, activePlatformTemplates, permissions, sections } = workspace;
   const canGenerate = permissions.canGenerateContent;
   const isArchived = product.status === "archived";
 
-  if (activeTemplates.length === 0 && activePlatformTemplates.length === 0) {
+  if (activePlatformTemplates.length === 0) {
     return (
       <SectionEmpty
         code="configure_template"
@@ -40,12 +23,6 @@ export function TemplatesView({ workspace }: { workspace: ProductWorkspace }) {
         actionLabel={sections.templates.canAct ? "Configure a template" : undefined}
       />
     );
-  }
-
-  const byCategory = new Map<string, ProductWorkspaceTemplate[]>();
-  for (const t of activeTemplates) {
-    if (!byCategory.has(t.category)) byCategory.set(t.category, []);
-    byCategory.get(t.category)!.push(t);
   }
 
   return (
@@ -76,9 +53,8 @@ export function TemplatesView({ workspace }: { workspace: ProductWorkspace }) {
             </span>
           </div>
           <p className="text-[12px] leading-relaxed text-ink-muted">
-            Use these for testing the new scalable architecture. They use
-            versioned platform assignments and size-first generation, while
-            ContentGate visuals render through the proven baseline renderer.
+            Versioned platform templates use approved source material,
+            size-first generation, locked artwork, and editable text fields.
           </p>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {activePlatformTemplates.map((template) => {
@@ -116,7 +92,7 @@ export function TemplatesView({ workspace }: { workspace: ProductWorkspace }) {
                     {template.supportedSizes.join(" · ")}
                   </p>
                   <p className="px-0.5 text-[11px] text-ink-muted">
-                    New architecture · proven ContentGate visual renderer.
+                    Platform v1 · locked design · size-specific generation.
                   </p>
                   {canGenerate && (
                     <div className="px-0.5">
@@ -136,92 +112,6 @@ export function TemplatesView({ workspace }: { workspace: ProductWorkspace }) {
           </div>
         </div>
       )}
-
-      {[...byCategory.entries()].map(([category, variants]) => (
-        <div
-          key={category}
-          className="flex flex-col gap-3 rounded-card border border-edge bg-surface p-[22px]"
-        >
-          <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-[15px] font-bold">
-              {CATEGORY_LABELS[category] ?? category}
-            </h2>
-            <span className="rounded-[5px] bg-page px-[6px] py-0.5 text-[9.5px] font-bold uppercase tracking-[0.05em] text-ink-faint">
-              Legacy fallback
-            </span>
-          </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {variants.map((t) => {
-              const sizeKey = defaultTemplateSize({
-                layoutKey: t.layoutKey,
-                category: t.category,
-                definition: t.templateDefinition,
-                status: t.status,
-              });
-              const supportedSizes = getTemplateSupportedSizes({
-                layoutKey: t.layoutKey,
-                category: t.category,
-                definition: t.templateDefinition,
-                status: t.status,
-              });
-              const dims = SIZES[sizeKey];
-              const previewSrc = originalTemplatePreviewUrl(
-                t.id,
-                t.layoutKey,
-                sizeKey
-              );
-              return (
-                <div
-                  key={t.id}
-                  className="flex flex-col gap-2.5 rounded-control border border-edge bg-surface p-3"
-                >
-                  <div
-                    className="overflow-hidden rounded-[8px] border border-edge bg-brand-tint"
-                    style={{ aspectRatio: `${dims.w} / ${dims.h}` }}
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={previewSrc}
-                      alt={`${t.variant} template preview`}
-                      loading="lazy"
-                      className="h-full w-full object-contain"
-                    />
-                  </div>
-                  <div className="flex items-center gap-2 px-0.5">
-                    <span className="min-w-0 truncate text-[13px] font-semibold">
-                      {t.variant}
-                    </span>
-                    <span className="shrink-0 whitespace-nowrap rounded-[5px] bg-brand-tint px-[6px] py-0.5 text-[9.5px] font-bold uppercase tracking-[0.05em] text-brand">
-                      {t.editableFields.length} fields
-                    </span>
-                  </div>
-                  <p className="line-clamp-1 px-0.5 text-[11px] text-ink-faint">
-                    {t.editableFields.map((fk) => fieldLabel(fk)).join(" · ")}
-                  </p>
-                  <div className="flex flex-wrap items-center gap-2 px-0.5">
-                    <Link
-                      href={`/products/${product.id}/templates/${t.id}`}
-                      className="whitespace-nowrap rounded-control border border-edge-strong px-3 py-2 text-[12px] font-semibold text-ink-muted hover:border-brand hover:text-brand"
-                    >
-                      View template
-                    </Link>
-                    {canGenerate && (
-                      <GenerateVariant
-                        productId={product.id}
-                        templateId={t.id}
-                        variant={t.variant}
-                        sizes={supportedSizes}
-                        initialSize={sizeKey}
-                        compact
-                      />
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      ))}
     </div>
   );
 }

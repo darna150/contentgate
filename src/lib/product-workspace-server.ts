@@ -13,8 +13,6 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import { createProductAssetPreviewUrlMap } from "@/lib/product-assets-server";
 import type { FieldLimits } from "@/lib/template-fields";
-import { isTemplateContractReady } from "@/lib/template-contract";
-import { stripInternalTemplateDefinition } from "@/lib/published-template-package";
 import {
   normalizeTemplatePlatformAssignment,
   type TemplatePlatformAssignmentRow,
@@ -268,7 +266,7 @@ export async function getProductWorkspace(
     .eq("product_id", productId)
     .order("updated_at", { ascending: false });
 
-  const [assetResult, sourceResult, claimResult, templateResult, platformTemplateResult, contentResult] =
+  const [assetResult, sourceResult, claimResult, platformTemplateResult, contentResult] =
     await Promise.all([
       assetQuery,
       supabase
@@ -284,14 +282,6 @@ export async function getProductWorkspace(
         .eq("product_id", productId)
         .order("created_at", { ascending: true }),
       supabase
-        .from("product_templates")
-        .select(
-          "id, category, variant, layout_key, editable_fields, generation_instructions, default_copy, field_limits, locked_fields, template_definition, original_file_path, status, sort_order"
-        )
-        .eq("org_id", profile.org_id)
-        .eq("product_id", productId)
-        .order("sort_order", { ascending: true }),
-      supabase
         .from("product_template_assignments")
         .select(
           "id, product_id, status, default_variant_key, generation_profile, default_payload, template_families(id, family_key, name), template_versions(id, version_label, status, manifest)"
@@ -305,7 +295,6 @@ export async function getProductWorkspace(
   assertQuery(assetResult.error, "assets");
   assertQuery(sourceResult.error, "sources");
   assertQuery(claimResult.error, "claims");
-  assertQuery(templateResult.error, "templates");
   assertQuery(platformTemplateResult.error, "platform templates");
   assertQuery(contentResult.error, "content");
 
@@ -349,38 +338,7 @@ export async function getProductWorkspace(
     claimText: claim.claim_text,
     status: claim.status,
   }));
-  const templates = (templateResult.data ?? []).map((template) => {
-    const editableFields = (template.editable_fields ?? []) as string[];
-    const fieldLimits = (template.field_limits ?? {}) as FieldLimits;
-    const lockedFields = (template.locked_fields ?? []) as string[];
-    const templateDefinition = (template.template_definition ?? {}) as Record<string, unknown>;
-    const clientTemplateDefinition =
-      stripInternalTemplateDefinition(templateDefinition);
-    return {
-      id: template.id,
-      category: template.category,
-      variant: template.variant,
-      layoutKey: template.layout_key,
-      editableFields,
-      generationInstructions: template.generation_instructions,
-      defaultCopy: (template.default_copy ?? {}) as Record<string, string>,
-      fieldLimits,
-      lockedFields,
-      templateDefinition: clientTemplateDefinition,
-      contractReady: isTemplateContractReady({
-        layoutKey: template.layout_key,
-        category: template.category,
-        editableFields,
-        fieldLimits,
-        lockedFields,
-        definition: templateDefinition,
-        status: template.status,
-      }),
-      originalFilePath: template.original_file_path,
-      status: template.status,
-      sortOrder: template.sort_order,
-    };
-  });
+  const templates: ProductWorkspaceTemplate[] = [];
   const normalizedPlatformTemplates = ((platformTemplateResult.data ?? []) as TemplatePlatformAssignmentRow[])
     .map(normalizeTemplatePlatformAssignment)
     .filter((template): template is NonNullable<typeof template> => Boolean(template));
@@ -456,9 +414,7 @@ export async function getProductWorkspace(
   })
     : [];
 
-  const activeTemplates = templates.filter(
-    (template) => template.status === "active" && template.contractReady
-  );
+  const activeTemplates: ProductWorkspaceTemplate[] = [];
   const activePlatformTemplates = platformTemplates;
   const approvedClaims = claims.filter((claim) => claim.status === "approved");
   const approvals = content.filter((item) => item.status === "in_review");
@@ -471,8 +427,8 @@ export async function getProductWorkspace(
     assets: (assetResult.data ?? []).length,
     approvedSources: approvedSources.length,
     approvedClaims: approvedClaims.length,
-    templates: templates.length,
-    activeTemplates: activeTemplates.length + activePlatformTemplates.length,
+    templates: platformTemplates.length,
+    activeTemplates: activePlatformTemplates.length,
     platformTemplates: platformTemplates.length,
     activePlatformTemplates: activePlatformTemplates.length,
     content: contentStatusRows.length,
@@ -482,7 +438,7 @@ export async function getProductWorkspace(
   const permissions = getWorkspacePermissions({
     role: profile.role,
     productStatus: product.status,
-    activeTemplateCount: activeTemplates.length + activePlatformTemplates.length,
+    activeTemplateCount: activePlatformTemplates.length,
   });
 
   return {
