@@ -20,6 +20,13 @@ const CATEGORY_LABELS: Record<string, string> = {
   presentation: "Presentation",
 };
 
+function imageSrc(path: string) {
+  if (path.startsWith("http://") || path.startsWith("https://") || path.startsWith("/")) {
+    return path;
+  }
+  return `/${path}`;
+}
+
 export function TemplatesView({ workspace }: { workspace: ProductWorkspace }) {
   const { product, activeTemplates, activePlatformTemplates, permissions, sections } = workspace;
   const canGenerate = permissions.canGenerateContent;
@@ -90,7 +97,7 @@ export function TemplatesView({ workspace }: { workspace: ProductWorkspace }) {
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
-                        src={`/${previewPath}`}
+                        src={imageSrc(previewPath)}
                         alt={`${template.familyName} template preview`}
                         loading="lazy"
                         className="h-full w-full object-cover"
