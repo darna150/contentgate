@@ -9,11 +9,16 @@ import {
   useRef,
   useState,
 } from "react";
-import { draftPreviewUrl, renderUrl, SIZES, type SizeKey } from "@/lib/creative";
+import {
+  draftPreviewUrl,
+  renderUrl,
+  SIZES,
+  templatePreviewUrl,
+  type SizeKey,
+} from "@/lib/creative";
 import type { TemplateBundleManifest } from "@/lib/template-platform/manifest";
 import { renderTemplateBundleVariant } from "@/lib/template-platform/render";
 import { getTemplateBundleSupportedSizes } from "@/lib/template-platform/runtime";
-import { exportCanvas, type ExportFormat } from "@/lib/canvas-export";
 import { fieldLabel, REVISION_OPTIONS } from "@/lib/templates";
 import {
   fieldIssues,
@@ -53,6 +58,7 @@ type Content = {
   canEdit: boolean;
 } | null;
 type GeneratedContent = NonNullable<Content>;
+type ExportFormat = "png" | "jpeg" | "pdf";
 
 const LANGUAGES = ["English", "Filipino", "Spanish", "Portuguese", "Vietnamese", "Thai"];
 const GENERATION_MESSAGES = [
@@ -733,18 +739,16 @@ export function StudioEditor({
       const filename = `${selectedProduct.name}-${selectedTemplate.variant}-${mode}-${size}`
         .replace(/[^\w]+/g, "-")
         .toLowerCase();
-      if (canvasRef.current) {
-        await exportCanvas({
-          node: canvasRef.current,
-          width: dims.w,
-          height: dims.h,
-          size,
-          format: exportFormat,
-          filename,
-        });
-        return;
-      }
-      throw new Error("Canvas is not ready.");
+      const serverPreviewUrl = new URL(
+        templatePreviewUrl(selectedTemplate.id, size),
+        window.location.origin
+      );
+      serverPreviewUrl.searchParams.set("format", exportFormat);
+      serverPreviewUrl.searchParams.set("download", "1");
+      await downloadUrl(
+        serverPreviewUrl.toString(),
+        `${filename}.${exportFormat === "jpeg" ? "jpg" : exportFormat}`
+      );
     } catch {
       setError("The preview could not be downloaded.");
     } finally {

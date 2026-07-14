@@ -23,6 +23,16 @@ import {
   usesRegisteredTemplateContract,
 } from "@/lib/template-contract";
 import { renderContractTemplate } from "@/lib/template-renderer";
+import type { TemplateBundleManifest } from "@/lib/template-platform/manifest";
+import { renderTemplateBundleVariant } from "@/lib/template-platform/render";
+import { resolveTemplateBundleRuntimeVariant } from "@/lib/template-platform/runtime";
+import { createTemplateBundleAssetUrlMap } from "@/lib/template-platform/storage-urls";
+import { loadTemplateBundleImageFonts } from "@/lib/template-platform/server-fonts";
+import { loadContentGateFonts } from "@/lib/contentgate-fonts";
+import {
+  convertServerRenderedPng,
+  type ServerExportFormat,
+} from "@/lib/server-export-formats";
 
 export const runtime = "nodejs";
 
@@ -38,11 +48,26 @@ const SAMPLES: Record<string, string> = {
   territory: "Your region",
 };
 
+function exportFormat(value: string | null): ServerExportFormat {
+  return value === "jpeg" || value === "pdf" ? value : "png";
+}
+
+function safeFilename(value: string) {
+  return (
+    value
+      .replace(/[^\w\d-]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .toLowerCase() || "template"
+  );
+}
+
 // Renders a template VARIANT's locked layout with placeholder copy (a preview).
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const templateId = searchParams.get("template");
   const requestedSize = searchParams.get("size") ?? "square";
+  const format = exportFormat(searchParams.get("format"));
+  const download = searchParams.get("download") === "1";
   if (!templateId) return new Response("Missing template id", { status: 400 });
 
   const supabase = await createClient();
@@ -50,6 +75,80 @@ export async function GET(req: Request) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return new Response("Unauthorized", { status: 401 });
+
+  if (templateId.startsWith("platform:")) {
+    const assignmentId = templateId.slice("platform:".length);
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("org_id")
+      .eq("id", user.id)
+      .single();
+    if (!profile) return new Response("No profile.", { status: 401 });
+
+    const { data: assignmentRow } = await supabase
+      .from("product_template_assignments")
+      .select(
+        "id, default_payload, template_families(name), template_versions(manifest)"
+      )
+      .eq("id", assignmentId)
+      .eq("org_id", profile.org_id)
+      .single();
+    if (!assignmentRow) return new Response("Not found", { status: 404 });
+
+    const version = Array.isArray(assignmentRow.template_versions)
+      ? assignmentRow.template_versions[0]
+      : assignmentRow.template_versions;
+    const family = Array.isArray(assignmentRow.template_families)
+      ? assignmentRow.template_families[0]
+      : assignmentRow.template_families;
+    if (!version?.manifest) {
+      return new Response("Template preview is unavailable.", { status: 409 });
+    }
+
+    const manifest = version.manifest as TemplateBundleManifest;
+    const runtime = resolveTemplateBundleRuntimeVariant(manifest, requestedSize);
+    if (!runtime) {
+      return new Response("Unsupported size for this template", { status: 400 });
+    }
+    const assetUrlByPath = Object.fromEntries(
+      await createTemplateBundleAssetUrlMap(supabase, [manifest])
+    );
+    const rendered = renderTemplateBundleVariant({
+      manifest,
+      variantKey: requestedSize,
+      fields: (assignmentRow.default_payload ?? {}) as Record<string, string>,
+      assetOrigin: new URL(req.url).origin,
+      assetUrlByPath,
+      original: true,
+    });
+    if (!rendered) return new Response("Template render failed.", { status: 500 });
+    const fonts = await loadTemplateBundleImageFonts({ manifest, assetUrlByPath });
+    const image = new ImageResponse(rendered.element, {
+      width: rendered.width,
+      height: rendered.height,
+      fonts: fonts.length ? fonts : await loadContentGateFonts(),
+      headers: responseHeaders(download ? "1" : null, family?.name ?? manifest.family.name),
+    });
+    if (format === "png" && !download) return image;
+
+    const converted = await convertServerRenderedPng({
+      png: await image.arrayBuffer(),
+      width: rendered.width,
+      height: rendered.height,
+      size: requestedSize as SizeKey,
+      format,
+    });
+    const filename = `${safeFilename(`${family?.name ?? manifest.family.name}-${requestedSize}-original`)}.${converted.extension}`;
+    return new Response(Buffer.from(converted.body), {
+      headers: {
+        "Content-Type": converted.contentType,
+        "Content-Disposition": download
+          ? `attachment; filename="${filename}"`
+          : `inline; filename="${filename}"`,
+        "Cache-Control": "no-store",
+      },
+    });
+  }
 
   const { data: tpl } = await supabase
     .from("product_templates")
