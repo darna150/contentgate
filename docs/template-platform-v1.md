@@ -189,6 +189,52 @@ This verifies:
 
 Only bundles that pass local preflight should be imported, published, and assigned to products.
 
+## Figma Publisher Contract
+
+New templates should come from Figma metadata, not handwritten React branches. The publisher input is a plain JSON handoff from Figwright, the Figma plugin, or another exporter. It records:
+
+- one template family and immutable version;
+- bundled font files with checksums;
+- each Figma frame/variant with exact canvas size;
+- full reference export path;
+- background-only export path;
+- editable text/image layers with exact coordinates, dimensions, typography, color, and alignment.
+
+Editable Figma layer names must include a `cg` annotation:
+
+```text
+Headline [cg:field=headline label="Headline" maxChars=64 maxLines=2 minFontSize=48 source=ai]
+CTA [cg:field=cta label="CTA" maxChars=24 maxLines=1 source=user]
+Hero Image [cg:field=hero_image type=image source=product]
+```
+
+Supported annotation keys:
+
+- `field`: stable semantic field key. Required for editable layers.
+- `label`: human-readable label.
+- `type`: optional field type override, such as `text`, `image`, or `asset_choice`.
+- `source`: `ai`, `user`, `product`, or `locked`.
+- `maxChars` or `maxWords`: required for publishable text slots.
+- `maxLines`: rendered line limit.
+- `minFontSize`: enables shrink-to-fit and declares the smallest allowed font size.
+
+The compiler in [figma-publisher.ts](</Users/debbiemelgarejo/Documents/Content Gate/contentgate/src/lib/template-platform/figma-publisher.ts:1>) converts this metadata into the same bundle manifest used by the importer. It blocks unsafe inputs before they become bundle folders:
+
+- missing font assets for Figma text layers;
+- missing reference/background image metadata;
+- reused full-reference images as generated backgrounds;
+- conflicting field annotations across variants.
+
+To compile a publisher input into a preflighted bundle directory:
+
+```bash
+npm run template-platform:write-figma-publisher-bundle -- \
+  ./path/to/publisher-input.json \
+  ./.template-bundles/client-template-v1
+```
+
+The command writes `manifest.json`, copies the referenced font/image assets, runs local preflight, and verifies checksums. Use `--json` for machine-readable output or `--skip-preflight` only when debugging the exporter itself.
+
 For local/demo setup, the ContentGate bundles can be installed with:
 
 ```bash
