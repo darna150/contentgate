@@ -1,0 +1,72 @@
+import { access, readFile } from "node:fs/promises";
+import { basename, join } from "node:path";
+import type { TemplateBundleFont, TemplateBundleManifest } from "./manifest.ts";
+import {
+  templateBundleImageFontWeight,
+  type TemplateBundleImageFont,
+} from "./fonts.ts";
+
+function assetForFont(manifest: TemplateBundleManifest, font: TemplateBundleFont) {
+  return manifest.assets.find((asset) => asset.key === font.asset) ?? null;
+}
+
+async function readIfExists(path: string) {
+  try {
+    await access(path);
+    const buffer = await readFile(path);
+    return buffer.buffer.slice(
+      buffer.byteOffset,
+      buffer.byteOffset + buffer.byteLength
+    ) as ArrayBuffer;
+  } catch {
+    return null;
+  }
+}
+
+async function readPublicFontAsset(assetPath: string) {
+  return (
+    (await readIfExists(join(process.cwd(), "public", assetPath))) ??
+    (await readIfExists(join(process.cwd(), "public", "fonts", basename(assetPath))))
+  );
+}
+
+export async function loadTemplateBundleFontData(input: {
+  manifest: TemplateBundleManifest;
+  font: TemplateBundleFont;
+  assetUrlByPath?: Record<string, string>;
+}) {
+  const asset = assetForFont(input.manifest, input.font);
+  if (!asset) return null;
+  const publicData = await readPublicFontAsset(asset.path);
+  if (publicData) return publicData;
+
+  const signedUrl = input.assetUrlByPath?.[asset.path];
+  if (!signedUrl) return null;
+  const response = await fetch(signedUrl, { cache: "no-store" });
+  if (!response.ok) return null;
+  return response.arrayBuffer();
+}
+
+export async function loadTemplateBundleImageFonts(input: {
+  manifest: TemplateBundleManifest;
+  assetUrlByPath?: Record<string, string>;
+}): Promise<TemplateBundleImageFont[]> {
+  const fonts = await Promise.all(
+    input.manifest.fonts.map(async (font) => {
+      const data = await loadTemplateBundleFontData({
+        manifest: input.manifest,
+        font,
+        assetUrlByPath: input.assetUrlByPath,
+      });
+      return data
+        ? {
+            name: font.family,
+            data,
+            weight: templateBundleImageFontWeight(font.weight),
+            style: font.style,
+          }
+        : null;
+    })
+  );
+  return fonts.filter((font): font is TemplateBundleImageFont => Boolean(font));
+}

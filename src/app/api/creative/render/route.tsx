@@ -23,6 +23,7 @@ import type { TemplateBundleManifest } from "@/lib/template-platform/manifest";
 import { renderTemplateBundleVariant } from "@/lib/template-platform/render";
 import { resolveTemplateBundleRuntimeVariant } from "@/lib/template-platform/runtime";
 import { createTemplateBundleAssetUrlMap } from "@/lib/template-platform/storage-urls";
+import { loadTemplateBundleImageFonts } from "@/lib/template-platform/server-fonts";
 import {
   convertServerRenderedPng,
   type ServerExportFormat,
@@ -113,21 +114,22 @@ export async function GET(req: Request) {
     if (!runtime) {
       return new Response("Unsupported size for this template", { status: 400 });
     }
+    const assetUrlByPath = Object.fromEntries(
+      await createTemplateBundleAssetUrlMap(supabase, [manifest])
+    );
     const rendered = renderTemplateBundleVariant({
       manifest,
       variantKey,
       fields,
       assetOrigin: new URL(req.url).origin,
-      assetUrlByPath: Object.fromEntries(
-        await createTemplateBundleAssetUrlMap(supabase, [manifest])
-      ),
+      assetUrlByPath,
     });
     if (!rendered) return new Response("Template render failed", { status: 500 });
-    const fonts = await loadContentGateFonts();
+    const fonts = await loadTemplateBundleImageFonts({ manifest, assetUrlByPath });
     const image = new ImageResponse(rendered.element, {
       width: rendered.width,
       height: rendered.height,
-      fonts,
+      fonts: fonts.length ? fonts : await loadContentGateFonts(),
       headers: cacheHeaders,
     });
     if (format === "png" && !download) return image;

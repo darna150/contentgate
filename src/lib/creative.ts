@@ -24,6 +24,12 @@ export function renderUrl(contentId: string, size: SizeKey): string {
   return `/api/creative/render?content=${contentId}&size=${size}`;
 }
 
+export function draftPreviewUrl(contentId: string, size: SizeKey, cacheKey?: string | null): string {
+  const params = new URLSearchParams({ content: contentId, size });
+  if (cacheKey) params.set("v", cacheKey);
+  return `/api/creative/draft-preview?${params.toString()}`;
+}
+
 export function templatePreviewUrl(templateId: string, size: SizeKey): string {
   return `/api/creative/template-preview?template=${templateId}&size=${size}`;
 }

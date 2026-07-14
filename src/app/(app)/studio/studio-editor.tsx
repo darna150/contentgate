@@ -5,12 +5,11 @@ import {
   type ReactElement,
   type RefObject,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
-import { renderUrl, SIZES, type SizeKey } from "@/lib/creative";
+import { draftPreviewUrl, renderUrl, SIZES, type SizeKey } from "@/lib/creative";
 import type { TemplateBundleManifest } from "@/lib/template-platform/manifest";
 import { renderTemplateBundleVariant } from "@/lib/template-platform/render";
 import { getTemplateBundleSupportedSizes } from "@/lib/template-platform/runtime";
@@ -22,6 +21,7 @@ import {
   type FieldLimits,
 } from "@/lib/template-fields";
 import {
+  checkDraftStructuredFieldsFit,
   submitForReview,
   updateStructuredFields,
 } from "../content/actions";
@@ -234,6 +234,59 @@ function LiveCanvasFrame({
   );
 }
 
+function ServerPreviewFrame({
+  src,
+  width,
+  height,
+  updating,
+}: {
+  src: string;
+  width: number;
+  height: number;
+  updating: boolean;
+}) {
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(0.5);
+
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    const updateScale = () => {
+      const availableWidth = Math.max(1, viewport.clientWidth - 48);
+      const availableHeight = Math.max(1, Math.min(760, window.innerHeight - 250));
+      setScale(Math.min(1, availableWidth / width, availableHeight / height));
+    };
+    updateScale();
+    const observer = new ResizeObserver(updateScale);
+    observer.observe(viewport);
+    return () => observer.disconnect();
+  }, [height, width]);
+
+  return (
+    <div
+      ref={viewportRef}
+      className="relative flex min-h-[600px] w-full items-center justify-center overflow-hidden rounded-card border border-edge bg-page p-6"
+    >
+      {updating && (
+        <div className="absolute right-4 top-4 z-10 rounded-full bg-surface/90 px-3 py-1.5 text-[11px] font-semibold text-ink-muted shadow-sm">
+          Updating preview…
+        </div>
+      )}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        key={src}
+        src={src}
+        alt="Generated template preview"
+        className="block shadow-sm"
+        style={{
+          width: width * scale,
+          height: height * scale,
+        }}
+      />
+    </div>
+  );
+}
+
 export function StudioEditor({
   products,
   templates,
@@ -361,7 +414,7 @@ export function StudioEditor({
       !hasLayoutOverflow &&
       saveState !== "saving");
   const dims = SIZES[size];
-  const liveCanvas = selectedTemplate.platformManifest
+  const liveCanvas = mode === "original" && selectedTemplate.platformManifest
     ? renderPlatformCanvas({
         manifest: selectedTemplate.platformManifest,
         assetUrlByPath: selectedTemplate.platformAssetUrlByPath,
@@ -370,6 +423,14 @@ export function StudioEditor({
         original: mode === "original",
       })
     : null;
+  const generatedPreviewUrl =
+    showingGeneratedDraft && content
+      ? draftPreviewUrl(content.id, size, savedAt ?? content.id)
+      : null;
+  const serverPreviewUpdating =
+    mode === "generated" &&
+    showingGeneratedDraft &&
+    (dirty || saveState === "unsaved" || saveState === "saving");
 
   function confirmDiscardUnsavedChanges() {
     if (!dirty) return true;
@@ -378,54 +439,51 @@ export function StudioEditor({
     );
   }
 
-  useLayoutEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas || mode === "original") {
-      setOverflowFields([]);
-      return;
+  useEffect(() => {
+    let cancelled = false;
+    let timer: number;
+    if (!content || mode !== "generated" || !showingGeneratedDraft) {
+      timer = window.setTimeout(() => {
+        if (!cancelled) setOverflowFields([]);
+      }, 0);
+      return () => {
+        cancelled = true;
+        window.clearTimeout(timer);
+      };
+    }
+    if (hasIssues) {
+      timer = window.setTimeout(() => {
+        if (!cancelled) setOverflowFields([]);
+      }, 0);
+      return () => {
+        cancelled = true;
+        window.clearTimeout(timer);
+      };
     }
 
-    let cancelled = false;
-    const measure = () => {
+    const snapshot = { ...draftFields };
+    timer = window.setTimeout(async () => {
+      const result = await checkDraftStructuredFieldsFit(content.id, snapshot);
       if (cancelled) return;
-      const overflowing = Array.from(
-        canvas.querySelectorAll<HTMLElement>("[data-template-field]")
-      )
-        .filter((element) => {
-          const content = element.querySelector<HTMLElement>(
-            "[data-template-content]"
-          );
-          if (!content) return false;
-          const elementRect = element.getBoundingClientRect();
-          const contentRect = content.getBoundingClientRect();
-          return (
-            contentRect.width > elementRect.width + 1 ||
-            contentRect.height > elementRect.height + 1
-          );
-        })
-        .map((element) => element.dataset.templateField)
-        .filter((field): field is string => Boolean(field));
-      const stackOverflow = Array.from(
-        canvas.querySelectorAll<HTMLElement>("[data-template-stack]")
-      ).some(
-        (stack) =>
-          stack.scrollHeight > stack.clientHeight + 1 ||
-          stack.scrollWidth > stack.clientWidth + 1
-      );
-      if (stackOverflow) overflowing.push("layout");
-      setOverflowFields([...new Set(overflowing)]);
-    };
+      if ("error" in result) {
+        setOverflowFields(["layout"]);
+        return;
+      }
+      setOverflowFields(result.overflowFields);
+    }, 400);
 
-    void document.fonts.ready.then(() => {
-      window.requestAnimationFrame(measure);
-    });
-    const observer = new ResizeObserver(measure);
-    observer.observe(canvas);
     return () => {
       cancelled = true;
-      observer.disconnect();
+      window.clearTimeout(timer);
     };
-  }, [activeFields, mode, size]);
+  }, [
+    content,
+    draftFields,
+    hasIssues,
+    mode,
+    showingGeneratedDraft,
+    size,
+  ]);
 
   useEffect(() => {
     if (!retryUntil) return;
@@ -1090,7 +1148,14 @@ export function StudioEditor({
 
           <div className="relative">
             {busy && <GenerationLoader />}
-            {liveCanvas ? (
+            {mode === "generated" && generatedPreviewUrl ? (
+              <ServerPreviewFrame
+                src={generatedPreviewUrl}
+                width={dims.w}
+                height={dims.h}
+                updating={serverPreviewUpdating}
+              />
+            ) : liveCanvas ? (
               <LiveCanvasFrame
                 canvas={liveCanvas}
                 canvasRef={canvasRef}

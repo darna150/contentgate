@@ -29,6 +29,10 @@ type ActionResult =
     }
   | { error: string };
 
+type DraftFitResult =
+  | { ok: true; overflowFields: string[]; message?: string }
+  | { error: string };
+
 async function requireUser() {
   const supabase = await createClient();
   const {
@@ -260,6 +264,85 @@ export async function updateStructuredFields(
     status: row.status,
     savedAt,
     manuallyEdited: manuallyEditedFields.length > 0,
+  };
+}
+
+export async function checkDraftStructuredFieldsFit(
+  id: string,
+  fields: Record<string, string>
+): Promise<DraftFitResult> {
+  const ctx = await requireUser();
+  if (!ctx) return { error: "Your session expired — sign in again." };
+
+  const { data: content } = await ctx.supabase
+    .from("generated_content")
+    .select(
+      "structured_fields, prompt_context, product_templates(layout_key, category, editable_fields, field_limits, locked_fields, template_definition, status), template_versions(manifest), template_variants(variant_key)"
+    )
+    .eq("id", id)
+    .single();
+  if (!content) return { error: "Content not found." };
+
+  const template = Array.isArray(content.product_templates)
+    ? content.product_templates[0]
+    : content.product_templates;
+  const version = Array.isArray(content.template_versions)
+    ? content.template_versions[0]
+    : content.template_versions;
+  const variant = Array.isArray(content.template_variants)
+    ? content.template_variants[0]
+    : content.template_variants;
+
+  if (!template && version?.manifest && variant?.variant_key) {
+    const order = getTemplateBundleVariantFields(version.manifest, variant.variant_key).map(
+      (field) => field.key
+    );
+    const limits = getTemplateBundleVariantFieldLimits(version.manifest, variant.variant_key);
+    const cleaned = Object.fromEntries(
+      order.map((key) => [key, String(fields[key] ?? "")])
+    );
+    const configuredIssues = templateFieldIssues(cleaned, order, limits);
+    const geometryIssues = await templatePlatformFieldFitIssues({
+      manifest: version.manifest,
+      variantKey: variant.variant_key,
+      fields: cleaned,
+    });
+    return {
+      ok: true,
+      overflowFields: [
+        ...new Set([
+          ...Object.keys(configuredIssues),
+          ...Object.keys(geometryIssues),
+        ]),
+      ],
+      message: formatTemplatePlatformFitIssues(geometryIssues)[0],
+    };
+  }
+
+  if (!template) return { error: "Template configuration was not found." };
+  const order = (template.editable_fields ?? []) as string[];
+  const cleaned = Object.fromEntries(
+    order.map((key) => [key, String(fields[key] ?? "")])
+  );
+  const promptContext =
+    content.prompt_context && typeof content.prompt_context === "object"
+      ? (content.prompt_context as Record<string, unknown>)
+      : {};
+  const validationError = await validateTemplateContentFit({
+    layoutKey: template.layout_key,
+    category: template.category,
+    editableFields: order,
+    fieldLimits: (template.field_limits ?? {}) as FieldLimits,
+    lockedFields: (template.locked_fields ?? []) as string[],
+    definition: template.template_definition,
+    status: template.status,
+    fields: cleaned,
+    promptContext,
+  });
+  return {
+    ok: true,
+    overflowFields: validationError ? ["layout"] : [],
+    message: validationError ?? undefined,
   };
 }
 
