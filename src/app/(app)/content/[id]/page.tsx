@@ -183,6 +183,9 @@ export default async function ContentDetailPage({
         fields: structuredFields,
       })
     : null;
+  const platformPreviewScale = platformPreview
+    ? Math.min(760 / platformPreview.width, 1)
+    : 1;
 
   return (
     <div className="mx-auto flex max-w-[1280px] flex-col gap-6 px-10 py-9">
@@ -239,8 +242,8 @@ export default async function ContentDetailPage({
                 <div
                   className="mx-auto overflow-hidden"
                   style={{
-                    width: Math.min(platformPreview.width, 760),
-                    aspectRatio: `${platformPreview.width} / ${platformPreview.height}`,
+                    width: platformPreview.width * platformPreviewScale,
+                    height: platformPreview.height * platformPreviewScale,
                   }}
                 >
                   <div
