@@ -24,6 +24,7 @@
     "smoke": "node scripts/smoke-test.mjs",
     "figwright:list": "node .tools/figwright/client.mjs list",
     "figwright:export-backgrounds": "node .tools/figwright/export-backgrounds.mjs",
+    "figwright:export-contentgate-bundles": "tsx scripts/template-platform/export-figwright-contentgate.ts",
     "contentgate:render-samples": "tsx .tools/render-contentgate-samples.tsx",
     "contentgate:contact-sheets": "node .tools/render-contact-sheet.mjs",
     "template-platform:write-contentgate-bundles": "tsx scripts/template-platform/write-contentgate-bundles.ts",

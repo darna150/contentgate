@@ -1,5 +1,6 @@
 import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, resolve, sep } from "node:path";
+import { pathToFileURL } from "node:url";
 
 import { loadTemplateBundleDirectory } from "../../src/lib/template-platform/bundle-directory.ts";
 import {
@@ -17,6 +18,17 @@ type CliOptions = {
   outputDirectory?: string;
   json: boolean;
   skipPreflight: boolean;
+};
+
+export type WriteFigmaPublisherBundleResult = {
+  ok: boolean;
+  outputDirectory: string;
+  issues: Awaited<ReturnType<typeof preflightTemplateBundle>>["issues"];
+  checkedAt?: string;
+  manifestKey?: string;
+  sampleCount?: number;
+  variantCount?: number;
+  versionName?: string;
 };
 
 function parseArgs(args: string[]): CliOptions {
@@ -98,6 +110,67 @@ async function copyBundleAssets(input: {
   }
 }
 
+export async function writeFigmaPublisherBundle(input: {
+  publisherInput: FigmaPublisherInput;
+  inputDirectory: string;
+  outputDirectory: string;
+  skipPreflight?: boolean;
+}): Promise<WriteFigmaPublisherBundleResult> {
+  const outputDirectory = resolve(input.outputDirectory);
+  const compiled = compileFigmaPublisherInput(input.publisherInput);
+
+  if (!compiled.ok) {
+    return {
+      ok: false,
+      outputDirectory,
+      issues: compiled.issues.map((issue) => ({
+        code: "publish_gate",
+        path: issue.path,
+        message: issue.message,
+        severity: "error",
+      })),
+    };
+  }
+
+  await mkdir(outputDirectory, { recursive: true });
+  await writeFile(
+    join(outputDirectory, "manifest.json"),
+    `${JSON.stringify(compiled.manifest, null, 2)}\n`
+  );
+  await copyBundleAssets({
+    publisherInput: input.publisherInput,
+    inputDirectory: input.inputDirectory,
+    outputDirectory,
+  });
+
+  if (input.skipPreflight) {
+    return {
+      ok: true,
+      outputDirectory,
+      issues: [],
+      manifestKey: compiled.manifest.family.key,
+      versionName: compiled.manifest.version.name,
+    };
+  }
+
+  const bundle = await loadTemplateBundleDirectory(outputDirectory);
+  const report = await preflightTemplateBundle({ manifest: bundle.manifest });
+  const assetIssues = validateTemplateBundleAssetPayloads(
+    bundle.manifest.assets,
+    bundle.assets
+  );
+  return {
+    ok: report.ok && assetIssues.every((issue) => issue.severity !== "error"),
+    outputDirectory,
+    checkedAt: report.checkedAt,
+    issues: [...report.issues, ...assetIssues],
+    manifestKey: report.manifestKey,
+    sampleCount: report.sampleCount,
+    variantCount: report.variantCount,
+    versionName: report.versionName,
+  };
+}
+
 async function main() {
   const options = parseArgs(process.argv.slice(2));
   if (!options.inputPath || !options.outputDirectory) {
@@ -115,61 +188,55 @@ async function main() {
   const publisherInput = JSON.parse(
     await readFile(inputPath, "utf8")
   ) as FigmaPublisherInput;
-  const compiled = compileFigmaPublisherInput(publisherInput);
+  const result = await writeFigmaPublisherBundle({
+    publisherInput,
+    inputDirectory: dirname(inputPath),
+    outputDirectory,
+    skipPreflight: options.skipPreflight,
+  });
 
-  if (!compiled.ok) {
+  if (!result.ok) {
     if (options.json) {
-      console.log(JSON.stringify({ ok: false, issues: compiled.issues }, null, 2));
+      console.log(JSON.stringify(result, null, 2));
     } else {
       console.error(
         [
           "FAIL figma publisher input:",
-          ...compiled.issues.map((issue) => `- ${issue.path}: ${issue.message}`),
+          ...result.issues.map((issue) => `- ${issue.path}: ${issue.message}`),
         ].join("\n")
       );
     }
     process.exit(1);
   }
 
-  await mkdir(outputDirectory, { recursive: true });
-  await writeFile(
-    join(outputDirectory, "manifest.json"),
-    `${JSON.stringify(compiled.manifest, null, 2)}\n`
-  );
-  await copyBundleAssets({
-    publisherInput,
-    inputDirectory: dirname(inputPath),
-    outputDirectory,
-  });
-
   if (options.skipPreflight) {
     console.log(`Wrote Figma publisher bundle to ${outputDirectory}`);
     return;
   }
 
-  const bundle = await loadTemplateBundleDirectory(outputDirectory);
-  const report = await preflightTemplateBundle({ manifest: bundle.manifest });
-  const assetIssues = validateTemplateBundleAssetPayloads(
-    bundle.manifest.assets,
-    bundle.assets
-  );
-  const finalReport = {
-    ...report,
-    ok: report.ok && assetIssues.every((issue) => issue.severity !== "error"),
-    issues: [...report.issues, ...assetIssues],
-  };
-
   if (options.json) {
-    console.log(JSON.stringify(finalReport, null, 2));
+    console.log(JSON.stringify(result, null, 2));
   } else {
-    console.log(formatTemplateBundlePreflightReport(finalReport));
+    console.log(
+      formatTemplateBundlePreflightReport({
+        ok: result.ok,
+        manifestKey: result.manifestKey ?? "unknown",
+        versionName: result.versionName ?? "unknown",
+        checkedAt: result.checkedAt ?? new Date().toISOString(),
+        variantCount: result.variantCount ?? 0,
+        sampleCount: result.sampleCount ?? 0,
+        issues: result.issues,
+      })
+    );
     console.log(`Wrote Figma publisher bundle to ${outputDirectory}`);
   }
 
-  if (!finalReport.ok) process.exit(1);
+  if (!result.ok) process.exit(1);
 }
 
-main().catch((error) => {
-  console.error(error instanceof Error ? error.message : error);
-  process.exit(1);
-});
+if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
+  main().catch((error) => {
+    console.error(error instanceof Error ? error.message : error);
+    process.exit(1);
+  });
+}

@@ -24,6 +24,28 @@ Export clean background-only PNGs for the current ContentGate Figma frames:
 npm run figwright:export-backgrounds
 ```
 
+Export full publisher bundles from Figwright into the Template Platform v1 contract:
+
+```bash
+npm run figwright:export-contentgate-bundles
+```
+
+This exports 2x full-reference PNGs, 2x background-only PNGs, exact editable text layer coordinates/typography, bundled Inter font checksums, `publisher-input.json`, and a preflighted bundle folder under:
+
+```text
+.template-bundles/figwright-contentgate/
+  local-friendly-v1/
+    publisher-input.json
+    source/
+    bundle/
+  local-premium-v1/
+    publisher-input.json
+    source/
+    bundle/
+```
+
+Override the raster export scale with `FIGWRIGHT_EXPORT_SCALE=3` if a client needs 3x assets.
+
 Render generated ContentGate samples:
 
 ```bash
@@ -46,3 +68,5 @@ By default, rendered samples go to `$TMPDIR/contentgate-rendered`, and contact s
 - `public/template-packages/contentgate/set-b/backgrounds/`
 
 If the Figma file changes, update the frame and text node IDs in `export-backgrounds.mjs` before re-exporting.
+
+For new architecture work, prefer `figwright:export-contentgate-bundles`; it reads editable layers dynamically from `EDITABLE_` layer names and validates the generated bundle before it can be imported.

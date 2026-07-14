@@ -235,6 +235,14 @@ npm run template-platform:write-figma-publisher-bundle -- \
 
 The command writes `manifest.json`, copies the referenced font/image assets, runs local preflight, and verifies checksums. Use `--json` for machine-readable output or `--skip-preflight` only when debugging the exporter itself.
 
+For the current ContentGate Figma file, Figwright can generate both Set A and Set B publisher inputs and bundles without using official Figma MCP quota:
+
+```bash
+npm run figwright:export-contentgate-bundles
+```
+
+That command reads exact Figma text geometry/typography through the local Figwright plugin, exports 2x full-reference and 2x background-only PNGs, then writes preflighted bundles under `.template-bundles/figwright-contentgate/`.
+
 For local/demo setup, the ContentGate bundles can be installed with:
 
 ```bash
