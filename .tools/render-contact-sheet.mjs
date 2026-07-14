@@ -1,8 +1,10 @@
+import os from "node:os";
 import path from "node:path";
 
 import sharp from "sharp";
 
-const inputDir = "/private/tmp/contentgate-rendered";
+const inputDir = process.env.CONTENTGATE_RENDER_DIR ?? path.join(os.tmpdir(), "contentgate-rendered");
+const outputDir = process.env.CONTENTGATE_CONTACT_DIR ?? os.tmpdir();
 const sets = {
   "set-a": ["square", "story", "link_ad", "leaderboard", "medium_rectangle"],
   "set-b": ["square", "portrait", "story", "link_ad", "medium_rectangle"],
@@ -32,5 +34,5 @@ for (const [set, sizes] of Object.entries(sets)) {
   })
     .composite(composites)
     .png()
-    .toFile(`/private/tmp/contentgate-${set}-contact.png`);
+    .toFile(path.join(outputDir, `contentgate-${set}-contact.png`));
 }
