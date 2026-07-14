@@ -15,6 +15,15 @@ import { createTemplateBundleAssetUrlMap } from "@/lib/template-platform/storage
 import { StudioEditor } from "./studio-editor";
 
 type Product = { id: string; name: string; disclaimer_text: string | null };
+type StudioContent = {
+  id: string;
+  title: string;
+  status: string;
+  structured_fields: Record<string, string>;
+  outputSize: TemplateSizeKey | null;
+  manuallyEdited: boolean;
+  canEdit: boolean;
+};
 type Template = {
   id: string;
   product_id: string;
@@ -56,6 +65,17 @@ type PlatformAssignmentRow = {
       }[]
     | null;
 };
+type GeneratedContentRow = {
+  id: string;
+  title: string;
+  status: string;
+  structured_fields: Record<string, string> | null;
+  prompt_context: Record<string, unknown> | null;
+  created_by: string;
+  product_id: string;
+  product_template_id: string | null;
+  updated_at?: string | null;
+};
 
 function isSizeKey(value: unknown): value is TemplateSizeKey {
   return typeof value === "string" && value in TEMPLATE_OUTPUT_SIZES;
@@ -68,6 +88,30 @@ function one<T>(value: T | T[] | null | undefined): T | null {
 
 function platformTemplateId(assignmentId: string) {
   return `platform:${assignmentId}`;
+}
+
+function contentOutputSize(row: Pick<GeneratedContentRow, "prompt_context">) {
+  const outputSize = row.prompt_context?.output_size;
+  return isSizeKey(outputSize) ? outputSize : null;
+}
+
+function contentWasManuallyEdited(row: Pick<GeneratedContentRow, "prompt_context">) {
+  return (
+    Array.isArray(row.prompt_context?.manually_edited_fields) &&
+    row.prompt_context.manually_edited_fields.length > 0
+  );
+}
+
+function toStudioContent(row: GeneratedContentRow, userId?: string): StudioContent {
+  return {
+    id: row.id,
+    title: row.title,
+    status: row.status,
+    structured_fields: (row.structured_fields ?? {}) as Record<string, string>,
+    outputSize: contentOutputSize(row),
+    canEdit: row.created_by === userId,
+    manuallyEdited: contentWasManuallyEdited(row),
+  };
 }
 
 function platformAssignmentsToTemplates(rows: PlatformAssignmentRow[]): Template[] {
@@ -239,26 +283,51 @@ export default async function StudioPage({
     canEdit: boolean;
   } | null = null;
   if (requestedContentMatchesSelectedTemplate && requestedContent) {
-    initialContent = {
-      id: requestedContent.id,
-      title: requestedContent.title,
-      status: requestedContent.status,
-      structured_fields: (requestedContent.structured_fields ?? {}) as Record<string, string>,
-      outputSize: isSizeKey(
-        (requestedContent.prompt_context as { output_size?: unknown } | null)?.output_size
-      )
-        ? ((requestedContent.prompt_context as { output_size: TemplateSizeKey }).output_size)
-        : null,
-      canEdit: requestedContent.created_by === user?.id,
-      manuallyEdited:
-        Array.isArray(
-          (requestedContent.prompt_context as { manually_edited_fields?: unknown[] } | null)
-            ?.manually_edited_fields
-        ) &&
-        (requestedContent.prompt_context as { manually_edited_fields?: unknown[] })
-          .manually_edited_fields!.length > 0,
-    };
+    initialContent = toStudioContent(
+      requestedContent as GeneratedContentRow,
+      user?.id
+    );
   }
+
+  const { data: selectedContentRows } =
+    selectedProduct && selectedTemplate
+      ? await supabase
+          .from("generated_content")
+          .select(
+            "id, title, status, structured_fields, prompt_context, created_by, product_id, product_template_id, updated_at"
+          )
+          .eq("product_id", selectedProduct.id)
+          .in("status", ["draft", "rejected", "in_review", "approved"])
+          .order("updated_at", { ascending: false })
+          .limit(100)
+      : { data: [] };
+  const initialContentsBySize = new Map<TemplateSizeKey, StudioContent>();
+  const selectedContentCandidates = [
+    ...(requestedContentMatchesSelectedTemplate && requestedContent
+      ? [requestedContent as GeneratedContentRow]
+      : []),
+    ...(((selectedContentRows ?? []) as GeneratedContentRow[]).filter((row) => {
+      if (row.product_id !== selectedProduct?.id) return false;
+      if (selectedTemplate?.platformAssignmentId) {
+        return (
+          row.prompt_context?.platform_assignment_id ===
+          selectedTemplate.platformAssignmentId
+        );
+      }
+      return row.product_template_id === selectedTemplate?.id;
+    })),
+  ];
+  for (const row of selectedContentCandidates) {
+    const item = toStudioContent(row, user?.id);
+    if (!item.outputSize || initialContentsBySize.has(item.outputSize)) continue;
+    initialContentsBySize.set(item.outputSize, item);
+  }
+  const initialContents = [...initialContentsBySize.values()];
+  const preferredInitialContent =
+    initialContent ??
+    (requestedSize
+      ? (initialContentsBySize.get(requestedSize) ?? null)
+      : (initialContents[0] ?? null));
 
   return (
     <div className="mx-auto flex max-w-[1320px] flex-col gap-6 px-10 py-9">
@@ -275,8 +344,8 @@ export default async function StudioPage({
           templates={templates}
           selectedProduct={selectedProduct}
           selectedTemplate={selectedTemplate}
-          initialContent={initialContent}
-          initialSize={initialContent?.outputSize ?? requestedSize}
+          initialContents={initialContents}
+          initialSize={preferredInitialContent?.outputSize ?? requestedSize}
           organizationName={organization?.name ?? "Current workspace"}
         />
       ) : (

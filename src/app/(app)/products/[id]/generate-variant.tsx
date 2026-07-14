@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { SIZES, type SizeKey } from "@/lib/creative";
 
 const LANGUAGES = ["English", "Filipino", "Spanish", "Portuguese", "Vietnamese", "Thai"];
@@ -11,6 +11,27 @@ const LOADER_MESSAGES = [
   "Checking the locked template fields",
   "Opening Studio preview",
 ] as const;
+
+function formatRetryWait(seconds: number) {
+  const safeSeconds = Math.max(1, Math.ceil(seconds));
+  const minutes = Math.floor(safeSeconds / 60);
+  const remainder = safeSeconds % 60;
+  return minutes > 0
+    ? `${minutes}m${remainder > 0 ? ` ${remainder}s` : ""}`
+    : `${remainder}s`;
+}
+
+function retryAfterSecondsFromPayload(payload: unknown) {
+  if (
+    payload &&
+    typeof payload === "object" &&
+    "retryAfterSeconds" in payload &&
+    typeof payload.retryAfterSeconds === "number"
+  ) {
+    return Math.max(1, payload.retryAfterSeconds);
+  }
+  return null;
+}
 
 export function GenerateVariant({
   productId,
@@ -36,8 +57,28 @@ export function GenerateVariant({
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [retryUntil, setRetryUntil] = useState<number | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+  const retrySecondsRemaining = retryUntil
+    ? Math.max(0, Math.ceil((retryUntil - now) / 1000))
+    : 0;
+  const generationPaused = retrySecondsRemaining > 0;
+
+  useEffect(() => {
+    if (!retryUntil) return;
+    const timer = window.setInterval(() => {
+      const nextNow = Date.now();
+      setNow(nextNow);
+      if (nextNow >= retryUntil) {
+        setRetryUntil(null);
+        window.clearInterval(timer);
+      }
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [retryUntil]);
 
   async function generate() {
+    if (generationPaused) return;
     setBusy(true);
     setError(null);
     try {
@@ -54,9 +95,14 @@ export function GenerateVariant({
       });
       const j = await res.json();
       if (!res.ok) {
+        const retryAfterSeconds = retryAfterSecondsFromPayload(j);
+        if (retryAfterSeconds) {
+          setRetryUntil(Date.now() + retryAfterSeconds * 1000);
+        }
         setError(j.error ?? "Generation failed.");
         return;
       }
+      setRetryUntil(null);
       if (j.platform) {
         const params = new URLSearchParams({
           product: productId,
@@ -143,10 +189,12 @@ export function GenerateVariant({
       <button
         type="button"
         onClick={generate}
-        disabled={busy}
+        disabled={busy || generationPaused}
         className="whitespace-nowrap rounded-control bg-brand px-4 py-2 text-[12.5px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
       >
-        {busy
+        {generationPaused
+          ? `Try again in ${formatRetryWait(retrySecondsRemaining)}`
+          : busy
           ? "Generating preview…"
           : compact
             ? "Generate"

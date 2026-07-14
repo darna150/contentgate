@@ -20,7 +20,7 @@
     "test:templates": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test src/lib/template-contract.test.ts src/lib/template-platform/manifest.test.ts src/lib/template-platform/publish-readiness.test.ts src/lib/template-platform/preflight.test.ts src/lib/template-platform/bundle-directory.test.ts src/lib/template-platform/compiler.test.ts src/lib/template-platform/importer.test.ts src/lib/template-platform/figma-publisher.test.ts src/lib/template-platform/assignments.test.ts src/lib/template-platform/publishing.test.ts",
     "test:rate-limits": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test src/lib/rate-limit.test.ts",
     "test:documents": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test src/lib/document-extraction.test.ts",
-    "test:template-render": "tsx --test src/lib/template-renderer.test.tsx src/lib/template-platform/contentgate-bundle.test.ts src/lib/template-platform/runtime.test.ts src/lib/template-platform/render.test.tsx",
+    "test:template-render": "tsx --test src/lib/template-renderer.test.tsx src/lib/template-platform/contentgate-bundle.test.ts src/lib/template-platform/contentgate-public-assets.test.ts src/lib/template-platform/runtime.test.ts src/lib/template-platform/render.test.tsx",
     "smoke": "node scripts/smoke-test.mjs",
     "figwright:list": "node .tools/figwright/client.mjs list",
     "figwright:export-backgrounds": "node .tools/figwright/export-backgrounds.mjs",

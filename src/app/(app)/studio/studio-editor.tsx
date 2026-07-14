@@ -103,6 +103,27 @@ function generatedContentSizeKey(
   return fallback;
 }
 
+function formatRetryWait(seconds: number) {
+  const safeSeconds = Math.max(1, Math.ceil(seconds));
+  const minutes = Math.floor(safeSeconds / 60);
+  const remainder = safeSeconds % 60;
+  return minutes > 0
+    ? `${minutes}m${remainder > 0 ? ` ${remainder}s` : ""}`
+    : `${remainder}s`;
+}
+
+function retryAfterSecondsFromPayload(payload: unknown) {
+  if (
+    payload &&
+    typeof payload === "object" &&
+    "retryAfterSeconds" in payload &&
+    typeof payload.retryAfterSeconds === "number"
+  ) {
+    return Math.max(1, payload.retryAfterSeconds);
+  }
+  return null;
+}
+
 function renderContentGateCanvas(input: {
   layoutKey: string;
   sizeKey: SizeKey;
@@ -253,7 +274,7 @@ export function StudioEditor({
   templates,
   selectedProduct,
   selectedTemplate,
-  initialContent,
+  initialContents,
   initialSize,
   organizationName,
 }: {
@@ -261,7 +282,7 @@ export function StudioEditor({
   templates: Template[];
   selectedProduct: Product;
   selectedTemplate: Template;
-  initialContent: Content;
+  initialContents: GeneratedContent[];
   initialSize: SizeKey | null;
   organizationName: string;
 }) {
@@ -285,12 +306,15 @@ export function StudioEditor({
   const [size, setSize] = useState<SizeKey>(
     initialSize && sizes.includes(initialSize) ? initialSize : sizes[0]
   );
-  const initialContentSize =
-    initialContent && initialSize && sizes.includes(initialSize)
-      ? generatedContentSizeKey(initialContent, initialSize, sizes)
-      : initialContent
-        ? generatedContentSizeKey(initialContent, sizes[0], sizes)
-        : null;
+  const initialContentsBySize = useMemo(() => {
+    const entries: Partial<Record<SizeKey, GeneratedContent>> = {};
+    for (const item of initialContents) {
+      const itemSize = generatedContentSizeKey(item, sizes[0], sizes);
+      if (!entries[itemSize]) entries[itemSize] = item;
+    }
+    return entries;
+  }, [initialContents, sizes]);
+  const initialContent = initialContentsBySize[size] ?? initialContents[0] ?? null;
   const [language, setLanguage] = useState("English");
   const [selectedRevision, setSelectedRevision] = useState<string | null>(null);
   const [mode, setMode] = useState<"original" | "generated">(
@@ -298,11 +322,7 @@ export function StudioEditor({
   );
   const [contentsBySize, setContentsBySize] = useState<
     Partial<Record<SizeKey, GeneratedContent>>
-  >(() =>
-    initialContent && initialContentSize
-      ? { [initialContentSize]: initialContent }
-      : {}
-  );
+  >(() => initialContentsBySize);
   const content = contentsBySize[size] ?? null;
   const hasAnyGeneratedDraft = Object.keys(contentsBySize).length > 0;
   const [hasManualEdits, setHasManualEdits] = useState(
@@ -320,6 +340,8 @@ export function StudioEditor({
   const [exportFormat, setExportFormat] = useState<ExportFormat>("png");
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [retryUntil, setRetryUntil] = useState<number | null>(null);
+  const [now, setNow] = useState(() => Date.now());
   const [saveState, setSaveState] = useState<
     "idle" | "unsaved" | "saving" | "saved" | "error"
   >("idle");
@@ -328,6 +350,10 @@ export function StudioEditor({
   const [overflowFields, setOverflowFields] = useState<string[]>([]);
   const canvasRef = useRef<HTMLDivElement>(null);
   const saveSequence = useRef(0);
+  const retrySecondsRemaining = retryUntil
+    ? Math.max(0, Math.ceil((retryUntil - now) / 1000))
+    : 0;
+  const generationPaused = retrySecondsRemaining > 0;
 
   const productTemplates = useMemo(
     () => templates.filter((template) => template.product_id === selectedProduct.id),
@@ -513,6 +539,19 @@ export function StudioEditor({
   }, [activeFields, isLiveCanvas, mode, size]);
 
   useEffect(() => {
+    if (!retryUntil) return;
+    const timer = window.setInterval(() => {
+      const nextNow = Date.now();
+      setNow(nextNow);
+      if (nextNow >= retryUntil) {
+        setRetryUntil(null);
+        window.clearInterval(timer);
+      }
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [retryUntil]);
+
+  useEffect(() => {
     if (!dirty || !content || mode !== "generated") {
       return;
     }
@@ -617,6 +656,7 @@ export function StudioEditor({
   }
 
   async function generate() {
+    if (generationPaused) return;
     setBusy(true);
     setError(null);
     try {
@@ -642,9 +682,14 @@ export function StudioEditor({
       });
       const result = await response.json();
       if (!response.ok) {
+        const retryAfterSeconds = retryAfterSecondsFromPayload(result);
+        if (retryAfterSeconds) {
+          setRetryUntil(Date.now() + retryAfterSeconds * 1000);
+        }
         setError(result.error ?? "Generation failed.");
         return;
       }
+      setRetryUntil(null);
       const nextContent = {
         id: result.contentId as string,
         title: result.title as string,
@@ -921,10 +966,12 @@ export function StudioEditor({
             <button
               type="button"
               onClick={generate}
-              disabled={busy}
+              disabled={busy || generationPaused}
               className="rounded-control bg-brand px-4 py-2.5 text-[13.5px] font-semibold text-white disabled:opacity-50"
             >
-              {busy
+              {generationPaused
+                ? `Try again in ${formatRetryWait(retrySecondsRemaining)}`
+                : busy
                 ? "Generating preview…"
                 : showingGeneratedDraft &&
                     content &&
