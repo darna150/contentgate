@@ -95,6 +95,12 @@ function publicContentGateBundleAssetPath(
   ) {
     return null;
   }
+  if (assetPath.startsWith("template-packages/contentgate/")) {
+    return `/${assetPath}?v=${CONTENTGATE_PUBLIC_ASSET_VERSION}`;
+  }
+  if (assetPath.startsWith("/template-packages/contentgate/")) {
+    return `${assetPath}?v=${CONTENTGATE_PUBLIC_ASSET_VERSION}`;
+  }
   return `/template-bundles/${manifest.family.key}/${manifest.version.name}/${assetPath}?v=${CONTENTGATE_PUBLIC_ASSET_VERSION}`;
 }
 

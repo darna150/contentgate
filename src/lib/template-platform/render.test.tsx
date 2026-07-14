@@ -114,6 +114,35 @@ test("ContentGate figwright bundles use versioned public assets for browser and 
   );
 });
 
+test("ContentGate figwright bundles also support legacy public package asset paths", async () => {
+  const bundle = await buildContentGateTemplateBundle("contentgate_local_friendly");
+  const manifest = {
+    ...bundle.manifest,
+    version: {
+      ...bundle.manifest.version,
+      name: "figwright-v1",
+    },
+  };
+
+  const rendered = renderTemplateBundleVariant({
+    manifest,
+    variantKey: "leaderboard",
+    fields: {},
+    assetUrlByPath: {
+      "template-packages/contentgate/set-a/backgrounds/leaderboard.png":
+        "https://storage.example.test/signed-background.png",
+    },
+  });
+
+  assert.ok(rendered);
+  const html = renderToStaticMarkup(rendered.element);
+  assert.match(
+    html,
+    /\/template-packages\/contentgate\/set-a\/backgrounds\/leaderboard\.png\?v=clean-figwright-/
+  );
+  assert.doesNotMatch(html, /storage\.example\.test/);
+});
+
 test("reports platform copy that wraps beyond the locked text slot", async () => {
   const bundle = await buildContentGateTemplateBundle("contentgate_local_friendly");
   const issues = await templatePlatformFieldFitIssues({

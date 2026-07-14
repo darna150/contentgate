@@ -197,15 +197,20 @@ function publicTemplateBundleAssetPath(
   manifest: TemplateBundleManifest,
   assetPath: string
 ) {
-  const path = [
-    "",
-    "template-bundles",
-    manifest.family.key,
-    manifest.version.name,
-    assetPath,
-  ].join("/");
-  return manifest.version.name === "figwright-v1" &&
-    manifest.family.key.startsWith("contentgate-local-")
+  const isPublicContentGateAsset =
+    manifest.version.name === "figwright-v1" &&
+    manifest.family.key.startsWith("contentgate-local-");
+  const normalizedAssetPath = assetPath.replace(/^\//, "");
+  const path = normalizedAssetPath.startsWith("template-packages/contentgate/")
+    ? `/${normalizedAssetPath}`
+    : [
+        "",
+        "template-bundles",
+        manifest.family.key,
+        manifest.version.name,
+        normalizedAssetPath,
+      ].join("/");
+  return isPublicContentGateAsset
     ? `${path}?v=clean-figwright-2026-07-14-03`
     : path;
 }
