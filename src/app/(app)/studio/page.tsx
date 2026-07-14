@@ -70,10 +70,7 @@ function platformTemplateId(assignmentId: string) {
   return `platform:${assignmentId}`;
 }
 
-function platformAssignmentsToTemplates(
-  rows: PlatformAssignmentRow[],
-  assetUrlsByVersionId: Map<string, Record<string, string>>
-): Template[] {
+function platformAssignmentsToTemplates(rows: PlatformAssignmentRow[]): Template[] {
   return rows.flatMap((row) => {
     if (row.status !== "active") return [];
     const family = one(row.template_families);
@@ -93,7 +90,6 @@ function platformAssignmentsToTemplates(
         variant: `${family.name} · Platform v1`,
         layout_key: `template-platform:${family.family_key}`,
         platformAssignmentId: row.id,
-        platformAssetUrlByPath: assetUrlsByVersionId.get(version.id) ?? {},
         platformManifest: version.manifest,
         editable_fields: runtime.fields.map((field) => field.key),
         default_copy: Object.fromEntries(
@@ -175,22 +171,7 @@ export default async function StudioPage({
       ),
     }));
   const normalizedPlatformAssignmentRows = (platformAssignmentRows ?? []) as PlatformAssignmentRow[];
-  const platformVersions = normalizedPlatformAssignmentRows
-    .map((row) => one(row.template_versions))
-    .filter(
-      (version): version is NonNullable<typeof version> =>
-        Boolean(version?.id && version.manifest)
-    );
-  const platformAssetUrlMaps = await Promise.all(
-    platformVersions.map(async (version) => [
-      version.id,
-      Object.fromEntries(await createTemplateBundleAssetUrlMap(supabase, [version.manifest])),
-    ] as const)
-  );
-  const platformTemplates = platformAssignmentsToTemplates(
-    normalizedPlatformAssignmentRows,
-    new Map(platformAssetUrlMaps)
-  );
+  const platformTemplates = platformAssignmentsToTemplates(normalizedPlatformAssignmentRows);
   const templates = [...platformTemplates, ...legacyTemplates];
 
   const { data: requestedContent } = query.content
@@ -220,10 +201,18 @@ export default async function StudioPage({
   const productTemplates = templates.filter(
     (template) => template.product_id === selectedProduct?.id
   );
-  const selectedTemplate =
+  let selectedTemplate =
     productTemplates.find((template) => template.id === requestedTemplateId) ??
     productTemplates[0] ??
     null;
+  if (selectedTemplate?.platformManifest) {
+    selectedTemplate = {
+      ...selectedTemplate,
+      platformAssetUrlByPath: Object.fromEntries(
+        await createTemplateBundleAssetUrlMap(supabase, [selectedTemplate.platformManifest])
+      ),
+    };
+  }
   const requestedPlatformAssignmentId =
     typeof (requestedContent?.prompt_context as { platform_assignment_id?: unknown } | null)
       ?.platform_assignment_id === "string"

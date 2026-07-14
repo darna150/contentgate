@@ -42,6 +42,20 @@ import {
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
+const GENERATION_MODEL =
+  process.env.ANTHROPIC_GENERATION_MODEL ??
+  process.env.ANTHROPIC_MODEL ??
+  "claude-sonnet-4-6";
+const PLATFORM_GENERATION_ATTEMPTS = Math.max(
+  1,
+  Number(process.env.PLATFORM_GENERATION_ATTEMPTS ?? "1")
+);
+const LEGACY_GENERATION_ATTEMPTS = Math.max(
+  1,
+  Number(process.env.LEGACY_GENERATION_ATTEMPTS ?? "2")
+);
+const MAX_GENERATION_SOURCE_PARAGRAPHS = 24;
+
 type Body = {
   productTemplateId?: string;
   platformAssignmentId?: string;
@@ -253,12 +267,14 @@ export async function POST(req: Request) {
     );
     const approvedClaims = (claims ?? []).map((c) => c.claim_text);
     const sourceDocs = docs ?? [];
-    const sourceEntries: SourceEntry[] = sourceDocs.flatMap((d) =>
-      ((d.paragraphs as { n: number; text: string }[]) ?? []).map((p) => ({
-        label: `${d.title} ¶${p.n}`,
-        text: p.text,
-      }))
-    );
+    const sourceEntries: SourceEntry[] = sourceDocs
+      .flatMap((d) =>
+        ((d.paragraphs as { n: number; text: string }[]) ?? []).map((p) => ({
+          label: `${d.title} ¶${p.n}`,
+          text: p.text,
+        }))
+      )
+      .slice(0, MAX_GENERATION_SOURCE_PARAGRAPHS);
     const sourceText = sourceEntries
       .map((entry) => `[${entry.label}] ${entry.text}`)
       .join("\n");
@@ -351,7 +367,7 @@ export async function POST(req: Request) {
     let structured: Record<string, string> = {};
     let retryReasons: string[] = [];
 
-    for (let attempt = 0; attempt < 3; attempt += 1) {
+    for (let attempt = 0; attempt < PLATFORM_GENERATION_ATTEMPTS; attempt += 1) {
       const attemptPrompt = retryReasons.length
         ? [
             userPrompt,
@@ -365,7 +381,7 @@ export async function POST(req: Request) {
       let message;
       try {
         message = await anthropic.messages.create({
-          model: "claude-opus-4-8",
+          model: GENERATION_MODEL,
           max_tokens: 1500,
           system,
           tool_choice: { type: "tool", name: "build_asset_content" },
@@ -715,7 +731,7 @@ export async function POST(req: Request) {
   let structured: Record<string, string> = {};
   let retryReasons: string[] = [];
 
-  for (let attempt = 0; attempt < 2; attempt += 1) {
+  for (let attempt = 0; attempt < LEGACY_GENERATION_ATTEMPTS; attempt += 1) {
     const attemptPrompt = retryReasons.length
       ? [
           userPrompt,
@@ -729,7 +745,7 @@ export async function POST(req: Request) {
     let message;
     try {
       message = await anthropic.messages.create({
-        model: "claude-opus-4-8",
+        model: GENERATION_MODEL,
         max_tokens: 1500,
         system,
         tool_choice: { type: "tool", name: "build_asset_content" },

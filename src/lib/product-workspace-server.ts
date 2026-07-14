@@ -145,6 +145,13 @@ export type ProductWorkspace = {
   sections: ReturnType<typeof getWorkspaceSectionStates>;
 };
 
+type ProductWorkspaceView =
+  | "assets"
+  | "knowledge"
+  | "templates"
+  | "content"
+  | "approvals";
+
 type AssetRow = {
   id: string;
   asset_type: ProductAssetType;
@@ -200,8 +207,12 @@ function publicTemplateBundleAssetPath(
 }
 
 export async function getProductWorkspace(
-  productId: string
+  productId: string,
+  options: { view?: ProductWorkspaceView } = {}
 ): Promise<ProductWorkspace | null> {
+  const view = options.view ?? "templates";
+  const needsAssetRows = view === "assets";
+  const needsContentRows = view === "content" || view === "approvals";
   const supabase = await createClient();
   const {
     data: { user },
@@ -227,16 +238,30 @@ export async function getProductWorkspace(
   assertQuery(productError, "product");
   if (!product) return null;
 
+  const assetQuery = supabase
+    .from("product_assets")
+    .select(
+      needsAssetRows
+        ? "id, asset_type, title, description, alt_text, original_file_name, mime_type, file_size_bytes, width_pixels, height_pixels, tags, approval_status, storage_path, created_at, updated_at"
+        : "id, storage_path"
+    )
+    .eq("org_id", profile.org_id)
+    .eq("product_id", productId)
+    .order("created_at", { ascending: false });
+  const contentQuery = supabase
+    .from("generated_content")
+    .select(
+      needsContentRows
+        ? "id, title, status, target_language, audience, product_template_id, created_by, rejection_note, created_at, updated_at, product_templates(variant, category), creator:profiles!generated_content_created_by_fkey(full_name)"
+        : "id, status"
+    )
+    .eq("org_id", profile.org_id)
+    .eq("product_id", productId)
+    .order("updated_at", { ascending: false });
+
   const [assetResult, sourceResult, claimResult, templateResult, platformTemplateResult, contentResult] =
     await Promise.all([
-      supabase
-        .from("product_assets")
-        .select(
-          "id, asset_type, title, description, alt_text, original_file_name, mime_type, file_size_bytes, width_pixels, height_pixels, tags, approval_status, storage_path, created_at, updated_at"
-        )
-        .eq("org_id", profile.org_id)
-        .eq("product_id", productId)
-        .order("created_at", { ascending: false }),
+      assetQuery,
       supabase
         .from("documents")
         .select("id, title, file_type, storage_path, created_at")
@@ -265,14 +290,7 @@ export async function getProductWorkspace(
         .eq("org_id", profile.org_id)
         .eq("product_id", productId)
         .order("created_at", { ascending: true }),
-      supabase
-        .from("generated_content")
-        .select(
-          "id, title, status, target_language, audience, product_template_id, created_by, rejection_note, created_at, updated_at, product_templates(variant, category), creator:profiles!generated_content_created_by_fkey(full_name)"
-        )
-        .eq("org_id", profile.org_id)
-        .eq("product_id", productId)
-        .order("updated_at", { ascending: false }),
+      contentQuery,
     ]);
 
   assertQuery(assetResult.error, "assets");
@@ -282,29 +300,33 @@ export async function getProductWorkspace(
   assertQuery(platformTemplateResult.error, "platform templates");
   assertQuery(contentResult.error, "content");
 
-  const assetPreviewUrls = await createProductAssetPreviewUrlMap(
-    supabase,
-    ((assetResult.data ?? []) as AssetRow[]).map((asset) => asset.storage_path)
-  );
+  const assetPreviewUrls = needsAssetRows
+    ? await createProductAssetPreviewUrlMap(
+        supabase,
+        ((assetResult.data ?? []) as unknown as AssetRow[]).map((asset) => asset.storage_path)
+      )
+    : new Map<string, string>();
 
-  const assets = ((assetResult.data ?? []) as AssetRow[]).map((asset) => ({
-    id: asset.id,
-    assetType: asset.asset_type,
-    title: asset.title,
-    description: asset.description,
-    altText: asset.alt_text,
-    originalFileName: asset.original_file_name,
-    mimeType: asset.mime_type,
-    fileSizeBytes: asset.file_size_bytes,
-    widthPixels: asset.width_pixels,
-    heightPixels: asset.height_pixels,
-    tags: asset.tags ?? [],
-    approvalStatus: asset.approval_status,
-    storagePath: asset.storage_path,
-    previewUrl: assetPreviewUrls.get(asset.storage_path) ?? "",
-    createdAt: asset.created_at,
-    updatedAt: asset.updated_at,
-  }));
+  const assets = needsAssetRows
+    ? ((assetResult.data ?? []) as unknown as AssetRow[]).map((asset) => ({
+        id: asset.id,
+        assetType: asset.asset_type,
+        title: asset.title,
+        description: asset.description,
+        altText: asset.alt_text,
+        originalFileName: asset.original_file_name,
+        mimeType: asset.mime_type,
+        fileSizeBytes: asset.file_size_bytes,
+        widthPixels: asset.width_pixels,
+        heightPixels: asset.height_pixels,
+        tags: asset.tags ?? [],
+        approvalStatus: asset.approval_status,
+        storagePath: asset.storage_path,
+        previewUrl: assetPreviewUrls.get(asset.storage_path) ?? "",
+        createdAt: asset.created_at,
+        updatedAt: asset.updated_at,
+      }))
+    : [];
 
   const approvedSources = (sourceResult.data ?? []).map((source) => ({
     id: source.id,
@@ -403,7 +425,8 @@ export async function getProductWorkspace(
         backgroundAssetBySize,
       };
     });
-  const content = ((contentResult.data ?? []) as ContentRow[]).map((row) => {
+  const content = needsContentRows
+    ? ((contentResult.data ?? []) as unknown as ContentRow[]).map((row) => {
     const template = one(row.product_templates);
     const creator = one(row.creator);
     return {
@@ -421,7 +444,8 @@ export async function getProductWorkspace(
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };
-  });
+  })
+    : [];
 
   const activeTemplates = templates.filter(
     (template) => template.status === "active" && template.contractReady
@@ -429,19 +453,20 @@ export async function getProductWorkspace(
   const activePlatformTemplates = platformTemplates;
   const approvedClaims = claims.filter((claim) => claim.status === "approved");
   const approvals = content.filter((item) => item.status === "in_review");
-  const contentByStatus = content.reduce<Record<string, number>>((counts, item) => {
+  const contentStatusRows = (contentResult.data ?? []) as unknown as Array<{ status: string }>;
+  const contentByStatus = contentStatusRows.reduce<Record<string, number>>((counts, item) => {
     counts[item.status] = (counts[item.status] ?? 0) + 1;
     return counts;
   }, {});
   const counts = {
-    assets: assets.length,
+    assets: (assetResult.data ?? []).length,
     approvedSources: approvedSources.length,
     approvedClaims: approvedClaims.length,
     templates: templates.length,
     activeTemplates: activeTemplates.length + activePlatformTemplates.length,
     platformTemplates: platformTemplates.length,
     activePlatformTemplates: activePlatformTemplates.length,
-    content: content.length,
+    content: contentStatusRows.length,
     inReview: approvals.length,
     contentByStatus,
   };
