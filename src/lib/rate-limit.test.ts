@@ -26,7 +26,8 @@ test("returns standard 429 headers when the limit is exceeded", async () => {
   assert.equal(response.status, 429);
   assert.equal(response.headers.get("Retry-After"), "90");
   assert.deepEqual(await response.json(), {
-    error: "Too many requests. Try again shortly.",
+    error: "Generation limit reached. Try again in 1m 30s.",
+    retryAfterSeconds: 90,
   });
 });
 
