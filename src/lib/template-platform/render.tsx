@@ -162,22 +162,36 @@ export function renderTemplateBundleVariant(input: {
           }}
         />
         {logoOverlay && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={CONTENTGATE_LOGO_SRC}
-            alt=""
-            aria-hidden="true"
-            style={{
-              position: "absolute",
-              left: logoOverlay.x,
-              top: logoOverlay.y,
-              width: logoOverlay.width,
-              height: logoOverlay.height,
-              display: "block",
-              objectFit: "contain",
-              pointerEvents: "none",
-            }}
-          />
+          <>
+            <div
+              aria-hidden="true"
+              style={{
+                position: "absolute",
+                left: logoOverlay.x - 6,
+                top: logoOverlay.y - 6,
+                width: logoOverlay.width + 12,
+                height: logoOverlay.height + 12,
+                background: "#FBF7EF",
+                pointerEvents: "none",
+              }}
+            />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={CONTENTGATE_LOGO_SRC}
+              alt=""
+              aria-hidden="true"
+              style={{
+                position: "absolute",
+                left: logoOverlay.x,
+                top: logoOverlay.y,
+                width: logoOverlay.width,
+                height: logoOverlay.height,
+                display: "block",
+                objectFit: "contain",
+                pointerEvents: "none",
+              }}
+            />
+          </>
         )}
         {!input.original &&
           runtime.variant.slots
