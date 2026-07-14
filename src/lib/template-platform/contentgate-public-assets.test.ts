@@ -79,6 +79,37 @@ function similarPixelsInVisualRegion(reference: ImageData, background: ImageData
   return matchingLockedPixels;
 }
 
+function isRustAccentPixel(data: Buffer, index: number) {
+  const r = data[index];
+  const g = data[index + 1];
+  const b = data[index + 2];
+  const alpha = data[index + 3];
+  return alpha > 0 && r > 140 && r < 230 && g > 50 && g < 140 && b < 120;
+}
+
+function retainedTopRustAccentPixels(reference: ImageData, background: ImageData) {
+  assert.equal(background.width, reference.width);
+  assert.equal(background.height, reference.height);
+  assert.equal(background.channels, reference.channels);
+
+  const topRows = Math.max(1, Math.round(reference.height * 0.12));
+  let referenceRustPixels = 0;
+  let retainedRustPixels = 0;
+  for (let y = 0; y < topRows; y += 1) {
+    for (let x = 0; x < reference.width; x += 1) {
+      const index = (y * reference.width + x) * reference.channels;
+      if (!isRustAccentPixel(reference.data, index)) continue;
+      referenceRustPixels += 1;
+      const delta =
+        Math.abs(reference.data[index] - background.data[index]) +
+        Math.abs(reference.data[index + 1] - background.data[index + 1]) +
+        Math.abs(reference.data[index + 2] - background.data[index + 2]);
+      if (delta <= 24) retainedRustPixels += 1;
+    }
+  }
+  return { referenceRustPixels, retainedRustPixels };
+}
+
 test("ContentGate public figwright assets are complete, sharp, and retain locked artwork", async () => {
   for (const [family, variants] of Object.entries(EXPECTED_VARIANTS)) {
     for (const [variant, [expectedWidth, expectedHeight]] of Object.entries(variants)) {
@@ -118,6 +149,15 @@ test("ContentGate public figwright assets are complete, sharp, and retain locked
         retainedPixels > 1_000,
         `${family}/${variant} background lost locked visual artwork (${retainedPixels} retained pixels)`
       );
+
+      const { referenceRustPixels, retainedRustPixels } =
+        retainedTopRustAccentPixels(reference, background);
+      if (referenceRustPixels > 0) {
+        assert.ok(
+          retainedRustPixels / referenceRustPixels > 0.95,
+          `${family}/${variant} background lost the locked top rust accent (${retainedRustPixels}/${referenceRustPixels} retained pixels)`
+        );
+      }
     }
   }
 });
