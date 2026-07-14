@@ -59,6 +59,16 @@ type SourceEntry = {
   text: string;
 };
 
+type ReplaceContentRow = {
+  id: string;
+  status: string;
+  created_by: string;
+  product_id: string;
+  template_version_id: string | null;
+  template_variant_id: string | null;
+  prompt_context: Record<string, unknown> | null;
+};
+
 function normalizeEvidence(value: string) {
   return value
     .toLowerCase()
@@ -117,14 +127,6 @@ export async function POST(req: Request) {
   } = await supabase.auth.getUser();
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-  try {
-    const rateLimit = await consumeApiRateLimit(supabase, "content.generate");
-    if (!rateLimit.allowed) return rateLimitResponse(rateLimit);
-  } catch (error) {
-    console.error("content generation rate limit failed:", error);
-    return Response.json({ error: "Generation is temporarily unavailable." }, { status: 503 });
-  }
-
   let requestBody: Body;
   try {
     requestBody = (await req.json()) as Body;
@@ -141,18 +143,26 @@ export async function POST(req: Request) {
   } = requestBody;
   if (productTemplateId) {
     return Response.json(
-      { error: "Legacy templates are read-only. Choose a Platform v1 template." },
+      { error: "This older template is read-only. Choose an approved template." },
       { status: 410 }
     );
   }
   if (!platformAssignmentId) {
-    return Response.json({ error: "Missing platform template." }, { status: 400 });
+    return Response.json({ error: "Missing approved template." }, { status: 400 });
   }
   if (!ALLOWED_LANGUAGES.has(language)) {
     return Response.json({ error: "Unsupported language." }, { status: 400 });
   }
   if (!Array.isArray(revisions) || revisions.length > 1) {
     return Response.json({ error: "Invalid refinement selection." }, { status: 400 });
+  }
+
+  try {
+    const rateLimit = await consumeApiRateLimit(supabase, "content.generate");
+    if (!rateLimit.allowed) return rateLimitResponse(rateLimit);
+  } catch (error) {
+    console.error("content generation rate limit failed:", error);
+    return Response.json({ error: "Generation is temporarily unavailable." }, { status: 503 });
   }
 
   const { data: profile } = await supabase
@@ -163,12 +173,6 @@ export async function POST(req: Request) {
   if (!profile) return Response.json({ error: "No profile." }, { status: 401 });
 
   if (platformAssignmentId) {
-    if (replaceContentId) {
-      return Response.json(
-        { error: "Platform template regeneration is not wired yet." },
-        { status: 409 }
-      );
-    }
     const outputSizeKey = asTemplateSizeKey(outputSize);
     if (!outputSizeKey) {
       return Response.json(
@@ -213,6 +217,41 @@ export async function POST(req: Request) {
       .single();
     if (!variantRow) {
       return Response.json({ error: "Template variant not found." }, { status: 409 });
+    }
+
+    let replaceContent: ReplaceContentRow | null = null;
+    if (replaceContentId) {
+      const { data: existingContent } = await supabase
+        .from("generated_content")
+        .select(
+          "id, status, created_by, product_id, template_version_id, template_variant_id, prompt_context"
+        )
+        .eq("id", replaceContentId)
+        .eq("org_id", profile.org_id)
+        .single();
+      if (!existingContent) {
+        return Response.json({ error: "Draft to regenerate was not found." }, { status: 404 });
+      }
+      if (existingContent.created_by !== user.id) {
+        return Response.json({ error: "Only the draft author can regenerate it." }, { status: 403 });
+      }
+      if (!["draft", "rejected"].includes(existingContent.status)) {
+        return Response.json(
+          { error: "Only draft or returned content can be regenerated." },
+          { status: 409 }
+        );
+      }
+      if (
+        existingContent.product_id !== assignment.productId ||
+        existingContent.template_version_id !== assignment.versionId ||
+        existingContent.template_variant_id !== variantRow.id
+      ) {
+        return Response.json(
+          { error: "This draft belongs to a different template or output size." },
+          { status: 409 }
+        );
+      }
+      replaceContent = existingContent as ReplaceContentRow;
     }
 
     const { data: product } = await supabase
@@ -348,6 +387,7 @@ export async function POST(req: Request) {
 
     let out: { fields: Record<string, string>; evidence: Evidence[] } | null = null;
     let structured: Record<string, string> = {};
+    let lastCandidateEvidence: Evidence[] = [];
     let retryReasons: string[] = [];
 
     for (let attempt = 0; attempt < PLATFORM_GENERATION_ATTEMPTS; attempt += 1) {
@@ -384,6 +424,9 @@ export async function POST(req: Request) {
         fields: Record<string, string>;
         evidence: Evidence[];
       };
+      lastCandidateEvidence = Array.isArray(candidate.evidence)
+        ? candidate.evidence
+        : [];
       structured = Object.fromEntries(
         editableFields.map((key) => [
           key,
@@ -438,7 +481,7 @@ export async function POST(req: Request) {
         ...formatTemplatePlatformFitIssues(geometryIssues),
       ];
       if (!retryReasons.length) {
-        out = { fields: structured, evidence: [] };
+        out = { fields: structured, evidence: lastCandidateEvidence };
       }
     }
 
@@ -466,45 +509,65 @@ export async function POST(req: Request) {
     const rejectedEvidenceCount = rawEvidence.length - evidence.length;
     const title = `${product.name} · ${assignment.familyName}`;
     const body = flattenFields(structured, editableFields);
+    const savedAt = new Date().toISOString();
+    const promptContext = {
+      ...(replaceContent?.prompt_context &&
+      typeof replaceContent.prompt_context === "object"
+        ? replaceContent.prompt_context
+        : {}),
+      language,
+      output_size: outputSizeKey,
+      revisions,
+      platform_assignment_id: assignment.assignmentId,
+      template_family_key: assignment.familyKey,
+      template_version_id: assignment.versionId,
+      template_variant_id: variantRow.id,
+      field_limits: fieldLimits,
+      generated_fields: structured,
+      manually_edited_fields: [],
+      compliance_state: "generated",
+      evidence_validation: {
+        accepted: evidence.length,
+        rejected: rejectedEvidenceCount,
+      },
+      last_generated_at: savedAt,
+    };
 
-    const { data: row, error: writeError } = await supabase
-      .from("generated_content")
-      .insert({
-        org_id: profile.org_id,
-        created_by: user.id,
-        product_id: product.id,
-        product_template_id: null,
-        template_version_id: assignment.versionId,
-        template_variant_id: variantRow.id,
-        renderer_version: "template-platform-v1",
-        template_id: null,
-        structured_fields: structured,
-        source_document_ids: sourceDocs.map((d) => d.id),
-        citations: evidence,
-        title,
-        body,
-        target_language: language,
-        prompt_context: {
-          language,
-          output_size: outputSizeKey,
-          revisions,
-          platform_assignment_id: assignment.assignmentId,
-          template_family_key: assignment.familyKey,
+    const writeQuery = replaceContent
+      ? supabase
+          .from("generated_content")
+          .update({
+            structured_fields: structured,
+            source_document_ids: sourceDocs.map((d) => d.id),
+            citations: evidence,
+            title,
+            body,
+            target_language: language,
+            prompt_context: promptContext,
+            status: "draft",
+            updated_at: savedAt,
+          })
+          .eq("id", replaceContent.id)
+      : supabase.from("generated_content").insert({
+          org_id: profile.org_id,
+          created_by: user.id,
+          product_id: product.id,
+          product_template_id: null,
           template_version_id: assignment.versionId,
           template_variant_id: variantRow.id,
-          field_limits: fieldLimits,
-          generated_fields: structured,
-          manually_edited_fields: [],
-          compliance_state: "generated",
-          evidence_validation: {
-            accepted: evidence.length,
-            rejected: rejectedEvidenceCount,
-          },
-        },
-        status: "draft",
-      })
-      .select("id")
-      .single();
+          renderer_version: "template-platform-v1",
+          template_id: null,
+          structured_fields: structured,
+          source_document_ids: sourceDocs.map((d) => d.id),
+          citations: evidence,
+          title,
+          body,
+          target_language: language,
+          prompt_context: promptContext,
+          status: "draft",
+        });
+
+    const { data: row, error: writeError } = await writeQuery.select("id").single();
 
     if (writeError || !row) {
       return Response.json({ error: `Could not save draft: ${writeError?.message}` }, { status: 500 });
@@ -521,7 +584,7 @@ export async function POST(req: Request) {
   }
 
   return Response.json(
-    { error: "Legacy templates are read-only. Choose a Platform v1 template." },
+    { error: "This older template is read-only. Choose an approved template." },
     { status: 410 }
   );
 }

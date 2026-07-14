@@ -246,7 +246,7 @@ export default async function ContentDetailPage({
               <div className="flex items-center justify-between gap-3">
                 <h2 className="text-[15px] font-bold">Template preview</h2>
                 <span className="rounded-[5px] bg-brand-tint px-[7px] py-0.5 text-[10.5px] font-bold uppercase tracking-[0.08em] text-brand">
-                  Platform v1
+                  Locked template
                 </span>
               </div>
               <div className="overflow-hidden rounded-[10px] border border-edge bg-page p-4">

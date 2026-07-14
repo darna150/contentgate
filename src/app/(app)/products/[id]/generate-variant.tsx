@@ -35,7 +35,6 @@ function retryAfterSecondsFromPayload(payload: unknown) {
 
 export function GenerateVariant({
   productId,
-  templateId,
   platformAssignmentId,
   variant,
   sizes,
@@ -43,8 +42,7 @@ export function GenerateVariant({
   compact = false,
 }: {
   productId: string;
-  templateId?: string;
-  platformAssignmentId?: string;
+  platformAssignmentId: string;
   variant: string;
   sizes: SizeKey[];
   initialSize: SizeKey;
@@ -86,9 +84,7 @@ export function GenerateVariant({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ...(platformAssignmentId
-            ? { platformAssignmentId }
-            : { productTemplateId: templateId }),
+          platformAssignmentId,
           language,
           outputSize,
         }),
@@ -106,20 +102,14 @@ export function GenerateVariant({
       if (j.platform) {
         const params = new URLSearchParams({
           product: productId,
-          template: `platform:${platformAssignmentId ?? ""}`,
+          template: `platform:${platformAssignmentId}`,
           content: j.contentId,
           size: (j.outputSize as string) ?? outputSize,
         });
         router.push(`/studio?${params.toString()}`);
         return;
       }
-      const params = new URLSearchParams({
-        product: productId,
-        template: templateId ?? "",
-        content: j.contentId,
-        size: (j.outputSize as string) ?? outputSize,
-      });
-      router.push(`/studio?${params.toString()}`);
+      setError("Generation returned an unsupported template type.");
     } catch {
       setError("Generation failed. Try again.");
     } finally {

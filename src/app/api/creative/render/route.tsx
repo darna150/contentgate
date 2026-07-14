@@ -36,7 +36,8 @@ export const runtime = "nodejs";
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const contentId = searchParams.get("content");
-  const requestedSize = searchParams.get("size") ?? "square";
+  const requestedSizeParam = searchParams.get("size");
+  const requestedSize = requestedSizeParam ?? "square";
   if (!contentId) return new Response("Missing content id", { status: 400 });
 
   const supabase = await createClient();
@@ -82,7 +83,13 @@ export async function GET(req: Request) {
 
   if (platformVersion?.manifest && platformVariant?.variant_key) {
     const manifest = platformVersion.manifest as TemplateBundleManifest;
-    const variantKey = requestedSize === "square" ? platformVariant.variant_key : requestedSize;
+    const variantKey = platformVariant.variant_key;
+    if (requestedSizeParam && requestedSizeParam !== variantKey) {
+      return new Response("Rendered size must match the approved template size.", {
+        status: 403,
+        headers: { "Cache-Control": "no-store" },
+      });
+    }
     const runtime = resolveTemplateBundleRuntimeVariant(manifest, variantKey);
     if (!runtime) {
       return new Response("Unsupported size for this template", { status: 400 });

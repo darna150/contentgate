@@ -44,17 +44,14 @@ export function TemplatesView({ workspace }: { workspace: ProductWorkspace }) {
       {activePlatformTemplates.length > 0 && (
         <div className="flex flex-col gap-3 rounded-card border border-brand/25 bg-brand-tint/40 p-[22px]">
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-[15px] font-bold">Platform templates</h2>
-            <span className="rounded-[5px] bg-brand px-[6px] py-0.5 text-[9.5px] font-bold uppercase tracking-[0.05em] text-white">
-              v1
-            </span>
+            <h2 className="text-[15px] font-bold">Approved templates</h2>
             <span className="rounded-[5px] bg-approve-tint px-[6px] py-0.5 text-[9.5px] font-bold uppercase tracking-[0.05em] text-approve">
-              Recommended
+              Locked design
             </span>
           </div>
           <p className="text-[12px] leading-relaxed text-ink-muted">
-            Versioned platform templates use approved source material,
-            size-first generation, locked artwork, and editable text fields.
+            Choose a format first, then generate copy inside approved artwork
+            and editable text fields.
           </p>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {activePlatformTemplates.map((template) => {
@@ -92,7 +89,7 @@ export function TemplatesView({ workspace }: { workspace: ProductWorkspace }) {
                     {template.supportedSizes.join(" · ")}
                   </p>
                   <p className="px-0.5 text-[11px] text-ink-muted">
-                    Platform v1 · locked design · size-specific generation.
+                    Locked design · generate only the size you need.
                   </p>
                   {canGenerate && (
                     <div className="px-0.5">

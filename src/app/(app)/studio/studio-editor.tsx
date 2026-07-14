@@ -359,6 +359,13 @@ export function StudioEditor({
       })
     : null;
 
+  function confirmDiscardUnsavedChanges() {
+    if (!dirty) return true;
+    return window.confirm(
+      "You have unsaved copy edits. Discard them and continue?"
+    );
+  }
+
   useLayoutEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || mode === "original") {
@@ -472,6 +479,7 @@ export function StudioEditor({
   ]);
 
   function switchMode(nextMode: "original" | "generated") {
+    if (nextMode !== mode && !confirmDiscardUnsavedChanges()) return;
     if (nextMode === "generated" && !hasAnyGeneratedDraft) return;
     const nextContent = contentsBySize[size] ?? null;
     const nextFields =
@@ -489,6 +497,7 @@ export function StudioEditor({
   }
 
   function selectSize(nextSize: SizeKey) {
+    if (nextSize !== size && !confirmDiscardUnsavedChanges()) return;
     const nextContent = contentsBySize[nextSize] ?? null;
     const nextFields =
       mode === "generated" && nextContent
@@ -518,6 +527,7 @@ export function StudioEditor({
   }
 
   function navigate(productId: string, templateId?: string) {
+    if (!confirmDiscardUnsavedChanges()) return;
     const firstTemplate =
       templateId ?? templates.find((template) => template.product_id === productId)?.id;
     const params = new URLSearchParams({ product: productId });
@@ -527,6 +537,7 @@ export function StudioEditor({
 
   async function generate() {
     if (generationPaused) return;
+    if (dirty && !confirmDiscardUnsavedChanges()) return;
     setBusy(true);
     setError(null);
     try {
@@ -538,7 +549,12 @@ export function StudioEditor({
           language,
           outputSize: size,
           revisions: selectedRevision ? [selectedRevision] : [],
-          replaceContentId: undefined,
+          replaceContentId:
+            showingGeneratedDraft &&
+            content &&
+            (content.status === "draft" || content.status === "rejected")
+              ? content.id
+              : undefined,
         }),
       });
       const result = await response.json();
@@ -889,8 +905,8 @@ export function StudioEditor({
             ))}
             {editablePilot && (
               <p className="rounded-control bg-approve-tint px-3 py-2 text-[11.5px] leading-relaxed text-approve">
-                Edits update the locked design immediately. The{" "}
-                Copy updates stay inside the selected Platform v1 size. Artwork,
+                Edits update the locked design immediately. Copy updates stay
+                inside the selected output size. Artwork,
                 typography, safe zones, and approved positions remain locked.
               </p>
             )}

@@ -25,6 +25,7 @@ type Template = {
   variant: string;
   layout_key: string;
   platformAssignmentId?: string;
+  templateVersionId?: string;
   platformAssetUrlByPath?: Record<string, string>;
   platformManifest?: TemplateBundleManifest;
   editable_fields: string[];
@@ -125,9 +126,10 @@ function platformAssignmentsToTemplates(rows: PlatformAssignmentRow[]): Template
         id: platformTemplateId(row.id),
         product_id: row.product_id,
         category: "social",
-        variant: `${family.name} · Platform v1`,
+        variant: family.name,
         layout_key: `template-platform:${family.family_key}`,
         platformAssignmentId: row.id,
+        templateVersionId: version.id,
         platformManifest: version.manifest,
         editable_fields: runtime.fields.map((field) => field.key),
         default_copy: Object.fromEntries(
@@ -259,9 +261,10 @@ export default async function StudioPage({
             "id, title, status, structured_fields, prompt_context, created_by, product_id, product_template_id, updated_at"
           )
           .eq("product_id", selectedProduct.id)
+          .eq("template_version_id", selectedTemplate.templateVersionId ?? "")
           .in("status", ["draft", "rejected", "in_review", "approved"])
           .order("updated_at", { ascending: false })
-          .limit(100)
+          .limit(50)
       : { data: [] };
   const initialContentsBySize = new Map<TemplateSizeKey, StudioContent>();
   const selectedContentCandidates = [
