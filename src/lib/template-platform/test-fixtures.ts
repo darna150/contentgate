@@ -1,0 +1,116 @@
+import {
+  TEMPLATE_BUNDLE_SCHEMA_VERSION,
+  type TemplateBundleManifest,
+} from "./manifest.ts";
+
+export const validTemplateBundleManifest: TemplateBundleManifest = {
+  schemaVersion: TEMPLATE_BUNDLE_SCHEMA_VERSION,
+  family: {
+    key: "contentgate-local-friendly",
+    name: "ContentGate Local Friendly",
+  },
+  version: {
+    name: "v1",
+    source: "figma",
+    sourceFileKey: "figma-file-key",
+  },
+  fields: [
+    {
+      key: "headline",
+      label: "Headline",
+      type: "text",
+      source: "ai",
+      required: true,
+      localizable: true,
+    },
+    {
+      key: "cta",
+      label: "CTA",
+      type: "text",
+      source: "user",
+      required: true,
+    },
+    {
+      key: "hero_image",
+      label: "Hero image",
+      type: "image",
+      source: "product",
+    },
+  ],
+  assets: [
+    {
+      key: "inter-bold-file",
+      kind: "font",
+      path: "fonts/Inter-Bold.ttf",
+      sha256: "a".repeat(64),
+    },
+    {
+      key: "square-reference",
+      kind: "reference",
+      path: "variants/square/reference.png",
+      sha256: "b".repeat(64),
+      width: 1080,
+      height: 1080,
+      mimeType: "image/png",
+    },
+    {
+      key: "square-background",
+      kind: "background",
+      path: "variants/square/background.png",
+      sha256: "c".repeat(64),
+      width: 1080,
+      height: 1080,
+      mimeType: "image/png",
+    },
+  ],
+  fonts: [
+    {
+      key: "inter-bold",
+      family: "Inter",
+      style: "normal",
+      weight: 700,
+      asset: "inter-bold-file",
+      sha256: "a".repeat(64),
+    },
+  ],
+  variants: [
+    {
+      key: "square",
+      label: "Square",
+      channel: "social",
+      width: 1080,
+      height: 1080,
+      referenceAsset: "square-reference",
+      backgroundAsset: "square-background",
+      slots: [
+        {
+          key: "headline-slot",
+          field: "headline",
+          kind: "text",
+          x: 96,
+          y: 560,
+          width: 760,
+          height: 160,
+          fontKey: "inter-bold",
+          fontSize: 72,
+          lineHeight: 0.98,
+          color: "#113d34",
+          maxChars: 64,
+          maxLines: 2,
+          minFontSize: 56,
+          fit: "shrink_to_fit",
+        },
+        {
+          key: "hero-image-slot",
+          field: "hero_image",
+          kind: "image",
+          x: 600,
+          y: 120,
+          width: 360,
+          height: 300,
+          fit: "cover",
+        },
+      ],
+    },
+  ],
+};

@@ -31,7 +31,7 @@ export default async function ProductsPage() {
       const [{ data: claims }, { data: tpls }] = await Promise.all([
         supabase.from("product_claims").select("product_id").in("product_id", ids),
         supabase
-          .from("product_templates")
+          .from("product_template_assignments")
           .select("product_id")
           .in("product_id", ids)
           .eq("status", "active"),

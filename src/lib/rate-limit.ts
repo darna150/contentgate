@@ -51,8 +51,18 @@ export async function consumeApiRateLimit(
 }
 
 export function rateLimitResponse(result: ApiRateLimitResult) {
+  const minutes = Math.floor(result.retryAfterSeconds / 60);
+  const seconds = result.retryAfterSeconds % 60;
+  const wait =
+    minutes > 0
+      ? `${minutes}m${seconds > 0 ? ` ${seconds}s` : ""}`
+      : `${seconds}s`;
+
   return Response.json(
-    { error: "Too many requests. Try again shortly." },
+    {
+      error: `Generation limit reached. Try again in ${wait}.`,
+      retryAfterSeconds: result.retryAfterSeconds,
+    },
     {
       status: 429,
       headers: {

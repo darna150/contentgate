@@ -277,4 +277,3 @@ export function getRenderFits(layoutKey: string | null | undefined): Record<stri
   const normalized = normalizeLayoutKey(layoutKey);
   return normalized ? SPECS[normalized]?.renderFits ?? {} : {};
 }
-

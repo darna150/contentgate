@@ -10,32 +10,10 @@ import {
   useRef,
   useState,
 } from "react";
-import {
-  originalTemplatePreviewUrl,
-  SIZES,
-  renderUrl,
-  type SizeKey,
-} from "@/lib/creative";
-import {
-  getTemplateLayoutContract,
-  getTemplateSupportedSizes,
-} from "@/lib/template-contract";
-import {
-  apexCanineDimensions,
-  apexCanineLayoutDensity,
-  renderApexCanine,
-} from "@/lib/apex-canine-render";
-import {
-  caniGuard5Dimensions,
-  caniGuard5LayoutDensity,
-  renderCaniGuard5,
-} from "@/lib/caniguard5-render";
-import {
-  vitalBiteDimensions,
-  vitalBiteLayoutDensity,
-  renderVitalBite,
-} from "@/lib/vitalbite-render";
-import { renderPublishedTemplatePackage } from "@/lib/published-template-package";
+import { SIZES, type SizeKey } from "@/lib/creative";
+import type { TemplateBundleManifest } from "@/lib/template-platform/manifest";
+import { renderTemplateBundleVariant } from "@/lib/template-platform/render";
+import { getTemplateBundleSupportedSizes } from "@/lib/template-platform/runtime";
 import { exportCanvas, type ExportFormat } from "@/lib/canvas-export";
 import { fieldLabel, REVISION_OPTIONS } from "@/lib/templates";
 import {
@@ -55,6 +33,9 @@ type Template = {
   category: string;
   variant: string;
   layout_key: string;
+  platformAssignmentId?: string;
+  platformAssetUrlByPath?: Record<string, string>;
+  platformManifest?: TemplateBundleManifest;
   editable_fields: string[];
   default_copy: Record<string, string>;
   field_limits: FieldLimits;
@@ -67,9 +48,11 @@ type Content = {
   title: string;
   status: string;
   structured_fields: Record<string, string>;
+  outputSize: SizeKey | null;
   manuallyEdited: boolean;
   canEdit: boolean;
 } | null;
+type GeneratedContent = NonNullable<Content>;
 
 const LANGUAGES = ["English", "Filipino", "Spanish", "Portuguese", "Vietnamese", "Thai"];
 const GENERATION_MESSAGES = [
@@ -80,20 +63,54 @@ const GENERATION_MESSAGES = [
   "Polishing the preview for its close-up.",
 ] as const;
 
-function renderContentGateCanvas(input: {
-  layoutKey: string;
+function generatedContentSizeKey(
+  content: GeneratedContent | null,
+  fallback: SizeKey,
+  supportedSizes: readonly SizeKey[]
+) {
+  if (content?.outputSize && supportedSizes.includes(content.outputSize)) {
+    return content.outputSize;
+  }
+  return fallback;
+}
+
+function formatRetryWait(seconds: number) {
+  const safeSeconds = Math.max(1, Math.ceil(seconds));
+  const minutes = Math.floor(safeSeconds / 60);
+  const remainder = safeSeconds % 60;
+  return minutes > 0
+    ? `${minutes}m${remainder > 0 ? ` ${remainder}s` : ""}`
+    : `${remainder}s`;
+}
+
+function retryAfterSecondsFromPayload(payload: unknown) {
+  if (
+    payload &&
+    typeof payload === "object" &&
+    "retryAfterSeconds" in payload &&
+    typeof payload.retryAfterSeconds === "number"
+  ) {
+    return Math.max(1, payload.retryAfterSeconds);
+  }
+  return null;
+}
+
+function renderPlatformCanvas(input: {
+  manifest: TemplateBundleManifest;
+  assetUrlByPath?: Record<string, string>;
   sizeKey: SizeKey;
   fields: Record<string, string>;
-  disclaimer: string;
-  origin: string;
   original: boolean;
-  definition: Record<string, unknown>;
 }): ReactElement {
-  const rendered = renderPublishedTemplatePackage(input);
+  const rendered = renderTemplateBundleVariant({
+    manifest: input.manifest,
+    variantKey: input.sizeKey,
+    fields: input.fields,
+    assetUrlByPath: input.assetUrlByPath,
+    original: input.original,
+  });
   if (!rendered) {
-    throw new Error(
-      `No published template package for ${input.layoutKey}/${input.sizeKey}.`
-    );
+    throw new Error(`No platform template variant for ${input.sizeKey}.`);
   }
   return rendered.element;
 }
@@ -175,7 +192,7 @@ function LiveCanvasFrame({
   return (
     <div
       ref={viewportRef}
-      className="flex min-h-[600px] w-full items-center justify-center overflow-auto rounded-card border border-edge bg-page p-6"
+      className="flex min-h-[600px] w-full items-center justify-center overflow-hidden rounded-card border border-edge bg-page p-6"
     >
       <div
         style={{
@@ -194,7 +211,7 @@ function LiveCanvasFrame({
         >
           <div
             ref={canvasRef}
-            data-export-canvas="apex-canine"
+            data-export-canvas="template-platform"
             style={{ width, height, overflow: "hidden" }}
           >
             {canvas}
@@ -210,36 +227,48 @@ export function StudioEditor({
   templates,
   selectedProduct,
   selectedTemplate,
-  initialContent,
+  initialContents,
+  initialSize,
   organizationName,
 }: {
   products: Product[];
   templates: Template[];
   selectedProduct: Product;
   selectedTemplate: Template;
-  initialContent: Content;
+  initialContents: GeneratedContent[];
+  initialSize: SizeKey | null;
   organizationName: string;
 }) {
   const router = useRouter();
-  const isApexCanine = selectedTemplate.layout_key.startsWith("apex_canine_");
-  const isCaniGuard5 = selectedTemplate.layout_key.startsWith("caniguard5_");
-  const isContentGate = selectedTemplate.layout_key.startsWith("contentgate_");
-  const isVitalBite = selectedTemplate.layout_key.startsWith("vitalbite_");
-  const layoutContract = getTemplateLayoutContract(selectedTemplate.layout_key);
-  const isLiveCanvas = layoutContract?.liveCanvas ?? false;
-  const sizes = getTemplateSupportedSizes({
-    layoutKey: selectedTemplate.layout_key,
-    category: selectedTemplate.category,
-    definition: selectedTemplate.template_definition,
-    status: "active",
-  });
-  const [size, setSize] = useState<SizeKey>(sizes[0]);
+  const sizes = useMemo(
+    () =>
+      selectedTemplate.platformManifest
+        ? getTemplateBundleSupportedSizes(selectedTemplate.platformManifest)
+        : [],
+    [selectedTemplate.platformManifest]
+  );
+  const [size, setSize] = useState<SizeKey>(
+    initialSize && sizes.includes(initialSize) ? initialSize : sizes[0]
+  );
+  const initialContentsBySize = useMemo(() => {
+    const entries: Partial<Record<SizeKey, GeneratedContent>> = {};
+    for (const item of initialContents) {
+      const itemSize = generatedContentSizeKey(item, sizes[0], sizes);
+      if (!entries[itemSize]) entries[itemSize] = item;
+    }
+    return entries;
+  }, [initialContents, sizes]);
+  const initialContent = initialContentsBySize[size] ?? initialContents[0] ?? null;
   const [language, setLanguage] = useState("English");
   const [selectedRevision, setSelectedRevision] = useState<string | null>(null);
   const [mode, setMode] = useState<"original" | "generated">(
     initialContent ? "generated" : "original"
   );
-  const [content, setContent] = useState<Content>(initialContent);
+  const [contentsBySize, setContentsBySize] = useState<
+    Partial<Record<SizeKey, GeneratedContent>>
+  >(() => initialContentsBySize);
+  const content = contentsBySize[size] ?? null;
+  const hasAnyGeneratedDraft = Object.keys(contentsBySize).length > 0;
   const [hasManualEdits, setHasManualEdits] = useState(
     initialContent?.manuallyEdited ?? false
   );
@@ -255,23 +284,33 @@ export function StudioEditor({
   const [exportFormat, setExportFormat] = useState<ExportFormat>("png");
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [retryUntil, setRetryUntil] = useState<number | null>(null);
+  const [now, setNow] = useState(() => Date.now());
   const [saveState, setSaveState] = useState<
     "idle" | "unsaved" | "saving" | "saved" | "error"
   >("idle");
   const [savedAt, setSavedAt] = useState<string | null>(null);
-  const [previewBust, setPreviewBust] = useState(0);
   const [overflowFields, setOverflowFields] = useState<string[]>([]);
   const canvasRef = useRef<HTMLDivElement>(null);
   const saveSequence = useRef(0);
+  const retrySecondsRemaining = retryUntil
+    ? Math.max(0, Math.ceil((retryUntil - now) / 1000))
+    : 0;
+  const generationPaused = retrySecondsRemaining > 0;
 
   const productTemplates = useMemo(
     () => templates.filter((template) => template.product_id === selectedProduct.id),
     [templates, selectedProduct.id]
   );
-  const activeFields = draftFields;
+  const showingGeneratedDraft = mode === "generated" && content !== null;
+  const activeFields = showingGeneratedDraft
+    ? draftFields
+    : selectedTemplate.default_copy;
+  const activeFieldLimits = selectedTemplate.field_limits;
+
   const editablePilot =
-    isLiveCanvas &&
     mode === "generated" &&
+    showingGeneratedDraft &&
     content !== null &&
     content.canEdit &&
     (content.status === "draft" || content.status === "rejected");
@@ -280,13 +319,13 @@ export function StudioEditor({
       Object.fromEntries(
         selectedTemplate.editable_fields.map((key) => [
           key,
-          fieldIssues(draftFields[key], selectedTemplate.field_limits[key]),
+          fieldIssues(draftFields[key], activeFieldLimits[key]),
         ])
       ),
     [
+      activeFieldLimits,
       draftFields,
       selectedTemplate.editable_fields,
-      selectedTemplate.field_limits,
     ]
   );
   const hasIssues = selectedTemplate.editable_fields.some(
@@ -295,6 +334,7 @@ export function StudioEditor({
   const hasLayoutOverflow = overflowFields.length > 0;
   const dirty =
     mode === "generated" &&
+    showingGeneratedDraft &&
     content !== null &&
     selectedTemplate.editable_fields.some(
       (key) => (draftFields[key] ?? "") !== (savedFields[key] ?? "")
@@ -302,72 +342,26 @@ export function StudioEditor({
   const generatedExportAllowed =
     mode !== "generated" ||
     (!!content &&
+      showingGeneratedDraft &&
       content.status === "approved" &&
       !dirty &&
       !hasIssues &&
       !hasLayoutOverflow &&
       saveState !== "saving");
-  const previewUrl =
-    mode === "generated" && content
-      ? renderUrl(content.id, size) + (previewBust ? `&t=${previewBust}` : "")
-      : originalTemplatePreviewUrl(
-          selectedTemplate.id,
-          selectedTemplate.layout_key,
-          size
-        );
-  const dims = isApexCanine
-    ? apexCanineDimensions(size)
-    : isCaniGuard5
-      ? caniGuard5Dimensions()
-      : isVitalBite
-        ? vitalBiteDimensions()
-        : SIZES[size];
-  const liveDensity = isApexCanine
-    ? apexCanineLayoutDensity(size, activeFields)
-    : isCaniGuard5
-      ? caniGuard5LayoutDensity(activeFields)
-      : isVitalBite
-        ? vitalBiteLayoutDensity(activeFields)
-        : null;
-  const liveCanvas = isLiveCanvas
-    ? isApexCanine
-      ? renderApexCanine({
-          sizeKey: size,
-          fields: activeFields,
-          disclaimer: selectedProduct.disclaimer_text ?? "",
-          origin: "",
-          original: mode === "original",
-        }).element
-      : isCaniGuard5
-        ? renderCaniGuard5({
-            sizeKey: size,
-            fields: activeFields,
-            disclaimer: selectedProduct.disclaimer_text ?? "",
-            origin: "",
-            original: mode === "original",
-          }).element
-        : isContentGate
-          ? renderContentGateCanvas({
-              layoutKey: selectedTemplate.layout_key,
-              sizeKey: size,
-              fields: activeFields,
-              disclaimer: selectedProduct.disclaimer_text ?? "",
-              origin: "",
-              original: mode === "original",
-              definition: selectedTemplate.template_definition,
-            })
-          : renderVitalBite({
-              sizeKey: size,
-              fields: activeFields,
-              disclaimer: selectedProduct.disclaimer_text ?? "",
-              origin: "",
-              original: mode === "original",
-            }).element
+  const dims = SIZES[size];
+  const liveCanvas = selectedTemplate.platformManifest
+    ? renderPlatformCanvas({
+        manifest: selectedTemplate.platformManifest,
+        assetUrlByPath: selectedTemplate.platformAssetUrlByPath,
+        sizeKey: size,
+        fields: activeFields,
+        original: mode === "original",
+      })
     : null;
 
   useLayoutEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas || !isLiveCanvas || mode === "original") {
+    if (!canvas || mode === "original") {
       setOverflowFields([]);
       return;
     }
@@ -412,7 +406,20 @@ export function StudioEditor({
       cancelled = true;
       observer.disconnect();
     };
-  }, [activeFields, isLiveCanvas, mode, size]);
+  }, [activeFields, mode, size]);
+
+  useEffect(() => {
+    if (!retryUntil) return;
+    const timer = window.setInterval(() => {
+      const nextNow = Date.now();
+      setNow(nextNow);
+      if (nextNow >= retryUntil) {
+        setRetryUntil(null);
+        window.clearInterval(timer);
+      }
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [retryUntil]);
 
   useEffect(() => {
     if (!dirty || !content || mode !== "generated") {
@@ -438,16 +445,19 @@ export function StudioEditor({
       setSaveState("saved");
       setHasManualEdits(result.manuallyEdited ?? false);
       setError(null);
-      setContent((current) =>
-        current
-          ? {
-              ...current,
-              status: result.status ?? current.status,
-              structured_fields: snapshot,
-              manuallyEdited: result.manuallyEdited ?? false,
-            }
-          : current
-      );
+      setContentsBySize((current) => {
+        const existing = current[size];
+        if (!existing || existing.id !== content.id) return current;
+        return {
+          ...current,
+          [size]: {
+            ...existing,
+            status: result.status ?? existing.status,
+            structured_fields: snapshot,
+            manuallyEdited: result.manuallyEdited ?? false,
+          },
+        };
+      });
     }, 750);
 
     return () => window.clearTimeout(timer);
@@ -458,22 +468,43 @@ export function StudioEditor({
     hasIssues,
     hasLayoutOverflow,
     mode,
+    size,
   ]);
 
   function switchMode(nextMode: "original" | "generated") {
-    if (nextMode === "generated" && !content) return;
+    if (nextMode === "generated" && !hasAnyGeneratedDraft) return;
+    const nextContent = contentsBySize[size] ?? null;
+    const nextFields =
+      nextMode === "generated" && nextContent
+        ? nextContent.structured_fields
+        : selectedTemplate.default_copy;
     setMode(nextMode);
-    setDraftFields(
-      nextMode === "generated" && content
-        ? content.structured_fields
-        : selectedTemplate.default_copy
-    );
-    setSavedFields(
-      nextMode === "generated" && content
-        ? content.structured_fields
-        : selectedTemplate.default_copy
+    setDraftFields(nextFields);
+    setSavedFields(nextFields);
+    setHasManualEdits(
+      nextMode === "generated" && nextContent ? nextContent.manuallyEdited : false
     );
     setSaveState("idle");
+    setSavedAt(null);
+  }
+
+  function selectSize(nextSize: SizeKey) {
+    const nextContent = contentsBySize[nextSize] ?? null;
+    const nextFields =
+      mode === "generated" && nextContent
+        ? nextContent.structured_fields
+        : selectedTemplate.default_copy;
+    setSize(nextSize);
+    setDraftFields(nextFields);
+    setSavedFields(nextFields);
+    setHasManualEdits(
+      mode === "generated" && nextContent ? nextContent.manuallyEdited : false
+    );
+    setError(null);
+    setCopied(false);
+    setOverflowFields([]);
+    setSaveState("idle");
+    setSavedAt(null);
   }
 
   function updateField(key: string, value: string) {
@@ -484,17 +515,6 @@ export function StudioEditor({
     setSaveState(nextDirty ? "unsaved" : "saved");
     setHasManualEdits(nextDirty ? true : (content?.manuallyEdited ?? false));
     setDraftFields(nextFields);
-    setContent((current) =>
-      mode === "generated" && current
-        ? {
-            ...current,
-            structured_fields: {
-              ...current.structured_fields,
-              [key]: value,
-            },
-          }
-        : current
-    );
   }
 
   function navigate(productId: string, templateId?: string) {
@@ -506,6 +526,7 @@ export function StudioEditor({
   }
 
   async function generate() {
+    if (generationPaused) return;
     setBusy(true);
     setError(null);
     try {
@@ -513,41 +534,47 @@ export function StudioEditor({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          productTemplateId: selectedTemplate.id,
+          platformAssignmentId: selectedTemplate.platformAssignmentId,
           language,
+          outputSize: size,
           revisions: selectedRevision ? [selectedRevision] : [],
-          replaceContentId:
-            content &&
-            content.canEdit &&
-            (content.status === "draft" || content.status === "rejected")
-              ? content.id
-              : undefined,
+          replaceContentId: undefined,
         }),
       });
       const result = await response.json();
       if (!response.ok) {
+        const retryAfterSeconds = retryAfterSecondsFromPayload(result);
+        if (retryAfterSeconds) {
+          setRetryUntil(Date.now() + retryAfterSeconds * 1000);
+        }
         setError(result.error ?? "Generation failed.");
         return;
       }
+      setRetryUntil(null);
       const nextContent = {
         id: result.contentId as string,
         title: result.title as string,
         status: "draft",
         structured_fields: result.structured_fields as Record<string, string>,
+        outputSize: (result.outputSize as SizeKey | null) ?? size,
         manuallyEdited: false,
         canEdit: true,
       };
-      setContent(nextContent);
+      const nextContentSize = nextContent.outputSize ?? size;
+      setContentsBySize((current) => ({
+        ...current,
+        [nextContentSize]: nextContent,
+      }));
       setMode("generated");
+      setSize(nextContentSize);
       setDraftFields(nextContent.structured_fields);
       setSavedFields(nextContent.structured_fields);
       setSaveState("saved");
       setSavedAt(new Date().toISOString());
       setHasManualEdits(false);
       setSelectedRevision(null);
-      setPreviewBust(Date.now());
       router.replace(
-        `/studio?product=${selectedProduct.id}&template=${selectedTemplate.id}&content=${nextContent.id}`,
+        `/studio?product=${selectedProduct.id}&template=${selectedTemplate.id}&content=${nextContent.id}&size=${nextContentSize}`,
         { scroll: false }
       );
     } catch {
@@ -561,7 +588,7 @@ export function StudioEditor({
     setError(null);
     try {
       if (mode === "generated") {
-        if (!content || !generatedExportAllowed) {
+        if (!content || !showingGeneratedDraft || !generatedExportAllowed) {
           throw new Error("Generated copy must be approved before export.");
         }
         const response = await fetch(`/api/export/${content.id}`, {
@@ -592,14 +619,14 @@ export function StudioEditor({
     setError(null);
     try {
       if (mode === "generated") {
-        if (!content || !generatedExportAllowed) {
+        if (!content || !showingGeneratedDraft || !generatedExportAllowed) {
           throw new Error("Generated content must be approved before export.");
         }
         const response = await fetch(`/api/export/${content.id}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            format: isLiveCanvas ? exportFormat : "png",
+            format: exportFormat,
             surface: "studio",
             size,
           }),
@@ -609,7 +636,7 @@ export function StudioEditor({
       const filename = `${selectedProduct.name}-${selectedTemplate.variant}-${mode}-${size}`
         .replace(/[^\w]+/g, "-")
         .toLowerCase();
-      if (isLiveCanvas && canvasRef.current) {
+      if (canvasRef.current) {
         await exportCanvas({
           node: canvasRef.current,
           width: dims.w,
@@ -620,15 +647,7 @@ export function StudioEditor({
         });
         return;
       }
-      const response = await fetch(previewUrl);
-      if (!response.ok) throw new Error("Download failed");
-      const blob = await response.blob();
-      const objectUrl = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = objectUrl;
-      anchor.download = `${filename}.png`;
-      anchor.click();
-      URL.revokeObjectURL(objectUrl);
+      throw new Error("Canvas is not ready.");
     } catch {
       setError("The preview could not be downloaded.");
     } finally {
@@ -639,6 +658,7 @@ export function StudioEditor({
   async function submit() {
     if (
       !content ||
+      !showingGeneratedDraft ||
       dirty ||
       hasIssues ||
       hasLayoutOverflow ||
@@ -652,9 +672,14 @@ export function StudioEditor({
     if ("error" in result) {
       setError(result.error);
     } else {
-      setContent((current) =>
-        current ? { ...current, status: "in_review" } : current
-      );
+      setContentsBySize((current) => {
+        const existing = current[size];
+        if (!existing || existing.id !== content.id) return current;
+        return {
+          ...current,
+          [size]: { ...existing, status: "in_review" },
+        };
+      });
       router.refresh();
     }
     setSubmitting(false);
@@ -707,7 +732,7 @@ export function StudioEditor({
         </label>
       </div>
 
-      <div className="grid grid-cols-[320px_1fr] items-start gap-6">
+      <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
         <div className="flex flex-col gap-5">
           <div className="flex flex-col gap-3 rounded-card border border-edge bg-surface p-5">
             <div className="grid grid-cols-2 rounded-control bg-page p-1">
@@ -723,7 +748,7 @@ export function StudioEditor({
               <button
                 type="button"
                 onClick={() => switchMode("generated")}
-                disabled={!content}
+                disabled={!hasAnyGeneratedDraft}
                 className={`rounded-[7px] px-3 py-2 text-[12.5px] font-semibold disabled:opacity-40 ${
                   mode === "generated" ? "bg-surface text-brand shadow-sm" : "text-ink-muted"
                 }`}
@@ -793,20 +818,23 @@ export function StudioEditor({
             <button
               type="button"
               onClick={generate}
-              disabled={busy}
+              disabled={busy || generationPaused}
               className="rounded-control bg-brand px-4 py-2.5 text-[13.5px] font-semibold text-white disabled:opacity-50"
             >
-              {busy
+              {generationPaused
+                ? `Try again in ${formatRetryWait(retrySecondsRemaining)}`
+                : busy
                 ? "Generating preview…"
-                : content &&
+                : showingGeneratedDraft &&
+                    content &&
                     (content.status === "draft" ||
                       content.status === "rejected")
                   ? selectedRevision
                     ? "Apply refinement to draft"
                     : "Regenerate draft"
                   : selectedRevision
-                    ? "Generate with refinement"
-                    : "Generate preview"}
+                    ? `Generate ${SIZES[size].label} with refinement`
+                    : `Generate ${SIZES[size].label} draft`}
             </button>
             {error && <p className="text-[12.5px] text-reject">{error}</p>}
           </div>
@@ -821,7 +849,7 @@ export function StudioEditor({
                 className="flex flex-col gap-1.5 border-b border-edge pb-3 last:border-0 last:pb-0"
               >
                 <span className="text-[11px] font-semibold text-ink-faint">
-                  {fieldLabel(key)} · {fieldLimitText(selectedTemplate.field_limits[key])}
+                  {fieldLabel(key)} · {fieldLimitText(activeFieldLimits[key])}
                 </span>
                 {editablePilot ? (
                   <textarea
@@ -829,7 +857,7 @@ export function StudioEditor({
                     onChange={(event) => updateField(key, event.target.value)}
                     rows={Math.min(
                       5,
-                      Math.max(1, selectedTemplate.field_limits[key]?.max_lines ?? 2)
+                      Math.max(1, activeFieldLimits[key]?.max_lines ?? 2)
                     )}
                     className={`resize-none rounded-control border bg-surface px-3 py-2 text-[12.5px] leading-relaxed outline-none transition-colors ${
                       issuesByField[key].length || overflowFields.includes(key)
@@ -862,15 +890,21 @@ export function StudioEditor({
             {editablePilot && (
               <p className="rounded-control bg-approve-tint px-3 py-2 text-[11.5px] leading-relaxed text-approve">
                 Edits update the locked design immediately. The{" "}
-                <span className="font-bold capitalize">{liveDensity}</span>{" "}
-                copy arrangement was selected automatically. Artwork,
+                Copy updates stay inside the selected Platform v1 size. Artwork,
                 typography, safe zones, and approved positions remain locked.
               </p>
             )}
-            {isLiveCanvas && mode === "original" && (
+            {mode === "original" && (
               <p className="rounded-control bg-page px-3 py-2 text-[11.5px] leading-relaxed text-ink-muted">
                 Generate a variation to edit copy. The approved original remains
                 read-only.
+              </p>
+            )}
+            {mode === "generated" && !showingGeneratedDraft && (
+              <p className="rounded-control bg-page px-3 py-2 text-[11.5px] leading-relaxed text-ink-muted">
+                No generated draft exists for{" "}
+                <span className="font-bold">{SIZES[size].label}</span> yet.
+                Pick this size, then generate when you need it.
               </p>
             )}
             {mode === "generated" && content && (
@@ -961,14 +995,16 @@ export function StudioEditor({
           </div>
         </div>
 
-        <div className="flex flex-col gap-4">
-          <div className="flex items-center gap-2 rounded-card border border-edge bg-surface p-3">
-            <span className="px-1 text-[12px] font-semibold text-ink-muted">Output size</span>
+        <div className="flex min-w-0 flex-col gap-4">
+          <div className="flex flex-wrap items-center gap-2 rounded-card border border-edge bg-surface p-3">
+            <span className="px-1 text-[12px] font-semibold text-ink-muted">
+              Output size
+            </span>
             {sizes.map((key) => (
               <button
                 key={key}
                 type="button"
-                onClick={() => setSize(key)}
+                onClick={() => selectSize(key)}
                 className={`rounded-control border px-3 py-2 text-[12px] font-semibold ${
                   size === key ? "border-brand bg-brand-tint text-brand" : "border-edge"
                 }`}
@@ -976,14 +1012,15 @@ export function StudioEditor({
                 {SIZES[key].label}
               </button>
             ))}
-            <div className="flex-1" />
-            {content && mode === "generated" && (
+            <div className="hidden flex-1 xl:block" />
+            {mode === "generated" && (
               <span className="rounded-full bg-brand-tint px-2.5 py-1 text-[10.5px] font-bold uppercase text-brand">
-                {content.status}
+                {showingGeneratedDraft && content
+                  ? `${content.status} · ${SIZES[size].label}`
+                  : `not generated · ${SIZES[size].label}`}
               </span>
             )}
-            {isLiveCanvas && (
-              <select
+            <select
                 value={exportFormat}
                 onChange={(event) =>
                   setExportFormat(event.target.value as ExportFormat)
@@ -995,7 +1032,6 @@ export function StudioEditor({
                 <option value="jpeg">JPEG</option>
                 <option value="pdf">PDF</option>
               </select>
-            )}
             <button
               type="button"
               onClick={download}
@@ -1009,7 +1045,7 @@ export function StudioEditor({
             >
               {downloading
                 ? "Preparing…"
-                : `Download ${isLiveCanvas ? exportFormat.toUpperCase() : "PNG"}`}
+                : `Download ${exportFormat.toUpperCase()}`}
             </button>
           </div>
 
@@ -1022,27 +1058,7 @@ export function StudioEditor({
                 width={dims.w}
                 height={dims.h}
               />
-            ) : (
-              <div className="flex min-h-[600px] items-center justify-center rounded-card border border-edge bg-page p-6">
-                <div
-                  className="overflow-hidden rounded-[10px] bg-white shadow-xl"
-                  style={{
-                    width: dims.w >= dims.h ? "100%" : "auto",
-                    height: dims.w >= dims.h ? "auto" : "650px",
-                    maxWidth: "100%",
-                    aspectRatio: `${dims.w} / ${dims.h}`,
-                  }}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    key={previewUrl}
-                    src={previewUrl}
-                    alt={`${mode} template preview`}
-                    className="h-full w-full object-contain"
-                  />
-                </div>
-              </div>
-            )}
+            ) : null}
           </div>
         </div>
       </div>

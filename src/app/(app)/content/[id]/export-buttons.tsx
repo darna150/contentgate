@@ -8,15 +8,26 @@ export function ExportButtons({
   body,
   productId,
   templateId,
+  platformAssignmentId,
+  outputSize,
 }: {
   id: string;
   body: string;
   productId: string;
-  templateId: string;
+  templateId?: string | null;
+  platformAssignmentId?: string | null;
+  outputSize?: string | null;
 }) {
   const [copied, setCopied] = useState(false);
   const [copying, setCopying] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const studioParams = new URLSearchParams({
+    product: productId,
+    content: id,
+  });
+  if (templateId) studioParams.set("template", templateId);
+  if (platformAssignmentId) studioParams.set("template", `platform:${platformAssignmentId}`);
+  if (outputSize) studioParams.set("size", outputSize);
 
   async function onCopy() {
     setCopying(true);
@@ -64,7 +75,7 @@ export function ExportButtons({
         </a>
       </div>
       <Link
-        href={`/studio?product=${productId}&template=${templateId}&content=${id}`}
+        href={`/studio?${studioParams.toString()}`}
         className="rounded-control border border-brand bg-brand-tint px-4 py-2.5 text-center text-[13.5px] font-semibold text-brand transition-opacity hover:opacity-90"
       >
         Create image asset →

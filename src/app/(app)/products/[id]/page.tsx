@@ -23,13 +23,11 @@ export default async function ProductWorkspacePage({
   const { id } = await params;
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL) notFound();
 
-  const [{ view: viewParam }, workspace] = await Promise.all([
-    searchParams,
-    getProductWorkspace(id),
-  ]);
+  const { view: viewParam } = await searchParams;
+  const view = parseWorkspaceView(viewParam);
+  const workspace = await getProductWorkspace(id, { view });
   if (!workspace) notFound();
 
-  const view = parseWorkspaceView(viewParam);
   const { product, counts, permissions } = workspace;
 
   const tabCounts: Record<WorkspaceView, number> = {
