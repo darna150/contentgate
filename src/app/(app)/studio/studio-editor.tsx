@@ -81,6 +81,7 @@ type Content = {
   manuallyEdited: boolean;
   canEdit: boolean;
 } | null;
+type GeneratedContent = NonNullable<Content>;
 
 const LANGUAGES = ["English", "Filipino", "Spanish", "Portuguese", "Vietnamese", "Thai"];
 const GENERATION_MESSAGES = [
@@ -90,6 +91,17 @@ const GENERATION_MESSAGES = [
   "Checking copy against the source material.",
   "Polishing the preview for its close-up.",
 ] as const;
+
+function generatedContentSizeKey(
+  content: GeneratedContent | null,
+  fallback: SizeKey,
+  supportedSizes: readonly SizeKey[]
+) {
+  if (content?.outputSize && supportedSizes.includes(content.outputSize)) {
+    return content.outputSize;
+  }
+  return fallback;
+}
 
 function renderContentGateCanvas(input: {
   layoutKey: string;
@@ -273,12 +285,26 @@ export function StudioEditor({
   const [size, setSize] = useState<SizeKey>(
     initialSize && sizes.includes(initialSize) ? initialSize : sizes[0]
   );
+  const initialContentSize =
+    initialContent && initialSize && sizes.includes(initialSize)
+      ? generatedContentSizeKey(initialContent, initialSize, sizes)
+      : initialContent
+        ? generatedContentSizeKey(initialContent, sizes[0], sizes)
+        : null;
   const [language, setLanguage] = useState("English");
   const [selectedRevision, setSelectedRevision] = useState<string | null>(null);
   const [mode, setMode] = useState<"original" | "generated">(
     initialContent ? "generated" : "original"
   );
-  const [content, setContent] = useState<Content>(initialContent);
+  const [contentsBySize, setContentsBySize] = useState<
+    Partial<Record<SizeKey, GeneratedContent>>
+  >(() =>
+    initialContent && initialContentSize
+      ? { [initialContentSize]: initialContent }
+      : {}
+  );
+  const content = contentsBySize[size] ?? null;
+  const hasAnyGeneratedDraft = Object.keys(contentsBySize).length > 0;
   const [hasManualEdits, setHasManualEdits] = useState(
     initialContent?.manuallyEdited ?? false
   );
@@ -307,7 +333,10 @@ export function StudioEditor({
     () => templates.filter((template) => template.product_id === selectedProduct.id),
     [templates, selectedProduct.id]
   );
-  const activeFields = draftFields;
+  const showingGeneratedDraft = mode === "generated" && content !== null;
+  const activeFields = showingGeneratedDraft
+    ? draftFields
+    : selectedTemplate.default_copy;
   const activeFieldLimits = useMemo(() => {
     const frameLimits = isContentGate
       ? getPublishedTemplateFrameFieldLimits(
@@ -324,9 +353,11 @@ export function StudioEditor({
     selectedTemplate.template_definition,
     size,
   ]);
+
   const editablePilot =
     isLiveCanvas &&
     mode === "generated" &&
+    showingGeneratedDraft &&
     content !== null &&
     content.canEdit &&
     (content.status === "draft" || content.status === "rejected");
@@ -350,6 +381,7 @@ export function StudioEditor({
   const hasLayoutOverflow = overflowFields.length > 0;
   const dirty =
     mode === "generated" &&
+    showingGeneratedDraft &&
     content !== null &&
     selectedTemplate.editable_fields.some(
       (key) => (draftFields[key] ?? "") !== (savedFields[key] ?? "")
@@ -357,6 +389,7 @@ export function StudioEditor({
   const generatedExportAllowed =
     mode !== "generated" ||
     (!!content &&
+      showingGeneratedDraft &&
       content.status === "approved" &&
       !dirty &&
       !hasIssues &&
@@ -365,7 +398,7 @@ export function StudioEditor({
   const previewUrl =
     isPlatformTemplate
       ? ""
-      : mode === "generated" && content
+      : showingGeneratedDraft && content
       ? renderUrl(content.id, size) + (previewBust ? `&t=${previewBust}` : "")
       : originalTemplatePreviewUrl(
           selectedTemplate.id,
@@ -503,16 +536,19 @@ export function StudioEditor({
       setSaveState("saved");
       setHasManualEdits(result.manuallyEdited ?? false);
       setError(null);
-      setContent((current) =>
-        current
-          ? {
-              ...current,
-              status: result.status ?? current.status,
-              structured_fields: snapshot,
-              manuallyEdited: result.manuallyEdited ?? false,
-            }
-          : current
-      );
+      setContentsBySize((current) => {
+        const existing = current[size];
+        if (!existing || existing.id !== content.id) return current;
+        return {
+          ...current,
+          [size]: {
+            ...existing,
+            status: result.status ?? existing.status,
+            structured_fields: snapshot,
+            manuallyEdited: result.manuallyEdited ?? false,
+          },
+        };
+      });
     }, 750);
 
     return () => window.clearTimeout(timer);
@@ -523,25 +559,43 @@ export function StudioEditor({
     hasIssues,
     hasLayoutOverflow,
     mode,
+    size,
   ]);
 
   function switchMode(nextMode: "original" | "generated") {
-    if (nextMode === "generated" && !content) return;
+    if (nextMode === "generated" && !hasAnyGeneratedDraft) return;
+    const nextContent = contentsBySize[size] ?? null;
+    const nextFields =
+      nextMode === "generated" && nextContent
+        ? nextContent.structured_fields
+        : selectedTemplate.default_copy;
     setMode(nextMode);
-    setDraftFields(
-      nextMode === "generated" && content
-        ? content.structured_fields
-        : selectedTemplate.default_copy
+    setDraftFields(nextFields);
+    setSavedFields(nextFields);
+    setHasManualEdits(
+      nextMode === "generated" && nextContent ? nextContent.manuallyEdited : false
     );
-    setSavedFields(
-      nextMode === "generated" && content
-        ? content.structured_fields
-        : selectedTemplate.default_copy
-    );
-    if (nextMode === "generated" && content?.outputSize) {
-      setSize(content.outputSize);
-    }
     setSaveState("idle");
+    setSavedAt(null);
+  }
+
+  function selectSize(nextSize: SizeKey) {
+    const nextContent = contentsBySize[nextSize] ?? null;
+    const nextFields =
+      mode === "generated" && nextContent
+        ? nextContent.structured_fields
+        : selectedTemplate.default_copy;
+    setSize(nextSize);
+    setDraftFields(nextFields);
+    setSavedFields(nextFields);
+    setHasManualEdits(
+      mode === "generated" && nextContent ? nextContent.manuallyEdited : false
+    );
+    setError(null);
+    setCopied(false);
+    setOverflowFields([]);
+    setSaveState("idle");
+    setSavedAt(null);
   }
 
   function updateField(key: string, value: string) {
@@ -552,17 +606,6 @@ export function StudioEditor({
     setSaveState(nextDirty ? "unsaved" : "saved");
     setHasManualEdits(nextDirty ? true : (content?.manuallyEdited ?? false));
     setDraftFields(nextFields);
-    setContent((current) =>
-      mode === "generated" && current
-        ? {
-            ...current,
-            structured_fields: {
-              ...current.structured_fields,
-              [key]: value,
-            },
-          }
-        : current
-    );
   }
 
   function navigate(productId: string, templateId?: string) {
@@ -590,6 +633,7 @@ export function StudioEditor({
           replaceContentId:
             !selectedTemplate.platformAssignmentId &&
             content &&
+            showingGeneratedDraft &&
             content.canEdit &&
             (content.status === "draft" || content.status === "rejected")
               ? content.id
@@ -610,8 +654,13 @@ export function StudioEditor({
         manuallyEdited: false,
         canEdit: true,
       };
-      setContent(nextContent);
+      const nextContentSize = nextContent.outputSize ?? size;
+      setContentsBySize((current) => ({
+        ...current,
+        [nextContentSize]: nextContent,
+      }));
       setMode("generated");
+      setSize(nextContentSize);
       setDraftFields(nextContent.structured_fields);
       setSavedFields(nextContent.structured_fields);
       setSaveState("saved");
@@ -620,7 +669,7 @@ export function StudioEditor({
       setSelectedRevision(null);
       setPreviewBust(Date.now());
       router.replace(
-        `/studio?product=${selectedProduct.id}&template=${selectedTemplate.id}&content=${nextContent.id}&size=${nextContent.outputSize ?? size}`,
+        `/studio?product=${selectedProduct.id}&template=${selectedTemplate.id}&content=${nextContent.id}&size=${nextContentSize}`,
         { scroll: false }
       );
     } catch {
@@ -634,7 +683,7 @@ export function StudioEditor({
     setError(null);
     try {
       if (mode === "generated") {
-        if (!content || !generatedExportAllowed) {
+        if (!content || !showingGeneratedDraft || !generatedExportAllowed) {
           throw new Error("Generated copy must be approved before export.");
         }
         const response = await fetch(`/api/export/${content.id}`, {
@@ -665,7 +714,7 @@ export function StudioEditor({
     setError(null);
     try {
       if (mode === "generated") {
-        if (!content || !generatedExportAllowed) {
+        if (!content || !showingGeneratedDraft || !generatedExportAllowed) {
           throw new Error("Generated content must be approved before export.");
         }
         const response = await fetch(`/api/export/${content.id}`, {
@@ -712,6 +761,7 @@ export function StudioEditor({
   async function submit() {
     if (
       !content ||
+      !showingGeneratedDraft ||
       dirty ||
       hasIssues ||
       hasLayoutOverflow ||
@@ -725,9 +775,14 @@ export function StudioEditor({
     if ("error" in result) {
       setError(result.error);
     } else {
-      setContent((current) =>
-        current ? { ...current, status: "in_review" } : current
-      );
+      setContentsBySize((current) => {
+        const existing = current[size];
+        if (!existing || existing.id !== content.id) return current;
+        return {
+          ...current,
+          [size]: { ...existing, status: "in_review" },
+        };
+      });
       router.refresh();
     }
     setSubmitting(false);
@@ -796,7 +851,7 @@ export function StudioEditor({
               <button
                 type="button"
                 onClick={() => switchMode("generated")}
-                disabled={!content}
+                disabled={!hasAnyGeneratedDraft}
                 className={`rounded-[7px] px-3 py-2 text-[12.5px] font-semibold disabled:opacity-40 ${
                   mode === "generated" ? "bg-surface text-brand shadow-sm" : "text-ink-muted"
                 }`}
@@ -871,15 +926,16 @@ export function StudioEditor({
             >
               {busy
                 ? "Generating preview…"
-                : content &&
+                : showingGeneratedDraft &&
+                    content &&
                     (content.status === "draft" ||
                       content.status === "rejected")
                   ? selectedRevision
                     ? "Apply refinement to draft"
                     : "Regenerate draft"
                   : selectedRevision
-                    ? "Generate with refinement"
-                    : "Generate preview"}
+                    ? `Generate ${SIZES[size].label} with refinement`
+                    : `Generate ${SIZES[size].label} draft`}
             </button>
             {error && <p className="text-[12.5px] text-reject">{error}</p>}
           </div>
@@ -944,6 +1000,13 @@ export function StudioEditor({
               <p className="rounded-control bg-page px-3 py-2 text-[11.5px] leading-relaxed text-ink-muted">
                 Generate a variation to edit copy. The approved original remains
                 read-only.
+              </p>
+            )}
+            {mode === "generated" && !showingGeneratedDraft && (
+              <p className="rounded-control bg-page px-3 py-2 text-[11.5px] leading-relaxed text-ink-muted">
+                No generated draft exists for{" "}
+                <span className="font-bold">{SIZES[size].label}</span> yet.
+                Pick this size, then generate when you need it.
               </p>
             )}
             {mode === "generated" && content && (
@@ -1043,20 +1106,20 @@ export function StudioEditor({
               <button
                 key={key}
                 type="button"
-                onClick={() => setSize(key)}
-                disabled={mode === "generated" && !!content?.outputSize && content.outputSize !== key}
+                onClick={() => selectSize(key)}
                 className={`rounded-control border px-3 py-2 text-[12px] font-semibold ${
                   size === key ? "border-brand bg-brand-tint text-brand" : "border-edge"
-                } disabled:cursor-not-allowed disabled:opacity-40`}
+                }`}
               >
                 {SIZES[key].label}
               </button>
             ))}
             <div className="hidden flex-1 xl:block" />
-            {content && mode === "generated" && (
+            {mode === "generated" && (
               <span className="rounded-full bg-brand-tint px-2.5 py-1 text-[10.5px] font-bold uppercase text-brand">
-                {content.status}
-                {content.outputSize ? ` · ${SIZES[content.outputSize].label}` : ""}
+                {showingGeneratedDraft && content
+                  ? `${content.status} · ${SIZES[size].label}`
+                  : `not generated · ${SIZES[size].label}`}
               </span>
             )}
             {isLiveCanvas && (
