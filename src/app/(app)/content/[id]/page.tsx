@@ -194,7 +194,7 @@ export default async function ContentDetailPage({
     ? Math.min(
         760 / platformPreview.width,
         560 / platformPreview.height,
-        platformPreview.width <= 728 || platformPreview.height <= 250 ? 2 : 1
+        1
       )
     : 1;
 

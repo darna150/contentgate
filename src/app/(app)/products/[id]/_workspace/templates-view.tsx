@@ -100,7 +100,7 @@ export function TemplatesView({ workspace }: { workspace: ProductWorkspace }) {
                         src={imageSrc(previewPath)}
                         alt={`${template.familyName} template preview`}
                         loading="lazy"
-                        className="h-full w-full object-cover"
+                        className="h-full w-full object-contain"
                       />
                     </div>
                   ) : null}
@@ -184,7 +184,7 @@ export function TemplatesView({ workspace }: { workspace: ProductWorkspace }) {
                       src={previewSrc}
                       alt={`${t.variant} template preview`}
                       loading="lazy"
-                      className="h-full w-full object-cover"
+                      className="h-full w-full object-contain"
                     />
                   </div>
                   <div className="flex items-center gap-2 px-0.5">

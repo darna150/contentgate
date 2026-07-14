@@ -91,6 +91,7 @@ export async function GET(req: Request) {
       manifest,
       variantKey,
       fields,
+      assetOrigin: new URL(req.url).origin,
       assetUrlByPath: Object.fromEntries(
         await createTemplateBundleAssetUrlMap(supabase, [manifest])
       ),

@@ -195,8 +195,7 @@ function LiveCanvasFrame({
     const updateScale = () => {
       const availableWidth = Math.max(1, viewport.clientWidth - 48);
       const availableHeight = Math.max(1, Math.min(760, window.innerHeight - 250));
-      const maxPreviewScale = width <= 728 || height <= 250 ? 2 : 1;
-      setScale(Math.min(maxPreviewScale, availableWidth / width, availableHeight / height));
+      setScale(Math.min(1, availableWidth / width, availableHeight / height));
     };
     updateScale();
     const observer = new ResizeObserver(updateScale);
@@ -207,7 +206,7 @@ function LiveCanvasFrame({
   return (
     <div
       ref={viewportRef}
-      className="flex min-h-[600px] w-full items-center justify-center overflow-auto rounded-card border border-edge bg-page p-6"
+      className="flex min-h-[600px] w-full items-center justify-center overflow-hidden rounded-card border border-edge bg-page p-6"
     >
       <div
         style={{

@@ -10,6 +10,7 @@ export type TemplateBundleRenderResult = {
 };
 
 const INTER_STACK = `"Inter", "ContentGate Sans", ui-sans-serif, system-ui, sans-serif`;
+const CONTENTGATE_PUBLIC_ASSET_VERSION = "clean-figwright-2026-07-14-03";
 
 function slotFontWeight(slot: TemplateBundleTextSlot) {
   return slot.fontKey.includes("bold")
@@ -94,16 +95,19 @@ function publicContentGateBundleAssetPath(
   ) {
     return null;
   }
-  return `/template-bundles/${manifest.family.key}/${manifest.version.name}/${assetPath}`;
+  return `/template-bundles/${manifest.family.key}/${manifest.version.name}/${assetPath}?v=${CONTENTGATE_PUBLIC_ASSET_VERSION}`;
 }
 
 function resolveImageSource(
   manifest: TemplateBundleManifest,
   path: string,
-  assetUrlByPath?: Record<string, string>
+  assetUrlByPath?: Record<string, string>,
+  assetOrigin?: string
 ) {
   const publicPath = publicContentGateBundleAssetPath(manifest, path);
-  if (publicPath) return publicPath;
+  if (publicPath) {
+    return assetOrigin ? new URL(publicPath, assetOrigin).toString() : publicPath;
+  }
   const signedUrl = assetUrlByPath?.[path];
   if (signedUrl) return signedUrl;
   if (path.startsWith("http://") || path.startsWith("https://") || path.startsWith("/")) {
@@ -117,6 +121,7 @@ export function renderTemplateBundleVariant(input: {
   variantKey: string;
   fields: Record<string, unknown>;
   assetUrlByPath?: Record<string, string>;
+  assetOrigin?: string;
   original?: boolean;
 }): TemplateBundleRenderResult | null {
   const runtime = resolveTemplateBundleRuntimeVariant(input.manifest, input.variantKey);
@@ -141,7 +146,12 @@ export function renderTemplateBundleVariant(input: {
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={resolveImageSource(input.manifest, imagePath, input.assetUrlByPath)}
+          src={resolveImageSource(
+            input.manifest,
+            imagePath,
+            input.assetUrlByPath,
+            input.assetOrigin
+          )}
           alt=""
           style={{
             position: "absolute",

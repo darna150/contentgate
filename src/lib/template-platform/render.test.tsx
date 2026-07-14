@@ -67,6 +67,53 @@ test("renders platform bundle original mode with reference only", async () => {
   assert.doesNotMatch(html, /Hidden in original mode/);
 });
 
+test("ContentGate figwright bundles use versioned public assets for browser and export renders", async () => {
+  const bundle = await buildContentGateTemplateBundle("contentgate_local_friendly");
+  const manifest = {
+    ...bundle.manifest,
+    version: {
+      ...bundle.manifest.version,
+      name: "figwright-v1",
+    },
+    assets: bundle.manifest.assets.map((asset) =>
+      asset.path.includes("template-packages/contentgate/set-a/backgrounds/leaderboard.png")
+        ? {
+            ...asset,
+            path: "variants/leaderboard/background.png",
+          }
+        : asset.path.includes("template-packages/contentgate/set-a/leaderboard.png")
+          ? {
+              ...asset,
+              path: "variants/leaderboard/reference.png",
+            }
+          : asset
+    ),
+  };
+
+  const browserRendered = renderTemplateBundleVariant({
+    manifest,
+    variantKey: "leaderboard",
+    fields: {},
+  });
+  assert.ok(browserRendered);
+  assert.match(
+    renderToStaticMarkup(browserRendered.element),
+    /\/template-bundles\/contentgate-local-friendly\/figwright-v1\/variants\/leaderboard\/background\.png\?v=clean-figwright-/
+  );
+
+  const exportRendered = renderTemplateBundleVariant({
+    manifest,
+    variantKey: "leaderboard",
+    fields: {},
+    assetOrigin: "https://contentgate.example",
+  });
+  assert.ok(exportRendered);
+  assert.match(
+    renderToStaticMarkup(exportRendered.element),
+    /https:\/\/contentgate\.example\/template-bundles\/contentgate-local-friendly\/figwright-v1\/variants\/leaderboard\/background\.png\?v=clean-figwright-/
+  );
+});
+
 test("reports platform copy that wraps beyond the locked text slot", async () => {
   const bundle = await buildContentGateTemplateBundle("contentgate_local_friendly");
   const issues = await templatePlatformFieldFitIssues({

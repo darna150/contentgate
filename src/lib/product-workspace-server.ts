@@ -197,13 +197,17 @@ function publicTemplateBundleAssetPath(
   manifest: TemplateBundleManifest,
   assetPath: string
 ) {
-  return [
+  const path = [
     "",
     "template-bundles",
     manifest.family.key,
     manifest.version.name,
     assetPath,
   ].join("/");
+  return manifest.version.name === "figwright-v1" &&
+    manifest.family.key.startsWith("contentgate-local-")
+    ? `${path}?v=clean-figwright-2026-07-14-03`
+    : path;
 }
 
 export async function getProductWorkspace(
