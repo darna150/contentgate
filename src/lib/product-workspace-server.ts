@@ -15,6 +15,10 @@ import { createProductAssetPreviewUrlMap } from "@/lib/product-assets-server";
 import type { FieldLimits } from "@/lib/template-fields";
 import { isTemplateContractReady } from "@/lib/template-contract";
 import { stripInternalTemplateDefinition } from "@/lib/published-template-package";
+import {
+  normalizeTemplatePlatformAssignment,
+  type TemplatePlatformAssignmentRow,
+} from "@/lib/template-platform/assignments";
 
 type Joined<T> = T | T[] | null;
 
@@ -68,6 +72,22 @@ export type ProductWorkspaceTemplate = {
   sortOrder: number;
 };
 
+export type ProductWorkspacePlatformTemplate = {
+  assignmentId: string;
+  productId: string;
+  familyId: string;
+  familyKey: string;
+  familyName: string;
+  versionId: string;
+  versionLabel: string;
+  supportedSizes: string[];
+  defaultVariantKey: string;
+  fieldCount: number;
+  fieldsBySize: Record<string, string[]>;
+  referenceAssetBySize: Record<string, string>;
+  backgroundAssetBySize: Record<string, string>;
+};
+
 export type ProductWorkspaceContent = {
   id: string;
   title: string;
@@ -104,6 +124,8 @@ export type ProductWorkspace = {
   claims: ProductWorkspaceClaim[];
   templates: ProductWorkspaceTemplate[];
   activeTemplates: ProductWorkspaceTemplate[];
+  platformTemplates: ProductWorkspacePlatformTemplate[];
+  activePlatformTemplates: ProductWorkspacePlatformTemplate[];
   content: ProductWorkspaceContent[];
   approvals: ProductWorkspaceContent[];
   counts: {
@@ -112,6 +134,8 @@ export type ProductWorkspace = {
     approvedClaims: number;
     templates: number;
     activeTemplates: number;
+    platformTemplates: number;
+    activePlatformTemplates: number;
     content: number;
     inReview: number;
     contentByStatus: Record<string, number>;
@@ -189,7 +213,7 @@ export async function getProductWorkspace(
   assertQuery(productError, "product");
   if (!product) return null;
 
-  const [assetResult, sourceResult, claimResult, templateResult, contentResult] =
+  const [assetResult, sourceResult, claimResult, templateResult, platformTemplateResult, contentResult] =
     await Promise.all([
       supabase
         .from("product_assets")
@@ -220,6 +244,14 @@ export async function getProductWorkspace(
         .eq("product_id", productId)
         .order("sort_order", { ascending: true }),
       supabase
+        .from("product_template_assignments")
+        .select(
+          "id, product_id, status, default_variant_key, generation_profile, default_payload, template_families(id, family_key, name), template_versions(id, version_label, status, manifest)"
+        )
+        .eq("org_id", profile.org_id)
+        .eq("product_id", productId)
+        .order("created_at", { ascending: true }),
+      supabase
         .from("generated_content")
         .select(
           "id, title, status, target_language, audience, product_template_id, created_by, rejection_note, created_at, updated_at, product_templates(variant, category), creator:profiles!generated_content_created_by_fkey(full_name)"
@@ -233,6 +265,7 @@ export async function getProductWorkspace(
   assertQuery(sourceResult.error, "sources");
   assertQuery(claimResult.error, "claims");
   assertQuery(templateResult.error, "templates");
+  assertQuery(platformTemplateResult.error, "platform templates");
   assertQuery(contentResult.error, "content");
 
   const assetPreviewUrls = await createProductAssetPreviewUrlMap(
@@ -303,6 +336,53 @@ export async function getProductWorkspace(
       sortOrder: template.sort_order,
     };
   });
+  const platformTemplates = ((platformTemplateResult.data ?? []) as TemplatePlatformAssignmentRow[])
+    .map(normalizeTemplatePlatformAssignment)
+    .filter((template): template is NonNullable<typeof template> => Boolean(template))
+    .map((template) => {
+      const fieldsBySize = Object.fromEntries(
+        template.supportedSizes.map((size) => {
+          const variant = template.manifest.variants.find((item) => item.key === size);
+          return [
+            size,
+            variant ? [...new Set(variant.slots.map((slot) => slot.field))] : [],
+          ];
+        })
+      );
+      const referenceAssetBySize = Object.fromEntries(
+        template.supportedSizes.map((size) => {
+          const variant = template.manifest.variants.find((item) => item.key === size);
+          const asset = variant
+            ? template.manifest.assets.find((item) => item.key === variant.referenceAsset)
+            : null;
+          return [size, asset?.path ?? ""];
+        })
+      );
+      const backgroundAssetBySize = Object.fromEntries(
+        template.supportedSizes.map((size) => {
+          const variant = template.manifest.variants.find((item) => item.key === size);
+          const asset = variant
+            ? template.manifest.assets.find((item) => item.key === variant.backgroundAsset)
+            : null;
+          return [size, asset?.path ?? ""];
+        })
+      );
+      return {
+        assignmentId: template.assignmentId,
+        productId: template.productId,
+        familyId: template.familyId,
+        familyKey: template.familyKey,
+        familyName: template.familyName,
+        versionId: template.versionId,
+        versionLabel: template.versionLabel,
+        supportedSizes: template.supportedSizes,
+        defaultVariantKey: template.defaultVariantKey,
+        fieldCount: new Set(Object.values(fieldsBySize).flat()).size,
+        fieldsBySize,
+        referenceAssetBySize,
+        backgroundAssetBySize,
+      };
+    });
   const content = ((contentResult.data ?? []) as ContentRow[]).map((row) => {
     const template = one(row.product_templates);
     const creator = one(row.creator);
@@ -326,6 +406,7 @@ export async function getProductWorkspace(
   const activeTemplates = templates.filter(
     (template) => template.status === "active" && template.contractReady
   );
+  const activePlatformTemplates = platformTemplates;
   const approvedClaims = claims.filter((claim) => claim.status === "approved");
   const approvals = content.filter((item) => item.status === "in_review");
   const contentByStatus = content.reduce<Record<string, number>>((counts, item) => {
@@ -337,7 +418,9 @@ export async function getProductWorkspace(
     approvedSources: approvedSources.length,
     approvedClaims: approvedClaims.length,
     templates: templates.length,
-    activeTemplates: activeTemplates.length,
+    activeTemplates: activeTemplates.length + activePlatformTemplates.length,
+    platformTemplates: platformTemplates.length,
+    activePlatformTemplates: activePlatformTemplates.length,
     content: content.length,
     inReview: approvals.length,
     contentByStatus,
@@ -345,7 +428,7 @@ export async function getProductWorkspace(
   const permissions = getWorkspacePermissions({
     role: profile.role,
     productStatus: product.status,
-    activeTemplateCount: activeTemplates.length,
+    activeTemplateCount: activeTemplates.length + activePlatformTemplates.length,
   });
 
   return {
@@ -368,6 +451,8 @@ export async function getProductWorkspace(
     claims,
     templates,
     activeTemplates,
+    platformTemplates,
+    activePlatformTemplates,
     content,
     approvals,
     counts,

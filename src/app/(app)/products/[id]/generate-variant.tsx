@@ -9,13 +9,15 @@ const LANGUAGES = ["English", "Filipino", "Spanish", "Portuguese", "Vietnamese",
 export function GenerateVariant({
   productId,
   templateId,
+  platformAssignmentId,
   variant,
   sizes,
   initialSize,
   compact = false,
 }: {
   productId: string;
-  templateId: string;
+  templateId?: string;
+  platformAssignmentId?: string;
   variant: string;
   sizes: SizeKey[];
   initialSize: SizeKey;
@@ -36,16 +38,26 @@ export function GenerateVariant({
       const res = await fetch("/api/products/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ productTemplateId: templateId, language, outputSize }),
+        body: JSON.stringify({
+          ...(platformAssignmentId
+            ? { platformAssignmentId }
+            : { productTemplateId: templateId }),
+          language,
+          outputSize,
+        }),
       });
       const j = await res.json();
       if (!res.ok) {
         setError(j.error ?? "Generation failed.");
         return;
       }
+      if (j.platform) {
+        router.push(`/content/${j.contentId}`);
+        return;
+      }
       const params = new URLSearchParams({
         product: productId,
-        template: templateId,
+        template: templateId ?? "",
         content: j.contentId,
         size: (j.outputSize as string) ?? outputSize,
       });

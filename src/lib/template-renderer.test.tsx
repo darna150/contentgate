@@ -4,7 +4,13 @@ import { createServer } from "node:http";
 import { join } from "node:path";
 import test from "node:test";
 import { ImageResponse } from "next/og";
+import { renderToStaticMarkup } from "react-dom/server";
 
+import {
+  auditPublishedTemplateFrameVisuals,
+  publishedTemplateFrameUsesVectorLayers,
+  renderPublishedTemplatePackage,
+} from "./published-template-package";
 import { TEMPLATE_LAYOUT_CONTRACTS } from "./template-contract";
 import { renderContractTemplate } from "./template-renderer";
 
@@ -87,5 +93,59 @@ test("renders worst-case copy for every active layout and output size", async ()
     await new Promise<void>((resolve, reject) =>
       server.close((error) => (error ? reject(error) : resolve()))
     );
+  }
+});
+
+test("ContentGate generated frames include locked surfaces for white editable text", () => {
+  for (const layoutKey of [
+    "contentgate_local_friendly",
+    "contentgate_local_premium",
+  ]) {
+    const contract = TEMPLATE_LAYOUT_CONTRACTS[layoutKey];
+    assert.ok(contract);
+    for (const sizeKey of contract.sizes) {
+      assert.deepEqual(
+        auditPublishedTemplateFrameVisuals(layoutKey, sizeKey),
+        [],
+        `${layoutKey}/${sizeKey} has unsafe editable text surfaces`
+      );
+    }
+  }
+});
+
+test("ContentGate generated vector frames avoid mixed raster backgrounds", () => {
+  for (const layoutKey of [
+    "contentgate_local_friendly",
+    "contentgate_local_premium",
+  ]) {
+    const contract = TEMPLATE_LAYOUT_CONTRACTS[layoutKey];
+    assert.ok(contract);
+    for (const sizeKey of contract.sizes) {
+      if (!publishedTemplateFrameUsesVectorLayers(layoutKey, sizeKey)) continue;
+      const rendered = renderPublishedTemplatePackage({
+        layoutKey,
+        sizeKey,
+        origin: "http://localhost",
+        original: false,
+        disclaimer: "",
+        fields: Object.fromEntries(
+          contract.editableFields.map((field) => [field, "Safe copy"])
+        ),
+      });
+      assert.ok(rendered, `${layoutKey}/${sizeKey} did not render`);
+      const html = renderToStaticMarkup(rendered.element);
+      if (html.includes("data-template-field")) {
+        assert.doesNotMatch(
+          html,
+          /backgrounds\//,
+          `${layoutKey}/${sizeKey} mixed editable fields with a raster background`
+        );
+        assert.match(
+          html,
+          /overflow:hidden/,
+          `${layoutKey}/${sizeKey} editable fields are not clipped`
+        );
+      }
+    }
   }
 });

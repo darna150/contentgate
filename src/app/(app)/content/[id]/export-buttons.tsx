@@ -8,12 +8,14 @@ export function ExportButtons({
   body,
   productId,
   templateId,
+  platformAssignmentId,
   outputSize,
 }: {
   id: string;
   body: string;
   productId: string;
-  templateId: string;
+  templateId?: string | null;
+  platformAssignmentId?: string | null;
   outputSize?: string | null;
 }) {
   const [copied, setCopied] = useState(false);
@@ -21,9 +23,10 @@ export function ExportButtons({
   const [error, setError] = useState<string | null>(null);
   const studioParams = new URLSearchParams({
     product: productId,
-    template: templateId,
     content: id,
   });
+  if (templateId) studioParams.set("template", templateId);
+  if (platformAssignmentId) studioParams.set("template", `platform:${platformAssignmentId}`);
   if (outputSize) studioParams.set("size", outputSize);
 
   async function onCopy() {

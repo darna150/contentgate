@@ -18,6 +18,10 @@ import { loadPoultryShieldProFonts } from "@/lib/poultryshieldpro-fonts";
 import { renderSwineGuardPlus } from "@/lib/swineguardplus-render";
 import { loadSwineGuardPlusFonts } from "@/lib/swineguardplus-fonts";
 import { renderTemplateSpec } from "@/lib/template-spec-render";
+import { loadContentGateFonts } from "@/lib/contentgate-fonts";
+import type { TemplateBundleManifest } from "@/lib/template-platform/manifest";
+import { renderTemplateBundleVariant } from "@/lib/template-platform/render";
+import { resolveTemplateBundleRuntimeVariant } from "@/lib/template-platform/runtime";
 import {
   isTemplateSizeAllowed,
   usesRegisteredTemplateContract,
@@ -43,7 +47,7 @@ export async function GET(req: Request) {
   const { data: content } = await supabase
     .from("generated_content")
     .select(
-      "id, status, current_revision_number, approved_revision_number, structured_fields, products(name, disclaimer_text), product_templates(layout_key, category, template_definition, status)"
+      "id, status, current_revision_number, approved_revision_number, structured_fields, products(name, disclaimer_text), product_templates(layout_key, category, template_definition, status), template_versions(manifest), template_variants(variant_key)"
     )
     .eq("id", contentId)
     .single();
@@ -62,6 +66,41 @@ export async function GET(req: Request) {
   const tpl = Array.isArray(content.product_templates)
     ? content.product_templates[0]
     : content.product_templates;
+  const platformVersion = Array.isArray(content.template_versions)
+    ? content.template_versions[0]
+    : content.template_versions;
+  const platformVariant = Array.isArray(content.template_variants)
+    ? content.template_variants[0]
+    : content.template_variants;
+
+  const fields = (content.structured_fields ?? {}) as Record<string, string>;
+  const productName = product?.name ?? "Product";
+  const disclaimer = product?.disclaimer_text ?? "";
+
+  const cacheHeaders = { "Cache-Control": "private, max-age=60, stale-while-revalidate=300" };
+
+  if (platformVersion?.manifest && platformVariant?.variant_key) {
+    const manifest = platformVersion.manifest as TemplateBundleManifest;
+    const variantKey = requestedSize === "square" ? platformVariant.variant_key : requestedSize;
+    const runtime = resolveTemplateBundleRuntimeVariant(manifest, variantKey);
+    if (!runtime) {
+      return new Response("Unsupported size for this template", { status: 400 });
+    }
+    const rendered = renderTemplateBundleVariant({
+      manifest,
+      variantKey,
+      fields,
+      origin: new URL(req.url).origin,
+    });
+    if (!rendered) return new Response("Template render failed", { status: 500 });
+    const fonts = await loadContentGateFonts();
+    return new ImageResponse(rendered.element, {
+      width: rendered.width,
+      height: rendered.height,
+      fonts,
+      headers: cacheHeaders,
+    });
+  }
 
   const layoutKey = tpl?.layout_key ?? "social_v1";
   const templateSizeInput = {
@@ -75,12 +114,6 @@ export async function GET(req: Request) {
   }
   const sizeKey = requestedSize as SizeKey;
   const size = SIZES[sizeKey];
-
-  const fields = (content.structured_fields ?? {}) as Record<string, string>;
-  const productName = product?.name ?? "Product";
-  const disclaimer = product?.disclaimer_text ?? "";
-
-  const cacheHeaders = { "Cache-Control": "private, max-age=60, stale-while-revalidate=300" };
 
   const contractRender = usesRegisteredTemplateContract(templateSizeInput)
     ? await renderContractTemplate({

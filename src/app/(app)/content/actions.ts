@@ -3,12 +3,17 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { flattenFields } from "@/lib/templates";
+import { templateFieldIssues, type FieldLimits } from "@/lib/template-fields";
+import { validateTemplateContentFit } from "@/lib/template-content-fit";
+import type { TemplateBundleManifest } from "@/lib/template-platform/manifest";
 import {
-  templateFieldIssues,
-  type FieldLimits,
-} from "@/lib/template-fields";
-import { resolveEffectiveFieldLimits } from "@/lib/template-specs";
-import { isTemplateContractReady } from "@/lib/template-contract";
+  formatTemplatePlatformFitIssues,
+  templatePlatformFieldFitIssues,
+} from "@/lib/template-platform/fit";
+import {
+  getTemplateBundleVariantFieldLimits,
+  getTemplateBundleVariantFields,
+} from "@/lib/template-platform/runtime";
 import {
   canReviewContent,
   canSubmitContent,
@@ -39,8 +44,9 @@ async function requireUser() {
   return { supabase, user, profile };
 }
 
-function validateStoredTemplateFields(content: {
+async function validateStoredTemplateFields(content: {
   structured_fields: unknown;
+  prompt_context?: unknown;
   product_templates:
     | {
         layout_key: string;
@@ -61,35 +67,56 @@ function validateStoredTemplateFields(content: {
         status: string;
       }[]
     | null;
-}): string | null {
+  template_versions?:
+    | { manifest: TemplateBundleManifest }
+    | { manifest: TemplateBundleManifest }[]
+    | null;
+  template_variants?:
+    | { variant_key: string }
+    | { variant_key: string }[]
+    | null;
+}): Promise<string | null> {
   const template = Array.isArray(content.product_templates)
     ? content.product_templates[0]
     : content.product_templates;
+  const version = Array.isArray(content.template_versions)
+    ? content.template_versions[0]
+    : content.template_versions;
+  const variant = Array.isArray(content.template_variants)
+    ? content.template_variants[0]
+    : content.template_variants;
+  if (!template && version?.manifest && variant?.variant_key) {
+    const order = getTemplateBundleVariantFields(version.manifest, variant.variant_key).map(
+      (field) => field.key
+    );
+    const limits = getTemplateBundleVariantFieldLimits(version.manifest, variant.variant_key);
+    const fields = (content.structured_fields ?? {}) as Record<string, unknown>;
+    const issues = templateFieldIssues(fields, order, limits);
+    const firstIssue = Object.entries(issues)[0];
+    if (firstIssue) {
+      return `${firstIssue[0]}: ${firstIssue[1].map((issue) => issue.message).join(", ")}`;
+    }
+    const geometryIssues = await templatePlatformFieldFitIssues({
+      manifest: version.manifest,
+      variantKey: variant.variant_key,
+      fields,
+    });
+    return formatTemplatePlatformFitIssues(geometryIssues)[0] ?? null;
+  }
   if (!template) return "Template configuration was not found.";
   const order = (template.editable_fields ?? []) as string[];
   const fields = (content.structured_fields ?? {}) as Record<string, unknown>;
-  const limits = resolveEffectiveFieldLimits(
-    template.layout_key,
-    (template.field_limits ?? {}) as FieldLimits
-  );
-  if (
-    !isTemplateContractReady({
-      layoutKey: template.layout_key,
-      category: template.category,
-      editableFields: order,
-      fieldLimits: limits,
-      lockedFields: (template.locked_fields ?? []) as string[],
-      definition: template.template_definition,
-      status: template.status,
-    })
-  ) {
-    return "Template configuration does not meet the active engine contract.";
-  }
-  const issues = templateFieldIssues(fields, order, limits);
-  const firstIssue = order.find((key) => issues[key]?.length);
-  return firstIssue
-    ? `${firstIssue.replace(/_/g, " ")}: ${issues[firstIssue][0].message}`
-    : null;
+  return validateTemplateContentFit({
+    layoutKey: template.layout_key,
+    category: template.category,
+    editableFields: order,
+    fieldLimits: (template.field_limits ?? {}) as FieldLimits,
+    lockedFields: (template.locked_fields ?? []) as string[],
+    definition: template.template_definition,
+    status: template.status,
+    fields,
+    promptContext: content.prompt_context,
+  });
 }
 
 export async function updateContentBody(
@@ -127,50 +154,72 @@ export async function updateStructuredFields(
   const { data: content } = await ctx.supabase
     .from("generated_content")
     .select(
-      "structured_fields, prompt_context, product_templates(layout_key, category, editable_fields, field_limits, locked_fields, template_definition, status)"
+      "structured_fields, prompt_context, product_templates(layout_key, category, editable_fields, field_limits, locked_fields, template_definition, status), template_versions(manifest), template_variants(variant_key)"
     )
     .eq("id", id)
     .single();
   const template = Array.isArray(content?.product_templates)
     ? content.product_templates[0]
     : content?.product_templates;
-  if (!template) return { error: "Template configuration was not found." };
-
-  const order = (template.editable_fields ?? []) as string[];
-  const limits = resolveEffectiveFieldLimits(
-    template.layout_key,
-    (template.field_limits ?? {}) as FieldLimits
-  );
-  if (
-    !isTemplateContractReady({
-      layoutKey: template.layout_key,
-      category: template.category,
-      editableFields: order,
-      fieldLimits: limits,
-      lockedFields: (template.locked_fields ?? []) as string[],
-      definition: template.template_definition,
-      status: template.status,
-    })
-  ) {
-    return { error: "Template configuration is not ready for editing." };
+  const version = Array.isArray(content?.template_versions)
+    ? content.template_versions[0]
+    : content?.template_versions;
+  const variant = Array.isArray(content?.template_variants)
+    ? content.template_variants[0]
+    : content?.template_variants;
+  if (!template && (!version?.manifest || !variant?.variant_key)) {
+    return { error: "Template configuration was not found." };
   }
+
+  const order = template
+    ? ((template.editable_fields ?? []) as string[])
+    : getTemplateBundleVariantFields(version!.manifest as TemplateBundleManifest, variant!.variant_key).map(
+        (field) => field.key
+      );
   const cleaned = Object.fromEntries(
     order.map((key) => [key, String(fields[key] ?? "")])
   );
-  const issues = templateFieldIssues(cleaned, order, limits);
-  const firstIssue = order.find((key) => issues[key]?.length);
-  if (firstIssue) {
-    return {
-      error: `${firstIssue.replace(/_/g, " ")}: ${issues[firstIssue][0].message}`,
-    };
-  }
-  const body = flattenFields(cleaned, order);
-  if (!body) return { error: "Content cannot be empty." };
-
   const promptContext =
     content?.prompt_context && typeof content.prompt_context === "object"
       ? (content.prompt_context as Record<string, unknown>)
       : {};
+  const validationError = template
+    ? await validateTemplateContentFit({
+        layoutKey: template.layout_key,
+        category: template.category,
+        editableFields: order,
+        fieldLimits: (template.field_limits ?? {}) as FieldLimits,
+        lockedFields: (template.locked_fields ?? []) as string[],
+        definition: template.template_definition,
+        status: template.status,
+        fields: cleaned,
+        promptContext,
+      })
+    : (() => {
+        const limits = getTemplateBundleVariantFieldLimits(
+          version!.manifest as TemplateBundleManifest,
+          variant!.variant_key
+        );
+        const issues = templateFieldIssues(cleaned, order, limits);
+        const firstIssue = Object.entries(issues)[0];
+        return firstIssue
+          ? `${firstIssue[0]}: ${firstIssue[1].map((issue) => issue.message).join(", ")}`
+          : null;
+      })();
+  if (validationError) return { error: validationError };
+  if (!template) {
+    const geometryIssues = await templatePlatformFieldFitIssues({
+      manifest: version!.manifest as TemplateBundleManifest,
+      variantKey: variant!.variant_key,
+      fields: cleaned,
+    });
+    const firstGeometryIssue = formatTemplatePlatformFitIssues(geometryIssues)[0];
+    if (firstGeometryIssue) return { error: firstGeometryIssue };
+  }
+
+  const body = flattenFields(cleaned, order);
+  if (!body) return { error: "Content cannot be empty." };
+
   const generatedFields =
     promptContext.generated_fields &&
     typeof promptContext.generated_fields === "object"
@@ -224,7 +273,7 @@ export async function approveContent(id: string): Promise<ActionResult> {
   const { data: row } = await ctx.supabase
     .from("generated_content")
     .select(
-      "status, structured_fields, product_templates(layout_key, category, editable_fields, field_limits, locked_fields, template_definition, status)"
+      "status, structured_fields, prompt_context, product_templates(layout_key, category, editable_fields, field_limits, locked_fields, template_definition, status), template_versions(manifest), template_variants(variant_key)"
     )
     .eq("id", id)
     .single();
@@ -234,7 +283,7 @@ export async function approveContent(id: string): Promise<ActionResult> {
   if (row.status !== "in_review") {
     return { error: "Only content in review can be approved." };
   }
-  const validationError = validateStoredTemplateFields(row);
+  const validationError = await validateStoredTemplateFields(row);
   if (validationError) {
     return { error: `Content no longer fits its template: ${validationError}` };
   }
@@ -283,7 +332,7 @@ export async function submitForReview(id: string): Promise<ActionResult> {
   const { data: current } = await ctx.supabase
     .from("generated_content")
     .select(
-      "created_by, status, structured_fields, product_templates(layout_key, category, editable_fields, field_limits, locked_fields, template_definition, status)"
+      "created_by, status, structured_fields, prompt_context, product_templates(layout_key, category, editable_fields, field_limits, locked_fields, template_definition, status), template_versions(manifest), template_variants(variant_key)"
     )
     .eq("id", id)
     .single();
@@ -303,7 +352,7 @@ export async function submitForReview(id: string): Promise<ActionResult> {
     }
     return { error: "Only the author or an admin can submit this content." };
   }
-  const validationError = validateStoredTemplateFields(current);
+  const validationError = await validateStoredTemplateFields(current);
   if (validationError) {
     return { error: `Content does not fit its template: ${validationError}` };
   }

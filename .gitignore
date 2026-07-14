@@ -45,3 +45,4 @@ next-env.d.ts
 # manual review/debug artifacts (not app assets)
 /*.png
 /.playwright-mcp/
+/.template-bundles/

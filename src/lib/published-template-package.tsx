@@ -1,6 +1,5 @@
 import React from "react";
 
-import { fitCopy } from "./render-copy";
 import type { FieldLimits } from "./template-fields";
 import {
   TEMPLATE_OUTPUT_SIZES,
@@ -14,7 +13,7 @@ type RenderResult = {
   h: number;
 };
 
-type TextSlot = {
+export type PublishedTextSlot = {
   field: string;
   x: number;
   y: number;
@@ -92,7 +91,7 @@ type PublishedFrame = {
   referenceImage?: string;
   generatedImage?: string;
   layers: Layer[];
-  textSlots: TextSlot[];
+  textSlots: PublishedTextSlot[];
   imageSlots?: ImageSlot[];
 };
 
@@ -119,21 +118,17 @@ const WHITE = "#FFFFFF";
 const LINE = "#DCE5DE";
 const INTER_STACK = '"Inter", "ContentGate Sans", ui-sans-serif, system-ui, sans-serif';
 
-function cleanText(value: unknown) {
-  return String(value ?? "").replace(/\s+/g, " ").trim();
+export function normalizePublishedTemplateText(value: unknown) {
+  return String(value ?? "")
+    .replace(/\r\n?/g, "\n")
+    .split("\n")
+    .map((line) => line.replace(/[\t ]+/g, " ").trim())
+    .filter(Boolean)
+    .join("\n");
 }
 
-function fitText(value: unknown, slot: TextSlot) {
-  const text = cleanText(value || slot.fallback);
-  const wrapped = fitCopy(text, {
-    maxLines: slot.maxLines,
-    lineChars: slot.lineChars,
-  });
-  if (wrapped.length <= slot.maxChars) return wrapped;
-
-  const clipped = wrapped.slice(0, slot.maxChars).trimEnd();
-  const boundary = clipped.lastIndexOf(" ");
-  return boundary > slot.maxChars * 0.55 ? clipped.slice(0, boundary) : clipped;
+function cleanText(value: unknown) {
+  return normalizePublishedTemplateText(value);
 }
 
 function resolvePublishedFrame(
@@ -163,6 +158,63 @@ export function getPublishedTemplateFrameFieldLimits(
       },
     ])
   );
+}
+
+export function getPublishedTemplateFrameTextSlots(
+  layoutKey: string,
+  sizeKey: TemplateSizeKey,
+  definition?: unknown
+): PublishedTextSlot[] | null {
+  const { frameSpec } = resolvePublishedFrame(layoutKey, sizeKey, definition);
+  return frameSpec?.textSlots ?? null;
+}
+
+function overlapArea(
+  a: { x: number; y: number; w: number; h: number },
+  b: { x: number; y: number; w: number; h: number }
+) {
+  const x = Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x));
+  const y = Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
+  return x * y;
+}
+
+export function auditPublishedTemplateFrameVisuals(
+  layoutKey: string,
+  sizeKey: TemplateSizeKey,
+  definition?: unknown
+): string[] {
+  const { frameSpec } = resolvePublishedFrame(layoutKey, sizeKey, definition);
+  if (!frameSpec || frameSpec.layers.length === 0) return [];
+
+  const issues: string[] = [];
+  const rectLayers = frameSpec.layers.filter((layer) => layer.kind === "rect");
+  for (const slot of frameSpec.textSlots) {
+    if (slot.color.toUpperCase() !== WHITE) continue;
+    if (slot.background) continue;
+
+    const slotArea = slot.w * slot.h;
+    const hasBackingRect = rectLayers.some((layer) => {
+      const area = overlapArea(slot, layer);
+      return area / slotArea >= 0.85 && layer.color.toUpperCase() !== WHITE;
+    });
+
+    if (!hasBackingRect) {
+      issues.push(
+        `${layoutKey}/${sizeKey}/${slot.field} has white text without a locked backing shape`
+      );
+    }
+  }
+
+  return issues;
+}
+
+export function publishedTemplateFrameUsesVectorLayers(
+  layoutKey: string,
+  sizeKey: TemplateSizeKey,
+  definition?: unknown
+) {
+  const { frameSpec } = resolvePublishedFrame(layoutKey, sizeKey, definition);
+  return Boolean(frameSpec?.layers.length);
 }
 
 function BrandMark({
@@ -390,13 +442,15 @@ function renderLayer(layer: Layer, index: number) {
   );
 }
 
-function renderTextSlot(slot: TextSlot, fields: Record<string, string>) {
+function renderTextSlot(slot: PublishedTextSlot, fields: Record<string, string>) {
   const family = slot.family ? `"${slot.family}", ${INTER_STACK}` : INTER_STACK;
+  const text = cleanText(fields[slot.field] || slot.fallback);
 
   return (
     <div
       key={slot.field}
       data-template-field={slot.field}
+      data-template-max-lines={slot.maxLines}
       style={{
         position: "absolute",
         left: slot.x,
@@ -427,30 +481,17 @@ function renderTextSlot(slot: TextSlot, fields: Record<string, string>) {
       <span
         data-template-content
         style={{
-          display: "flex",
+          display: "block",
           width: "100%",
-          height: "100%",
-          maxWidth: "100%",
-          maxHeight: "100%",
-          overflow: "hidden",
-          alignItems:
-            slot.verticalAlign === "top"
-              ? "flex-start"
-              : slot.verticalAlign === "bottom"
-                ? "flex-end"
-                : "center",
-          justifyContent:
-            slot.align === "center"
-              ? "center"
-              : slot.align === "right"
-                ? "flex-end"
-                : "flex-start",
+          minWidth: 0,
+          flexShrink: 0,
           textAlign: slot.align ?? "left",
           whiteSpace: "pre-wrap",
           wordBreak: "normal",
+          overflow: "hidden",
         }}
       >
-        {fitText(fields[slot.field], slot)}
+        {text}
       </span>
     </div>
   );
@@ -498,7 +539,7 @@ function frame(
   size: TemplateSizeKey,
   background: string,
   layers: Layer[],
-  textSlots: TextSlot[],
+  textSlots: PublishedTextSlot[],
   imageSlots: ImageSlot[] = [],
   options: Pick<PublishedFrame, "referenceImage" | "generatedImage"> = {}
 ): PublishedFrame {
@@ -520,6 +561,7 @@ function friendlyPackage(): PublishedTemplatePackage {
           { kind: "brand", x: 72, y: 70, scale: 1.25 },
           { kind: "dashboard", x: 560, y: 250, w: 430, h: 330 },
           { kind: "rule", x: 72, y: 455, w: 116, h: 12, color: RUST },
+          { kind: "rect", x: 97.2, y: 945, w: 367.2, h: 59.4, color: GREEN, radius: 999 },
         ],
         [
           { field: "local_detail", x: 97.2, y: 594, w: 777.6, h: 48.6, fontSize: 18, lineHeight: 1.1, weight: 600, color: RUST, maxChars: 74, maxLines: 1, lineChars: 60, family: "Inter" },
@@ -542,10 +584,11 @@ function friendlyPackage(): PublishedTemplatePackage {
           { kind: "brand", x: 86, y: 72, scale: 1.5 },
           { kind: "dashboard", x: 86, y: 210, w: 908, h: 730 },
           { kind: "rule", x: 86, y: 1015, w: 112, h: 12, color: RUST },
+          { kind: "rect", x: 97.2, y: 1584, w: 885.6, h: 105.6, color: GREEN, radius: 999 },
         ],
         [
           { field: "local_detail", x: 97.2, y: 940.8, w: 842.4, h: 76.8, fontSize: 18, lineHeight: 1.1, weight: 600, color: RUST, maxChars: 74, maxLines: 1, lineChars: 60, family: "Inter" },
-          { field: "headline", x: 97.2, y: 1036.8, w: 885.6, h: 249.6, fontSize: 92.88, lineHeight: 0.94, weight: 700, color: GREEN, maxChars: 58, maxLines: 3, lineChars: 18, family: "Inter" },
+          { field: "headline", x: 97.2, y: 1036.8, w: 885.6, h: 249.6, fontSize: 92.88, lineHeight: 0.94, weight: 700, color: GREEN, maxChars: 58, maxLines: 2, lineChars: 18, family: "Inter" },
           { field: "subheadline", x: 97.2, y: 1344, w: 842.4, h: 163.2, fontSize: 38.88, lineHeight: 1.18, weight: 400, color: MUTED, maxChars: 130, maxLines: 3, lineChars: 40, family: "Inter" },
           { field: "cta", x: 97.2, y: 1584, w: 885.6, h: 105.6, fontSize: 34.56, lineHeight: 1.04, weight: 600, color: WHITE, maxChars: 28, maxLines: 1, align: "center", family: "Inter" },
           { field: "proof_note", x: 97.2, y: 1737.6, w: 885.6, h: 67.2, fontSize: 25.92, lineHeight: 1.04, weight: 500, color: TEAL, maxChars: 64, maxLines: 1, lineChars: 48, align: "center", family: "Inter" },
@@ -565,11 +608,12 @@ function friendlyPackage(): PublishedTemplatePackage {
           { kind: "brand", x: 66, y: 58, scale: 1.05 },
           { kind: "dashboard", x: 650, y: 150, w: 470, h: 330 },
           { kind: "rule", x: 66, y: 242, w: 104, h: 10, color: RUST },
+          { kind: "rect", x: 72, y: 477.28, w: 252, h: 56.52, color: GREEN, radius: 999 },
         ],
         [
           { field: "local_detail", x: 72, y: 134, w: 504, h: 34.54, fontSize: 14.5068, lineHeight: 1.1, weight: 600, color: RUST, maxChars: 74, maxLines: 1, lineChars: 50, family: "Inter" },
-          { field: "headline", x: 72, y: 207.24, w: 576, h: 125.6, fontSize: 60, lineHeight: 0.98, weight: 700, color: GREEN, maxChars: 58, maxLines: 3, lineChars: 20, family: "Inter" },
-          { field: "subheadline", x: 72, y: 374, w: 528, h: 75.36, fontSize: 21.98, lineHeight: 1.22, weight: 400, color: MUTED, maxChars: 112, maxLines: 3, lineChars: 40, family: "Inter" },
+          { field: "headline", x: 72, y: 207.24, w: 576, h: 125.6, fontSize: 60, lineHeight: 0.98, weight: 700, color: GREEN, maxChars: 58, maxLines: 2, lineChars: 20, family: "Inter" },
+          { field: "subheadline", x: 72, y: 374, w: 528, h: 75.36, fontSize: 21.98, lineHeight: 1.22, weight: 400, color: MUTED, maxChars: 112, maxLines: 2, lineChars: 40, family: "Inter" },
           { field: "cta", x: 72, y: 477.28, w: 252, h: 56.52, fontSize: 20.096, lineHeight: 1.04, weight: 600, color: WHITE, maxChars: 28, maxLines: 1, align: "center", family: "Inter" },
           { field: "proof_note", x: 348, y: 477.28, w: 288, h: 56.52, fontSize: 16.328, lineHeight: 1.04, weight: 500, color: TEAL, maxChars: 64, maxLines: 2, lineChars: 32, family: "Inter" },
         ],
@@ -585,6 +629,7 @@ function friendlyPackage(): PublishedTemplatePackage {
         [
           { kind: "brand", x: 18, y: 27, scale: 0.72 },
           { kind: "rule", x: 190, y: 18, w: 5, h: 54, color: RUST },
+          { kind: "rect", x: 560, y: 24, w: 132, h: 42, color: GREEN, radius: 999 },
         ],
         [
           { field: "headline", x: 250, y: 16, w: 355, h: 28, fontSize: 20, lineHeight: 1.04, weight: 700, color: GREEN, maxChars: 31, maxLines: 1, lineChars: 31, family: "Inter" },
@@ -604,6 +649,7 @@ function friendlyPackage(): PublishedTemplatePackage {
           { kind: "rule", x: 22, y: 18, w: 44, h: 4, color: RUST },
           { kind: "brand", x: 22, y: 31, scale: 0.62 },
           { kind: "dashboard", x: 204, y: 72, w: 70, h: 48, compact: true },
+          { kind: "rect", x: 24, y: 200, w: 142, h: 32, color: GREEN, radius: 999 },
         ],
         [
           { field: "headline", x: 24, y: 69, w: 252, h: 62, fontSize: 29, lineHeight: 0.96, weight: 700, color: GREEN, maxChars: 34, maxLines: 2, lineChars: 15, family: "Inter" },
@@ -638,10 +684,11 @@ function premiumPackage(): PublishedTemplatePackage {
           { kind: "brand", x: 100, y: 102, scale: 1.18 },
           { kind: "dashboard", x: 550, y: 220, w: 390, h: 310, dark: true },
           { kind: "rule", x: 100, y: 430, w: 116, h: 12, color: RUST },
+          { kind: "rect", x: 72.36, y: 912.6, w: 324, h: 59.4, color: GREEN, radius: 999 },
         ],
         [
           { field: "headline", x: 72, y: 591, w: 864, h: 151.2, fontSize: 62.64, lineHeight: 0.96, weight: 700, color: GREEN, maxChars: 64, maxLines: 2, lineChars: 27, family: "Inter" },
-          { field: "subheadline", x: 72.36, y: 772.2, w: 723.6, h: 86.4, fontSize: 24.84, lineHeight: 1.22, weight: 400, color: MUTED, maxChars: 132, maxLines: 3, lineChars: 48, family: "Inter" },
+          { field: "subheadline", x: 72.36, y: 772.2, w: 723.6, h: 86.4, fontSize: 24.84, lineHeight: 1.22, weight: 400, color: MUTED, maxChars: 132, maxLines: 2, lineChars: 48, family: "Inter" },
           { field: "cta", x: 72.36, y: 912.6, w: 324, h: 59.4, fontSize: 21.6, lineHeight: 1.04, weight: 600, color: WHITE, maxChars: 30, maxLines: 1, align: "center", family: "Inter" },
           { field: "proof_note", x: 432, y: 912.6, w: 496.8, h: 59.4, fontSize: 19.44, lineHeight: 1.12, weight: 500, color: TEAL, maxChars: 64, maxLines: 1, lineChars: 44, family: "Inter" },
         ],
@@ -659,6 +706,7 @@ function premiumPackage(): PublishedTemplatePackage {
           { kind: "brand", x: 82, y: 80, scale: 1.3, light: true },
           { kind: "dashboard", x: 82, y: 210, w: 916, h: 500, dark: true },
           { kind: "rule", x: 82, y: 780, w: 112, h: 12, color: RUST },
+          { kind: "rect", x: 81, y: 1140.75, w: 432, h: 70.2, color: GREEN, radius: 999 },
         ],
         [
           { field: "headline", x: 81, y: 742.5, w: 842.4, h: 189, fontSize: 64.8, lineHeight: 0.96, weight: 700, color: GREEN, maxChars: 64, maxLines: 3, lineChars: 22, family: "Inter" },
@@ -693,8 +741,8 @@ function premiumPackage(): PublishedTemplatePackage {
         WARM,
         [],
         [
-          { field: "headline", x: 66, y: 176, w: 528, h: 119.32, fontSize: 50, lineHeight: 0.96, weight: 700, color: GREEN, maxChars: 58, maxLines: 3, lineChars: 23, family: "Inter" },
-          { field: "subheadline", x: 66, y: 332, w: 480, h: 75.36, fontSize: 21.98, lineHeight: 1.22, weight: 400, color: MUTED, maxChars: 112, maxLines: 3, lineChars: 40, family: "Inter" },
+          { field: "headline", x: 66, y: 176, w: 528, h: 119.32, fontSize: 50, lineHeight: 0.96, weight: 700, color: GREEN, maxChars: 58, maxLines: 2, lineChars: 23, family: "Inter" },
+          { field: "subheadline", x: 66, y: 332, w: 480, h: 75.36, fontSize: 21.98, lineHeight: 1.22, weight: 400, color: MUTED, maxChars: 112, maxLines: 2, lineChars: 40, family: "Inter" },
           { field: "cta", x: 66, y: 461.58, w: 264, h: 53.38, fontSize: 18.84, lineHeight: 1.04, weight: 600, color: WHITE, maxChars: 28, maxLines: 1, align: "center", family: "Inter" },
           { field: "proof_note", x: 360, y: 461.58, w: 264, h: 53.38, fontSize: 15.7, lineHeight: 1.12, weight: 500, color: TEAL, maxChars: 64, maxLines: 2, lineChars: 32, family: "Inter" },
         ],
@@ -709,7 +757,7 @@ function premiumPackage(): PublishedTemplatePackage {
         WARM,
         [],
         [
-          { field: "headline", x: 22, y: 76, w: 156, h: 62, fontSize: 27, lineHeight: 0.95, weight: 700, color: GREEN, maxChars: 34, maxLines: 3, lineChars: 9, family: "Inter" },
+          { field: "headline", x: 22, y: 76, w: 156, h: 62, fontSize: 27, lineHeight: 0.95, weight: 700, color: GREEN, maxChars: 34, maxLines: 2, lineChars: 9, family: "Inter" },
           { field: "subheadline", x: 22, y: 151, w: 244, h: 34, fontSize: 13, lineHeight: 1.16, weight: 400, color: MUTED, maxChars: 54, maxLines: 2, lineChars: 29, family: "Inter" },
           { field: "cta", x: 22, y: 198, w: 98, h: 31, fontSize: 13, lineHeight: 1.04, weight: 600, color: WHITE, maxChars: 18, maxLines: 1, align: "center", family: "Inter" },
           { field: "proof_note", x: 132, y: 198, w: 134, h: 31, fontSize: 10, lineHeight: 1.1, weight: 500, color: TEAL, maxChars: 24, maxLines: 1, family: "Inter" },
@@ -777,7 +825,9 @@ export function renderPublishedTemplatePackage(
   const dimensions = TEMPLATE_OUTPUT_SIZES[input.sizeKey];
   const renderedImage = input.original
     ? frameSpec.referenceImage
-    : frameSpec.generatedImage;
+    : frameSpec.layers.length === 0
+      ? frameSpec.generatedImage
+      : undefined;
 
   return {
     w: dimensions.w,

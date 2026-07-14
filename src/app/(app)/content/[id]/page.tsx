@@ -10,6 +10,13 @@ import type { Evidence } from "@/lib/templates";
 import { resolveEffectiveFieldLimits } from "@/lib/template-specs";
 import { mergeFieldLimits, type FieldLimits } from "@/lib/template-fields";
 import { getPublishedTemplateFrameFieldLimits } from "@/lib/published-template-package";
+import type { TemplateBundleManifest } from "@/lib/template-platform/manifest";
+import {
+  getTemplateBundleVariantFieldLimits,
+  getTemplateBundleVariantFields,
+  resolveTemplateBundleRuntimeVariant,
+} from "@/lib/template-platform/runtime";
+import { renderTemplateBundleVariant } from "@/lib/template-platform/render";
 import {
   TEMPLATE_OUTPUT_SIZES,
   type TemplateSizeKey,
@@ -55,7 +62,7 @@ export default async function ContentDetailPage({
   const { data: content } = await supabase
     .from("generated_content")
     .select(
-      "id, title, body, status, target_language, audience, source_document_ids, rejection_note, created_at, approved_at, created_by, product_id, product_template_id, structured_fields, prompt_context, citations, current_revision_number, approved_revision_number, products(name), product_templates(layout_key, variant, category, editable_fields, field_limits, template_definition), creator:profiles!generated_content_created_by_fkey(full_name), approver:profiles!generated_content_approved_by_fkey(full_name)"
+      "id, title, body, status, target_language, audience, source_document_ids, rejection_note, created_at, approved_at, created_by, product_id, product_template_id, template_version_id, template_variant_id, structured_fields, prompt_context, citations, current_revision_number, approved_revision_number, products(name), product_templates(layout_key, variant, category, editable_fields, field_limits, template_definition), template_versions(id, version_label, manifest), template_variants(id, variant_key, label), creator:profiles!generated_content_created_by_fkey(full_name), approver:profiles!generated_content_approved_by_fkey(full_name)"
     )
     .eq("id", id)
     .single();
@@ -86,10 +93,27 @@ export default async function ContentDetailPage({
   const ptemplate = Array.isArray(content.product_templates)
     ? content.product_templates[0]
     : content.product_templates;
+  const platformVersion = Array.isArray(content.template_versions)
+    ? content.template_versions[0]
+    : content.template_versions;
+  const platformVariant = Array.isArray(content.template_variants)
+    ? content.template_variants[0]
+    : content.template_variants;
   const creator = Array.isArray(content.creator) ? content.creator[0] : content.creator;
   const approver = Array.isArray(content.approver) ? content.approver[0] : content.approver;
 
-  const isStructured = !!content.product_id && !!ptemplate;
+  const platformManifest = platformVersion?.manifest as TemplateBundleManifest | undefined;
+  const platformVariantKey =
+    typeof platformVariant?.variant_key === "string"
+      ? platformVariant.variant_key
+      : null;
+  const platformRuntime =
+    platformManifest && platformVariantKey
+      ? resolveTemplateBundleRuntimeVariant(platformManifest, platformVariantKey)
+      : null;
+  const isLegacyStructured = !!content.product_id && !!ptemplate;
+  const isPlatformStructured = !!content.product_id && !!platformRuntime && !!platformManifest && !!platformVariantKey;
+  const isStructured = isLegacyStructured || isPlatformStructured;
   const promptContext =
     content.prompt_context && typeof content.prompt_context === "object"
       ? (content.prompt_context as Record<string, unknown>)
@@ -97,7 +121,9 @@ export default async function ContentDetailPage({
   const outputSize = isSizeKey(promptContext?.output_size)
     ? promptContext.output_size
     : null;
-  const order: string[] = (ptemplate?.editable_fields as string[]) ?? [];
+  const order: string[] = isPlatformStructured
+    ? getTemplateBundleVariantFields(platformManifest, platformVariantKey).map((field) => field.key)
+    : (ptemplate?.editable_fields as string[]) ?? [];
   const structuredFields = (content.structured_fields ?? {}) as Record<string, string>;
   const evidence = (content.citations ?? []) as Evidence[];
   const viewerCanEdit = !!user && canEditContent({
@@ -105,12 +131,14 @@ export default async function ContentDetailPage({
     authorId: content.created_by,
     status: content.status as ContentStatus,
   });
-  const baseLimits = resolveEffectiveFieldLimits(
-    ptemplate?.layout_key,
-    (ptemplate?.field_limits ?? {}) as FieldLimits
-  );
+  const baseLimits = isPlatformStructured
+    ? getTemplateBundleVariantFieldLimits(platformManifest, platformVariantKey)
+    : resolveEffectiveFieldLimits(
+        ptemplate?.layout_key,
+        (ptemplate?.field_limits ?? {}) as FieldLimits
+      );
   const frameLimits =
-    outputSize && ptemplate?.layout_key
+    !isPlatformStructured && outputSize && ptemplate?.layout_key
       ? getPublishedTemplateFrameFieldLimits(
           ptemplate.layout_key,
           outputSize,
@@ -119,18 +147,42 @@ export default async function ContentDetailPage({
       : null;
   const effectiveLimits = mergeFieldLimits(baseLimits, frameLimits);
   const studioParams =
-    isStructured && content.product_id && content.product_template_id
+    isLegacyStructured && content.product_id && content.product_template_id
       ? new URLSearchParams({
           product: content.product_id,
           template: content.product_template_id,
           content: content.id,
         })
       : null;
+  const platformAssignmentId =
+    typeof (content.prompt_context as { platform_assignment_id?: unknown } | null)
+      ?.platform_assignment_id === "string"
+      ? ((content.prompt_context as { platform_assignment_id: string })
+          .platform_assignment_id)
+      : null;
+  const platformStudioParams =
+    isPlatformStructured && content.product_id && platformAssignmentId
+      ? new URLSearchParams({
+          product: content.product_id,
+          template: `platform:${platformAssignmentId}`,
+          content: content.id,
+        })
+      : null;
   if (studioParams && outputSize) studioParams.set("size", outputSize);
+  if (platformStudioParams && outputSize) platformStudioParams.set("size", outputSize);
 
-  const subtitle = isStructured
+  const subtitle = isPlatformStructured
+    ? `${product?.name ?? "Product"} · ${platformVersion?.version_label ?? "Platform template"} · ${content.target_language}`
+    : isLegacyStructured
     ? `${product?.name ?? "Product"} · ${ptemplate?.variant ?? ""} · ${content.target_language}`
     : `${content.target_language}${content.audience ? ` · for ${content.audience}` : ""}`;
+  const platformPreview = isPlatformStructured
+    ? renderTemplateBundleVariant({
+        manifest: platformManifest,
+        variantKey: platformVariantKey,
+        fields: structuredFields,
+      })
+    : null;
 
   return (
     <div className="mx-auto flex max-w-[1280px] flex-col gap-6 px-10 py-9">
@@ -175,6 +227,36 @@ export default async function ContentDetailPage({
 
       <div className="grid grid-cols-[1.6fr_1fr] items-start gap-5">
         <div className="min-w-0">
+          {platformPreview && (
+            <div className="mb-5 flex flex-col gap-3 rounded-card border border-edge bg-surface p-4">
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-[15px] font-bold">Template preview</h2>
+                <span className="rounded-[5px] bg-brand-tint px-[7px] py-0.5 text-[10.5px] font-bold uppercase tracking-[0.08em] text-brand">
+                  Platform v1
+                </span>
+              </div>
+              <div className="overflow-auto rounded-[10px] border border-edge bg-page p-4">
+                <div
+                  className="mx-auto overflow-hidden"
+                  style={{
+                    width: Math.min(platformPreview.width, 760),
+                    aspectRatio: `${platformPreview.width} / ${platformPreview.height}`,
+                  }}
+                >
+                  <div
+                    style={{
+                      width: platformPreview.width,
+                      height: platformPreview.height,
+                      transform: `scale(${Math.min(760 / platformPreview.width, 1)})`,
+                      transformOrigin: "top left",
+                    }}
+                  >
+                    {platformPreview.element}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
           {isStructured ? (
             <StructuredReview
               id={content.id}
@@ -200,9 +282,9 @@ export default async function ContentDetailPage({
 
         <div className="flex flex-col gap-5">
           {content.status === "in_review" && viewerIsApprover && <ApprovalActions id={content.id} />}
-          {isStructured && (
+          {(studioParams || platformStudioParams) && (
             <Link
-              href={`/studio?${studioParams?.toString() ?? ""}`}
+              href={`/studio?${(studioParams ?? platformStudioParams)?.toString() ?? ""}`}
               className="rounded-control border border-brand bg-brand-tint px-4 py-2.5 text-center text-[13.5px] font-semibold text-brand"
             >
               Preview in Studio
@@ -214,6 +296,7 @@ export default async function ContentDetailPage({
               body={content.body}
               productId={content.product_id}
               templateId={content.product_template_id}
+              platformAssignmentId={platformAssignmentId}
               outputSize={outputSize}
             />
           )}

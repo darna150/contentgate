@@ -39,6 +39,9 @@ import {
   getPublishedTemplateFrameFieldLimits,
   renderPublishedTemplatePackage,
 } from "@/lib/published-template-package";
+import type { TemplateBundleManifest } from "@/lib/template-platform/manifest";
+import { renderTemplateBundleVariant } from "@/lib/template-platform/render";
+import { getTemplateBundleSupportedSizes } from "@/lib/template-platform/runtime";
 import { exportCanvas, type ExportFormat } from "@/lib/canvas-export";
 import { fieldLabel, REVISION_OPTIONS } from "@/lib/templates";
 import {
@@ -59,6 +62,8 @@ type Template = {
   category: string;
   variant: string;
   layout_key: string;
+  platformAssignmentId?: string;
+  platformManifest?: TemplateBundleManifest;
   editable_fields: string[];
   default_copy: Record<string, string>;
   field_limits: FieldLimits;
@@ -99,6 +104,24 @@ function renderContentGateCanvas(input: {
     throw new Error(
       `No published template package for ${input.layoutKey}/${input.sizeKey}.`
     );
+  }
+  return rendered.element;
+}
+
+function renderPlatformCanvas(input: {
+  manifest: TemplateBundleManifest;
+  sizeKey: SizeKey;
+  fields: Record<string, string>;
+  original: boolean;
+}): ReactElement {
+  const rendered = renderTemplateBundleVariant({
+    manifest: input.manifest,
+    variantKey: input.sizeKey,
+    fields: input.fields,
+    original: input.original,
+  });
+  if (!rendered) {
+    throw new Error(`No platform template variant for ${input.sizeKey}.`);
   }
   return rendered.element;
 }
@@ -231,15 +254,19 @@ export function StudioEditor({
   const isApexCanine = selectedTemplate.layout_key.startsWith("apex_canine_");
   const isCaniGuard5 = selectedTemplate.layout_key.startsWith("caniguard5_");
   const isContentGate = selectedTemplate.layout_key.startsWith("contentgate_");
+  const isPlatformTemplate = Boolean(selectedTemplate.platformAssignmentId && selectedTemplate.platformManifest);
   const isVitalBite = selectedTemplate.layout_key.startsWith("vitalbite_");
   const layoutContract = getTemplateLayoutContract(selectedTemplate.layout_key);
-  const isLiveCanvas = layoutContract?.liveCanvas ?? false;
-  const sizes = getTemplateSupportedSizes({
-    layoutKey: selectedTemplate.layout_key,
-    category: selectedTemplate.category,
-    definition: selectedTemplate.template_definition,
-    status: "active",
-  });
+  const isLiveCanvas = isPlatformTemplate || (layoutContract?.liveCanvas ?? false);
+  const sizes =
+    isPlatformTemplate && selectedTemplate.platformManifest
+      ? getTemplateBundleSupportedSizes(selectedTemplate.platformManifest)
+      : getTemplateSupportedSizes({
+          layoutKey: selectedTemplate.layout_key,
+          category: selectedTemplate.category,
+          definition: selectedTemplate.template_definition,
+          status: "active",
+        });
   const [size, setSize] = useState<SizeKey>(
     initialSize && sizes.includes(initialSize) ? initialSize : sizes[0]
   );
@@ -333,7 +360,9 @@ export function StudioEditor({
       !hasLayoutOverflow &&
       saveState !== "saving");
   const previewUrl =
-    mode === "generated" && content
+    isPlatformTemplate
+      ? ""
+      : mode === "generated" && content
       ? renderUrl(content.id, size) + (previewBust ? `&t=${previewBust}` : "")
       : originalTemplatePreviewUrl(
           selectedTemplate.id,
@@ -381,6 +410,13 @@ export function StudioEditor({
               original: mode === "original",
               definition: selectedTemplate.template_definition,
             })
+          : isPlatformTemplate && selectedTemplate.platformManifest
+            ? renderPlatformCanvas({
+                manifest: selectedTemplate.platformManifest,
+                sizeKey: size,
+                fields: activeFields,
+                original: mode === "original",
+              })
           : renderVitalBite({
               sizeKey: size,
               fields: activeFields,
@@ -541,11 +577,14 @@ export function StudioEditor({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          productTemplateId: selectedTemplate.id,
+          ...(selectedTemplate.platformAssignmentId
+            ? { platformAssignmentId: selectedTemplate.platformAssignmentId }
+            : { productTemplateId: selectedTemplate.id }),
           language,
           outputSize: size,
           revisions: selectedRevision ? [selectedRevision] : [],
           replaceContentId:
+            !selectedTemplate.platformAssignmentId &&
             content &&
             content.canEdit &&
             (content.status === "draft" || content.status === "rejected")
