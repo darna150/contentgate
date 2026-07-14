@@ -24,6 +24,10 @@ import { renderTemplateBundleVariant } from "@/lib/template-platform/render";
 import { resolveTemplateBundleRuntimeVariant } from "@/lib/template-platform/runtime";
 import { createTemplateBundleAssetUrlMap } from "@/lib/template-platform/storage-urls";
 import {
+  convertServerRenderedPng,
+  type ServerExportFormat,
+} from "@/lib/server-export-formats";
+import {
   isTemplateSizeAllowed,
   usesRegisteredTemplateContract,
 } from "@/lib/template-contract";
@@ -32,12 +36,27 @@ import { canExportContent, type ContentStatus } from "@/lib/content-governance";
 
 export const runtime = "nodejs";
 
+function exportFormat(value: string | null): ServerExportFormat {
+  return value === "jpeg" || value === "pdf" ? value : "png";
+}
+
+function safeFilename(value: string) {
+  return (
+    value
+      .replace(/[^\w\d-]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .toLowerCase() || "content"
+  );
+}
+
 // Renders an org-visible piece of content into its product's locked layout.
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const contentId = searchParams.get("content");
   const requestedSizeParam = searchParams.get("size");
   const requestedSize = requestedSizeParam ?? "square";
+  const format = exportFormat(searchParams.get("format"));
+  const download = searchParams.get("download") === "1";
   if (!contentId) return new Response("Missing content id", { status: 400 });
 
   const supabase = await createClient();
@@ -105,11 +124,30 @@ export async function GET(req: Request) {
     });
     if (!rendered) return new Response("Template render failed", { status: 500 });
     const fonts = await loadContentGateFonts();
-    return new ImageResponse(rendered.element, {
+    const image = new ImageResponse(rendered.element, {
       width: rendered.width,
       height: rendered.height,
       fonts,
       headers: cacheHeaders,
+    });
+    if (format === "png" && !download) return image;
+
+    const converted = await convertServerRenderedPng({
+      png: await image.arrayBuffer(),
+      width: rendered.width,
+      height: rendered.height,
+      size: variantKey as SizeKey,
+      format,
+    });
+    const filename = `${safeFilename(`${productName}-${variantKey}`)}.${converted.extension}`;
+    return new Response(Buffer.from(converted.body), {
+      headers: {
+        "Content-Type": converted.contentType,
+        "Content-Disposition": download
+          ? `attachment; filename="${filename}"`
+          : `inline; filename="${filename}"`,
+        "Cache-Control": "no-store",
+      },
     });
   }
 

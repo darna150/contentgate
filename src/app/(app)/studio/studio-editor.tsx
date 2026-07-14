@@ -10,7 +10,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { SIZES, type SizeKey } from "@/lib/creative";
+import { renderUrl, SIZES, type SizeKey } from "@/lib/creative";
 import type { TemplateBundleManifest } from "@/lib/template-platform/manifest";
 import { renderTemplateBundleVariant } from "@/lib/template-platform/render";
 import { getTemplateBundleSupportedSizes } from "@/lib/template-platform/runtime";
@@ -93,6 +93,18 @@ function retryAfterSecondsFromPayload(payload: unknown) {
     return Math.max(1, payload.retryAfterSeconds);
   }
   return null;
+}
+
+async function downloadUrl(url: string, filename: string) {
+  const response = await fetch(url, { cache: "no-store" });
+  if (!response.ok) throw new Error("Download failed.");
+  const blob = await response.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = objectUrl;
+  anchor.download = filename;
+  anchor.click();
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
 }
 
 function renderPlatformCanvas(input: {
@@ -648,6 +660,17 @@ export function StudioEditor({
           }),
         });
         if (!response.ok) throw new Error("Export could not be recorded.");
+        const serverRenderUrl = new URL(renderUrl(content.id, size), window.location.origin);
+        serverRenderUrl.searchParams.set("format", exportFormat);
+        serverRenderUrl.searchParams.set("download", "1");
+        const filename = `${selectedProduct.name}-${selectedTemplate.variant}-generated-${size}`
+          .replace(/[^\w]+/g, "-")
+          .toLowerCase();
+        await downloadUrl(
+          serverRenderUrl.toString(),
+          `${filename}.${exportFormat === "jpeg" ? "jpg" : exportFormat}`
+        );
+        return;
       }
       const filename = `${selectedProduct.name}-${selectedTemplate.variant}-${mode}-${size}`
         .replace(/[^\w]+/g, "-")
