@@ -1,9 +1,14 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import type { TemplateBundleManifest } from "@/lib/template-platform/manifest";
 import {
+  getProductTemplateAssignmentsPage,
   getTemplateExportHistory,
+  getTemplateImportRunsPage,
+  getTemplateVersionsPage,
+  type ProductTemplateAssignmentListRow,
   type TemplateExportHistoryItem,
+  type TemplateImportRunListRow,
+  type TemplateVersionListRow,
 } from "@/lib/template-ops-server";
 import {
   AssignTemplatePanel,
@@ -19,14 +24,7 @@ type FamilyRow = {
   created_at: string;
 };
 
-type VersionRow = {
-  id: string;
-  version_label: string;
-  status: string;
-  created_at: string;
-  manifest: TemplateBundleManifest | null;
-  template_families: { name: string; family_key: string } | { name: string; family_key: string }[] | null;
-};
+type VersionRow = TemplateVersionListRow;
 
 type VariantRow = {
   id: string;
@@ -43,23 +41,9 @@ type VariantRow = {
   }[] | null;
 };
 
-type AssignmentRow = {
-  id: string;
-  status: string;
-  default_variant_key: string | null;
-  products: { name: string } | { name: string }[] | null;
-  template_families: { name: string } | { name: string }[] | null;
-  template_versions: { version_label: string } | { version_label: string }[] | null;
-};
+type AssignmentRow = ProductTemplateAssignmentListRow;
 
-type ImportRunRow = {
-  id: string;
-  source_provider: string;
-  status: string;
-  manifest_sha256: string | null;
-  report: { issues?: unknown[] } | null;
-  created_at: string;
-};
+type ImportRunRow = TemplateImportRunListRow;
 
 type ProductRow = {
   id: string;
@@ -121,36 +105,24 @@ export default async function TemplatesPage() {
 
   const [
     { data: familyRows },
-    { data: versionRows },
+    versionPage,
     { data: variantRows },
-    { data: assignmentRows },
-    { data: importRunRows },
-    renderJobRows,
+    assignmentPage,
+    importRunPage,
+    renderJobPage,
     { data: productRows },
   ] = await Promise.all([
     supabase
       .from("template_families")
       .select("id, name, family_key, status, created_at")
       .order("created_at", { ascending: false }),
-    supabase
-      .from("template_versions")
-      .select("id, version_label, status, created_at, manifest, template_families(name, family_key)")
-      .order("created_at", { ascending: false })
-      .limit(10),
+    getTemplateVersionsPage({ pageSize: 10 }),
     supabase
       .from("template_variants")
       .select("id, variant_key, label, width, height, template_versions(version_label, template_families(name))")
       .order("variant_key"),
-    supabase
-      .from("product_template_assignments")
-      .select("id, status, default_variant_key, products(name), template_families(name), template_versions(version_label)")
-      .order("created_at", { ascending: false })
-      .limit(20),
-    supabase
-      .from("template_import_runs")
-      .select("id, source_provider, status, manifest_sha256, report, created_at")
-      .order("created_at", { ascending: false })
-      .limit(8),
+    getProductTemplateAssignmentsPage({ pageSize: 20 }),
+    getTemplateImportRunsPage({ pageSize: 8 }),
     getTemplateExportHistory({ limit: 8 }),
     supabase
       .from("products")
@@ -160,11 +132,11 @@ export default async function TemplatesPage() {
   ]);
 
   const families = (familyRows ?? []) as FamilyRow[];
-  const versions = (versionRows ?? []) as VersionRow[];
+  const versions = versionPage.rows as VersionRow[];
   const variants = (variantRows ?? []) as VariantRow[];
-  const assignments = (assignmentRows ?? []) as AssignmentRow[];
-  const importRuns = (importRunRows ?? []) as ImportRunRow[];
-  const renderJobs = renderJobRows as TemplateExportHistoryItem[];
+  const assignments = assignmentPage.rows as AssignmentRow[];
+  const importRuns = importRunPage.rows as ImportRunRow[];
+  const renderJobs = renderJobPage.rows as TemplateExportHistoryItem[];
   const products = (productRows ?? []) as ProductRow[];
   const versionOptions = versions
     .filter((version) => version.manifest)

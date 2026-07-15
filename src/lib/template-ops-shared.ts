@@ -1,4 +1,4 @@
-import { one, type Joined } from "./content-listing-shared.ts";
+import { cursorFromOffset, one, type Joined } from "./content-listing-shared.ts";
 
 export type TemplateExportHistoryRow = {
   id: string;
@@ -32,6 +32,26 @@ export type TemplateExportHistoryItem = {
   exportedById: string | null;
   exportedByName: string | null;
 };
+
+export type TemplateOpsPageResult<T> = {
+  rows: T[];
+  nextCursor: string | null;
+  hasMore: boolean;
+};
+
+export function templateOpsPageResult<T>(
+  rows: T[],
+  offset: number,
+  pageSize: number
+): TemplateOpsPageResult<T> {
+  const visibleRows = rows.slice(0, pageSize);
+  const hasMore = rows.length > pageSize;
+  return {
+    rows: visibleRows,
+    hasMore,
+    nextCursor: hasMore ? cursorFromOffset(offset + pageSize) : null,
+  };
+}
 
 export function mapTemplateExportHistoryRow(
   job: TemplateExportHistoryRow

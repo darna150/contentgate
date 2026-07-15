@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   mapTemplateExportHistoryRow,
+  templateOpsPageResult,
   type TemplateExportHistoryRow,
 } from "./template-ops-shared.ts";
 
@@ -85,4 +86,20 @@ test("mapTemplateExportHistoryRow handles Supabase array joins", () => {
   assert.equal(item.exportedByName, "Approver User");
   assert.equal(item.variantKey, "story");
   assert.equal(item.variantLabel, "Story");
+});
+
+test("templateOpsPageResult returns one extra row as a next cursor signal", () => {
+  const page = templateOpsPageResult(["a", "b", "c"], 20, 2);
+
+  assert.deepEqual(page.rows, ["a", "b"]);
+  assert.equal(page.hasMore, true);
+  assert.equal(page.nextCursor, "22");
+});
+
+test("templateOpsPageResult omits the next cursor on the final page", () => {
+  const page = templateOpsPageResult(["a", "b"], 20, 2);
+
+  assert.deepEqual(page.rows, ["a", "b"]);
+  assert.equal(page.hasMore, false);
+  assert.equal(page.nextCursor, null);
 });
