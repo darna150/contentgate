@@ -1,9 +1,11 @@
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { updateProduct, addClaim, setClaimStatus, deleteClaim } from "../../actions";
+import { updateProduct, addClaim, setClaimStatus } from "../../actions";
 import { ProductAssetPanel } from "@/components/assets/product-asset-panel";
 import type { AssetItem } from "@/components/assets/types";
 import { createProductAssetPreviewUrlMap } from "@/lib/product-assets-server";
+import { ClaimDeleteButton } from "../_workspace/claim-delete-button";
+import { ArchiveProductButton } from "../_workspace/archive-product-button";
 
 const STATUS_LABELS: Record<string, string> = { approved: "Approved", inactive: "Inactive" };
 
@@ -150,7 +152,6 @@ export default async function EditProductPage({
               const isApproved = c.status === "approved";
               const toggleStatus = isApproved ? "inactive" : "approved";
               const toggleAction = setClaimStatus.bind(null, c.id, id, toggleStatus);
-              const deleteAction = deleteClaim.bind(null, c.id, id);
               return (
                 <li key={c.id} className="flex items-start gap-3 rounded-[10px] border border-edge bg-page px-4 py-3">
                   <span className={`mt-0.5 text-[13px] ${isApproved ? "text-approve" : "text-ink-faint"}`}>
@@ -167,14 +168,11 @@ export default async function EditProductPage({
                       </button>
                     </form>
                     <span className="text-ink-faint">·</span>
-                    <form action={deleteAction}>
-                      <button
-                        type="submit"
-                        className="text-[11.5px] font-semibold text-reject hover:underline"
-                      >
-                        Delete
-                      </button>
-                    </form>
+                    <ClaimDeleteButton
+                      claimId={c.id}
+                      productId={id}
+                      claimText={c.claim_text}
+                    />
                   </div>
                 </li>
               );
@@ -214,18 +212,7 @@ export default async function EditProductPage({
           Archiving a product removes it from the product list and prevents new
           content from being generated. Existing content is preserved.
         </p>
-        <form action={async () => {
-          "use server";
-          const { archiveProduct } = await import("../../actions");
-          await archiveProduct(id);
-        }}>
-          <button
-            type="submit"
-            className="rounded-control border border-reject-border px-[14px] py-2 text-[13px] font-semibold text-reject transition-colors hover:bg-reject-tint"
-          >
-            Archive product
-          </button>
-        </form>
+        <ArchiveProductButton productId={id} />
       </div>
     </div>
   );

@@ -13,6 +13,7 @@ import { resolveInitialKnowledgeSelection } from "@/lib/knowledge-hub";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 
 type Product = { id: string; name: string };
 type Doc = { id: string; title: string; product_id: string | null };
@@ -350,15 +351,23 @@ export function NotebookClient({
                     >
                       <Pencil strokeWidth={1.8} aria-hidden />
                     </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={(e) => { e.stopPropagation(); handleDelete(s.id); }}
-                      title="Delete"
-                      className="h-5 w-5 rounded p-0.5 text-ink-faint hover:bg-transparent hover:text-reject [&_svg]:size-[11px]"
-                    >
-                      <Trash2 strokeWidth={1.8} aria-hidden />
-                    </Button>
+                    <ConfirmDialog
+                      trigger={
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={(e) => e.stopPropagation()}
+                          title="Delete"
+                          className="h-5 w-5 rounded p-0.5 text-ink-faint hover:bg-transparent hover:text-reject [&_svg]:size-[11px]"
+                        >
+                          <Trash2 strokeWidth={1.8} aria-hidden />
+                        </Button>
+                      }
+                      title="Delete this conversation?"
+                      description="This conversation and its messages will be permanently removed."
+                      confirmLabel="Delete"
+                      onConfirm={() => handleDelete(s.id)}
+                    />
                   </div>
                 </div>
               ))}
