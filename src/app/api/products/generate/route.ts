@@ -7,6 +7,7 @@ import {
 } from "@/lib/template-fields";
 import { TEMPLATE_OUTPUT_SIZES, type TemplateSizeKey } from "@/lib/template-contract";
 import { isProductLifecycleActive } from "@/lib/product-workspace";
+import { evidenceSourceIsApproved } from "@/lib/evidence-validation";
 import { consumeApiRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import {
   normalizeTemplatePlatformAssignment,
@@ -69,27 +70,6 @@ type ReplaceContentRow = {
   prompt_context: Record<string, unknown> | null;
 };
 
-function normalizeEvidence(value: string) {
-  return value
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function evidenceIsApproved(source: string, approvedSources: string[]) {
-  const needle = normalizeEvidence(source);
-  if (!needle) return false;
-
-  return approvedSources.some((approved) => {
-    const haystack = normalizeEvidence(approved);
-    return (
-      haystack.length > 0 &&
-      (haystack.includes(needle) || needle.includes(haystack))
-    );
-  });
-}
-
 function filterApprovedEvidence(
   evidence: Evidence[],
   editableFields: string[],
@@ -99,7 +79,7 @@ function filterApprovedEvidence(
   return evidence.filter((item) => {
     if (!validFields.has(item.field)) return false;
     if (typeof item.approved_source !== "string") return false;
-    return evidenceIsApproved(item.approved_source, approvedSources);
+    return evidenceSourceIsApproved(item.approved_source, approvedSources);
   });
 }
 
