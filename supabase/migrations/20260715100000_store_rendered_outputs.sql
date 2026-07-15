@@ -1,5 +1,12 @@
 -- Store approved server-rendered exports in a private, org-scoped bucket and
 -- attach the storage path to the completed render_jobs audit row.
+--
+-- This migration's `create or replace function public.record_render_job_event`
+-- below is the authoritative definition, superseding the one added in
+-- 20260715090000_record_render_job_events.sql. Both files are kept (migrations
+-- are not rewritten after being committed), but this timestamp must always
+-- sort after 20260715090000 so this version wins. Do not edit the function
+-- body in 20260715090000 independently of this one.
 
 insert into storage.buckets (id, name, public)
 values ('rendered-assets', 'rendered-assets', false)

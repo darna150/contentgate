@@ -1,6 +1,11 @@
 -- Record completed server render jobs without granting direct render_jobs writes
 -- to ordinary authenticated users. The function rechecks org visibility and
 -- the approved-current-revision export gate before inserting.
+--
+-- NOTE: this function definition is superseded by
+-- 20260715100000_store_rendered_outputs.sql, which adds output_storage_path
+-- handling and org-prefix path validation. Do not edit this function body;
+-- edit the later migration instead.
 
 create or replace function public.record_render_job_event(
   p_content_id uuid,
