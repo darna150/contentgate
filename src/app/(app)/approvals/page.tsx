@@ -1,7 +1,15 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { PageHeader } from "@/components/page-header";
+import { EmptyState } from "@/components/empty-state";
+import { FilterChips } from "@/components/filter-chips";
+import { StatusPill } from "@/components/status-pill";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { getApprovalPage } from "@/lib/content-listing";
 import { getProductWorkspace } from "@/lib/product-workspace-server";
+
+const LANGUAGES = ["English", "Filipino", "Spanish", "Portuguese", "Vietnamese", "Thai"];
 
 type QueueRow = {
   id: string;
@@ -13,12 +21,21 @@ type QueueRow = {
   creatorName: string | null;
 };
 
+function formatDate(iso: string) {
+  return new Date(iso).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
+}
+
 export default async function ApprovalsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ product?: string; cursor?: string }>;
+  searchParams: Promise<{ product?: string; language?: string; cursor?: string }>;
 }) {
-  const { product: productId, cursor } = await searchParams;
+  const { product: productId, language, cursor } = await searchParams;
+  const activeLanguage = language && LANGUAGES.includes(language) ? language : "all";
+
   let rows: QueueRow[] = [];
   let nextCursor: string | null = null;
   let productName: string | null = null;
@@ -37,7 +54,10 @@ export default async function ApprovalsPage({
         creatorName: item.creatorName,
       }));
     } else {
-      const page = await getApprovalPage({ cursor });
+      const page = await getApprovalPage({
+        cursor,
+        targetLanguage: activeLanguage === "all" ? null : activeLanguage,
+      });
       rows = page.rows.map((row) => {
         return {
           id: row.id,
@@ -53,8 +73,17 @@ export default async function ApprovalsPage({
     }
   }
 
+  function buildHref(overrides: { language?: string; cursor?: string }) {
+    const nextLanguage = overrides.language ?? activeLanguage;
+    const params = new URLSearchParams();
+    if (nextLanguage !== "all") params.set("language", nextLanguage);
+    if (overrides.cursor) params.set("cursor", overrides.cursor);
+    const query = params.toString();
+    return query ? `/approvals?${query}` : "/approvals";
+  }
+
   return (
-    <div className="mx-auto flex max-w-[1280px] flex-col gap-6 px-10 py-9">
+    <div className="mx-auto flex max-w-[1280px] flex-col gap-6 px-4 py-9 sm:px-10">
       <div className="flex flex-col gap-1.5">
         {productId && productName && (
           <Link
@@ -64,23 +93,34 @@ export default async function ApprovalsPage({
             ← {productName}
           </Link>
         )}
-        <h1 className="font-serif text-[28px] font-semibold">Approval Queue</h1>
-        <p className="text-[14.5px] text-ink-muted">
-          {productName
-            ? `Content for ${productName} waiting for review.`
-            : "Content waiting for review. Only approved content can be exported."}
-        </p>
+        <PageHeader
+          title="Approval Queue"
+          description={
+            productName
+              ? `Content for ${productName} waiting for review.`
+              : "Content waiting for review. Only approved content can be exported."
+          }
+        />
       </div>
 
+      {!productId && (
+        <FilterChips
+          options={[
+            { label: "All languages", value: "all" },
+            ...LANGUAGES.map((l) => ({ label: l, value: l })),
+          ]}
+          activeValue={activeLanguage}
+          getHref={(value) => buildHref({ language: value })}
+        />
+      )}
+
       {rows.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 rounded-card border border-dashed border-edge-strong bg-surface px-8 py-16 text-center">
-          <p className="text-[15px] font-semibold">The queue is clear</p>
-          <p className="max-w-md text-sm text-ink-muted">
-            When someone submits content for review, it lands here.
-          </p>
-        </div>
+        <EmptyState
+          title="The queue is clear"
+          description="When someone submits content for review, it lands here."
+        />
       ) : (
-        <div className="flex flex-col gap-1 rounded-card border border-edge bg-surface p-3">
+        <Card className="gap-1 p-3">
           {rows.map((row) => {
             return (
               <Link
@@ -95,16 +135,10 @@ export default async function ApprovalsPage({
                   <span className="text-[11.5px] text-ink-faint">
                     {row.templateName ?? "Custom"} · {row.target_language}
                     {row.audience ? ` · ${row.audience}` : ""} · submitted by{" "}
-                    {row.creatorName ?? "a teammate"} ·{" "}
-                    {new Date(row.created_at).toLocaleDateString("en-US", {
-                      month: "short",
-                      day: "numeric",
-                    })}
+                    {row.creatorName ?? "a teammate"} · {formatDate(row.created_at)}
                   </span>
                 </span>
-                <span className="inline-flex rounded-full bg-[#FBF3E2] px-[9px] py-0.5 text-[11.5px] font-semibold text-warn">
-                  In review
-                </span>
+                <StatusPill status="in_review" />
                 <span className="text-[13px] font-semibold text-brand">
                   Review →
                 </span>
@@ -112,14 +146,11 @@ export default async function ApprovalsPage({
             );
           })}
           {!productId && nextCursor && (
-            <Link
-              href={`/approvals?cursor=${nextCursor}`}
-              className="rounded-control px-3.5 py-3 text-center text-[13px] font-semibold text-brand transition-colors hover:bg-page"
-            >
-              Load more approvals
-            </Link>
+            <Button asChild variant="ghost" className="mt-1 justify-center">
+              <Link href={buildHref({ cursor: nextCursor })}>Load more approvals</Link>
+            </Button>
           )}
-        </div>
+        </Card>
       )}
     </div>
   );
