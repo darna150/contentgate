@@ -66,10 +66,13 @@ function safeFilename(value: string) {
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const templateId = searchParams.get("template");
+  const assignmentIdParam = searchParams.get("assignment");
   const requestedSize = searchParams.get("size") ?? "square";
   const format = exportFormat(searchParams.get("format"));
   const download = searchParams.get("download") === "1";
-  if (!templateId) return new Response("Missing template id", { status: 400 });
+  if (!templateId && !assignmentIdParam) {
+    return new Response("Missing template or assignment id", { status: 400 });
+  }
 
   const supabase = await createClient();
   const {
@@ -77,8 +80,13 @@ export async function GET(req: Request) {
   } = await supabase.auth.getUser();
   if (!user) return new Response("Unauthorized", { status: 401 });
 
-  if (templateId.startsWith("platform:")) {
-    const assignmentId = templateId.slice("platform:".length);
+  const platformAssignmentId =
+    assignmentIdParam ??
+    (templateId?.startsWith("platform:")
+      ? templateId.slice("platform:".length)
+      : null);
+
+  if (platformAssignmentId) {
     const { data: profile } = await supabase
       .from("profiles")
       .select("org_id")
@@ -91,7 +99,7 @@ export async function GET(req: Request) {
       .select(
         "id, default_payload, template_families(name), template_versions(manifest)"
       )
-      .eq("id", assignmentId)
+      .eq("id", platformAssignmentId)
       .eq("org_id", profile.org_id)
       .single();
     if (!assignmentRow) return new Response("Not found", { status: 404 });
@@ -150,6 +158,8 @@ export async function GET(req: Request) {
       },
     });
   }
+
+  if (!templateId) return new Response("Missing template id", { status: 400 });
 
   const { data: tpl } = await supabase
     .from("product_templates")

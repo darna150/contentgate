@@ -34,6 +34,30 @@ export function templatePreviewUrl(templateId: string, size: SizeKey): string {
   return `/api/creative/template-preview?template=${templateId}&size=${size}`;
 }
 
+export function platformTemplatePreviewUrl(assignmentId: string, size: SizeKey): string {
+  return `/api/creative/template-preview?assignment=${assignmentId}&size=${size}`;
+}
+
+export function studioContentUrl(contentId: string, size?: SizeKey | null): string {
+  const params = new URLSearchParams();
+  if (size) params.set("size", size);
+  const query = params.toString();
+  return `/studio/${contentId}${query ? `?${query}` : ""}`;
+}
+
+export function studioNewUrl(input: {
+  productId?: string | null;
+  assignmentId?: string | null;
+  size?: SizeKey | null;
+}): string {
+  const params = new URLSearchParams();
+  if (input.productId) params.set("product", input.productId);
+  if (input.assignmentId) params.set("assignment", input.assignmentId);
+  if (input.size) params.set("size", input.size);
+  const query = params.toString();
+  return `/studio/new${query ? `?${query}` : ""}`;
+}
+
 export function sizeLabel(size: SizeKey): string {
   return (
     SIZES[size as TemplateSizeKey]?.label ??

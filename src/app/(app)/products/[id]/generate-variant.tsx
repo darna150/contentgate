@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { sizeLabel, type SizeKey } from "@/lib/creative";
+import { sizeLabel, studioContentUrl, type SizeKey } from "@/lib/creative";
 
 const LANGUAGES = ["English", "Filipino", "Spanish", "Portuguese", "Vietnamese", "Thai"];
 const LOADER_MESSAGES = [
@@ -34,14 +34,12 @@ function retryAfterSecondsFromPayload(payload: unknown) {
 }
 
 export function GenerateVariant({
-  productId,
   platformAssignmentId,
   variant,
   sizes,
   initialSize,
   compact = false,
 }: {
-  productId: string;
   platformAssignmentId: string;
   variant: string;
   sizes: SizeKey[];
@@ -100,13 +98,7 @@ export function GenerateVariant({
       }
       setRetryUntil(null);
       if (j.platform) {
-        const params = new URLSearchParams({
-          product: productId,
-          template: `platform:${platformAssignmentId}`,
-          content: j.contentId,
-          size: (j.outputSize as string) ?? outputSize,
-        });
-        router.push(`/studio?${params.toString()}`);
+        router.push(studioContentUrl(j.contentId as string, (j.outputSize as string) ?? outputSize));
         return;
       }
       setError("Generation returned an unsupported template type.");

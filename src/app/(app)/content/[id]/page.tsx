@@ -16,12 +16,11 @@ import {
   getTemplateBundleVariantFields,
   resolveTemplateBundleRuntimeVariant,
 } from "@/lib/template-platform/runtime";
-import { renderTemplateBundleVariant } from "@/lib/template-platform/render";
-import { createTemplateBundleAssetUrlMap } from "@/lib/template-platform/storage-urls";
 import {
   TEMPLATE_OUTPUT_SIZES,
   type TemplateSizeKey,
 } from "@/lib/template-contract";
+import { draftPreviewUrl, studioContentUrl } from "@/lib/creative";
 import {
   ContentHistory,
   type ContentHistoryEvent,
@@ -63,7 +62,7 @@ export default async function ContentDetailPage({
   const { data: content } = await supabase
     .from("generated_content")
     .select(
-      "id, title, body, status, target_language, audience, source_document_ids, rejection_note, created_at, approved_at, created_by, product_id, product_template_id, template_version_id, template_variant_id, structured_fields, prompt_context, citations, current_revision_number, approved_revision_number, products(name), product_templates(layout_key, variant, category, editable_fields, field_limits, template_definition), template_versions(id, version_label, manifest), template_variants(id, variant_key, label), creator:profiles!generated_content_created_by_fkey(full_name), approver:profiles!generated_content_approved_by_fkey(full_name)"
+      "id, title, body, status, target_language, audience, source_document_ids, rejection_note, created_at, updated_at, approved_at, created_by, product_id, product_template_id, template_version_id, template_variant_id, structured_fields, prompt_context, citations, current_revision_number, approved_revision_number, products(name), product_templates(layout_key, variant, category, editable_fields, field_limits, template_definition), template_versions(id, version_label, manifest), template_variants(id, variant_key, label), creator:profiles!generated_content_created_by_fkey(full_name), approver:profiles!generated_content_approved_by_fkey(full_name)"
     )
     .eq("id", id)
     .single();
@@ -149,48 +148,18 @@ export default async function ContentDetailPage({
         )
       : null;
   const effectiveLimits = mergeFieldLimits(baseLimits, frameLimits);
-  const studioParams =
-    isLegacyStructured && content.product_id && content.product_template_id
-      ? new URLSearchParams({
-          product: content.product_id,
-          template: content.product_template_id,
-          content: content.id,
-        })
-      : null;
-  const platformAssignmentId =
-    typeof (content.prompt_context as { platform_assignment_id?: unknown } | null)
-      ?.platform_assignment_id === "string"
-      ? ((content.prompt_context as { platform_assignment_id: string })
-          .platform_assignment_id)
-      : null;
-  const platformStudioParams =
-    isPlatformStructured && content.product_id && platformAssignmentId
-      ? new URLSearchParams({
-          product: content.product_id,
-          template: `platform:${platformAssignmentId}`,
-          content: content.id,
-        })
-      : null;
-  if (studioParams && outputSize) studioParams.set("size", outputSize);
-  if (platformStudioParams && outputSize) platformStudioParams.set("size", outputSize);
-  const platformAssetUrlByPath = platformManifest
-    ? Object.fromEntries(
-        await createTemplateBundleAssetUrlMap(supabase, [platformManifest])
-      )
-    : {};
-
+  const studioHref = isStructured ? studioContentUrl(content.id, outputSize) : null;
   const subtitle = isPlatformStructured
     ? `${product?.name ?? "Product"} · ${platformVersion?.version_label ?? "Platform template"} · ${content.target_language}`
     : isLegacyStructured
     ? `${product?.name ?? "Product"} · ${ptemplate?.variant ?? ""} · ${content.target_language}`
     : `${content.target_language}${content.audience ? ` · for ${content.audience}` : ""}`;
-  const platformPreview = isPlatformStructured
-    ? renderTemplateBundleVariant({
-        manifest: platformManifest,
-        variantKey: platformVariantKey,
-        fields: structuredFields,
-        assetUrlByPath: platformAssetUrlByPath,
-      })
+  const platformPreview = isPlatformStructured && platformRuntime
+    ? {
+        width: platformRuntime.variant.width,
+        height: platformRuntime.variant.height,
+        src: draftPreviewUrl(content.id, platformVariantKey, content.updated_at ?? content.id),
+      }
     : null;
   const platformPreviewScale = platformPreview
     ? Math.min(
@@ -259,16 +228,20 @@ export default async function ContentDetailPage({
                     height: platformPreview.height * platformPreviewScale,
                   }}
                 >
-                  <div
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={platformPreview.src}
+                    alt="Server-rendered template preview"
+                    width={platformPreview.width}
+                    height={platformPreview.height}
+                    className="block"
                     style={{
                       width: platformPreview.width,
                       height: platformPreview.height,
                       transform: `scale(${platformPreviewScale})`,
                       transformOrigin: "top left",
                     }}
-                  >
-                    {platformPreview.element}
-                  </div>
+                  />
                 </div>
               </div>
             </div>
@@ -298,9 +271,9 @@ export default async function ContentDetailPage({
 
         <div className="min-w-0 flex flex-col gap-5">
           {content.status === "in_review" && viewerIsApprover && <ApprovalActions id={content.id} />}
-          {(studioParams || platformStudioParams) && (
+          {studioHref && (
             <Link
-              href={`/studio?${(studioParams ?? platformStudioParams)?.toString() ?? ""}`}
+              href={studioHref}
               className="rounded-control border border-brand bg-brand-tint px-4 py-2.5 text-center text-[13.5px] font-semibold text-brand"
             >
               Preview in Studio
@@ -310,9 +283,6 @@ export default async function ContentDetailPage({
             <ExportButtons
               id={content.id}
               body={content.body}
-              productId={content.product_id}
-              templateId={content.product_template_id}
-              platformAssignmentId={platformAssignmentId}
               outputSize={outputSize}
             />
           )}

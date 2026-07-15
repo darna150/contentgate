@@ -95,7 +95,6 @@ export function TemplatesView({ workspace }: { workspace: ProductWorkspace }) {
                   {canGenerate && (
                     <div className="px-0.5">
                       <GenerateVariant
-                        productId={product.id}
                         platformAssignmentId={template.assignmentId}
                         variant={template.familyName}
                         sizes={template.supportedSizes}

@@ -5,8 +5,11 @@ import { type ReactElement, useEffect, useMemo, useRef, useState } from "react";
 import {
   draftPreviewUrl,
   knownSizeDimensions,
+  platformTemplatePreviewUrl,
   renderUrl,
   sizeLabel,
+  studioContentUrl,
+  studioNewUrl,
   templatePreviewUrl,
   type SizeKey,
 } from "@/lib/creative";
@@ -449,9 +452,13 @@ export function StudioEditor({
     if (!confirmDiscardUnsavedChanges()) return;
     const firstTemplate =
       templateId ?? templates.find((template) => template.product_id === productId)?.id;
-    const params = new URLSearchParams({ product: productId });
-    if (firstTemplate) params.set("template", firstTemplate);
-    router.push(`/studio?${params.toString()}`);
+    const nextTemplate = templates.find((template) => template.id === firstTemplate);
+    router.push(
+      studioNewUrl({
+        productId,
+        assignmentId: nextTemplate?.platformAssignmentId,
+      })
+    );
   }
 
   async function generate() {
@@ -508,10 +515,9 @@ export function StudioEditor({
       setSavedAt(new Date().toISOString());
       setHasManualEdits(false);
       setSelectedRevision(null);
-      router.replace(
-        `/studio?product=${selectedProduct.id}&template=${selectedTemplate.id}&content=${nextContent.id}&size=${nextContentSize}`,
-        { scroll: false }
-      );
+      router.replace(studioContentUrl(nextContent.id, nextContentSize), {
+        scroll: false,
+      });
     } catch {
       setError("Generation failed. Try again.");
     } finally {
@@ -588,7 +594,9 @@ export function StudioEditor({
         .replace(/[^\w]+/g, "-")
         .toLowerCase();
       const serverPreviewUrl = new URL(
-        templatePreviewUrl(selectedTemplate.id, size),
+        selectedTemplate.platformAssignmentId
+          ? platformTemplatePreviewUrl(selectedTemplate.platformAssignmentId, size)
+          : templatePreviewUrl(selectedTemplate.id, size),
         window.location.origin
       );
       serverPreviewUrl.searchParams.set("format", exportFormat);

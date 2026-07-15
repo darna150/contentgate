@@ -70,6 +70,7 @@ type GeneratedContentRow = {
   product_template_id: string | null;
   template_version_id?: string | null;
   template_variant_id?: string | null;
+  template_variants?: { variant_key: string } | { variant_key: string }[] | null;
   updated_at?: string | null;
 };
 
@@ -78,11 +79,16 @@ function one<T>(value: T | T[] | null | undefined): T | null {
   return value ?? null;
 }
 
-function platformTemplateId(assignmentId: string) {
-  return `platform:${assignmentId}`;
+function normalizePlatformTemplateId(value: string | null | undefined) {
+  if (!value) return null;
+  return value.startsWith("platform:") ? value.slice("platform:".length) : value;
 }
 
-function contentOutputSize(row: Pick<GeneratedContentRow, "prompt_context">) {
+function contentOutputSize(
+  row: Pick<GeneratedContentRow, "prompt_context" | "template_variants">
+) {
+  const variant = one(row.template_variants);
+  if (typeof variant?.variant_key === "string") return variant.variant_key;
   const outputSize = row.prompt_context?.output_size;
   return typeof outputSize === "string" ? outputSize : null;
 }
@@ -120,7 +126,7 @@ function platformAssignmentsToTemplates(rows: PlatformAssignmentRow[]): Template
     const defaultCopy = row.default_payload ?? {};
     return [
       {
-        id: platformTemplateId(row.id),
+        id: row.id,
         product_id: row.product_id,
         category: "social",
         variant: family.name,
@@ -147,10 +153,19 @@ function platformAssignmentsToTemplates(rows: PlatformAssignmentRow[]): Template
 export default async function StudioPage({
   searchParams,
 }: {
-  searchParams: Promise<{ product?: string; template?: string; content?: string; size?: string }>;
+  searchParams: Promise<{
+    assignment?: string;
+    product?: string;
+    template?: string;
+    content?: string;
+    size?: string;
+  }>;
 }) {
   const query = await searchParams;
   const requestedSize = typeof query.size === "string" ? query.size : null;
+  const requestedAssignmentId = normalizePlatformTemplateId(
+    query.assignment ?? query.template
+  );
   const supabase = await createClient();
   const {
     data: { user },
@@ -183,7 +198,7 @@ export default async function StudioPage({
     ? await supabase
         .from("generated_content")
         .select(
-          "id, title, status, structured_fields, prompt_context, created_by, product_id, product_template_id, template_version_id, template_variant_id"
+          "id, title, status, structured_fields, prompt_context, created_by, product_id, product_template_id, template_version_id, template_variant_id, template_variants(variant_key)"
         )
         .eq("id", query.content)
         .single()
@@ -196,11 +211,9 @@ export default async function StudioPage({
     requestedContent?.product_template_id ??
     (typeof (requestedContent?.prompt_context as { platform_assignment_id?: unknown } | null)
       ?.platform_assignment_id === "string"
-      ? platformTemplateId(
-          (requestedContent?.prompt_context as { platform_assignment_id: string })
-            .platform_assignment_id
-        )
-      : query.template);
+      ? (requestedContent?.prompt_context as { platform_assignment_id: string })
+          .platform_assignment_id
+      : requestedAssignmentId);
   const selectedProduct =
     products.find((product) => product.id === requestedProductId) ?? products[0] ?? null;
   const productTemplates = templates.filter(
@@ -253,7 +266,7 @@ export default async function StudioPage({
   let selectedContentRows: GeneratedContentRow[] = [];
   if (selectedProduct && selectedTemplate) {
     const contentSelect =
-      "id, title, status, structured_fields, prompt_context, created_by, product_id, product_template_id, template_version_id, template_variant_id, updated_at";
+      "id, title, status, structured_fields, prompt_context, created_by, product_id, product_template_id, template_version_id, template_variant_id, template_variants(variant_key), updated_at";
     const { data: typedRows } = selectedTemplate.templateVersionId
       ? await supabase
           .from("generated_content")
