@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { StatusPill } from "@/components/status-pill";
 import { ContentEditor } from "./editor";
@@ -149,6 +149,9 @@ export default async function ContentDetailPage({
       : null;
   const effectiveLimits = mergeFieldLimits(baseLimits, frameLimits);
   const studioHref = isStructured ? studioContentUrl(content.id, outputSize) : null;
+  if (isPlatformStructured) {
+    permanentRedirect(studioContentUrl(content.id, platformVariantKey));
+  }
   const subtitle = isPlatformStructured
     ? `${product?.name ?? "Product"} · ${platformVersion?.version_label ?? "Platform template"} · ${content.target_language}`
     : isLegacyStructured

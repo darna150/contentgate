@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { type ReactElement, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   draftPreviewUrl,
   knownSizeDimensions,
@@ -14,7 +14,6 @@ import {
   type SizeKey,
 } from "@/lib/creative";
 import type { TemplateBundleManifest } from "@/lib/template-platform/manifest";
-import { renderTemplateBundleVariant } from "@/lib/template-platform/render";
 import {
   getTemplateBundleSupportedSizes,
   getTemplateBundleVariantDimensions,
@@ -33,7 +32,6 @@ import {
 } from "../content/actions";
 import {
   GenerationLoader,
-  LiveCanvasFrame,
   ServerPreviewFrame,
 } from "./studio-preview";
 
@@ -112,26 +110,6 @@ async function downloadUrl(url: string, filename: string) {
   window.setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
 }
 
-function renderPlatformCanvas(input: {
-  manifest: TemplateBundleManifest;
-  assetUrlByPath?: Record<string, string>;
-  sizeKey: SizeKey;
-  fields: Record<string, string>;
-  original: boolean;
-}): ReactElement {
-  const rendered = renderTemplateBundleVariant({
-    manifest: input.manifest,
-    variantKey: input.sizeKey,
-    fields: input.fields,
-    assetUrlByPath: input.assetUrlByPath,
-    original: input.original,
-  });
-  if (!rendered) {
-    throw new Error(`No platform template variant for ${input.sizeKey}.`);
-  }
-  return rendered.element;
-}
-
 export function StudioEditor({
   products,
   templates,
@@ -201,7 +179,6 @@ export function StudioEditor({
   >("idle");
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [overflowFields, setOverflowFields] = useState<string[]>([]);
-  const canvasRef = useRef<HTMLDivElement>(null);
   const saveSequence = useRef(0);
   const retrySecondsRemaining = retryUntil
     ? Math.max(0, Math.ceil((retryUntil - now) / 1000))
@@ -266,15 +243,12 @@ export function StudioEditor({
   const activeSizeLabel = selectedTemplate.platformManifest
     ? getTemplateBundleVariantLabel(selectedTemplate.platformManifest, size)
     : sizeLabel(size);
-  const liveCanvas = mode === "original" && selectedTemplate.platformManifest
-    ? renderPlatformCanvas({
-        manifest: selectedTemplate.platformManifest,
-        assetUrlByPath: selectedTemplate.platformAssetUrlByPath,
-        sizeKey: size,
-        fields: activeFields,
-        original: mode === "original",
-      })
-    : null;
+  const originalPreviewUrl =
+    mode === "original"
+      ? selectedTemplate.platformAssignmentId
+        ? platformTemplatePreviewUrl(selectedTemplate.platformAssignmentId, size)
+        : templatePreviewUrl(selectedTemplate.id, size)
+      : null;
   const generatedPreviewUrl =
     showingGeneratedDraft && content
       ? draftPreviewUrl(content.id, size, savedAt ?? content.id)
@@ -1017,12 +991,12 @@ export function StudioEditor({
                 height={dims.h}
                 updating={serverPreviewUpdating}
               />
-            ) : liveCanvas ? (
-              <LiveCanvasFrame
-                canvas={liveCanvas}
-                canvasRef={canvasRef}
+            ) : originalPreviewUrl ? (
+              <ServerPreviewFrame
+                src={originalPreviewUrl}
                 width={dims.w}
                 height={dims.h}
+                updating={false}
               />
             ) : null}
           </div>

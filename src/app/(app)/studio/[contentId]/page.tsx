@@ -1,6 +1,9 @@
-import { redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 
-export default async function StudioContentRedirectPage({
+import { loadStudioState } from "../studio-data";
+import { StudioPageView } from "../studio-page-view";
+
+export default async function StudioContentPage({
   params,
   searchParams,
 }: {
@@ -8,7 +11,14 @@ export default async function StudioContentRedirectPage({
   searchParams: Promise<{ size?: string }>;
 }) {
   const [{ contentId }, query] = await Promise.all([params, searchParams]);
-  const next = new URLSearchParams({ content: contentId });
-  if (query.size) next.set("size", query.size);
-  redirect(`/studio?${next.toString()}`);
+  const state = await loadStudioState({
+    contentId,
+    size: query.size,
+  });
+
+  if (!state.selectedProduct || !state.selectedTemplate) {
+    notFound();
+  }
+
+  return <StudioPageView state={state} />;
 }
