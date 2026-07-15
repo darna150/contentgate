@@ -59,7 +59,12 @@ function cleanText(value: unknown) {
     .trim();
 }
 
-function glyphWidth(font: Font, text: string, fontSize: number) {
+function glyphWidth(
+  font: Font,
+  text: string,
+  fontSize: number,
+  letterSpacing = 0
+) {
   const glyphs = Array.from(text).map((character) => font.charToGlyph(character));
   let units = 0;
   for (let index = 0; index < glyphs.length; index += 1) {
@@ -68,7 +73,8 @@ function glyphWidth(font: Font, text: string, fontSize: number) {
     const nextGlyph: Glyph | undefined = glyphs[index + 1];
     if (nextGlyph) units += font.getKerningValue(glyph, nextGlyph);
   }
-  return (units / font.unitsPerEm) * fontSize;
+  const spacing = Math.max(0, glyphs.length - 1) * letterSpacing;
+  return (units / font.unitsPerEm) * fontSize + spacing;
 }
 
 function textSlots(manifest: TemplateBundleManifest, variantKey: string) {
@@ -96,7 +102,8 @@ export async function measureTemplatePlatformTextSlot(
   }
 
   const font = await loadTemplateFont(manifest, slot);
-  const measure = (line: string) => glyphWidth(font, line, slot.fontSize);
+  const measure = (line: string) =>
+    glyphWidth(font, line, slot.fontSize, slot.letterSpacing ?? 0);
   const lines: string[] = [];
   const overlongWords = new Set<string>();
 

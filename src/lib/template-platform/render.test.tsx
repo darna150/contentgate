@@ -5,6 +5,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { buildContentGateTemplateBundle } from "./contentgate-bundle";
 import {
   formatTemplatePlatformFitIssues,
+  measureTemplatePlatformTextSlot,
   templatePlatformFieldFitIssues,
   templatePlatformFitInstructions,
 } from "./fit";
@@ -160,6 +161,30 @@ test("reports platform copy that wraps beyond the locked text slot", async () =>
   const messages = formatTemplatePlatformFitIssues(issues);
   assert.equal(messages.some((message) => message.includes("headline")), true);
   assert.equal(messages.some((message) => message.includes("subheadline")), true);
+});
+
+test("fit measurement includes letter spacing from the Figma text slot", async () => {
+  const bundle = await buildContentGateTemplateBundle("contentgate_local_friendly");
+  const variant = bundle.manifest.variants.find((item) => item.key === "leaderboard");
+  const slot = variant?.slots.find(
+    (item) => item.kind === "text" && item.field === "headline"
+  );
+  assert.ok(slot && slot.kind === "text");
+
+  const withoutLetterSpacing = await measureTemplatePlatformTextSlot(
+    bundle.manifest,
+    "Brand",
+    { ...slot, letterSpacing: 0 }
+  );
+  const withLetterSpacing = await measureTemplatePlatformTextSlot(
+    bundle.manifest,
+    "Brand",
+    { ...slot, letterSpacing: 8 }
+  );
+
+  assert.ok(
+    withLetterSpacing.lineWidths[0] > withoutLetterSpacing.lineWidths[0] + 24
+  );
 });
 
 test("emits platform typography instructions from manifest slots", async () => {
