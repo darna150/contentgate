@@ -84,8 +84,29 @@ export async function loadTemplateBundleImageFonts(input: {
             weight: templateBundleImageFontWeight(font.weight),
             style: font.style,
           }
-        : null;
+        : { failedKey: font.key };
     })
   );
-  return fonts.filter((font): font is TemplateBundleImageFont => Boolean(font));
+  const loaded = fonts.filter(
+    (font): font is TemplateBundleImageFont => !("failedKey" in font)
+  );
+  const failedKeys = fonts
+    .filter((font): font is { failedKey: string } => "failedKey" in font)
+    .map((font) => font.failedKey);
+  if (failedKeys.length > 0) {
+    // Render routes fall back to a default font family when nothing loads
+    // (fonts.length === 0). That fallback is silent by design elsewhere —
+    // this is the one place that can name exactly which bundle and which
+    // declared font failed, so a wrong-font render shows up in logs instead
+    // of only in a client's eventual complaint.
+    console.error(
+      `[template-platform] ${failedKeys.length}/${input.manifest.fonts.length} declared font(s) ` +
+        `failed to load for ${input.manifest.family.key}@${input.manifest.version.name}: ` +
+        `${failedKeys.join(", ")}.` +
+        (loaded.length === 0
+          ? " Rendering with fallback fonts instead of the bundle's own."
+          : " Rendering with a partial font set; unloaded weights/styles will fall back.")
+    );
+  }
+  return loaded;
 }
