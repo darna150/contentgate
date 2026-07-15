@@ -14,7 +14,7 @@ export const TEMPLATE_OUTPUT_SIZES = {
 } as const;
 
 export type TemplateSizeKey = keyof typeof TEMPLATE_OUTPUT_SIZES;
-export type TemplateDesignProvider = "canva" | "figma" | "legacy";
+export type TemplateDesignProvider = "canva" | "figma";
 
 export type TemplateDefinition = {
   contract_version?: number;
@@ -390,7 +390,7 @@ export function validateTemplateContract(
       severity: "warning",
       message: "Template definition has no normalized design source.",
     });
-  } else if (!(["canva", "figma", "legacy"] as const).includes(provider as TemplateDesignProvider)) {
+  } else if (!(["canva", "figma"] as const).includes(provider as TemplateDesignProvider)) {
     issues.push({
       code: "design_source",
       severity: "error",

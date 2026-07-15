@@ -65,7 +65,9 @@ The additive migration [template_platform_v1_foundation](</Users/debbiemelgarejo
 - `render_jobs`: deterministic render records with diagnostics and output paths.
 - `generated_content.template_version_id` and `generated_content.template_variant_id`: pins approved work to the exact template used.
 
-The old `product_templates.layout_key` path remains available during migration, but new templates should target this platform instead.
+New templates must target this platform. The older `product_templates.layout_key`
+records are treated as historical compatibility data for previously generated
+content, not as the path for new client/template onboarding.
 
 ## Compiler Contract
 
@@ -267,13 +269,16 @@ npm run template-platform:install-contentgate -- --org-id <org-id>
 npm run template-platform:install-contentgate -- --product-id <product-id>
 npm run template-platform:install-contentgate -- --product-name "ContentGate"
 npm run template-platform:install-contentgate -- --bundle-source figwright
-npm run template-platform:install-contentgate -- --bundle-source legacy
+npm run template-platform:install-contentgate -- --bundle-source bundled
 npm run template-platform:install-contentgate -- --bundle-root ./.template-bundles/figwright-contentgate
 npm run template-platform:install-contentgate -- --no-assign
 npm run template-platform:install-contentgate -- --dry-run
 ```
 
-The installer defaults to `--bundle-source auto`: it uses Figwright-exported bundle directories when present and falls back to the legacy in-code ContentGate bundle builder otherwise. The current Figwright exporter writes `figwright-v1` template versions so it can coexist with older `v1` imports and product assignments can be promoted explicitly.
+The installer defaults to `--bundle-source auto`: it uses Figwright-exported
+bundle directories when present and otherwise uses the checked-in ContentGate
+platform bundle source. The current Figwright exporter writes `figwright-v1`
+template versions so product assignments can be promoted explicitly.
 
 ## Version Lifecycle
 
@@ -307,4 +312,4 @@ Current ContentGate template bundles use Inter. Future clients may bundle other 
 4. Renderer: render any bundle variant with the same engine, using bundled fonts and deterministic diagnostics.
 5. ContentGate migration: import the two ContentGate families as real bundles using Inter and the existing Figma-derived backgrounds.
 6. Studio/generation: switch generation to size-first and render/edit from manifest-defined fields.
-7. Cleanup: retire `layout_key` renderer dispatch for migrated templates and remove legacy template-specific font dependencies.
+7. Cleanup: keep historical content readable, but do not onboard new templates through legacy renderer-specific branches.

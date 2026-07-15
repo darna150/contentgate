@@ -126,7 +126,7 @@ type ContentGateTarget = {
 
 type CliOptions = {
   bundleRoot?: string;
-  bundleSource: "auto" | "figwright" | "legacy";
+  bundleSource: "auto" | "figwright" | "bundled";
   orgId?: string;
   productIds: string[];
   productName?: string;
@@ -211,8 +211,8 @@ function parseArgs(args: string[]): CliOptions {
         index += 1;
         break;
       case "--bundle-source":
-        if (next !== "auto" && next !== "figwright" && next !== "legacy") {
-          throw new Error("--bundle-source must be auto, figwright, or legacy.");
+        if (next !== "auto" && next !== "figwright" && next !== "bundled") {
+          throw new Error("--bundle-source must be auto, figwright, or bundled.");
         }
         options.bundleSource = next;
         index += 1;
@@ -236,7 +236,7 @@ function defaultStoragePrefix(manifest: TemplateBundleManifest) {
 }
 
 type InstallableContentGateBundle = {
-  source: "figwright" | "legacy";
+  source: "figwright" | "bundled";
   manifest: TemplateBundleManifest;
   assets: TemplateBundleAssetSource[];
 };
@@ -270,7 +270,7 @@ async function loadContentGateBundle(input: {
 
   const bundle = await buildContentGateTemplateBundle(input.target.layoutKey);
   return {
-    source: "legacy",
+    source: "bundled",
     manifest: bundle.manifest,
     assets: bundle.assets,
   };
