@@ -1,11 +1,17 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import {
+  documentIndexStatus,
+  documentIndexStatusClass,
+  documentIndexStatusLabel,
+} from "@/lib/document-index-status";
 
 type DocRow = {
   id: string;
   title: string;
   storage_path: string | null;
+  content_text: string | null;
   created_at: string;
   paragraphs: { n: number }[] | null;
   products: { name: string } | { name: string }[] | null;
@@ -31,7 +37,7 @@ export default async function KnowledgePage() {
     if (me?.role !== "admin") redirect("/ask");
     const { data } = await supabase
       .from("documents")
-      .select("id, title, storage_path, created_at, paragraphs, products(name)")
+      .select("id, title, storage_path, content_text, created_at, paragraphs, products(name)")
       .order("created_at", { ascending: false });
     docs = (data as DocRow[]) ?? [];
   }
@@ -82,6 +88,11 @@ export default async function KnowledgePage() {
           <ul className="flex flex-col">
             {docs.map((doc) => {
               const product = Array.isArray(doc.products) ? doc.products[0] : doc.products;
+              const status = documentIndexStatus({
+                contentText: doc.content_text,
+                paragraphs: doc.paragraphs,
+                storagePath: doc.storage_path,
+              });
               return (
                 <li key={doc.id}>
                   <Link
@@ -103,8 +114,8 @@ export default async function KnowledgePage() {
                         })}
                       </span>
                     </span>
-                    <span className="inline-flex rounded-full bg-approve-tint px-[9px] py-0.5 text-[11.5px] font-semibold text-approve">
-                      Indexed
+                    <span className={`inline-flex rounded-full px-[9px] py-0.5 text-[11.5px] font-semibold ${documentIndexStatusClass(status)}`}>
+                      {documentIndexStatusLabel(status)}
                     </span>
                   </Link>
                 </li>

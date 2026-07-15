@@ -13,6 +13,10 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import { createProductAssetPreviewUrlMap } from "@/lib/product-assets-server";
 import {
+  documentIndexStatus,
+  type DocumentIndexStatus,
+} from "@/lib/document-index-status";
+import {
   normalizeTemplatePlatformAssignment,
   type TemplatePlatformAssignmentRow,
 } from "@/lib/template-platform/assignments";
@@ -44,6 +48,7 @@ export type ProductWorkspaceSource = {
   title: string;
   fileType: string | null;
   storagePath: string | null;
+  indexStatus: DocumentIndexStatus;
   createdAt: string;
 };
 
@@ -170,6 +175,16 @@ type ContentRow = {
   creator: Joined<{ full_name: string | null }>;
 };
 
+type SourceRow = {
+  id: string;
+  title: string;
+  file_type: string | null;
+  storage_path: string | null;
+  content_text: string | null;
+  paragraphs: unknown;
+  created_at: string;
+};
+
 function one<T>(value: Joined<T>): T | null {
   return Array.isArray(value) ? (value[0] ?? null) : value;
 }
@@ -258,7 +273,7 @@ export async function getProductWorkspace(
       assetQuery,
       supabase
         .from("documents")
-        .select("id, title, file_type, storage_path, created_at")
+        .select("id, title, file_type, storage_path, content_text, paragraphs, created_at")
         .eq("org_id", profile.org_id)
         .eq("product_id", productId)
         .order("created_at", { ascending: false }),
@@ -313,11 +328,16 @@ export async function getProductWorkspace(
       }))
     : [];
 
-  const approvedSources = (sourceResult.data ?? []).map((source) => ({
+  const approvedSources = ((sourceResult.data ?? []) as SourceRow[]).map((source) => ({
     id: source.id,
     title: source.title,
     fileType: source.file_type,
     storagePath: source.storage_path,
+    indexStatus: documentIndexStatus({
+      contentText: source.content_text,
+      paragraphs: source.paragraphs,
+      storagePath: source.storage_path,
+    }),
     createdAt: source.created_at,
   }));
   const claims = (claimResult.data ?? []).map((claim) => ({
