@@ -54,6 +54,7 @@ type RenderJobRow = {
   id: string;
   status: string;
   output_format: string;
+  output_storage_path: string | null;
   created_at: string;
   completed_at: string | null;
   generated_content: { title: string } | { title: string }[] | null;
@@ -146,7 +147,7 @@ export default async function TemplatesPage() {
       .limit(8),
     supabase
       .from("render_jobs")
-      .select("id, status, output_format, created_at, completed_at, generated_content(title), template_variants(variant_key, label)")
+      .select("id, status, output_format, output_storage_path, created_at, completed_at, generated_content(title), template_variants(variant_key, label)")
       .order("created_at", { ascending: false })
       .limit(8),
   ]);
@@ -282,6 +283,11 @@ export default async function TemplatesPage() {
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-[13px] font-semibold">{content?.title ?? "Rendered content"}</p>
                     <p className="text-[11.5px] text-ink-faint">{variant?.label ?? variant?.variant_key ?? "variant"} · {job.output_format} · {dateLabel(job.completed_at ?? job.created_at)}</p>
+                    {job.output_storage_path && (
+                      <p className="truncate text-[10.5px] text-ink-faint">
+                        Stored: {job.output_storage_path}
+                      </p>
+                    )}
                   </div>
                   <StatusBadge status={job.status} />
                 </div>

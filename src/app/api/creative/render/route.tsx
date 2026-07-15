@@ -29,6 +29,7 @@ import {
   convertServerRenderedPng,
   type ServerExportFormat,
 } from "@/lib/server-export-formats";
+import { renderOutputStoragePath } from "@/lib/render-output-storage";
 import {
   isTemplateSizeAllowed,
   type TemplateSizeKey,
@@ -77,7 +78,7 @@ export async function GET(req: Request) {
   const { data: content } = await supabase
     .from("generated_content")
     .select(
-      "id, status, current_revision_number, approved_revision_number, structured_fields, products(name, disclaimer_text), product_templates(layout_key, category, template_definition, status), template_versions(manifest), template_variants(variant_key)"
+      "id, org_id, status, current_revision_number, approved_revision_number, structured_fields, products(name, disclaimer_text), product_templates(layout_key, category, template_definition, status), template_versions(manifest), template_variants(variant_key)"
     )
     .eq("id", contentId)
     .single();
@@ -151,28 +152,55 @@ export async function GET(req: Request) {
     });
     const filename = `${safeFilename(`${productName}-${variantKey}`)}.${converted.extension}`;
     if (download) {
+      const inputHash = renderInputSha256({
+        contentId: content.id,
+        fields,
+        format,
+        variantKey,
+        revision: content.current_revision_number,
+      });
+      const outputStoragePath = renderOutputStoragePath({
+        orgId: content.org_id,
+        contentId: content.id,
+        revision: content.current_revision_number,
+        variantKey,
+        format,
+        inputSha256: inputHash,
+        extension: converted.extension,
+      });
+      const { error: uploadError } = await supabase.storage
+        .from("rendered-assets")
+        .upload(outputStoragePath, Buffer.from(converted.body), {
+          contentType: converted.contentType,
+          cacheControl: "31536000",
+          upsert: true,
+        });
+      if (uploadError) {
+        return new Response(`Could not store rendered output: ${uploadError.message}`, {
+          status: 500,
+          headers: { "Cache-Control": "no-store" },
+        });
+      }
+
       const { error: renderJobError } = await supabase.rpc("record_render_job_event", {
         p_content_id: content.id,
         p_output_format: format,
-        p_input_sha256: renderInputSha256({
-          contentId: content.id,
-          fields,
-          format,
-          variantKey,
-          revision: content.current_revision_number,
-        }),
+        p_input_sha256: inputHash,
         p_payload: {
           format,
           variant_key: variantKey,
           width: rendered.width,
           height: rendered.height,
           surface: "creative_render",
+          output_storage_path: outputStoragePath,
         },
         p_diagnostics: {
           source: "server_render_route",
+          stored_output: true,
         },
       });
       if (renderJobError) {
+        await supabase.storage.from("rendered-assets").remove([outputStoragePath]);
         return new Response(`Could not record render job: ${renderJobError.message}`, {
           status: 403,
           headers: { "Cache-Control": "no-store" },
