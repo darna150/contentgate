@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { Sidebar } from "@/components/sidebar";
+import { Toaster } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 export default async function AppLayout({
   children,
@@ -10,16 +12,19 @@ export default async function AppLayout({
   // Unconfigured preview fallback so the shell is reviewable without Supabase
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
     return (
-      <div className="flex min-h-screen flex-col md:flex-row">
-        <Sidebar
-          orgName="Demo Workspace"
-          orgIndustry="Preview"
-          userName="Preview User"
-          userRole="admin"
-          pendingCount={0}
-        />
-        <main className="min-w-0 flex-1">{children}</main>
-      </div>
+      <TooltipProvider>
+        <div className="flex min-h-screen flex-col md:flex-row">
+          <Sidebar
+            orgName="Demo Workspace"
+            orgIndustry="Preview"
+            userName="Preview User"
+            userRole="admin"
+            pendingCount={0}
+          />
+          <main className="min-w-0 flex-1">{children}</main>
+        </div>
+        <Toaster />
+      </TooltipProvider>
     );
   }
 
@@ -48,15 +53,18 @@ export default async function AppLayout({
     .eq("status", "in_review");
 
   return (
-    <div className="flex min-h-screen flex-col md:flex-row">
-      <Sidebar
-        orgName={org?.name ?? "Workspace"}
-        orgIndustry={org?.industry ?? null}
-        userName={profile.full_name ?? user.email ?? "User"}
-        userRole={profile.role}
-        pendingCount={count ?? 0}
-      />
-      <main className="min-w-0 flex-1">{children}</main>
-    </div>
+    <TooltipProvider>
+      <div className="flex min-h-screen flex-col md:flex-row">
+        <Sidebar
+          orgName={org?.name ?? "Workspace"}
+          orgIndustry={org?.industry ?? null}
+          userName={profile.full_name ?? user.email ?? "User"}
+          userRole={profile.role}
+          pendingCount={count ?? 0}
+        />
+        <main className="min-w-0 flex-1">{children}</main>
+      </div>
+      <Toaster />
+    </TooltipProvider>
   );
 }

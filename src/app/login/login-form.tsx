@@ -1,11 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 export function LoginForm() {
   const router = useRouter();
+  const emailId = useId();
+  const passwordId = useId();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [status, setStatus] = useState<
@@ -46,45 +51,50 @@ export function LoginForm() {
     setStatus({ kind: "sent" });
   }
 
+  const busy = status.kind === "busy";
+
   return (
     <form onSubmit={signInWithPassword} className="flex flex-col gap-4">
-      <label className="flex flex-col gap-1.5">
-        <span className="text-[13px] font-semibold">Work email</span>
-        <input
+      <div className="flex flex-col gap-1.5">
+        <Label
+          htmlFor={emailId}
+          className="text-[13px] font-semibold normal-case tracking-normal text-ink"
+        >
+          Work email
+        </Label>
+        <Input
+          id={emailId}
           type="email"
           required
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder="you@company.com"
-          className="rounded-control border border-edge-strong bg-surface px-3.5 py-3 text-sm outline-none focus:border-brand"
+          className="h-auto py-3 text-sm"
         />
-      </label>
-      <label className="flex flex-col gap-1.5">
-        <span className="text-[13px] font-semibold">Password</span>
-        <input
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <Label
+          htmlFor={passwordId}
+          className="text-[13px] font-semibold normal-case tracking-normal text-ink"
+        >
+          Password
+        </Label>
+        <Input
+          id={passwordId}
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           placeholder="••••••••"
-          className="rounded-control border border-edge-strong bg-surface px-3.5 py-3 text-sm outline-none focus:border-brand"
+          className="h-auto py-3 text-sm"
         />
-      </label>
+      </div>
 
-      <button
-        type="submit"
-        disabled={status.kind === "busy"}
-        className="mt-1 rounded-control bg-brand px-4 py-3 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
-      >
-        {status.kind === "busy" ? "Signing in…" : "Sign in"}
-      </button>
-      <button
-        type="button"
-        onClick={sendMagicLink}
-        disabled={status.kind === "busy"}
-        className="rounded-control border border-edge-strong px-4 py-3 text-sm font-semibold text-ink-muted transition-colors hover:border-brand hover:text-brand disabled:opacity-50"
-      >
+      <Button type="submit" size="lg" disabled={busy} className="mt-1">
+        {busy ? "Signing in…" : "Sign in"}
+      </Button>
+      <Button type="button" variant="outline" size="lg" onClick={sendMagicLink} disabled={busy}>
         Email me a magic link
-      </button>
+      </Button>
 
       {status.kind === "sent" && (
         <p className="rounded-control border border-approve-border bg-approve-tint px-3.5 py-3 text-[13px] text-approve">

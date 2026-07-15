@@ -3,22 +3,36 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import {
+  CheckCircle2,
+  FileStack,
+  Images,
+  LayoutDashboard,
+  LayoutTemplate,
+  LogOut,
+  MessageSquareText,
+  Rows3,
+  Sparkles,
+  X,
+} from "lucide-react";
+
 import { createClient } from "@/lib/supabase/client";
+import { cn } from "@/lib/utils";
 
 const NAV = [
-  { href: "/ask", label: "Knowledge Hub" },
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/products", label: "Products" },
-  { href: "/assets", label: "Asset Library" },
-  { href: "/content", label: "Content" },
-  { href: "/approvals", label: "Approval Queue" },
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/products", label: "Products", icon: Sparkles },
+  { href: "/content", label: "Content", icon: Rows3 },
+  { href: "/approvals", label: "Approvals", icon: CheckCircle2 },
+  { href: "/assets", label: "Asset Library", icon: Images },
+  { href: "/ask", label: "Knowledge Hub", icon: MessageSquareText },
 ];
 
-// Admin-only: the cross-product source-document library.
+// Admin-only: cross-org configuration surfaces, visually separated below.
 const ADMIN_NAV = [
-  { href: "/knowledge", label: "Source Documents" },
-  { href: "/templates", label: "Template Ops" },
+  { href: "/knowledge", label: "Source Documents", icon: FileStack },
+  { href: "/templates", label: "Template Ops", icon: LayoutTemplate },
 ];
 
 type Props = {
@@ -29,19 +43,26 @@ type Props = {
   pendingCount: number;
 };
 
+function initialOf(value: string, fallback = "•") {
+  return value.trim().charAt(0).toUpperCase() || fallback;
+}
+
 export function Sidebar({ orgName, orgIndustry, userName, userRole, pendingCount }: Props) {
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!mobileOpen) return;
 
     const { overflow } = document.body.style;
     document.body.style.overflow = "hidden";
+    closeButtonRef.current?.focus();
 
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") setMobileOpen(false);
+      if (event.key === "Escape") closeMobile();
     }
 
     document.addEventListener("keydown", onKeyDown);
@@ -51,6 +72,11 @@ export function Sidebar({ orgName, orgIndustry, userName, userRole, pendingCount
     };
   }, [mobileOpen]);
 
+  function closeMobile() {
+    setMobileOpen(false);
+    menuButtonRef.current?.focus();
+  }
+
   async function signOut() {
     const supabase = createClient();
     await supabase.auth.signOut();
@@ -58,53 +84,82 @@ export function Sidebar({ orgName, orgIndustry, userName, userRole, pendingCount
     router.refresh();
   }
 
-  const productsIndex = NAV.findIndex((item) => item.href === "/products") + 1;
-  const items =
-    userRole === "admin"
-      ? [...NAV.slice(0, productsIndex), ...ADMIN_NAV, ...NAV.slice(productsIndex)]
-      : NAV;
-
   const initials = userName
-    .split(" ")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
     .map((w) => w[0])
     .slice(0, 2)
     .join("")
     .toUpperCase();
 
   const navigation = (onNavigate?: () => void) => (
-    <nav className="flex flex-col gap-0.5">
-      {items.map((item) => {
-        const active = pathname.startsWith(item.href);
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            onClick={onNavigate}
-            className={`flex items-center gap-2.5 rounded-full px-3 py-2.5 text-[13.5px] font-semibold transition-colors ${
-              active
-                ? "bg-brand-tint text-brand"
-                : "text-ink-muted hover:bg-page hover:text-ink"
-            }`}
-          >
-            <span className="flex-1">{item.label}</span>
-            {item.href === "/approvals" && pendingCount > 0 && (
-              <span className="rounded-full bg-brand-dark px-[7px] py-px text-[11px] font-bold text-white">
-                {pendingCount}
-              </span>
-            )}
-          </Link>
-        );
-      })}
+    <nav className="flex flex-col gap-3">
+      <div className="flex flex-col gap-0.5">
+        {NAV.map((item) => {
+          const active = pathname.startsWith(item.href);
+          const Icon = item.icon;
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              onClick={onNavigate}
+              aria-current={active ? "page" : undefined}
+              className={cn(
+                "flex items-center gap-2.5 rounded-full px-3 py-2.5 text-[13.5px] font-semibold transition-colors",
+                active
+                  ? "bg-brand-tint text-brand"
+                  : "text-ink-muted hover:bg-page hover:text-ink"
+              )}
+            >
+              <Icon className="size-[15px] shrink-0" aria-hidden />
+              <span className="flex-1">{item.label}</span>
+              {item.href === "/approvals" && pendingCount > 0 && (
+                <span className="rounded-full bg-brand-dark px-[7px] py-px text-[11px] font-bold text-white">
+                  {pendingCount}
+                </span>
+              )}
+            </Link>
+          );
+        })}
+      </div>
+
+      {userRole === "admin" && (
+        <div className="flex flex-col gap-0.5">
+          <p className="px-3 pb-1 text-label text-ink-faint">Admin</p>
+          {ADMIN_NAV.map((item) => {
+            const active = pathname.startsWith(item.href);
+            const Icon = item.icon;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={onNavigate}
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  "flex items-center gap-2.5 rounded-full px-3 py-2.5 text-[13.5px] font-semibold transition-colors",
+                  active
+                    ? "bg-brand-tint text-brand"
+                    : "text-ink-muted hover:bg-page hover:text-ink"
+                )}
+              >
+                <Icon className="size-[15px] shrink-0" aria-hidden />
+                <span className="flex-1">{item.label}</span>
+              </Link>
+            );
+          })}
+        </div>
+      )}
     </nav>
   );
 
   const userSummary = (
     <div className="flex items-center gap-2.5 border-t border-edge px-2 pt-3">
-      <div className="flex h-[30px] w-[30px] items-center justify-center rounded-full bg-brand-dark text-[11px] font-bold text-white">
+      <div className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full bg-brand-dark text-[11px] font-bold text-white">
         {initials || "?"}
       </div>
       <div className="flex min-w-0 flex-1 flex-col">
-        <span className="truncate text-[13px] font-semibold">{userName}</span>
+        <span className="truncate text-[13px] font-semibold">{userName || "User"}</span>
         <span className="text-[11px] capitalize text-ink-faint">{userRole}</span>
       </div>
       <button
@@ -114,16 +169,20 @@ export function Sidebar({ orgName, orgIndustry, userName, userRole, pendingCount
         aria-label="Sign out"
         className="flex h-7 w-7 items-center justify-center rounded-[7px] text-ink-faint transition-colors hover:bg-page hover:text-ink"
       >
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-          <path
-            d="M6 2.5H4a1.5 1.5 0 00-1.5 1.5v8A1.5 1.5 0 004 13.5h2M10.5 11l3-3-3-3M13.5 8H6"
-            stroke="currentColor"
-            strokeWidth="1.4"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
+        <LogOut className="size-3.5" aria-hidden />
       </button>
+    </div>
+  );
+
+  const workspaceCard = (
+    <div className="flex items-center gap-2.5 rounded-[10px] border border-edge bg-page px-3 py-2.5">
+      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[7px] bg-brand-dark text-[11px] font-bold text-white">
+        {initialOf(orgName, "W")}
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[13px] font-semibold">{orgName}</p>
+        <p className="text-[11px] text-ink-faint">Workspace</p>
+      </div>
     </div>
   );
 
@@ -138,6 +197,7 @@ export function Sidebar({ orgName, orgIndustry, userName, userRole, pendingCount
           priority
         />
         <button
+          ref={menuButtonRef}
           type="button"
           aria-label="Open navigation"
           aria-expanded={mobileOpen}
@@ -158,12 +218,12 @@ export function Sidebar({ orgName, orgIndustry, userName, userRole, pendingCount
             aria-label="Close navigation"
             tabIndex={-1}
             className="absolute inset-0 bg-ink/40"
-            onClick={() => setMobileOpen(false)}
+            onClick={closeMobile}
           />
           <aside
             id="mobile-navigation"
             aria-label="Mobile navigation"
-            className="relative flex h-full w-[min(320px,88vw)] flex-col gap-4 border-r border-edge bg-surface px-3.5 py-5 shadow-xl"
+            className="relative flex h-full w-[min(320px,88vw)] flex-col gap-4 border-r border-edge bg-surface px-3.5 py-5 shadow-elevated"
           >
             <div className="flex items-center justify-between px-2 py-1">
               <Image
@@ -174,68 +234,45 @@ export function Sidebar({ orgName, orgIndustry, userName, userRole, pendingCount
                 priority
               />
               <button
+                ref={closeButtonRef}
                 type="button"
-                onClick={() => setMobileOpen(false)}
+                onClick={closeMobile}
                 aria-label="Close navigation"
                 className="flex h-8 w-8 items-center justify-center rounded-[7px] text-ink-faint transition-colors hover:bg-page hover:text-ink"
               >
-                <svg viewBox="0 0 16 16" fill="none" className="h-4 w-4" aria-hidden="true">
-                  <path d="M3.5 3.5l9 9m0-9l-9 9" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-                </svg>
+                <X className="size-4" aria-hidden />
               </button>
             </div>
 
-            <div className="flex items-center gap-2.5 rounded-[10px] border border-edge bg-page px-3 py-2.5">
-              <div className="flex h-7 w-7 items-center justify-center rounded-[7px] bg-brand-dark text-[11px] font-bold text-white">
-                {orgName[0]}
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-[13px] font-semibold">{orgName}</p>
-                <p className="text-[11px] text-ink-faint">Workspace</p>
-              </div>
-            </div>
+            {workspaceCard}
 
-            <div className="min-h-0 flex-1 overflow-y-auto">
-              {navigation(() => setMobileOpen(false))}
-            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto">{navigation(closeMobile)}</div>
             {userSummary}
           </aside>
         </div>
       )}
 
-      <aside className="sticky top-0 hidden h-screen w-[248px] flex-shrink-0 flex-col gap-4 border-r border-edge bg-surface px-3.5 py-5 md:flex">
-      {/* Logo */}
-      <div className="flex flex-col gap-1 px-2 py-1">
-        <Image
-          src="/brand/contentgate/logo-primary.svg"
-          alt="ContentGate"
-          width={140}
-          height={28}
-          priority
-        />
-        {orgIndustry && (
-          <span className="pl-[33px] text-[10px] uppercase tracking-[0.12em] text-ink-faint">
-            {orgIndustry}
-          </span>
-        )}
-      </div>
-
-      {/* Workspace card */}
-      <div className="flex items-center gap-2.5 rounded-[10px] border border-edge bg-page px-3 py-2.5">
-        <div className="flex h-7 w-7 items-center justify-center rounded-[7px] bg-brand-dark text-[11px] font-bold text-white">
-          {orgName[0]}
+      <aside className="sticky top-0 hidden h-screen w-[248px] shrink-0 flex-col gap-4 border-r border-edge bg-surface px-3.5 py-5 md:flex">
+        <div className="flex flex-col gap-1 px-2 py-1">
+          <Image
+            src="/brand/contentgate/logo-primary.svg"
+            alt="ContentGate"
+            width={140}
+            height={28}
+            priority
+          />
+          {orgIndustry && (
+            <span className="pl-[33px] text-[10px] uppercase tracking-[0.12em] text-ink-faint">
+              {orgIndustry}
+            </span>
+          )}
         </div>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-[13px] font-semibold">{orgName}</p>
-          <p className="text-[11px] text-ink-faint">Workspace</p>
-        </div>
-      </div>
 
-      {/* Nav */}
-      {navigation()}
+        {workspaceCard}
 
-      {/* User */}
-      <div className="mt-auto">{userSummary}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto">{navigation()}</div>
+
+        {userSummary}
       </aside>
     </>
   );
