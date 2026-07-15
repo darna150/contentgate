@@ -1,5 +1,4 @@
 import { createClient } from "@/lib/supabase/server";
-import { TEMPLATE_OUTPUT_SIZES, type TemplateSizeKey } from "@/lib/template-contract";
 import type { TemplateBundleManifest } from "@/lib/template-platform/manifest";
 import {
   getTemplateBundleSupportedSizes,
@@ -14,7 +13,7 @@ type StudioContent = {
   title: string;
   status: string;
   structured_fields: Record<string, string>;
-  outputSize: TemplateSizeKey | null;
+  outputSize: string | null;
   manuallyEdited: boolean;
   canEdit: boolean;
 };
@@ -74,10 +73,6 @@ type GeneratedContentRow = {
   updated_at?: string | null;
 };
 
-function isSizeKey(value: unknown): value is TemplateSizeKey {
-  return typeof value === "string" && value in TEMPLATE_OUTPUT_SIZES;
-}
-
 function one<T>(value: T | T[] | null | undefined): T | null {
   if (Array.isArray(value)) return value[0] ?? null;
   return value ?? null;
@@ -89,7 +84,7 @@ function platformTemplateId(assignmentId: string) {
 
 function contentOutputSize(row: Pick<GeneratedContentRow, "prompt_context">) {
   const outputSize = row.prompt_context?.output_size;
-  return isSizeKey(outputSize) ? outputSize : null;
+  return typeof outputSize === "string" ? outputSize : null;
 }
 
 function contentWasManuallyEdited(row: Pick<GeneratedContentRow, "prompt_context">) {
@@ -155,7 +150,7 @@ export default async function StudioPage({
   searchParams: Promise<{ product?: string; template?: string; content?: string; size?: string }>;
 }) {
   const query = await searchParams;
-  const requestedSize = isSizeKey(query.size) ? query.size : null;
+  const requestedSize = typeof query.size === "string" ? query.size : null;
   const supabase = await createClient();
   const {
     data: { user },
@@ -244,7 +239,7 @@ export default async function StudioPage({
     title: string;
     status: string;
     structured_fields: Record<string, string>;
-    outputSize: TemplateSizeKey | null;
+    outputSize: string | null;
     manuallyEdited: boolean;
     canEdit: boolean;
   } | null = null;
@@ -289,7 +284,7 @@ export default async function StudioPage({
       );
     }
   }
-  const initialContentsBySize = new Map<TemplateSizeKey, StudioContent>();
+  const initialContentsBySize = new Map<string, StudioContent>();
   const selectedContentCandidates = [
     ...(requestedContentMatchesSelectedTemplate && requestedContent
       ? [requestedContent as GeneratedContentRow]

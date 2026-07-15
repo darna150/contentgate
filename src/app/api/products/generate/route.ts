@@ -5,7 +5,6 @@ import {
   fieldLimitInstruction,
   templateFieldIssues,
 } from "@/lib/template-fields";
-import { TEMPLATE_OUTPUT_SIZES, type TemplateSizeKey } from "@/lib/template-contract";
 import { isProductLifecycleActive } from "@/lib/product-workspace";
 import { evidenceSourceIsApproved } from "@/lib/evidence-validation";
 import { consumeApiRateLimit, rateLimitResponse } from "@/lib/rate-limit";
@@ -83,12 +82,6 @@ function filterApprovedEvidence(
   });
 }
 
-function asTemplateSizeKey(value: unknown): TemplateSizeKey | null {
-  return typeof value === "string" && value in TEMPLATE_OUTPUT_SIZES
-    ? (value as TemplateSizeKey)
-    : null;
-}
-
 function asStringRecord(value: unknown): Record<string, string> {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
   return Object.fromEntries(
@@ -145,7 +138,7 @@ export async function POST(req: Request) {
   if (!profile) return Response.json({ error: "No profile." }, { status: 401 });
 
   if (platformAssignmentId) {
-    const outputSizeKey = asTemplateSizeKey(outputSize);
+    const outputSizeKey = typeof outputSize === "string" ? outputSize : null;
     if (!outputSizeKey) {
       return Response.json(
         { error: "Choose an output size before generating this template." },
@@ -304,7 +297,7 @@ export async function POST(req: Request) {
       `TASK: Create copy for ${assignment.familyName}.`,
       generationProfile ? `GENERATION PROFILE: ${generationProfile}` : ``,
       extraInstructions ? `\nADDITIONAL DIRECTION: ${extraInstructions}` : ``,
-      `\nSELECTED OUTPUT SIZE: ${TEMPLATE_OUTPUT_SIZES[outputSizeKey].label} (${TEMPLATE_OUTPUT_SIZES[outputSizeKey].w}x${TEMPLATE_OUTPUT_SIZES[outputSizeKey].h}). Generate copy only for this size and stay inside its field limits.`,
+      `\nSELECTED OUTPUT SIZE: ${runtimeVariant.variant.label} (${runtimeVariant.variant.width}x${runtimeVariant.variant.height}). Generate copy only for this size and stay inside its field limits.`,
       ``,
       `Produce exactly these fields: ${editableFields.join(", ")}.`,
       `FIELD LIMITS:`,

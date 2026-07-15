@@ -4,14 +4,19 @@ import { useRouter } from "next/navigation";
 import { type ReactElement, useEffect, useMemo, useRef, useState } from "react";
 import {
   draftPreviewUrl,
+  knownSizeDimensions,
   renderUrl,
-  SIZES,
+  sizeLabel,
   templatePreviewUrl,
   type SizeKey,
 } from "@/lib/creative";
 import type { TemplateBundleManifest } from "@/lib/template-platform/manifest";
 import { renderTemplateBundleVariant } from "@/lib/template-platform/render";
-import { getTemplateBundleSupportedSizes } from "@/lib/template-platform/runtime";
+import {
+  getTemplateBundleSupportedSizes,
+  getTemplateBundleVariantDimensions,
+  getTemplateBundleVariantLabel,
+} from "@/lib/template-platform/runtime";
 import { fieldLabel, REVISION_OPTIONS } from "@/lib/templates";
 import {
   fieldIssues,
@@ -250,7 +255,14 @@ export function StudioEditor({
       !hasIssues &&
       !hasLayoutOverflow &&
       saveState !== "saving");
-  const dims = SIZES[size];
+  const dims =
+    (selectedTemplate.platformManifest
+      ? getTemplateBundleVariantDimensions(selectedTemplate.platformManifest, size)
+      : null) ??
+    knownSizeDimensions(size) ?? { w: 1080, h: 1080 };
+  const activeSizeLabel = selectedTemplate.platformManifest
+    ? getTemplateBundleVariantLabel(selectedTemplate.platformManifest, size)
+    : sizeLabel(size);
   const liveCanvas = mode === "original" && selectedTemplate.platformManifest
     ? renderPlatformCanvas({
         manifest: selectedTemplate.platformManifest,
@@ -770,8 +782,8 @@ export function StudioEditor({
                     ? "Apply refinement to draft"
                     : "Regenerate draft"
                   : selectedRevision
-                    ? `Generate ${SIZES[size].label} with refinement`
-                    : `Generate ${SIZES[size].label} draft`}
+                    ? `Generate ${activeSizeLabel} with refinement`
+                    : `Generate ${activeSizeLabel} draft`}
             </button>
             {error && <p className="text-[12.5px] text-reject">{error}</p>}
           </div>
@@ -840,7 +852,7 @@ export function StudioEditor({
             {mode === "generated" && !showingGeneratedDraft && (
               <p className="rounded-control bg-page px-3 py-2 text-[11.5px] leading-relaxed text-ink-muted">
                 No generated draft exists for{" "}
-                <span className="font-bold">{SIZES[size].label}</span> yet.
+                <span className="font-bold">{activeSizeLabel}</span> yet.
                 Pick this size, then generate when you need it.
               </p>
             )}
@@ -946,15 +958,17 @@ export function StudioEditor({
                   size === key ? "border-brand bg-brand-tint text-brand" : "border-edge"
                 }`}
               >
-                {SIZES[key].label}
+                {selectedTemplate.platformManifest
+                  ? getTemplateBundleVariantLabel(selectedTemplate.platformManifest, key)
+                  : sizeLabel(key)}
               </button>
             ))}
             <div className="hidden flex-1 xl:block" />
             {mode === "generated" && (
               <span className="rounded-full bg-brand-tint px-2.5 py-1 text-[10.5px] font-bold uppercase text-brand">
                 {showingGeneratedDraft && content
-                  ? `${content.status} · ${SIZES[size].label}`
-                  : `not generated · ${SIZES[size].label}`}
+                  ? `${content.status} · ${activeSizeLabel}`
+                  : `not generated · ${activeSizeLabel}`}
               </span>
             )}
             <select

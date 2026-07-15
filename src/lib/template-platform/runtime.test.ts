@@ -2,8 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { buildContentGateTemplateBundle } from "./contentgate-bundle";
+import { validTemplateBundleManifest } from "./test-fixtures";
 import {
   getTemplateBundleSupportedSizes,
+  getTemplateBundleVariantDimensions,
   getTemplateBundleVariantFieldLimits,
   getTemplateBundleVariantFields,
   resolveTemplateBundleRuntimeVariant,
@@ -50,4 +52,58 @@ test("resolves ContentGate Set B without exposing unsupported leaderboard", asyn
   );
   assert.equal(story.fieldLimits.headline.max_chars, 64);
   assert.equal(story.fieldLimits.headline.max_lines, 3);
+});
+
+test("exposes arbitrary manifest variant keys instead of filtering through the legacy size enum", () => {
+  const manifest = {
+    ...validTemplateBundleManifest,
+    assets: [
+      ...validTemplateBundleManifest.assets,
+      {
+        key: "billboard-reference",
+        kind: "reference" as const,
+        path: "variants/billboard_970x250/reference.png",
+        sha256: "d".repeat(64),
+        width: 970,
+        height: 250,
+        mimeType: "image/png",
+      },
+      {
+        key: "billboard-background",
+        kind: "background" as const,
+        path: "variants/billboard_970x250/background.png",
+        sha256: "e".repeat(64),
+        width: 970,
+        height: 250,
+        mimeType: "image/png",
+      },
+    ],
+    variants: [
+      ...validTemplateBundleManifest.variants,
+      {
+        ...validTemplateBundleManifest.variants[0],
+        key: "billboard_970x250",
+        label: "Billboard 970×250",
+        channel: "display_ad" as const,
+        width: 970,
+        height: 250,
+        referenceAsset: "billboard-reference",
+        backgroundAsset: "billboard-background",
+      },
+    ],
+  };
+
+  assert.deepEqual(getTemplateBundleSupportedSizes(manifest), [
+    "square",
+    "billboard_970x250",
+  ]);
+  assert.deepEqual(getTemplateBundleVariantDimensions(manifest, "billboard_970x250"), {
+    w: 970,
+    h: 250,
+  });
+  assert.equal(
+    resolveTemplateBundleRuntimeVariant(manifest, "billboard_970x250")
+      ?.backgroundAssetPath,
+    "variants/billboard_970x250/background.png"
+  );
 });

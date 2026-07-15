@@ -6,7 +6,7 @@ import {
 
 // Kept as a public alias while the engine contract owns output dimensions.
 export const SIZES = TEMPLATE_OUTPUT_SIZES;
-export type SizeKey = TemplateSizeKey;
+export type SizeKey = string;
 
 // Which sizes each asset category may export at.
 export const CATEGORY_SIZES: Record<string, SizeKey[]> = {
@@ -32,6 +32,21 @@ export function draftPreviewUrl(contentId: string, size: SizeKey, cacheKey?: str
 
 export function templatePreviewUrl(templateId: string, size: SizeKey): string {
   return `/api/creative/template-preview?template=${templateId}&size=${size}`;
+}
+
+export function sizeLabel(size: SizeKey): string {
+  return (
+    SIZES[size as TemplateSizeKey]?.label ??
+    size
+      .split(/[_-]+/g)
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(" ")
+  );
+}
+
+export function knownSizeDimensions(size: SizeKey): { w: number; h: number } | null {
+  return SIZES[size as TemplateSizeKey] ?? null;
 }
 
 function assetFormatForSize(size: SizeKey): "square" | "story" | "feed" | "flyer" {

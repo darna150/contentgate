@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { SIZES, type SizeKey } from "@/lib/creative";
+import { sizeLabel, type SizeKey } from "@/lib/creative";
 
 const LANGUAGES = ["English", "Filipino", "Spanish", "Portuguese", "Vietnamese", "Thai"];
 const LOADER_MESSAGES = [
@@ -162,7 +162,7 @@ export function GenerateVariant({
       >
         {sizes.map((size) => (
           <option key={size} value={size}>
-            {SIZES[size].label}
+            {sizeLabel(size)}
           </option>
         ))}
       </select>

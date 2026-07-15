@@ -20,6 +20,7 @@ import { loadSwineGuardPlusFonts } from "@/lib/swineguardplus-fonts";
 import { renderTemplateSpec } from "@/lib/template-spec-render";
 import {
   isTemplateSizeAllowed,
+  type TemplateSizeKey,
   usesRegisteredTemplateContract,
 } from "@/lib/template-contract";
 import { renderContractTemplate } from "@/lib/template-renderer";
@@ -173,7 +174,7 @@ export async function GET(req: Request) {
   ) {
     return new Response("Unsupported size for this template", { status: 400 });
   }
-  const sizeKey = requestedSize as SizeKey;
+  const sizeKey = requestedSize as TemplateSizeKey;
   const size = SIZES[sizeKey];
   const productName = product?.name ?? "Product";
   const editableFields = (tpl.editable_fields as string[]) ?? [];

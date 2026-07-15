@@ -119,7 +119,9 @@ export default async function ContentDetailPage({
     content.prompt_context && typeof content.prompt_context === "object"
       ? (content.prompt_context as Record<string, unknown>)
       : null;
-  const outputSize = isSizeKey(promptContext?.output_size)
+  const outputSize =
+    typeof promptContext?.output_size === "string" ? promptContext.output_size : null;
+  const legacyOutputSize = isSizeKey(promptContext?.output_size)
     ? promptContext.output_size
     : null;
   const order: string[] = isPlatformStructured
@@ -139,10 +141,10 @@ export default async function ContentDetailPage({
         (ptemplate?.field_limits ?? {}) as FieldLimits
       );
   const frameLimits =
-    !isPlatformStructured && outputSize && ptemplate?.layout_key
+    !isPlatformStructured && legacyOutputSize && ptemplate?.layout_key
       ? getPublishedTemplateFrameFieldLimits(
           ptemplate.layout_key,
-          outputSize,
+          legacyOutputSize,
           ptemplate.template_definition
         )
       : null;
