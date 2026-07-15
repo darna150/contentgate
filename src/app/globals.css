@@ -20,7 +20,7 @@
   --color-edge-strong: #dde1db;
   --color-ink: #18221e;
   --color-ink-muted: #5c6862;
-  --color-ink-faint: #8a948e;
+  --color-ink-faint: #64706a;
   --color-sidebar-text: #a9bfb7;
   --color-sidebar-faint: #7e9a90;
 
@@ -28,7 +28,7 @@
      primary CTAs on canvas surfaces, gallery highlights, active-step
      indicators. Never used for status semantics (see warn/approve/reject). */
   --color-accent: #e8623a;
-  --color-accent-dark: #c14a26;
+  --color-accent-dark: #b8441f;
   --color-accent-tint: #fdeee2;
   --color-accent-border: #f4c9ae;
 
