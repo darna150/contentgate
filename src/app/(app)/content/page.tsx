@@ -20,6 +20,11 @@ type ContentRow = {
   created_at: string;
   products: Joined<{ name: string }>;
   product_templates: Joined<{ variant: string }>;
+  template_versions: Joined<{
+    version_label: string;
+    template_families: Joined<{ name: string }>;
+  }>;
+  template_variants: Joined<{ label: string; variant_key: string }>;
 };
 
 function one<T>(v: Joined<T>): T | null {
@@ -40,7 +45,7 @@ export default async function ContentPage({
     let query = supabase
       .from("generated_content")
       .select(
-        "id, title, status, target_language, audience, created_at, products(name), product_templates(variant)"
+        "id, title, status, target_language, audience, created_at, products(name), product_templates(variant), template_versions(version_label, template_families(name)), template_variants(label, variant_key)"
       )
       .not("product_id", "is", null)
       .order("created_at", { ascending: false });
@@ -100,9 +105,18 @@ export default async function ContentPage({
           {rows.map((row) => {
             const product = one(row.products);
             const template = one(row.product_templates);
+            const templateVersion = one(row.template_versions);
+            const templateFamily = one(templateVersion?.template_families);
+            const templateVariant = one(row.template_variants);
+            const platformTemplateLabel = [
+              templateFamily?.name,
+              templateVariant?.label ?? templateVariant?.variant_key,
+            ]
+              .filter(Boolean)
+              .join(" · ");
             const meta = [
               product?.name,
-              template?.variant,
+              template?.variant ?? platformTemplateLabel,
               row.target_language,
               row.audience,
             ].filter(Boolean);

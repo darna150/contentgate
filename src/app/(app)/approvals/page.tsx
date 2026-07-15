@@ -19,6 +19,22 @@ function one<T>(value: Joined<T>): T | null {
   return Array.isArray(value) ? (value[0] ?? null) : value;
 }
 
+type ApprovalQueryRow = {
+  id: string;
+  title: string;
+  target_language: string;
+  audience: string | null;
+  created_at: string;
+  templates: Joined<{ name: string }>;
+  product_templates: Joined<{ variant: string }>;
+  template_versions: Joined<{
+    version_label: string;
+    template_families: Joined<{ name: string }>;
+  }>;
+  template_variants: Joined<{ label: string; variant_key: string }>;
+  creator: Joined<{ full_name: string | null }>;
+};
+
 export default async function ApprovalsPage({
   searchParams,
 }: {
@@ -46,21 +62,33 @@ export default async function ApprovalsPage({
       const { data } = await supabase
         .from("generated_content")
         .select(
-          "id, title, target_language, audience, created_at, templates(name), product_templates(variant), creator:profiles!generated_content_created_by_fkey(full_name)"
+          "id, title, target_language, audience, created_at, templates(name), product_templates(variant), template_versions(version_label, template_families(name)), template_variants(label, variant_key), creator:profiles!generated_content_created_by_fkey(full_name)"
         )
         .eq("status", "in_review")
         .not("product_id", "is", null)
         .order("created_at", { ascending: true });
-      rows = (data ?? []).map((row) => ({
+      rows = ((data ?? []) as ApprovalQueryRow[]).map((row) => {
+        const templateVersion = one(row.template_versions);
+        const templateFamily = one(templateVersion?.template_families);
+        const templateVariant = one(row.template_variants);
+        const platformTemplateLabel = [
+          templateFamily?.name,
+          templateVariant?.label ?? templateVariant?.variant_key,
+        ]
+          .filter(Boolean)
+          .join(" · ");
+        return {
         id: row.id,
         title: row.title,
         target_language: row.target_language,
         audience: row.audience,
         created_at: row.created_at,
         templateName:
-          one(row.product_templates)?.variant ?? one(row.templates)?.name ?? null,
+          one(row.product_templates)?.variant ??
+          (platformTemplateLabel || one(row.templates)?.name || null),
         creatorName: one(row.creator)?.full_name ?? null,
-      }));
+        };
+      });
     }
   }
 

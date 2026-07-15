@@ -2,8 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type ApiRateLimitScope =
   | "content.generate"
-  | "knowledge.ask"
-  | "legacy.generate";
+  | "knowledge.ask";
 
 export type ApiRateLimitResult = {
   allowed: boolean;

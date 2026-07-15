@@ -12,7 +12,6 @@ import {
 } from "@/lib/product-workspace";
 import { createClient } from "@/lib/supabase/server";
 import { createProductAssetPreviewUrlMap } from "@/lib/product-assets-server";
-import type { FieldLimits } from "@/lib/template-fields";
 import {
   normalizeTemplatePlatformAssignment,
   type TemplatePlatformAssignmentRow,
@@ -52,23 +51,6 @@ export type ProductWorkspaceClaim = {
   id: string;
   claimText: string;
   status: string;
-};
-
-export type ProductWorkspaceTemplate = {
-  id: string;
-  category: string;
-  variant: string;
-  layoutKey: string;
-  editableFields: string[];
-  generationInstructions: string;
-  defaultCopy: Record<string, string>;
-  fieldLimits: FieldLimits;
-  lockedFields: string[];
-  templateDefinition: Record<string, unknown>;
-  contractReady: boolean;
-  originalFilePath: string | null;
-  status: string;
-  sortOrder: number;
 };
 
 export type ProductWorkspacePlatformTemplate = {
@@ -122,8 +104,6 @@ export type ProductWorkspace = {
   assets: ProductWorkspaceAsset[];
   approvedSources: ProductWorkspaceSource[];
   claims: ProductWorkspaceClaim[];
-  templates: ProductWorkspaceTemplate[];
-  activeTemplates: ProductWorkspaceTemplate[];
   platformTemplates: ProductWorkspacePlatformTemplate[];
   activePlatformTemplates: ProductWorkspacePlatformTemplate[];
   content: ProductWorkspaceContent[];
@@ -132,7 +112,6 @@ export type ProductWorkspace = {
     assets: number;
     approvedSources: number;
     approvedClaims: number;
-    templates: number;
     activeTemplates: number;
     platformTemplates: number;
     activePlatformTemplates: number;
@@ -176,11 +155,18 @@ type ContentRow = {
   target_language: string;
   audience: string | null;
   product_template_id: string | null;
+  template_version_id: string | null;
+  template_variant_id: string | null;
   created_by: string;
   rejection_note: string | null;
   created_at: string;
   updated_at: string;
   product_templates: Joined<{ variant: string; category: string }>;
+  template_versions: Joined<{
+    version_label: string;
+    template_families: Joined<{ name: string }>;
+  }>;
+  template_variants: Joined<{ label: string; variant_key: string }>;
   creator: Joined<{ full_name: string | null }>;
 };
 
@@ -260,7 +246,7 @@ export async function getProductWorkspace(
     .from("generated_content")
     .select(
       needsContentRows
-        ? "id, title, status, target_language, audience, product_template_id, created_by, rejection_note, created_at, updated_at, product_templates(variant, category), creator:profiles!generated_content_created_by_fkey(full_name)"
+        ? "id, title, status, target_language, audience, product_template_id, template_version_id, template_variant_id, created_by, rejection_note, created_at, updated_at, product_templates(variant, category), template_versions(version_label, template_families(name)), template_variants(label, variant_key), creator:profiles!generated_content_created_by_fkey(full_name)"
         : "id, status"
     )
     .eq("org_id", profile.org_id)
@@ -339,7 +325,6 @@ export async function getProductWorkspace(
     claimText: claim.claim_text,
     status: claim.status,
   }));
-  const templates: ProductWorkspaceTemplate[] = [];
   const normalizedPlatformTemplates = ((platformTemplateResult.data ?? []) as TemplatePlatformAssignmentRow[])
     .map(normalizeTemplatePlatformAssignment)
     .filter((template): template is NonNullable<typeof template> => Boolean(template));
@@ -410,7 +395,16 @@ export async function getProductWorkspace(
   const content = needsContentRows
     ? ((contentResult.data ?? []) as unknown as ContentRow[]).map((row) => {
     const template = one(row.product_templates);
+    const templateVersion = one(row.template_versions);
+    const templateFamily = one(templateVersion?.template_families);
+    const templateVariant = one(row.template_variants);
     const creator = one(row.creator);
+    const platformTemplateLabel = [
+      templateFamily?.name,
+      templateVariant?.label ?? templateVariant?.variant_key,
+    ]
+      .filter(Boolean)
+      .join(" · ");
     return {
       id: row.id,
       title: row.title,
@@ -418,7 +412,7 @@ export async function getProductWorkspace(
       targetLanguage: row.target_language,
       audience: row.audience,
       templateId: row.product_template_id,
-      templateVariant: template?.variant ?? null,
+      templateVariant: template?.variant ?? (platformTemplateLabel || null),
       templateCategory: template?.category ?? null,
       createdBy: row.created_by,
       creatorName: creator?.full_name ?? null,
@@ -429,7 +423,6 @@ export async function getProductWorkspace(
   })
     : [];
 
-  const activeTemplates: ProductWorkspaceTemplate[] = [];
   const activePlatformTemplates = platformTemplates;
   const approvedClaims = claims.filter((claim) => claim.status === "approved");
   const approvals = content.filter((item) => item.status === "in_review");
@@ -442,7 +435,6 @@ export async function getProductWorkspace(
     assets: (assetResult.data ?? []).length,
     approvedSources: approvedSources.length,
     approvedClaims: approvedClaims.length,
-    templates: platformTemplates.length,
     activeTemplates: activePlatformTemplates.length,
     platformTemplates: platformTemplates.length,
     activePlatformTemplates: activePlatformTemplates.length,
@@ -474,8 +466,6 @@ export async function getProductWorkspace(
     assets,
     approvedSources,
     claims,
-    templates,
-    activeTemplates,
     platformTemplates,
     activePlatformTemplates,
     content,
