@@ -1,6 +1,9 @@
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
 import { StatusPill } from "@/components/status-pill";
+import {
+  getContentPage,
+  type FlattenedContentRow,
+} from "@/lib/content-listing";
 
 const FILTERS = [
   { key: "all", label: "All" },
@@ -10,48 +13,23 @@ const FILTERS = [
   { key: "rejected", label: "Rejected" },
 ];
 
-type Joined<T> = T | T[] | null;
-type ContentRow = {
-  id: string;
-  title: string;
-  status: string;
-  target_language: string;
-  audience: string | null;
-  created_at: string;
-  products: Joined<{ name: string }>;
-  product_templates: Joined<{ variant: string }>;
-  template_versions: Joined<{
-    version_label: string;
-    template_families: Joined<{ name: string }>;
-  }>;
-  template_variants: Joined<{ label: string; variant_key: string }>;
-};
-
-function one<T>(v: Joined<T>): T | null {
-  return Array.isArray(v) ? (v[0] ?? null) : v;
-}
-
 export default async function ContentPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string }>;
+  searchParams: Promise<{ status?: string; cursor?: string }>;
 }) {
-  const { status } = await searchParams;
+  const { status, cursor } = await searchParams;
   const filter = FILTERS.some((f) => f.key === status) ? status! : "all";
 
-  let rows: ContentRow[] = [];
+  let rows: FlattenedContentRow[] = [];
+  let nextCursor: string | null = null;
   if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
-    const supabase = await createClient();
-    let query = supabase
-      .from("generated_content")
-      .select(
-        "id, title, status, target_language, audience, created_at, products(name), product_templates(variant), template_versions(version_label, template_families(name)), template_variants(label, variant_key)"
-      )
-      .not("product_id", "is", null)
-      .order("created_at", { ascending: false });
-    if (filter !== "all") query = query.eq("status", filter);
-    const { data } = await query;
-    rows = (data as ContentRow[]) ?? [];
+    const page = await getContentPage({
+      cursor,
+      status: filter === "all" ? null : filter,
+    });
+    rows = page.rows;
+    nextCursor = page.nextCursor;
   }
 
   return (
@@ -103,21 +81,10 @@ export default async function ContentPage({
       ) : (
         <div className="flex flex-col gap-1 rounded-card border border-edge bg-surface p-3">
           {rows.map((row) => {
-            const product = one(row.products);
-            const template = one(row.product_templates);
-            const templateVersion = one(row.template_versions);
-            const templateFamily = one(templateVersion?.template_families);
-            const templateVariant = one(row.template_variants);
-            const platformTemplateLabel = [
-              templateFamily?.name,
-              templateVariant?.label ?? templateVariant?.variant_key,
-            ]
-              .filter(Boolean)
-              .join(" · ");
             const meta = [
-              product?.name,
-              template?.variant ?? platformTemplateLabel,
-              row.target_language,
+              row.productName,
+              row.templateName,
+              row.targetLanguage,
               row.audience,
             ].filter(Boolean);
             return (
@@ -133,7 +100,7 @@ export default async function ContentPage({
                   <span className="text-[11.5px] text-ink-faint">
                     {meta.join(" · ")}
                     {meta.length > 0 ? " · " : ""}
-                    {new Date(row.created_at).toLocaleDateString("en-US", {
+                    {new Date(row.createdAt).toLocaleDateString("en-US", {
                       month: "short",
                       day: "numeric",
                     })}
@@ -143,6 +110,18 @@ export default async function ContentPage({
               </Link>
             );
           })}
+          {nextCursor && (
+            <Link
+              href={
+                filter === "all"
+                  ? `/content?cursor=${nextCursor}`
+                  : `/content?status=${filter}&cursor=${nextCursor}`
+              }
+              className="rounded-control px-3.5 py-3 text-center text-[13px] font-semibold text-brand transition-colors hover:bg-page"
+            >
+              Load older content
+            </Link>
+          )}
         </div>
       )}
     </div>
