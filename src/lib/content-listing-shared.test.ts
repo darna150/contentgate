@@ -55,6 +55,7 @@ test("flattenContentRow builds platform family and size labels", () => {
   );
 
   assert.equal(row.templateName, "ContentGate Local Friendly · Link Ad");
+  assert.equal(row.sizeKey, "link_ad");
 });
 
 test("flattenContentRow falls back to legacy template name when platform metadata is absent", () => {

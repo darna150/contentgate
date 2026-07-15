@@ -7,6 +7,7 @@ export {
   offsetFromCursor,
   one,
   type ContentListRow,
+  type ContentPageInput,
   type FlattenedContentRow,
   type Joined,
 } from "@/lib/content-listing-shared";
@@ -15,6 +16,7 @@ import {
   flattenContentRow,
   offsetFromCursor,
   type ContentListRow,
+  type ContentPageInput,
   type FlattenedContentRow,
 } from "@/lib/content-listing-shared";
 
@@ -24,22 +26,18 @@ export type ContentPageResult = {
   hasMore: boolean;
 };
 
-export type ContentPageInput = {
-  cursor?: string | null;
-  pageSize?: number;
-  productId?: string | null;
-  status?: string | null;
-  ascending?: boolean;
-};
-
 export const CONTENT_LIST_SELECT =
   "id, title, status, target_language, audience, created_at, updated_at, products(name), templates(name), product_templates(variant), template_versions(version_label, template_families(name)), template_variants(label, variant_key), creator:profiles!generated_content_created_by_fkey(full_name)";
+const CONTENT_LIST_SELECT_WITH_REQUIRED_VARIANT =
+  "id, title, status, target_language, audience, created_at, updated_at, products(name), templates(name), product_templates(variant), template_versions(version_label, template_families(name)), template_variants!inner(label, variant_key), creator:profiles!generated_content_created_by_fkey(full_name)";
 
 export async function getContentPage({
   cursor,
   pageSize = 50,
   productId,
   status,
+  targetLanguage,
+  variantKey,
   ascending = false,
 }: ContentPageInput = {}): Promise<ContentPageResult> {
   const offset = offsetFromCursor(cursor);
@@ -47,13 +45,15 @@ export async function getContentPage({
   const supabase = await createClient();
   let query = supabase
     .from("generated_content")
-    .select(CONTENT_LIST_SELECT)
+    .select(variantKey ? CONTENT_LIST_SELECT_WITH_REQUIRED_VARIANT : CONTENT_LIST_SELECT)
     .not("product_id", "is", null)
     .order("created_at", { ascending })
     .range(offset, offset + safePageSize);
 
   if (productId) query = query.eq("product_id", productId);
   if (status) query = query.eq("status", status);
+  if (targetLanguage) query = query.eq("target_language", targetLanguage);
+  if (variantKey) query = query.eq("template_variants.variant_key", variantKey);
 
   const { data, error } = await query;
   if (error) throw new Error(`Could not load content page: ${error.message}`);

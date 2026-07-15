@@ -29,7 +29,18 @@ export type FlattenedContentRow = {
   updatedAt: string | null;
   productName: string | null;
   templateName: string | null;
+  sizeKey: string | null;
   creatorName: string | null;
+};
+
+export type ContentPageInput = {
+  cursor?: string | null;
+  pageSize?: number;
+  productId?: string | null;
+  status?: string | null;
+  targetLanguage?: string | null;
+  variantKey?: string | null;
+  ascending?: boolean;
 };
 
 export function one<T>(value: Joined<T> | undefined): T | null {
@@ -70,6 +81,7 @@ export function flattenContentRow(row: ContentListRow): FlattenedContentRow {
     templateName:
       one(row.product_templates)?.variant ??
       (platformTemplateLabel || one(row.templates)?.name || null),
+    sizeKey: templateVariant?.variant_key ?? null,
     creatorName: one(row.creator)?.full_name ?? null,
   };
 }
