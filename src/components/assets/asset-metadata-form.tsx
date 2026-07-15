@@ -3,9 +3,12 @@
 import { useState, useTransition } from "react";
 import { updateProductAssetMetadata } from "@/app/(app)/products/actions";
 import { PRODUCT_ASSET_APPROVAL_STATUSES } from "@/lib/product-assets";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { ASSET_STATUS_LABELS, type AssetItem } from "./types";
 
-const FIELD_LABEL = "text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-faint";
+const FIELD_LABEL = "text-label text-ink-faint";
 const FIELD_INPUT =
   "rounded-control border border-edge bg-page px-3.5 py-2.5 text-[13.5px] text-ink placeholder:text-ink-faint focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20";
 
@@ -42,44 +45,44 @@ export function AssetMetadataForm({ asset, onSaved, onCancel }: Props) {
         <span className={FIELD_LABEL}>
           Title <span className="text-reject">*</span>
         </span>
-        <input
+        <Input
           name="title"
           required
           maxLength={120}
           defaultValue={asset.title}
-          className={FIELD_INPUT}
+          className="bg-page"
         />
       </label>
 
       <label className="flex flex-col gap-1.5">
         <span className={FIELD_LABEL}>Alt text</span>
-        <input
+        <Input
           name="alt_text"
           maxLength={300}
           defaultValue={asset.altText ?? ""}
           placeholder="Describes the image for screen readers"
-          className={FIELD_INPUT}
+          className="bg-page"
         />
       </label>
 
       <label className="flex flex-col gap-1.5">
         <span className={FIELD_LABEL}>Description</span>
-        <textarea
+        <Textarea
           name="description"
           rows={3}
           maxLength={500}
           defaultValue={asset.description ?? ""}
-          className={`resize-none ${FIELD_INPUT}`}
+          className="resize-none bg-page"
         />
       </label>
 
       <label className="flex flex-col gap-1.5">
         <span className={FIELD_LABEL}>Tags</span>
-        <input
+        <Input
           name="tags"
           defaultValue={asset.tags.join(", ")}
           placeholder="launch, social, hero"
-          className={FIELD_INPUT}
+          className="bg-page"
         />
         <span className="text-[11.5px] text-ink-faint">
           Comma-separated. Saved in lowercase, up to 20 tags.
@@ -119,21 +122,12 @@ export function AssetMetadataForm({ asset, onSaved, onCancel }: Props) {
       )}
 
       <div className="flex justify-end gap-2 border-t border-edge pt-3.5">
-        <button
-          type="button"
-          onClick={onCancel}
-          disabled={pending}
-          className="rounded-control border border-edge-strong px-4 py-2.5 text-[13px] font-semibold text-ink-muted transition-colors hover:border-brand hover:text-brand disabled:opacity-50"
-        >
+        <Button type="button" variant="outline" onClick={onCancel} disabled={pending}>
           Close
-        </button>
-        <button
-          type="submit"
-          disabled={pending}
-          className="rounded-control bg-brand px-4 py-2.5 text-[13px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
-        >
+        </Button>
+        <Button type="submit" disabled={pending}>
           {pending ? "Saving…" : "Save changes"}
-        </button>
+        </Button>
       </div>
     </form>
   );

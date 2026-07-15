@@ -1,5 +1,7 @@
 "use client";
 
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { AssetStatusBadge } from "./asset-status-badge";
 import { ASSET_TYPE_LABELS, type AssetItem } from "./types";
 import { formatDimensions, formatFileSize, formatDateTime, fileTypeLabel } from "./format";
@@ -32,9 +34,7 @@ export function AssetPreviewDialog({ asset, isAdmin, onClose, onEdit, onDelete }
         <div className="flex min-w-0 flex-1 flex-col gap-3.5">
           <div className="flex flex-wrap items-center gap-2">
             <AssetStatusBadge status={asset.approvalStatus} />
-            <span className="rounded-full border border-edge-strong px-[9px] py-0.5 text-[11px] font-semibold text-ink-muted">
-              {ASSET_TYPE_LABELS[asset.assetType]}
-            </span>
+            <Badge variant="neutral">{ASSET_TYPE_LABELS[asset.assetType]}</Badge>
           </div>
 
           <dl className="grid grid-cols-[auto_1fr] items-baseline gap-x-3 gap-y-1.5 text-[12.5px]">
@@ -71,32 +71,25 @@ export function AssetPreviewDialog({ asset, isAdmin, onClose, onEdit, onDelete }
           {asset.tags.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
               {asset.tags.map((tag) => (
-                <span
-                  key={tag}
-                  className="max-w-full truncate rounded-full bg-page px-2.5 py-0.5 text-[11px] font-medium text-ink-muted"
-                >
+                <Badge key={tag} variant="neutral" className="max-w-full truncate border-none">
                   #{tag}
-                </span>
+                </Badge>
               ))}
             </div>
           )}
 
           {isAdmin && (
             <div className="mt-auto flex gap-2 border-t border-edge pt-3.5">
-              <button
-                type="button"
-                onClick={onEdit}
-                className="flex items-center gap-1.5 rounded-control border border-edge-strong px-3.5 py-2 text-[12.5px] font-semibold text-ink-muted transition-colors hover:border-brand hover:text-brand"
-              >
+              <Button variant="outline" onClick={onEdit}>
                 <PencilIcon className="h-3.5 w-3.5" /> Edit metadata
-              </button>
-              <button
-                type="button"
+              </Button>
+              <Button
+                variant="outline"
                 onClick={onDelete}
-                className="flex items-center gap-1.5 rounded-control border border-reject-border px-3.5 py-2 text-[12.5px] font-semibold text-reject transition-colors hover:bg-reject-tint"
+                className="border-reject-border text-reject hover:border-reject-border hover:bg-reject-tint hover:text-reject"
               >
                 <TrashIcon className="h-3.5 w-3.5" /> Delete
-              </button>
+              </Button>
             </div>
           )}
         </div>

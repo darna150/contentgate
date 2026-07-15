@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { deleteProductAsset } from "@/app/(app)/products/actions";
+import { Button } from "@/components/ui/button";
 import { Modal } from "./modal";
 import type { AssetItem } from "./types";
 
@@ -44,22 +45,12 @@ export function DeleteAssetDialog({ asset, onDeleted, onClose }: Props) {
           </p>
         )}
         <div className="flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={pending}
-            className="rounded-control border border-edge-strong px-4 py-2.5 text-[13px] font-semibold text-ink-muted transition-colors hover:border-brand hover:text-brand disabled:opacity-50"
-          >
+          <Button type="button" variant="outline" onClick={onClose} disabled={pending}>
             Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleDelete}
-            disabled={pending}
-            className="rounded-control bg-reject px-4 py-2.5 text-[13px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
-          >
+          </Button>
+          <Button type="button" variant="destructive" onClick={handleDelete} disabled={pending}>
             {pending ? "Deleting…" : "Delete asset"}
-          </button>
+          </Button>
         </div>
       </div>
     </Modal>

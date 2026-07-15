@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef } from "react";
+import { Button } from "@/components/ui/button";
 import { XIcon } from "./icons";
 
 type ModalProps = {
@@ -85,27 +86,29 @@ export function Modal({
         aria-labelledby={titleId}
         aria-describedby={description ? descriptionId : undefined}
         tabIndex={-1}
-        className={`relative flex w-full ${maxWidthClassName} max-h-[calc(100vh-4rem)] flex-col gap-4 overflow-y-auto rounded-card border border-edge bg-surface p-6 shadow-xl outline-none`}
+        className={`relative flex w-full ${maxWidthClassName} max-h-[calc(100vh-4rem)] flex-col gap-4 overflow-y-auto rounded-card border border-edge bg-surface p-6 shadow-elevated outline-none`}
       >
         <div className="flex items-start justify-between gap-3">
           <div className="flex flex-col gap-1">
-            <h2 id={titleId} className="text-[16px] font-bold text-ink">
+            <h2 id={titleId} className="text-h2 text-ink">
               {title}
             </h2>
             {description && (
-              <p id={descriptionId} className="text-[12.5px] text-ink-muted">
+              <p id={descriptionId} className="text-caption text-ink-muted">
                 {description}
               </p>
             )}
           </div>
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="icon"
             onClick={onClose}
             aria-label="Close"
-            className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-[7px] text-ink-faint transition-colors hover:bg-page hover:text-ink"
+            className="h-7 w-7 flex-shrink-0"
           >
             <XIcon className="h-3.5 w-3.5" />
-          </button>
+          </Button>
         </div>
         {children}
       </div>

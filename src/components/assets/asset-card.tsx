@@ -1,5 +1,7 @@
 "use client";
 
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { AssetStatusBadge } from "./asset-status-badge";
 import { ASSET_TYPE_LABELS, type AssetItem } from "./types";
 import { formatDimensions, formatFileSize, fileTypeLabel } from "./format";
@@ -25,7 +27,7 @@ export function AssetCard({
   const dims = formatDimensions(asset.widthPixels, asset.heightPixels);
 
   return (
-    <div className="flex flex-col gap-2.5 rounded-[8px] border border-edge bg-surface p-2.5">
+    <div className="flex flex-col gap-2.5 rounded-control border border-edge bg-surface p-2.5">
       <button
         type="button"
         onClick={onPreview}
@@ -69,12 +71,9 @@ export function AssetCard({
       {asset.tags.length > 0 && (
         <div className="flex flex-wrap items-center gap-1 overflow-hidden">
           {asset.tags.slice(0, 3).map((tag) => (
-            <span
-              key={tag}
-              className="max-w-[90px] truncate rounded-full bg-page px-2 py-0.5 text-[10.5px] font-medium text-ink-muted"
-            >
+            <Badge key={tag} variant="neutral" className="max-w-[90px] truncate border-none">
               #{tag}
-            </span>
+            </Badge>
           ))}
           {asset.tags.length > 3 && (
             <span className="flex-shrink-0 text-[10.5px] text-ink-faint">
@@ -86,24 +85,26 @@ export function AssetCard({
 
       {isAdmin && (
         <div className="flex gap-1.5 border-t border-edge pt-2">
-          <button
-            type="button"
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={onEdit}
             title="Edit metadata"
             aria-label={`Edit ${asset.title}`}
-            className="flex flex-1 items-center justify-center gap-1.5 rounded-[6px] px-2 py-1.5 text-[11.5px] font-semibold text-ink-muted transition-colors hover:bg-page hover:text-ink"
+            className="flex-1"
           >
             <PencilIcon className="h-3.5 w-3.5" /> Edit
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={onDelete}
             title="Delete asset"
             aria-label={`Delete ${asset.title}`}
-            className="flex flex-1 items-center justify-center gap-1.5 rounded-[6px] px-2 py-1.5 text-[11.5px] font-semibold text-ink-muted transition-colors hover:bg-reject-tint hover:text-reject"
+            className="flex-1 hover:bg-reject-tint hover:text-reject"
           >
             <TrashIcon className="h-3.5 w-3.5" /> Delete
-          </button>
+          </Button>
         </div>
       )}
     </div>

@@ -7,12 +7,14 @@ import {
   validateProductAssetFile,
   type ProductAssetType,
 } from "@/lib/product-assets";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { ASSET_TYPE_LABELS, type ProductOption } from "./types";
 import { formatFileSize } from "./format";
 import { Modal } from "./modal";
 import { UploadIcon } from "./icons";
 
-const FIELD_LABEL = "text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-faint";
+const FIELD_LABEL = "text-label text-ink-faint";
 const FIELD_INPUT =
   "rounded-control border border-edge bg-page px-3.5 py-2.5 text-[13.5px] text-ink placeholder:text-ink-faint focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20";
 
@@ -188,21 +190,17 @@ export function UploadAssetDialog({
 
         <label className="flex flex-col gap-1.5">
           <span className={FIELD_LABEL}>Title</span>
-          <input
+          <Input
             name="title"
             maxLength={120}
             placeholder="Defaults to file name"
-            className={FIELD_INPUT}
+            className="bg-page"
           />
         </label>
 
         <label className="flex flex-col gap-1.5">
           <span className={FIELD_LABEL}>Tags</span>
-          <input
-            name="tags"
-            placeholder="launch, social, hero"
-            className={FIELD_INPUT}
-          />
+          <Input name="tags" placeholder="launch, social, hero" className="bg-page" />
         </label>
 
         {error && (
@@ -223,21 +221,12 @@ export function UploadAssetDialog({
         )}
 
         <div className="flex justify-end gap-2 border-t border-edge pt-3.5">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={pending}
-            className="rounded-control border border-edge-strong px-4 py-2.5 text-[13px] font-semibold text-ink-muted transition-colors hover:border-brand hover:text-brand disabled:opacity-50"
-          >
+          <Button type="button" variant="outline" onClick={onClose} disabled={pending}>
             {success ? "Close" : "Cancel"}
-          </button>
-          <button
-            type="submit"
-            disabled={pending || !!fileError || success}
-            className="flex items-center gap-2 rounded-control bg-brand px-4 py-2.5 text-[13px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
-          >
+          </Button>
+          <Button type="submit" disabled={pending || !!fileError || success}>
             {pending ? "Uploading…" : success ? "Uploaded" : "Upload asset"}
-          </button>
+          </Button>
         </div>
       </form>
     </Modal>
