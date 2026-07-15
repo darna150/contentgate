@@ -23,6 +23,28 @@ type ImportIssue = {
   code?: string;
 };
 
+type PreflightIssue = {
+  code: string;
+  path: string;
+  severity: "error" | "warning";
+  message: string;
+};
+
+type PreflightReport = {
+  ok: boolean;
+  manifestKey: string;
+  versionName: string;
+  checkedAt: string;
+  issues: PreflightIssue[];
+  variantCount: number;
+  sampleCount: number;
+};
+
+type BuiltBundlePayload = {
+  manifest: { assets?: { path: string; mimeType?: string }[] } & Record<string, unknown>;
+  assets: { path: string; contentType?: string; dataBase64: string }[];
+};
+
 type ProductOption = {
   id: string;
   name: string;
@@ -72,40 +94,64 @@ export function ImportBundlePanel() {
   const [issues, setIssues] = useState<ImportIssue[]>([]);
   const [error, setError] = useState<string | null>(null);
 
+  const [preflighting, setPreflighting] = useState(false);
+  const [preflightReport, setPreflightReport] = useState<PreflightReport | null>(null);
+  const [preflightError, setPreflightError] = useState<string | null>(null);
+
+  async function buildBundlePayload(): Promise<BuiltBundlePayload> {
+    const manifest = JSON.parse(
+      manifestFile ? await readFileAsText(manifestFile) : manifestText
+    ) as BuiltBundlePayload["manifest"];
+    if (!Array.isArray(manifest.assets)) {
+      throw new Error("Manifest must include an assets array.");
+    }
+
+    const selectedFiles = new Map(assetFiles.map((file) => [filePath(file), file]));
+    const assets = await Promise.all(
+      manifest.assets.map(async (asset) => {
+        const file =
+          selectedFiles.get(asset.path) ??
+          [...selectedFiles.entries()].find(([path]) => path.endsWith(`/${asset.path}`))?.[1];
+        if (!file) throw new Error(`Missing asset file: ${asset.path}`);
+        return {
+          path: asset.path,
+          contentType: file.type || asset.mimeType,
+          dataBase64: stripBase64Prefix(await readFileAsDataUrl(file)),
+        };
+      })
+    );
+
+    return { manifest, assets };
+  }
+
+  async function onPreflight() {
+    setPreflighting(true);
+    setPreflightError(null);
+    try {
+      const { manifest, assets } = await buildBundlePayload();
+      const response = await fetch("/api/template-bundles/preflight", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ manifest, assets }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error ?? "Preflight failed.");
+      setPreflightReport(payload.report as PreflightReport);
+    } catch (caught) {
+      setPreflightReport(null);
+      setPreflightError(caught instanceof Error ? caught.message : "Preflight failed.");
+    } finally {
+      setPreflighting(false);
+    }
+  }
+
   async function onImport() {
     setBusy(true);
     setResult(null);
     setIssues([]);
     setError(null);
     try {
-      const manifest = JSON.parse(
-        manifestFile ? await readFileAsText(manifestFile) : manifestText
-      ) as {
-        assets?: { path: string; mimeType?: string }[];
-      };
-      if (!Array.isArray(manifest.assets)) {
-        throw new Error("Manifest must include an assets array.");
-      }
-
-      const selectedFiles = new Map(
-        assetFiles.map((file) => [filePath(file), file])
-      );
-      const assets = await Promise.all(
-        manifest.assets.map(async (asset) => {
-          const file =
-            selectedFiles.get(asset.path) ??
-            [...selectedFiles.entries()].find(([path]) =>
-              path.endsWith(`/${asset.path}`)
-            )?.[1];
-          if (!file) throw new Error(`Missing asset file: ${asset.path}`);
-          return {
-            path: asset.path,
-            contentType: file.type || asset.mimeType,
-            dataBase64: stripBase64Prefix(await readFileAsDataUrl(file)),
-          };
-        })
-      );
-
+      const { manifest, assets } = await buildBundlePayload();
       const response = await fetch("/api/template-bundles/import", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -123,6 +169,7 @@ export function ImportBundlePanel() {
       setResult(
         `Imported ${payload.variants?.length ?? 0} variants. Version: ${payload.templateVersionId}`
       );
+      setPreflightReport(null);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Import failed.");
     } finally {
@@ -137,7 +184,8 @@ export function ImportBundlePanel() {
         <CardDescription>
           Upload a template bundle manifest plus every asset referenced by the
           manifest. Directory uploads are supported when your browser provides
-          relative paths.
+          relative paths. Run preflight first to check sample copy actually
+          fits every variant before committing the import.
         </CardDescription>
       </CardHeader>
 
@@ -181,12 +229,65 @@ export function ImportBundlePanel() {
             placeholder="Optional storage prefix"
           />
         </div>
-        <Button
-          onClick={onImport}
-          disabled={busy || (!manifestFile && !manifestText.trim())}
-        >
-          {busy ? "Importing…" : "Import and preflight"}
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={onPreflight}
+            disabled={preflighting || busy || (!manifestFile && !manifestText.trim())}
+          >
+            {preflighting ? "Checking…" : "Run preflight"}
+          </Button>
+          <Button
+            onClick={onImport}
+            disabled={busy || (!manifestFile && !manifestText.trim())}
+          >
+            {busy ? "Importing…" : "Import bundle"}
+          </Button>
+        </div>
+        {preflightError && (
+          <p className="text-[12px] font-semibold text-reject">{preflightError}</p>
+        )}
+        {preflightReport && (
+          <Card className="gap-3 bg-page p-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant={preflightReport.ok ? "approve" : "reject"}>
+                {preflightReport.ok ? "Ready" : "Issues found"}
+              </Badge>
+              <span className="text-[11.5px] text-ink-muted">
+                {preflightReport.variantCount} variant
+                {preflightReport.variantCount === 1 ? "" : "s"} ·{" "}
+                {preflightReport.sampleCount} sample
+                {preflightReport.sampleCount === 1 ? "" : "s"} checked
+              </span>
+            </div>
+            {preflightReport.issues.length === 0 ? (
+              <p className="text-[12px] text-ink-muted">
+                No fit or reference issues found against sample copy.
+              </p>
+            ) : (
+              <ul className="grid gap-2">
+                {[...preflightReport.issues]
+                  .sort((a, b) => (a.severity === b.severity ? 0 : a.severity === "error" ? -1 : 1))
+                  .map((issue, index) => (
+                    <li
+                      key={`${issue.path}-${index}`}
+                      className="flex items-start gap-2 text-[12px] text-ink"
+                    >
+                      <Badge
+                        variant={issue.severity === "warning" ? "warn" : "reject"}
+                        className="mt-0.5 shrink-0"
+                      >
+                        {issue.severity === "warning" ? "Warning" : "Error"}
+                      </Badge>
+                      <span className="min-w-0 flex-1">
+                        {[issue.path, issue.message].filter(Boolean).join(" · ")}
+                      </span>
+                    </li>
+                  ))}
+              </ul>
+            )}
+          </Card>
+        )}
         {result && <p className="text-[12px] font-semibold text-approve">{result}</p>}
         {error && <p className="text-[12px] font-semibold text-reject">{error}</p>}
         {issues.length > 0 && (
