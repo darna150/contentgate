@@ -11,6 +11,11 @@ import {
 } from "./fit.ts";
 import { getTemplateBundleVariantFields } from "./runtime.ts";
 
+export type TemplateBundlePreflightAsset = {
+  path: string;
+  data: ArrayBuffer | Uint8Array;
+};
+
 export type TemplateBundlePreflightSample = {
   key: string;
   label?: string;
@@ -92,6 +97,11 @@ export async function preflightTemplateBundle(input: {
   manifest: TemplateBundleManifest;
   samples?: readonly TemplateBundlePreflightSample[];
   now?: Date;
+  // Bytes for the bundle's own assets (fonts, in practice), as already read
+  // from disk by loadTemplateBundleDirectory. Without this, fit checks can
+  // only resolve fonts that happen to already live under public/ — which
+  // fails every non-ContentGate font before the bundle is ever imported.
+  assets?: readonly TemplateBundlePreflightAsset[];
 }): Promise<TemplateBundlePreflightReport> {
   const samples = input.samples?.length
     ? [...input.samples]
@@ -100,6 +110,9 @@ export async function preflightTemplateBundle(input: {
     ...validateTemplateBundleManifest(input.manifest),
     ...validateTemplateBundlePublishReadiness(input.manifest),
   ];
+  const assetDataByPath = input.assets?.length
+    ? Object.fromEntries(input.assets.map((asset) => [asset.path, asset.data]))
+    : undefined;
 
   for (const [sampleIndex, sample] of samples.entries()) {
     issues.push(
@@ -123,6 +136,7 @@ export async function preflightTemplateBundle(input: {
         manifest: input.manifest,
         variantKey: variant.key,
         fields,
+        assetDataByPath,
       });
 
       for (const message of formatTemplatePlatformFitIssues(fitIssues)) {

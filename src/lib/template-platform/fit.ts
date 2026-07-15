@@ -22,6 +22,11 @@ export type TemplatePlatformTextLayout = {
   renderedHeight: number;
 };
 
+export type TemplatePlatformFontSource = {
+  assetUrlByPath?: Record<string, string>;
+  assetDataByPath?: Record<string, ArrayBuffer | Uint8Array>;
+};
+
 const fontPromises = new Map<string, Promise<Font>>();
 const parseFont =
   opentype.parse ??
@@ -30,7 +35,8 @@ const parseFont =
 
 async function loadTemplateFont(
   manifest: TemplateBundleManifest,
-  slot: TemplateBundleTextSlot
+  slot: TemplateBundleTextSlot,
+  fontSource?: TemplatePlatformFontSource
 ): Promise<Font> {
   const font = templateBundleFontForSlot(manifest, slot);
   const cacheKey = font
@@ -42,12 +48,24 @@ async function loadTemplateFont(
       if (!font) {
         throw new Error(`Font "${slot.fontKey}" is not declared in template bundle.`);
       }
-      const data = await loadTemplateBundleFontData({ manifest, font });
+      const data = await loadTemplateBundleFontData({
+        manifest,
+        font,
+        assetUrlByPath: fontSource?.assetUrlByPath,
+        assetDataByPath: fontSource?.assetDataByPath,
+      });
       if (!data) {
         throw new Error(`Font asset for "${font.key}" could not be loaded.`);
       }
       return parseFont!(data);
     })();
+    // A failed load (missing asset, transient network error on the signed
+    // URL fetch) must not poison this cache key forever — evict on
+    // rejection so the next call retries instead of failing every fit check
+    // and every render for the rest of the process lifetime.
+    promise.catch(() => {
+      if (fontPromises.get(cacheKey) === promise) fontPromises.delete(cacheKey);
+    });
     fontPromises.set(cacheKey, promise);
   }
   return promise;
@@ -94,14 +112,15 @@ function trimLastWord(value: string) {
 export async function measureTemplatePlatformTextSlot(
   manifest: TemplateBundleManifest,
   value: unknown,
-  slot: TemplateBundleTextSlot
+  slot: TemplateBundleTextSlot,
+  fontSource?: TemplatePlatformFontSource
 ): Promise<TemplatePlatformTextLayout> {
   const text = cleanText(value);
   if (!text) {
     return { lines: [], lineWidths: [], overlongWords: [], renderedHeight: 0 };
   }
 
-  const font = await loadTemplateFont(manifest, slot);
+  const font = await loadTemplateFont(manifest, slot, fontSource);
   const measure = (line: string) =>
     glyphWidth(font, line, slot.fontSize, slot.letterSpacing ?? 0);
   const lines: string[] = [];
@@ -134,17 +153,20 @@ export async function measureTemplatePlatformTextSlot(
   };
 }
 
-export async function templatePlatformFieldFitIssues(input: {
-  manifest: TemplateBundleManifest;
-  variantKey: string;
-  fields: Record<string, unknown>;
-}): Promise<Record<string, TemplatePlatformFitIssue[]>> {
+export async function templatePlatformFieldFitIssues(
+  input: {
+    manifest: TemplateBundleManifest;
+    variantKey: string;
+    fields: Record<string, unknown>;
+  } & TemplatePlatformFontSource
+): Promise<Record<string, TemplatePlatformFitIssue[]>> {
   const entries = await Promise.all(
     textSlots(input.manifest, input.variantKey).map(async (slot) => {
       const layout = await measureTemplatePlatformTextSlot(
         input.manifest,
         input.fields[slot.field],
-        slot
+        slot,
+        { assetUrlByPath: input.assetUrlByPath, assetDataByPath: input.assetDataByPath }
       );
       const issues: TemplatePlatformFitIssue[] = [];
       if (layout.overlongWords.length) {
@@ -193,12 +215,18 @@ export function templatePlatformFitInstructions(input: {
   );
 }
 
-export async function coerceTemplatePlatformFieldsToFit(input: {
-  manifest: TemplateBundleManifest;
-  variantKey: string;
-  fields: Record<string, string>;
-}): Promise<Record<string, string>> {
+export async function coerceTemplatePlatformFieldsToFit(
+  input: {
+    manifest: TemplateBundleManifest;
+    variantKey: string;
+    fields: Record<string, string>;
+  } & TemplatePlatformFontSource
+): Promise<Record<string, string>> {
   const coerced = { ...input.fields };
+  const fontSource: TemplatePlatformFontSource = {
+    assetUrlByPath: input.assetUrlByPath,
+    assetDataByPath: input.assetDataByPath,
+  };
 
   for (const slot of textSlots(input.manifest, input.variantKey)) {
     let value = cleanText(coerced[slot.field]);
@@ -208,7 +236,7 @@ export async function coerceTemplatePlatformFieldsToFit(input: {
     }
 
     for (let attempt = 0; attempt < 120; attempt += 1) {
-      const layout = await measureTemplatePlatformTextSlot(input.manifest, value, slot);
+      const layout = await measureTemplatePlatformTextSlot(input.manifest, value, slot, fontSource);
       const fits =
         layout.overlongWords.length === 0 &&
         layout.lines.length <= slot.maxLines &&

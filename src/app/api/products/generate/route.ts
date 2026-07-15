@@ -22,6 +22,7 @@ import {
   templatePlatformFieldFitIssues,
   templatePlatformFitInstructions,
 } from "@/lib/template-platform/fit";
+import { createTemplateBundleAssetUrlMap } from "@/lib/template-platform/storage-urls";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -245,6 +246,9 @@ export async function POST(req: Request) {
       assignment.manifest,
       outputSizeKey
     );
+    const assetUrlByPath = Object.fromEntries(
+      await createTemplateBundleAssetUrlMap(supabase, [assignment.manifest])
+    );
     const typographyInstructions = templatePlatformFitInstructions({
       manifest: assignment.manifest,
       variantKey: outputSizeKey,
@@ -417,6 +421,7 @@ export async function POST(req: Request) {
         manifest: assignment.manifest,
         variantKey: outputSizeKey,
         fields: structured,
+        assetUrlByPath,
       });
       retryReasons = [
         ...editableFields.flatMap((key) =>
@@ -436,6 +441,7 @@ export async function POST(req: Request) {
         manifest: assignment.manifest,
         variantKey: outputSizeKey,
         fields: structured,
+        assetUrlByPath,
       });
       const configuredIssues = templateFieldIssues(
         structured,
@@ -446,6 +452,7 @@ export async function POST(req: Request) {
         manifest: assignment.manifest,
         variantKey: outputSizeKey,
         fields: structured,
+        assetUrlByPath,
       });
       retryReasons = [
         ...editableFields.flatMap((key) =>

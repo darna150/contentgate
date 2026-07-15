@@ -30,13 +30,32 @@ async function readPublicFontAsset(assetPath: string) {
   );
 }
 
+function toArrayBuffer(data: ArrayBuffer | Uint8Array): ArrayBuffer {
+  return data instanceof ArrayBuffer
+    ? data
+    : (data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer);
+}
+
+/**
+ * Ordered font resolution: in-memory bundle bytes (local preflight, before a
+ * bundle is imported to storage) → `public/` (ContentGate's committed fonts)
+ * → signed storage URL (imported, non-public client fonts). A bundle whose
+ * font lives only in private storage previously had no way to resolve here,
+ * which broke both the fit engine and local preflight for any non-Inter,
+ * non-`public/fonts` client font.
+ */
 export async function loadTemplateBundleFontData(input: {
   manifest: TemplateBundleManifest;
   font: TemplateBundleFont;
   assetUrlByPath?: Record<string, string>;
+  assetDataByPath?: Record<string, ArrayBuffer | Uint8Array>;
 }) {
   const asset = assetForFont(input.manifest, input.font);
   if (!asset) return null;
+
+  const inMemory = input.assetDataByPath?.[asset.path];
+  if (inMemory) return toArrayBuffer(inMemory);
+
   const publicData = await readPublicFontAsset(asset.path);
   if (publicData) return publicData;
 

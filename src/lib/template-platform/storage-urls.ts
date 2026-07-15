@@ -33,6 +33,14 @@ export function templateBundleStoragePath(
   ].join("/");
 }
 
+// Includes "font" alongside "background"/"reference": renderer image fonts
+// (loadTemplateBundleImageFonts) and the fit engine (loadTemplateBundleFontData)
+// both resolve fonts through this same URL map, falling back to public/fonts
+// only for ContentGate. Excluding "font" here meant every non-public bundle
+// font had no signed URL to load from, in fit checks and in live Satori
+// rendering alike.
+const SIGNED_ASSET_KINDS = new Set(["background", "font", "reference"]);
+
 export async function createTemplateBundleAssetUrlMap(
   supabase: StorageClient,
   manifests: readonly TemplateBundleManifest[]
@@ -41,7 +49,7 @@ export async function createTemplateBundleAssetUrlMap(
     new Set(
       manifests.flatMap((manifest) =>
         manifest.assets
-          .filter((asset) => asset.kind === "background" || asset.kind === "reference")
+          .filter((asset) => SIGNED_ASSET_KINDS.has(asset.kind))
           .map((asset) => templateBundleStoragePath(manifest, asset.path))
       )
     )
@@ -65,7 +73,7 @@ export async function createTemplateBundleAssetUrlMap(
   return new Map(
     manifests.flatMap((manifest) =>
       manifest.assets
-        .filter((asset) => asset.kind === "background" || asset.kind === "reference")
+        .filter((asset) => SIGNED_ASSET_KINDS.has(asset.kind))
         .flatMap((asset) => {
           const storagePath = templateBundleStoragePath(manifest, asset.path);
           const signedUrl = signedByStoragePath.get(storagePath);
