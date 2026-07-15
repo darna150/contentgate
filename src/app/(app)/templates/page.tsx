@@ -284,9 +284,17 @@ export default async function TemplatesPage() {
                     <p className="truncate text-[13px] font-semibold">{content?.title ?? "Rendered content"}</p>
                     <p className="text-[11.5px] text-ink-faint">{variant?.label ?? variant?.variant_key ?? "variant"} · {job.output_format} · {dateLabel(job.completed_at ?? job.created_at)}</p>
                     {job.output_storage_path && (
-                      <p className="truncate text-[10.5px] text-ink-faint">
-                        Stored: {job.output_storage_path}
-                      </p>
+                      <div className="mt-1 flex items-center gap-2">
+                        <p className="min-w-0 flex-1 truncate text-[10.5px] text-ink-faint">
+                          Stored: {job.output_storage_path}
+                        </p>
+                        <a
+                          href={`/api/creative/render-jobs/${job.id}`}
+                          className="shrink-0 text-[10.5px] font-semibold text-brand hover:underline"
+                        >
+                          Open
+                        </a>
+                      </div>
                     )}
                   </div>
                   <StatusBadge status={job.status} />
