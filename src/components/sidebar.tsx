@@ -16,7 +16,10 @@ const NAV = [
 ];
 
 // Admin-only: the cross-product source-document library.
-const ADMIN_NAV = [{ href: "/knowledge", label: "Source Documents" }];
+const ADMIN_NAV = [
+  { href: "/knowledge", label: "Source Documents" },
+  { href: "/templates", label: "Template Ops" },
+];
 
 type Props = {
   orgName: string;
