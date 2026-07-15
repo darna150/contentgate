@@ -1,5 +1,11 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import type { TemplateBundleManifest } from "@/lib/template-platform/manifest";
+import {
+  AssignTemplatePanel,
+  ImportBundlePanel,
+  PublishVersionButton,
+} from "./template-ops-actions";
 
 type FamilyRow = {
   id: string;
@@ -14,6 +20,7 @@ type VersionRow = {
   version_label: string;
   status: string;
   created_at: string;
+  manifest: TemplateBundleManifest | null;
   template_families: { name: string; family_key: string } | { name: string; family_key: string }[] | null;
 };
 
@@ -59,6 +66,11 @@ type RenderJobRow = {
   completed_at: string | null;
   generated_content: { title: string } | { title: string }[] | null;
   template_variants: { variant_key: string; label: string } | { variant_key: string; label: string }[] | null;
+};
+
+type ProductRow = {
+  id: string;
+  name: string;
 };
 
 function one<T>(value: T | T[] | null | undefined): T | null {
@@ -121,6 +133,7 @@ export default async function TemplatesPage() {
     { data: assignmentRows },
     { data: importRunRows },
     { data: renderJobRows },
+    { data: productRows },
   ] = await Promise.all([
     supabase
       .from("template_families")
@@ -128,7 +141,7 @@ export default async function TemplatesPage() {
       .order("created_at", { ascending: false }),
     supabase
       .from("template_versions")
-      .select("id, version_label, status, created_at, template_families(name, family_key)")
+      .select("id, version_label, status, created_at, manifest, template_families(name, family_key)")
       .order("created_at", { ascending: false })
       .limit(10),
     supabase
@@ -150,6 +163,11 @@ export default async function TemplatesPage() {
       .select("id, status, output_format, output_storage_path, created_at, completed_at, generated_content(title), template_variants(variant_key, label)")
       .order("created_at", { ascending: false })
       .limit(8),
+    supabase
+      .from("products")
+      .select("id, name")
+      .eq("status", "active")
+      .order("name"),
   ]);
 
   const families = (familyRows ?? []) as FamilyRow[];
@@ -158,6 +176,24 @@ export default async function TemplatesPage() {
   const assignments = (assignmentRows ?? []) as AssignmentRow[];
   const importRuns = (importRunRows ?? []) as ImportRunRow[];
   const renderJobs = (renderJobRows ?? []) as RenderJobRow[];
+  const products = (productRows ?? []) as ProductRow[];
+  const versionOptions = versions
+    .filter((version) => version.manifest)
+    .map((version) => {
+      const family = one(version.template_families);
+      return {
+        id: version.id,
+        familyName: family?.name ?? "Template",
+        versionLabel: version.version_label,
+        status: version.status,
+        variants: (version.manifest?.variants ?? []).map((variant) => ({
+          key: variant.key,
+          label: variant.label,
+          width: variant.width,
+          height: variant.height,
+        })),
+      };
+    });
 
   return (
     <div className="mx-auto flex max-w-[1320px] flex-col gap-6 px-10 py-9">
@@ -182,6 +218,11 @@ export default async function TemplatesPage() {
           </div>
         ))}
       </div>
+
+      <section className="grid gap-5 xl:grid-cols-2">
+        <ImportBundlePanel />
+        <AssignTemplatePanel products={products} versions={versionOptions} />
+      </section>
 
       <section className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
         <div className="rounded-card border border-edge bg-surface p-5">
@@ -230,6 +271,7 @@ export default async function TemplatesPage() {
                     <p className="text-[11.5px] text-ink-faint">{dateLabel(version.created_at)}</p>
                   </div>
                   <StatusBadge status={version.status} />
+                  <PublishVersionButton versionId={version.id} status={version.status} />
                 </div>
               );
             }) : <EmptyRow label="No template versions yet." />}
