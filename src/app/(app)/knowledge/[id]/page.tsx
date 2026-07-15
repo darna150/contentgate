@@ -2,6 +2,12 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { DeleteDocumentButton } from "./delete-button";
+import { Badge } from "@/components/ui/badge";
+import {
+  documentIndexStatus,
+  documentIndexStatusClass,
+  documentIndexStatusLabel,
+} from "@/lib/document-index-status";
 
 export default async function DocumentDetailPage({
   params,
@@ -38,6 +44,11 @@ export default async function DocumentDetailPage({
   const uploader = Array.isArray(doc.profiles) ? doc.profiles[0] : doc.profiles;
   const product = Array.isArray(doc.products) ? doc.products[0] : doc.products;
   const paragraphs = (doc.paragraphs ?? []) as { n: number; text: string }[];
+  const indexStatus = documentIndexStatus({
+    contentText: doc.content_text,
+    paragraphs: doc.paragraphs,
+    storagePath: doc.storage_path,
+  });
 
   let fileUrl: string | null = null;
   if (doc.storage_path) {
@@ -57,9 +68,14 @@ export default async function DocumentDetailPage({
           >
             ← Knowledge Hub
           </Link>
-          <h1 className="font-serif text-[28px] font-semibold leading-tight">
-            {doc.title}
-          </h1>
+          <div className="flex items-center gap-2.5">
+            <h1 className="font-serif text-[28px] font-semibold leading-tight">
+              {doc.title}
+            </h1>
+            <Badge className={`${documentIndexStatusClass(indexStatus)} border-transparent`}>
+              {documentIndexStatusLabel(indexStatus)}
+            </Badge>
+          </div>
           <p className="text-[13.5px] text-ink-muted">
             {product?.name ? `${product.name} · ` : "Workspace-wide · "}
             {paragraphs.length} citable paragraphs · added{" "}
