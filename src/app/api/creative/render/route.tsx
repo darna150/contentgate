@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { ImageResponse } from "next/og";
 import { createClient } from "@/lib/supabase/server";
 import { SIZES, type SizeKey } from "@/lib/creative";
@@ -48,6 +49,12 @@ function safeFilename(value: string) {
       .replace(/^-+|-+$/g, "")
       .toLowerCase() || "content"
   );
+}
+
+function renderInputSha256(value: unknown) {
+  return createHash("sha256")
+    .update(JSON.stringify(value))
+    .digest("hex");
 }
 
 // Renders an org-visible piece of content into its product's locked layout.
@@ -142,6 +149,35 @@ export async function GET(req: Request) {
       format,
     });
     const filename = `${safeFilename(`${productName}-${variantKey}`)}.${converted.extension}`;
+    if (download) {
+      const { error: renderJobError } = await supabase.rpc("record_render_job_event", {
+        p_content_id: content.id,
+        p_output_format: format,
+        p_input_sha256: renderInputSha256({
+          contentId: content.id,
+          fields,
+          format,
+          variantKey,
+          revision: content.current_revision_number,
+        }),
+        p_payload: {
+          format,
+          variant_key: variantKey,
+          width: rendered.width,
+          height: rendered.height,
+          surface: "creative_render",
+        },
+        p_diagnostics: {
+          source: "server_render_route",
+        },
+      });
+      if (renderJobError) {
+        return new Response(`Could not record render job: ${renderJobError.message}`, {
+          status: 403,
+          headers: { "Cache-Control": "no-store" },
+        });
+      }
+    }
     return new Response(Buffer.from(converted.body), {
       headers: {
         "Content-Type": converted.contentType,
