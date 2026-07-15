@@ -2,6 +2,20 @@
 
 import { useMemo, useState } from "react";
 
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
 type ImportIssue = {
   path?: string;
   message?: string;
@@ -44,14 +58,8 @@ async function readFileAsText(file: File) {
   return file.text();
 }
 
-function issueText(issue: ImportIssue) {
-  return [
-    issue.severity ? issue.severity.toUpperCase() : null,
-    issue.path,
-    issue.message ?? issue.code,
-  ]
-    .filter(Boolean)
-    .join(" · ");
+function issueDetail(issue: ImportIssue) {
+  return [issue.path, issue.message ?? issue.code].filter(Boolean).join(" · ");
 }
 
 export function ImportBundlePanel() {
@@ -123,40 +131,38 @@ export function ImportBundlePanel() {
   }
 
   return (
-    <div className="rounded-card border border-edge bg-surface p-5">
-      <div className="flex flex-col gap-1">
-        <h2 className="text-[15px] font-bold">Import bundle</h2>
-        <p className="text-[12px] leading-relaxed text-ink-muted">
+    <Card>
+      <CardHeader>
+        <CardTitle>Import bundle</CardTitle>
+        <CardDescription>
           Upload a template bundle manifest plus every asset referenced by the
           manifest. Directory uploads are supported when your browser provides
           relative paths.
-        </p>
-      </div>
+        </CardDescription>
+      </CardHeader>
 
-      <div className="mt-4 grid gap-3">
-        <label className="flex flex-col gap-1.5">
-          <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-ink-faint">
-            Manifest JSON
-          </span>
+      <CardContent>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="import-manifest-file">Manifest JSON</Label>
           <input
+            id="import-manifest-file"
             type="file"
             accept="application/json,.json"
             onChange={(event) => setManifestFile(event.target.files?.[0] ?? null)}
             className="rounded-control border border-edge bg-page px-3 py-2 text-[12px]"
           />
-        </label>
-        <textarea
+        </div>
+        <Textarea
           value={manifestText}
           onChange={(event) => setManifestText(event.target.value)}
           placeholder="Or paste manifest JSON here"
           rows={4}
-          className="resize-y rounded-control border border-edge bg-page px-3 py-2 text-[12px] outline-none focus:border-brand"
+          className="resize-y"
         />
-        <label className="flex flex-col gap-1.5">
-          <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-ink-faint">
-            Asset files
-          </span>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="import-asset-files">Asset files</Label>
           <input
+            id="import-asset-files"
             type="file"
             multiple
             onChange={(event) => setAssetFiles(Array.from(event.target.files ?? []))}
@@ -165,34 +171,47 @@ export function ImportBundlePanel() {
           <span className="text-[11px] text-ink-faint">
             Selected {assetFiles.length} files.
           </span>
-        </label>
-        <input
-          value={storagePrefix}
-          onChange={(event) => setStoragePrefix(event.target.value)}
-          placeholder="Optional storage prefix"
-          className="rounded-control border border-edge bg-page px-3 py-2 text-[12px] outline-none focus:border-brand"
-        />
-        <button
-          type="button"
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="import-storage-prefix">Storage prefix</Label>
+          <Input
+            id="import-storage-prefix"
+            value={storagePrefix}
+            onChange={(event) => setStoragePrefix(event.target.value)}
+            placeholder="Optional storage prefix"
+          />
+        </div>
+        <Button
           onClick={onImport}
           disabled={busy || (!manifestFile && !manifestText.trim())}
-          className="rounded-control bg-brand px-4 py-2.5 text-[13px] font-semibold text-white disabled:opacity-50"
         >
           {busy ? "Importing…" : "Import and preflight"}
-        </button>
+        </Button>
         {result && <p className="text-[12px] font-semibold text-approve">{result}</p>}
         {error && <p className="text-[12px] font-semibold text-reject">{error}</p>}
         {issues.length > 0 && (
-          <ul className="grid gap-1 rounded-control border border-reject-border bg-reject-tint p-3 text-[11px] text-reject">
-            {issues.slice(0, 6).map((issue, index) => (
-              <li key={`${issue.path ?? issue.code ?? "issue"}-${index}`}>
-                {issueText(issue)}
-              </li>
-            ))}
-          </ul>
+          <Card className="gap-2 bg-page p-4">
+            <p className="text-label text-ink-faint">Import issues</p>
+            <ul className="grid gap-2">
+              {issues.slice(0, 6).map((issue, index) => (
+                <li
+                  key={`${issue.path ?? issue.code ?? "issue"}-${index}`}
+                  className="flex items-start gap-2 text-[12px] text-ink"
+                >
+                  <Badge
+                    variant={issue.severity === "warning" ? "warn" : "reject"}
+                    className="mt-0.5 shrink-0"
+                  >
+                    {issue.severity === "warning" ? "Warning" : "Error"}
+                  </Badge>
+                  <span className="min-w-0 flex-1">{issueDetail(issue)}</span>
+                </li>
+              ))}
+            </ul>
+          </Card>
         )}
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -231,14 +250,14 @@ export function PublishVersionButton({
 
   return (
     <div className="flex flex-col items-end gap-1">
-      <button
-        type="button"
+      <Button
+        variant="outline"
+        size="sm"
         onClick={publish}
         disabled={busy || published}
-        className="rounded-control border border-brand px-3 py-1.5 text-[11.5px] font-semibold text-brand disabled:border-edge disabled:text-ink-faint"
       >
         {published ? "Published" : busy ? "Publishing…" : "Publish"}
-      </button>
+      </Button>
       {(message || error) && (
         <span className={`text-[10.5px] ${error ? "text-reject" : "text-approve"}`}>
           {error ?? message}
@@ -300,64 +319,80 @@ export function AssignTemplatePanel({
     }
   }
 
-  return (
-    <div className="rounded-card border border-edge bg-surface p-5">
-      <div className="flex flex-col gap-1">
-        <h2 className="text-[15px] font-bold">Assign to product</h2>
-        <p className="text-[12px] leading-relaxed text-ink-muted">
-          Publish a version first, then assign it to a product workspace.
-        </p>
-      </div>
+  const variantOptions = selectedVersion?.variants ?? [];
 
-      <div className="mt-4 grid gap-3">
-        <select
-          value={productId}
-          onChange={(event) => setProductId(event.target.value)}
-          className="rounded-control border border-edge bg-page px-3 py-2 text-[12px] outline-none focus:border-brand"
-        >
-          {products.map((product) => (
-            <option key={product.id} value={product.id}>
-              {product.name}
-            </option>
-          ))}
-        </select>
-        <select
-          value={versionId}
-          onChange={(event) => selectVersion(event.target.value)}
-          className="rounded-control border border-edge bg-page px-3 py-2 text-[12px] outline-none focus:border-brand"
-        >
-          {publishedVersions.length ? (
-            publishedVersions.map((version) => (
-              <option key={version.id} value={version.id}>
-                {version.familyName} · {version.versionLabel}
-              </option>
-            ))
-          ) : (
-            <option value="">No published versions</option>
-          )}
-        </select>
-        <select
-          value={defaultVariantKey}
-          onChange={(event) => setDefaultVariantKey(event.target.value)}
-          className="rounded-control border border-edge bg-page px-3 py-2 text-[12px] outline-none focus:border-brand"
-        >
-          {(selectedVersion?.variants ?? []).map((variant) => (
-            <option key={variant.key} value={variant.key}>
-              {variant.label} · {variant.width}×{variant.height}
-            </option>
-          ))}
-        </select>
-        <button
-          type="button"
-          onClick={assign}
-          disabled={busy || !productId || !versionId}
-          className="rounded-control bg-brand px-4 py-2.5 text-[13px] font-semibold text-white disabled:opacity-50"
-        >
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Assign to product</CardTitle>
+        <CardDescription>
+          Publish a version first, then assign it to a product workspace.
+        </CardDescription>
+      </CardHeader>
+
+      <CardContent>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="assign-product">Product</Label>
+          <Select value={productId} onValueChange={setProductId} disabled={!products.length}>
+            <SelectTrigger id="assign-product" className="w-full">
+              <SelectValue placeholder="No active products" />
+            </SelectTrigger>
+            <SelectContent>
+              {products.map((product) => (
+                <SelectItem key={product.id} value={product.id}>
+                  {product.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="assign-version">Template version</Label>
+          <Select
+            value={versionId}
+            onValueChange={selectVersion}
+            disabled={!publishedVersions.length}
+          >
+            <SelectTrigger id="assign-version" className="w-full">
+              <SelectValue placeholder="No published versions" />
+            </SelectTrigger>
+            <SelectContent>
+              {publishedVersions.map((version) => (
+                <SelectItem key={version.id} value={version.id}>
+                  {version.familyName} · {version.versionLabel}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="assign-variant">Default variant</Label>
+          <Select
+            value={defaultVariantKey}
+            onValueChange={setDefaultVariantKey}
+            disabled={!variantOptions.length}
+          >
+            <SelectTrigger id="assign-variant" className="w-full">
+              <SelectValue placeholder="No variants" />
+            </SelectTrigger>
+            <SelectContent>
+              {variantOptions.map((variant) => (
+                <SelectItem key={variant.key} value={variant.key}>
+                  {variant.label} · {variant.width}×{variant.height}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <Button onClick={assign} disabled={busy || !productId || !versionId}>
           {busy ? "Assigning…" : "Assign template"}
-        </button>
+        </Button>
         {message && <p className="text-[12px] font-semibold text-approve">{message}</p>}
         {error && <p className="text-[12px] font-semibold text-reject">{error}</p>}
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }
