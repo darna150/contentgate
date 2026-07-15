@@ -524,6 +524,9 @@ export async function POST(req: Request) {
             body,
             target_language: language,
             prompt_context: promptContext,
+            template_version_id: assignment.versionId,
+            template_variant_id: variantRow.id,
+            renderer_version: "template-platform-v1",
             status: "draft",
             updated_at: savedAt,
           })

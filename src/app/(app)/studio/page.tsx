@@ -69,6 +69,8 @@ type GeneratedContentRow = {
   created_by: string;
   product_id: string;
   product_template_id: string | null;
+  template_version_id?: string | null;
+  template_variant_id?: string | null;
   updated_at?: string | null;
 };
 
@@ -186,7 +188,7 @@ export default async function StudioPage({
     ? await supabase
         .from("generated_content")
         .select(
-          "id, title, status, structured_fields, prompt_context, created_by, product_id, product_template_id"
+          "id, title, status, structured_fields, prompt_context, created_by, product_id, product_template_id, template_version_id, template_variant_id"
         )
         .eq("id", query.content)
         .single()
@@ -253,34 +255,56 @@ export default async function StudioPage({
     );
   }
 
-  const { data: selectedContentRows } =
-    selectedProduct && selectedTemplate
+  let selectedContentRows: GeneratedContentRow[] = [];
+  if (selectedProduct && selectedTemplate) {
+    const contentSelect =
+      "id, title, status, structured_fields, prompt_context, created_by, product_id, product_template_id, template_version_id, template_variant_id, updated_at";
+    const { data: typedRows } = selectedTemplate.templateVersionId
       ? await supabase
           .from("generated_content")
-          .select(
-            "id, title, status, structured_fields, prompt_context, created_by, product_id, product_template_id, updated_at"
-          )
+          .select(contentSelect)
           .eq("product_id", selectedProduct.id)
-          .eq("template_version_id", selectedTemplate.templateVersionId ?? "")
+          .eq("template_version_id", selectedTemplate.templateVersionId)
           .in("status", ["draft", "rejected", "in_review", "approved"])
           .order("updated_at", { ascending: false })
           .limit(50)
       : { data: [] };
+
+    selectedContentRows = (typedRows ?? []) as GeneratedContentRow[];
+
+    // Compatibility for drafts created before template_version_id existed.
+    if (!selectedContentRows.length && selectedTemplate.platformAssignmentId) {
+      const { data: legacyRows } = await supabase
+        .from("generated_content")
+        .select(contentSelect)
+        .eq("product_id", selectedProduct.id)
+        .is("template_version_id", null)
+        .in("status", ["draft", "rejected", "in_review", "approved"])
+        .order("updated_at", { ascending: false })
+        .limit(50);
+      selectedContentRows = ((legacyRows ?? []) as GeneratedContentRow[]).filter(
+        (row) =>
+          row.prompt_context?.platform_assignment_id ===
+          selectedTemplate.platformAssignmentId
+      );
+    }
+  }
   const initialContentsBySize = new Map<TemplateSizeKey, StudioContent>();
   const selectedContentCandidates = [
     ...(requestedContentMatchesSelectedTemplate && requestedContent
       ? [requestedContent as GeneratedContentRow]
       : []),
-    ...(((selectedContentRows ?? []) as GeneratedContentRow[]).filter((row) => {
+    ...selectedContentRows.filter((row) => {
       if (row.product_id !== selectedProduct?.id) return false;
       if (selectedTemplate?.platformAssignmentId) {
         return (
+          row.template_version_id === selectedTemplate.templateVersionId ||
           row.prompt_context?.platform_assignment_id ===
           selectedTemplate.platformAssignmentId
         );
       }
       return row.product_template_id === selectedTemplate?.id;
-    })),
+    }),
   ];
   for (const row of selectedContentCandidates) {
     const item = toStudioContent(row, user?.id);
