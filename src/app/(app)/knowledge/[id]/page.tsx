@@ -59,7 +59,7 @@ export default async function DocumentDetailPage({
   }
 
   return (
-    <div className="mx-auto flex max-w-[920px] flex-col gap-6 px-10 py-9">
+    <div className="mx-auto flex max-w-[920px] flex-col gap-6 px-4 py-9 sm:px-10">
       <div className="flex items-end gap-4">
         <div className="flex min-w-0 flex-col gap-1.5">
           <Link

@@ -45,9 +45,9 @@ export function AddDocumentForm({
   }
 
   return (
-    <form action={formAction} className="grid grid-cols-[1.45fr_1fr] items-start gap-5">
+    <form action={formAction} className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[1.45fr_1fr]">
       <div className="flex flex-col gap-5 rounded-card border border-edge bg-surface p-6">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <label className="flex flex-col gap-1.5">
             <span className="text-[13px] font-semibold">Title</span>
             <input

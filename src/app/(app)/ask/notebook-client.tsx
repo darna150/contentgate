@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import { MessageCircleQuestion, Pencil, Plus, Trash2, X } from "lucide-react";
+import { MessageCircleQuestion, Menu, Pencil, Plus, Trash2, X } from "lucide-react";
 import {
   createSession,
   saveSession,
@@ -80,6 +80,11 @@ export function NotebookClient({
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
 
+  // Mobile sessions drawer (below `lg`)
+  const [sessionsOpen, setSessionsOpen] = useState(false);
+  const sessionsMenuButtonRef = useRef<HTMLButtonElement>(null);
+  const sessionsCloseButtonRef = useRef<HTMLButtonElement>(null);
+
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const activeSession = sessions.find((s) => s.id === activeId) ?? null;
@@ -95,6 +100,29 @@ export function NotebookClient({
       citedParaRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
     }
   }, [sourceParagraphs]);
+
+  useEffect(() => {
+    if (!sessionsOpen) return;
+
+    const { overflow } = document.body.style;
+    document.body.style.overflow = "hidden";
+    sessionsCloseButtonRef.current?.focus();
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") closeSessionsDrawer();
+    }
+
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = overflow;
+    };
+  }, [sessionsOpen]);
+
+  function closeSessionsDrawer() {
+    setSessionsOpen(false);
+    sessionsMenuButtonRef.current?.focus();
+  }
 
   // ── Session management ──────────────────────────────────────────────────────
 
@@ -282,104 +310,157 @@ export function NotebookClient({
     sessions: sessions.filter((s) => s.product_id === p.id),
   }));
 
-  return (
-    <div className="flex h-full overflow-hidden">
-
-      {/* ── Sidebar ── */}
-      <aside className="flex w-[232px] shrink-0 flex-col border-r border-edge bg-surface">
-        <div className="border-b border-edge px-4 py-3.5">
-          <span className="text-[13px] font-bold text-ink">Knowledge Hub</span>
-        </div>
-        <div className="flex-1 overflow-y-auto py-3">
-          {sessionsByProduct.map(({ product, sessions: ps }) => (
-            <div key={product.id} className="mb-3">
-              <div className="flex items-center justify-between px-4 py-1">
-                <span className="text-[10.5px] font-bold uppercase tracking-[0.07em] text-ink-faint">
-                  {product.name}
+  const sessionsList = (onNavigate?: () => void) => (
+    <div className="flex-1 overflow-y-auto py-3">
+      {sessionsByProduct.map(({ product, sessions: ps }) => (
+        <div key={product.id} className="mb-3">
+          <div className="flex items-center justify-between px-4 py-1">
+            <span className="text-[10.5px] font-bold uppercase tracking-[0.07em] text-ink-faint">
+              {product.name}
+            </span>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => { handleNew(product.id); onNavigate?.(); }}
+              disabled={isPending}
+              title="New conversation"
+              aria-label="New conversation"
+              className="h-5 w-5 rounded text-ink-faint hover:bg-page hover:text-ink [&_svg]:size-[11px]"
+            >
+              <Plus strokeWidth={2.2} aria-hidden />
+            </Button>
+          </div>
+          {ps.length === 0 && (
+            <p className="px-4 py-1 text-[11.5px] text-ink-faint">No conversations yet</p>
+          )}
+          {ps.map((s) => (
+            <div
+              key={s.id}
+              className={`group relative flex items-start gap-1 rounded-[7px] mx-2 px-2 py-2 transition-colors cursor-pointer ${
+                activeId === s.id ? "bg-brand-tint" : "hover:bg-page"
+              }`}
+              onClick={() => {
+                setActiveId(s.id);
+                setSelectedProductId(s.product_id);
+                setSourcePanel(null);
+                onNavigate?.();
+              }}
+            >
+              {renamingId === s.id ? (
+                <input
+                  autoFocus
+                  value={renameValue}
+                  onChange={(e) => setRenameValue(e.target.value)}
+                  onBlur={() => commitRename(s.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") commitRename(s.id);
+                    if (e.key === "Escape") setRenamingId(null);
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                  className="flex-1 rounded border border-brand bg-surface px-1.5 py-0.5 text-[12px] outline-none"
+                />
+              ) : (
+                <span className={`flex-1 truncate text-[12.5px] leading-snug ${activeId === s.id ? "font-semibold text-brand" : "font-medium text-ink"}`}>
+                  {s.title}
                 </span>
+              )}
+              <div className="hidden shrink-0 items-center gap-0.5 group-hover:flex">
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={() => handleNew(product.id)}
-                  disabled={isPending}
-                  title="New conversation"
-                  className="h-5 w-5 rounded text-ink-faint hover:bg-page hover:text-ink [&_svg]:size-[11px]"
+                  onClick={(e) => { e.stopPropagation(); startRename(s); }}
+                  title="Rename"
+                  aria-label="Rename"
+                  className="h-5 w-5 rounded p-0.5 text-ink-faint hover:bg-transparent hover:text-ink [&_svg]:size-[11px]"
                 >
-                  <Plus strokeWidth={2.2} aria-hidden />
+                  <Pencil strokeWidth={1.8} aria-hidden />
                 </Button>
-              </div>
-              {ps.length === 0 && (
-                <p className="px-4 py-1 text-[11.5px] text-ink-faint">No conversations yet</p>
-              )}
-              {ps.map((s) => (
-                <div
-                  key={s.id}
-                  className={`group relative flex items-start gap-1 rounded-[7px] mx-2 px-2 py-2 transition-colors cursor-pointer ${
-                    activeId === s.id ? "bg-brand-tint" : "hover:bg-page"
-                  }`}
-                  onClick={() => {
-                    setActiveId(s.id);
-                    setSelectedProductId(s.product_id);
-                    setSourcePanel(null);
-                  }}
-                >
-                  {renamingId === s.id ? (
-                    <input
-                      autoFocus
-                      value={renameValue}
-                      onChange={(e) => setRenameValue(e.target.value)}
-                      onBlur={() => commitRename(s.id)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") commitRename(s.id);
-                        if (e.key === "Escape") setRenamingId(null);
-                      }}
-                      onClick={(e) => e.stopPropagation()}
-                      className="flex-1 rounded border border-brand bg-surface px-1.5 py-0.5 text-[12px] outline-none"
-                    />
-                  ) : (
-                    <span className={`flex-1 truncate text-[12.5px] leading-snug ${activeId === s.id ? "font-semibold text-brand" : "font-medium text-ink"}`}>
-                      {s.title}
-                    </span>
-                  )}
-                  <div className="hidden shrink-0 items-center gap-0.5 group-hover:flex">
+                <ConfirmDialog
+                  trigger={
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={(e) => { e.stopPropagation(); startRename(s); }}
-                      title="Rename"
-                      className="h-5 w-5 rounded p-0.5 text-ink-faint hover:bg-transparent hover:text-ink [&_svg]:size-[11px]"
+                      onClick={(e) => e.stopPropagation()}
+                      title="Delete"
+                      aria-label="Delete"
+                      className="h-5 w-5 rounded p-0.5 text-ink-faint hover:bg-transparent hover:text-reject [&_svg]:size-[11px]"
                     >
-                      <Pencil strokeWidth={1.8} aria-hidden />
+                      <Trash2 strokeWidth={1.8} aria-hidden />
                     </Button>
-                    <ConfirmDialog
-                      trigger={
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={(e) => e.stopPropagation()}
-                          title="Delete"
-                          className="h-5 w-5 rounded p-0.5 text-ink-faint hover:bg-transparent hover:text-reject [&_svg]:size-[11px]"
-                        >
-                          <Trash2 strokeWidth={1.8} aria-hidden />
-                        </Button>
-                      }
-                      title="Delete this conversation?"
-                      description="This conversation and its messages will be permanently removed."
-                      confirmLabel="Delete"
-                      onConfirm={() => handleDelete(s.id)}
-                    />
-                  </div>
-                </div>
-              ))}
+                  }
+                  title="Delete this conversation?"
+                  description="This conversation and its messages will be permanently removed."
+                  confirmLabel="Delete"
+                  onConfirm={() => handleDelete(s.id)}
+                />
+              </div>
             </div>
           ))}
         </div>
+      ))}
+    </div>
+  );
+
+  return (
+    <div className="flex h-full overflow-hidden">
+
+      {/* ── Mobile sessions drawer (below `lg`) ── */}
+      {sessionsOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <button
+            type="button"
+            aria-label="Close conversations"
+            tabIndex={-1}
+            className="absolute inset-0 bg-ink/40"
+            onClick={closeSessionsDrawer}
+          />
+          <aside
+            id="mobile-sessions"
+            aria-label="Conversations"
+            className="relative flex h-full w-[min(320px,88vw)] flex-col border-r border-edge bg-surface shadow-elevated"
+          >
+            <div className="flex items-center justify-between border-b border-edge px-4 py-3.5">
+              <span className="text-[13px] font-bold text-ink">Knowledge Hub</span>
+              <Button
+                ref={sessionsCloseButtonRef}
+                variant="ghost"
+                size="icon"
+                onClick={closeSessionsDrawer}
+                aria-label="Close conversations"
+                className="h-7 w-7 text-ink-faint hover:bg-page hover:text-ink [&_svg]:size-4"
+              >
+                <X aria-hidden />
+              </Button>
+            </div>
+            {sessionsList(closeSessionsDrawer)}
+          </aside>
+        </div>
+      )}
+
+      {/* ── Sidebar (desktop, `lg` and up) ── */}
+      <aside className="hidden w-[232px] shrink-0 flex-col border-r border-edge bg-surface lg:flex">
+        <div className="border-b border-edge px-4 py-3.5">
+          <span className="text-[13px] font-bold text-ink">Knowledge Hub</span>
+        </div>
+        {sessionsList()}
       </aside>
 
       {/* ── Chat ── */}
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Header */}
         <div className="flex items-center border-b border-edge bg-surface px-6 py-3.5">
+          <Button
+            ref={sessionsMenuButtonRef}
+            variant="ghost"
+            size="icon"
+            onClick={() => setSessionsOpen(true)}
+            aria-label="Show conversations"
+            aria-expanded={sessionsOpen}
+            aria-controls="mobile-sessions"
+            className="mr-2 h-8 w-8 shrink-0 text-ink-faint hover:bg-page hover:text-ink [&_svg]:size-4 lg:hidden"
+          >
+            <Menu aria-hidden />
+          </Button>
           <span className="text-[13.5px] font-semibold text-ink truncate">
             {activeSession
               ? activeSession.title === "New conversation"
@@ -552,64 +633,74 @@ export function NotebookClient({
 
       {/* ── Source panel ── */}
       {sourcePanel && (
-        <aside className="flex w-[300px] shrink-0 flex-col border-l border-edge bg-surface">
-          <div className="flex items-center gap-2 border-b border-edge px-4 py-3.5">
-            <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-              <span className="truncate text-[12px] font-bold text-ink">{sourcePanel.docTitle}</span>
-              <span className="text-[10.5px] text-ink-faint">Approved source</span>
-            </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setSourcePanel(null)}
-              className="h-6 w-6 shrink-0 text-ink-faint hover:bg-transparent hover:text-ink [&_svg]:size-[14px]"
-              aria-label="Close source panel"
-            >
-              <X strokeWidth={1.8} aria-hidden />
-            </Button>
-          </div>
-
-          {/* Cited excerpt at top */}
-          <div className="border-b border-edge bg-approve-tint px-4 py-3">
-            <span className="text-[10px] font-bold uppercase tracking-[0.07em] text-approve">Cited passage</span>
-            <p className="mt-1 text-[12px] leading-relaxed text-ink-muted italic">&ldquo;{sourcePanel.excerpt}&rdquo;</p>
-          </div>
-
-          <div className="flex-1 overflow-y-auto p-3">
-            {sourceFetching && (
-              <div className="flex items-center justify-center py-12 text-[13px] text-ink-faint">
-                Loading…
+        <>
+          {/* Mobile backdrop — panel is a full-width overlay below `lg` */}
+          <button
+            type="button"
+            aria-label="Close source panel"
+            tabIndex={-1}
+            className="fixed inset-0 z-50 bg-ink/40 lg:hidden"
+            onClick={() => setSourcePanel(null)}
+          />
+          <aside className="fixed inset-0 z-50 flex flex-col bg-surface lg:static lg:inset-auto lg:z-auto lg:w-[300px] lg:shrink-0 lg:border-l lg:border-edge">
+            <div className="flex items-center gap-2 border-b border-edge px-4 py-3.5">
+              <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <span className="truncate text-[12px] font-bold text-ink">{sourcePanel.docTitle}</span>
+                <span className="text-[10.5px] text-ink-faint">Approved source</span>
               </div>
-            )}
-            {!sourceFetching && !sourceParagraphs && !sourcePanel.docId && (
-              <p className="py-6 text-center text-[12.5px] text-ink-faint">Source document not found.</p>
-            )}
-            {!sourceFetching && sourceParagraphs && (
-              <ol className="flex flex-col gap-1.5">
-                {sourceParagraphs.map((p) => {
-                  const excerpt = sourcePanel.excerpt.trim().toLowerCase();
-                  const isCited = sourcePanel.paragraphN
-                    ? p.n === sourcePanel.paragraphN
-                    : excerpt.length >= 20 && p.text.toLowerCase().includes(excerpt.slice(0, 40));
-                  return (
-                    <li
-                      key={p.n}
-                      ref={isCited ? (el) => { citedParaRef.current = el; } : undefined}
-                      className={`flex gap-2.5 rounded-[8px] px-3 py-2.5 ${
-                        isCited ? "bg-approve-tint ring-1 ring-inset ring-approve/25" : "hover:bg-page"
-                      }`}
-                    >
-                      <span className="mt-0.5 w-5 shrink-0 text-right text-[10.5px] font-bold text-brand">
-                        ¶{p.n}
-                      </span>
-                      <p className="text-[12px] leading-relaxed text-ink">{p.text}</p>
-                    </li>
-                  );
-                })}
-              </ol>
-            )}
-          </div>
-        </aside>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setSourcePanel(null)}
+                className="h-6 w-6 shrink-0 text-ink-faint hover:bg-transparent hover:text-ink [&_svg]:size-[14px]"
+                aria-label="Close source panel"
+              >
+                <X strokeWidth={1.8} aria-hidden />
+              </Button>
+            </div>
+
+            {/* Cited excerpt at top */}
+            <div className="border-b border-edge bg-approve-tint px-4 py-3">
+              <span className="text-[10px] font-bold uppercase tracking-[0.07em] text-approve">Cited passage</span>
+              <p className="mt-1 text-[12px] leading-relaxed text-ink-muted italic">&ldquo;{sourcePanel.excerpt}&rdquo;</p>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-3">
+              {sourceFetching && (
+                <div className="flex items-center justify-center py-12 text-[13px] text-ink-faint">
+                  Loading…
+                </div>
+              )}
+              {!sourceFetching && !sourceParagraphs && !sourcePanel.docId && (
+                <p className="py-6 text-center text-[12.5px] text-ink-faint">Source document not found.</p>
+              )}
+              {!sourceFetching && sourceParagraphs && (
+                <ol className="flex flex-col gap-1.5">
+                  {sourceParagraphs.map((p) => {
+                    const excerpt = sourcePanel.excerpt.trim().toLowerCase();
+                    const isCited = sourcePanel.paragraphN
+                      ? p.n === sourcePanel.paragraphN
+                      : excerpt.length >= 20 && p.text.toLowerCase().includes(excerpt.slice(0, 40));
+                    return (
+                      <li
+                        key={p.n}
+                        ref={isCited ? (el) => { citedParaRef.current = el; } : undefined}
+                        className={`flex gap-2.5 rounded-[8px] px-3 py-2.5 ${
+                          isCited ? "bg-approve-tint ring-1 ring-inset ring-approve/25" : "hover:bg-page"
+                        }`}
+                      >
+                        <span className="mt-0.5 w-5 shrink-0 text-right text-[10.5px] font-bold text-brand">
+                          ¶{p.n}
+                        </span>
+                        <p className="text-[12px] leading-relaxed text-ink">{p.text}</p>
+                      </li>
+                    );
+                  })}
+                </ol>
+              )}
+            </div>
+          </aside>
+        </>
       )}
     </div>
   );

@@ -71,7 +71,7 @@ export default async function EditProductPage({
   }));
 
   return (
-    <div className="mx-auto flex max-w-[720px] flex-col gap-6 px-10 py-9">
+    <div className="mx-auto flex max-w-[720px] flex-col gap-6 px-4 py-9 sm:px-10">
       <div className="flex flex-col gap-1.5">
         <a href={`/products/${id}`} className="text-[13px] font-semibold text-brand hover:underline">
           ← {product.name}

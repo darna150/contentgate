@@ -205,7 +205,7 @@ export default async function TemplatesPage() {
   ] as const;
 
   return (
-    <div className="mx-auto flex max-w-[1320px] flex-col gap-6 px-10 py-9">
+    <div className="mx-auto flex max-w-[1320px] flex-col gap-6 px-4 py-9 sm:px-10">
       <PageHeader
         title="Template Ops"
         description="Monitor published template bundles, product assignments, import runs, and server render jobs."
