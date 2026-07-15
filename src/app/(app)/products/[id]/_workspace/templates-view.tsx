@@ -1,4 +1,3 @@
-import { SIZES } from "@/lib/creative";
 import type { ProductWorkspace } from "@/lib/product-workspace-server";
 import { GenerateVariant } from "../generate-variant";
 import { SectionEmpty } from "./empty-state";
@@ -57,16 +56,16 @@ export function TemplatesView({ workspace }: { workspace: ProductWorkspace }) {
             {activePlatformTemplates.map((template) => {
               const previewPath =
                 template.referenceAssetBySize[template.defaultVariantKey] ?? "";
-              const dims = SIZES[template.defaultVariantKey as keyof typeof SIZES];
+              const dims = template.variantMetaBySize[template.defaultVariantKey];
               return (
                 <div
                   key={template.assignmentId}
                   className="flex flex-col gap-2.5 rounded-control border border-brand/20 bg-surface p-3"
                 >
-                  {previewPath && dims ? (
+                  {previewPath ? (
                     <div
                       className="overflow-hidden rounded-[8px] border border-edge bg-brand-tint"
-                      style={{ aspectRatio: `${dims.w} / ${dims.h}` }}
+                      style={{ aspectRatio: `${dims.width} / ${dims.height}` }}
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
@@ -86,7 +85,9 @@ export function TemplatesView({ workspace }: { workspace: ProductWorkspace }) {
                     </span>
                   </div>
                   <p className="line-clamp-1 px-0.5 text-[11px] text-ink-faint">
-                    {template.supportedSizes.join(" · ")}
+                    {template.supportedSizes
+                      .map((size) => template.variantMetaBySize[size]?.label ?? size)
+                      .join(" · ")}
                   </p>
                   <p className="px-0.5 text-[11px] text-ink-muted">
                     Locked design · generate only the size you need.
@@ -97,8 +98,8 @@ export function TemplatesView({ workspace }: { workspace: ProductWorkspace }) {
                         productId={product.id}
                         platformAssignmentId={template.assignmentId}
                         variant={template.familyName}
-                        sizes={template.supportedSizes as (keyof typeof SIZES)[]}
-                        initialSize={template.defaultVariantKey as keyof typeof SIZES}
+                        sizes={template.supportedSizes}
+                        initialSize={template.defaultVariantKey}
                         compact
                       />
                     </div>

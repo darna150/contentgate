@@ -83,6 +83,7 @@ export type ProductWorkspacePlatformTemplate = {
   defaultVariantKey: string;
   fieldCount: number;
   fieldsBySize: Record<string, string[]>;
+  variantMetaBySize: Record<string, { label: string; width: number; height: number }>;
   referenceAssetBySize: Record<string, string>;
   backgroundAssetBySize: Record<string, string>;
 };
@@ -352,6 +353,19 @@ export async function getProductWorkspace(
           ];
         })
       );
+      const variantMetaBySize = Object.fromEntries(
+        template.supportedSizes.map((size) => {
+          const variant = template.manifest.variants.find((item) => item.key === size);
+          return [
+            size,
+            {
+              label: variant?.label ?? size,
+              width: variant?.width ?? 1080,
+              height: variant?.height ?? 1080,
+            },
+          ];
+        })
+      );
       const referenceAssetBySize = Object.fromEntries(
         template.supportedSizes.map((size) => {
           const variant = template.manifest.variants.find((item) => item.key === size);
@@ -388,6 +402,7 @@ export async function getProductWorkspace(
         defaultVariantKey: template.defaultVariantKey,
         fieldCount: new Set(Object.values(fieldsBySize).flat()).size,
         fieldsBySize,
+        variantMetaBySize,
         referenceAssetBySize,
         backgroundAssetBySize,
       };
