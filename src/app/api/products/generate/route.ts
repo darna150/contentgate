@@ -137,14 +137,6 @@ export async function POST(req: Request) {
     return Response.json({ error: "Invalid refinement selection." }, { status: 400 });
   }
 
-  try {
-    const rateLimit = await consumeApiRateLimit(supabase, "content.generate");
-    if (!rateLimit.allowed) return rateLimitResponse(rateLimit);
-  } catch (error) {
-    console.error("content generation rate limit failed:", error);
-    return Response.json({ error: "Generation is temporarily unavailable." }, { status: 503 });
-  }
-
   const { data: profile } = await supabase
     .from("profiles")
     .select("org_id")
@@ -334,6 +326,14 @@ export async function POST(req: Request) {
         type: "string",
         ...(fieldLimits[f]?.max_chars ? { maxLength: fieldLimits[f].max_chars } : {}),
       };
+    }
+
+    try {
+      const rateLimit = await consumeApiRateLimit(supabase, "content.generate");
+      if (!rateLimit.allowed) return rateLimitResponse(rateLimit);
+    } catch (error) {
+      console.error("content generation rate limit failed:", error);
+      return Response.json({ error: "Generation is temporarily unavailable." }, { status: 503 });
     }
 
     const anthropic = new Anthropic();

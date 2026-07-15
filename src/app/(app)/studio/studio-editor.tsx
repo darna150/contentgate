@@ -532,8 +532,13 @@ export function StudioEditor({
       await navigator.clipboard.writeText(text);
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1600);
-    } catch {
-      setError("Copy is available only for the currently approved revision.");
+    } catch (caught) {
+      const message = caught instanceof Error ? caught.message : "";
+      setError(
+        message === "Generated copy must be approved before export."
+          ? message
+          : "Copy could not be copied. Check your browser permissions and try again."
+      );
     }
   }
 
