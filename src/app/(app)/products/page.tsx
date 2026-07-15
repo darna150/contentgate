@@ -1,4 +1,8 @@
 import Link from "next/link";
+import { PageHeader } from "@/components/page-header";
+import { EmptyState } from "@/components/empty-state";
+import { Button } from "@/components/ui/button";
+import { ProductStatusBadge } from "./[id]/_workspace/product-status-badge";
 import { createClient } from "@/lib/supabase/server";
 
 type ProductRow = {
@@ -43,53 +47,47 @@ export default async function ProductsPage() {
   }
 
   return (
-    <div className="mx-auto flex max-w-[1280px] flex-col gap-6 px-10 py-9">
-      <div className="flex items-end gap-4">
-        <div className="flex flex-col gap-1.5">
-          <h1 className="font-serif text-[28px] font-semibold">Products</h1>
-          <p className="text-[14.5px] text-ink-muted">
-            Everything starts with a product. Pick one to create compliant content
-            from its approved knowledge.
-          </p>
-        </div>
-        {isAdmin && (
-          <div className="flex-1 flex justify-end">
-            <Link
-              href="/products/new"
-              className="rounded-control bg-brand px-[18px] py-2.5 text-[13.5px] font-semibold text-white transition-opacity hover:opacity-90"
-            >
-              + New product
-            </Link>
-          </div>
-        )}
-      </div>
+    <div className="mx-auto flex max-w-[1280px] flex-col gap-6 px-4 py-9 sm:px-10">
+      <PageHeader
+        title="Products"
+        description="Everything starts with a product. Pick one to create compliant content from its approved knowledge."
+        actions={
+          isAdmin ? (
+            <Button asChild>
+              <Link href="/products/new">+ New product</Link>
+            </Button>
+          ) : undefined
+        }
+      />
 
       {products.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 rounded-card border border-dashed border-edge-strong bg-surface px-8 py-16 text-center">
-          <p className="text-[15px] font-semibold">No products yet</p>
-          <p className="max-w-md text-sm text-ink-muted">
-            A product holds its approved documents, claims, disclaimers, and
-            templates. Products are set up during onboarding.
-          </p>
-        </div>
+        <EmptyState
+          title="No products yet"
+          description="A product holds its approved documents, claims, disclaimers, and templates. Products are set up during onboarding."
+        />
       ) : (
-        <div className="grid grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {products.map((p) => (
             <Link
               key={p.id}
               href={`/products/${p.id}`}
-              className="flex flex-col gap-3 rounded-card border border-edge bg-surface p-6 transition-colors hover:border-brand"
+              className="flex flex-col gap-3 rounded-card border border-edge bg-surface p-5 transition-colors hover:border-brand hover:shadow-elevated"
             >
-              <div className="flex items-center gap-2">
-                <span className="flex h-9 w-9 items-center justify-center rounded-[9px] bg-brand-dark text-[13px] font-bold text-white">
+              <div className="flex items-center gap-2.5">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[9px] bg-brand-dark text-[13px] font-bold text-white">
                   {p.name[0]}
                 </span>
-                <span className="text-[16px] font-bold">{p.name}</span>
+                <span className="min-w-0 flex-1 truncate text-[16px] font-bold text-ink">
+                  {p.name}
+                </span>
+                <ProductStatusBadge status={p.status} />
               </div>
-              {p.description && (
+              {p.description ? (
                 <p className="line-clamp-3 text-[13px] leading-relaxed text-ink-muted">
                   {p.description}
                 </p>
+              ) : (
+                <p className="text-[13px] italic text-ink-faint">No description yet.</p>
               )}
               <div className="mt-auto flex gap-4 border-t border-edge pt-3 text-[12px] text-ink-faint">
                 <span>{counts[p.id]?.claims ?? 0} approved claims</span>

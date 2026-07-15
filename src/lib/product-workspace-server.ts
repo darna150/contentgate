@@ -84,6 +84,8 @@ export type ProductWorkspaceContent = {
   templateId: string | null;
   templateVariant: string | null;
   templateCategory: string | null;
+  templateVersionId: string | null;
+  sizeKey: string | null;
   createdBy: string;
   creatorName: string | null;
   rejectionNote: string | null;
@@ -129,6 +131,7 @@ export type ProductWorkspace = {
 };
 
 type ProductWorkspaceView =
+  | "overview"
   | "assets"
   | "knowledge"
   | "templates"
@@ -219,9 +222,9 @@ export async function getProductWorkspace(
   productId: string,
   options: { view?: ProductWorkspaceView } = {}
 ): Promise<ProductWorkspace | null> {
-  const view = options.view ?? "templates";
+  const view = options.view ?? "overview";
   const needsAssetRows = view === "assets";
-  const needsContentRows = view === "content" || view === "approvals";
+  const needsContentRows = view !== "assets" && view !== "knowledge";
   const supabase = await createClient();
   const {
     data: { user },
@@ -434,6 +437,8 @@ export async function getProductWorkspace(
       templateId: row.product_template_id,
       templateVariant: template?.variant ?? (platformTemplateLabel || null),
       templateCategory: template?.category ?? null,
+      templateVersionId: row.template_version_id,
+      sizeKey: templateVariant?.variant_key ?? null,
       createdBy: row.created_by,
       creatorName: creator?.full_name ?? null,
       rejectionNote: row.rejection_note,

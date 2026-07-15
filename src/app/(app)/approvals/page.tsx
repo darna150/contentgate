@@ -24,7 +24,7 @@ export default async function ApprovalsPage({
   let productName: string | null = null;
   if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
     if (productId) {
-      const workspace = await getProductWorkspace(productId);
+      const workspace = await getProductWorkspace(productId, { view: "approvals" });
       if (!workspace) notFound();
       productName = workspace.product.name;
       rows = workspace.approvals.map((item) => ({
