@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  type ReactElement,
-  type RefObject,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import { useEffect, useRef, useState } from "react";
 
 const GENERATION_MESSAGES = [
   "Reading the approved brief.",
@@ -30,12 +24,12 @@ export function GenerationLoader() {
 
   return (
     <div
-      className="absolute inset-0 z-20 flex items-center justify-center rounded-card bg-page/80 p-6 backdrop-blur-[3px]"
+      className="absolute inset-0 z-20 flex items-center justify-center rounded-card bg-[#141613]/80 p-6 backdrop-blur-[3px]"
       role="status"
       aria-live="polite"
       aria-label="Generating preview"
     >
-      <div className="flex w-full max-w-[360px] flex-col items-center gap-4 rounded-card border border-edge bg-surface px-7 py-6 text-center shadow-xl">
+      <div className="flex w-full max-w-[360px] flex-col items-center gap-4 rounded-card border border-edge bg-surface px-7 py-6 text-center shadow-elevated">
         <div className="relative flex h-12 w-12 items-center justify-center">
           <span className="absolute inset-0 animate-ping rounded-full bg-brand/15 motion-reduce:animate-none" />
           <span className="relative flex h-10 w-10 items-center justify-center rounded-full bg-brand text-xl text-white">
@@ -56,67 +50,6 @@ export function GenerationLoader() {
               style={{ animationDelay: `${dot * 140}ms` }}
             />
           ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-export function LiveCanvasFrame({
-  canvas,
-  canvasRef,
-  width,
-  height,
-}: {
-  canvas: ReactElement;
-  canvasRef: RefObject<HTMLDivElement | null>;
-  width: number;
-  height: number;
-}) {
-  const viewportRef = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState(0.5);
-
-  useEffect(() => {
-    const viewport = viewportRef.current;
-    if (!viewport) return;
-    const updateScale = () => {
-      const availableWidth = Math.max(1, viewport.clientWidth - 48);
-      const availableHeight = Math.max(1, Math.min(760, window.innerHeight - 250));
-      setScale(Math.min(1, availableWidth / width, availableHeight / height));
-    };
-    updateScale();
-    const observer = new ResizeObserver(updateScale);
-    observer.observe(viewport);
-    return () => observer.disconnect();
-  }, [height, width]);
-
-  return (
-    <div
-      ref={viewportRef}
-      className="flex min-h-[600px] w-full items-center justify-center overflow-hidden rounded-card border border-edge bg-page p-6"
-    >
-      <div
-        style={{
-          width: width * scale,
-          height: height * scale,
-          flex: "0 0 auto",
-        }}
-      >
-        <div
-          style={{
-            width,
-            height,
-            transform: `scale(${scale})`,
-            transformOrigin: "top left",
-          }}
-        >
-          <div
-            ref={canvasRef}
-            data-export-canvas="template-platform"
-            style={{ width, height, overflow: "hidden" }}
-          >
-            {canvas}
-          </div>
         </div>
       </div>
     </div>
@@ -154,7 +87,7 @@ export function ServerPreviewFrame({
   return (
     <div
       ref={viewportRef}
-      className="relative flex min-h-[600px] w-full items-center justify-center overflow-hidden rounded-card border border-edge bg-page p-6"
+      className="relative flex min-h-[600px] w-full items-center justify-center overflow-hidden rounded-card border border-edge bg-[#1a1d1b] p-6"
     >
       {updating && (
         <div className="absolute right-4 top-4 z-10 rounded-full bg-surface/90 px-3 py-1.5 text-[11px] font-semibold text-ink-muted shadow-sm">
@@ -166,7 +99,7 @@ export function ServerPreviewFrame({
         key={src}
         src={src}
         alt="Generated template preview"
-        className="block shadow-sm"
+        className="block shadow-elevated"
         style={{
           width: width * scale,
           height: height * scale,

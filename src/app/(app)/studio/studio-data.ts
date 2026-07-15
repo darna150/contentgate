@@ -1,6 +1,11 @@
 import "server-only";
 
-import { canEditContent, type ContentStatus } from "@/lib/content-governance";
+import {
+  canEditContent,
+  canReviewContent,
+  type ContentRole,
+  type ContentStatus,
+} from "@/lib/content-governance";
 import { createClient } from "@/lib/supabase/server";
 import type { TemplateBundleManifest } from "@/lib/template-platform/manifest";
 import {
@@ -26,6 +31,7 @@ export type StudioContent = {
   outputSize: string | null;
   manuallyEdited: boolean;
   canEdit: boolean;
+  updatedAt: string | null;
 };
 
 export type StudioTemplate = {
@@ -65,6 +71,13 @@ export type StudioState = {
   initialContents: StudioContent[];
   initialSize: string | null;
   organizationName: string;
+  // Static per-viewer flag (role-based, not content-specific) that the
+  // review-mode UI uses to decide whether to show approve/reject actions.
+  canReview: boolean;
+  // Every generation for this product+template, bucketed by size and sorted
+  // newest-first — the version rail's data source. Built from the same
+  // selectedContentRows query already run below (no extra round trip).
+  versionsBySize: Record<string, StudioContent[]>;
 };
 
 type PlatformAssignmentRow = {
@@ -164,6 +177,7 @@ function toStudioContent(row: GeneratedContentRow, userId?: string): StudioConte
         })
       : false,
     manuallyEdited: contentWasManuallyEdited(row),
+    updatedAt: row.updated_at ?? null,
   };
 }
 
@@ -335,18 +349,27 @@ export async function loadStudioState(input: {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  const [requestedContentContext, { data: productRows }, assignmentRows, { data: organization }] =
-    await Promise.all([
-      input.contentId ? getStudioContent(input.contentId) : Promise.resolve(null),
-      supabase
-        .from("products")
-        .select("id, name, disclaimer_text")
-        .eq("status", "active")
-        .order("name"),
-      listActiveAssignments(),
-      supabase.from("organizations").select("name").single(),
-    ]);
+  const [
+    requestedContentContext,
+    { data: productRows },
+    assignmentRows,
+    { data: organization },
+    { data: profile },
+  ] = await Promise.all([
+    input.contentId ? getStudioContent(input.contentId) : Promise.resolve(null),
+    supabase
+      .from("products")
+      .select("id, name, disclaimer_text")
+      .eq("status", "active")
+      .order("name"),
+    listActiveAssignments(),
+    supabase.from("organizations").select("name").single(),
+    user
+      ? supabase.from("profiles").select("role").eq("id", user.id).single()
+      : Promise.resolve({ data: null }),
+  ]);
 
+  const canReview = canReviewContent((profile?.role as ContentRole) ?? "member");
   const products = (productRows ?? []) as StudioProduct[];
   const templates = platformAssignmentsToTemplates(assignmentRows);
   const requestedProductId = requestedContentContext?.product.id ?? input.productId;
@@ -398,6 +421,21 @@ export async function loadStudioState(input: {
     initialContentsBySize.set(item.outputSize, item);
   }
 
+  const versionsBySize = new Map<string, StudioContent[]>();
+  for (const row of selectedContentRows) {
+    const item = toStudioContent(row, user?.id);
+    if (!item.outputSize) continue;
+    const list = versionsBySize.get(item.outputSize) ?? [];
+    list.push(item);
+    versionsBySize.set(item.outputSize, list);
+  }
+  if (requestedRow?.outputSize) {
+    const list = versionsBySize.get(requestedRow.outputSize) ?? [];
+    if (!list.some((item) => item.id === requestedRow.id)) {
+      versionsBySize.set(requestedRow.outputSize, [requestedRow, ...list]);
+    }
+  }
+
   const initialContents = [...initialContentsBySize.values()];
   const initialSize =
     requestedContentContext?.variantKey ?? input.size ?? initialContents[0]?.outputSize ?? null;
@@ -410,5 +448,7 @@ export async function loadStudioState(input: {
     initialContents,
     initialSize,
     organizationName: organization?.name ?? "Current workspace",
+    canReview,
+    versionsBySize: Object.fromEntries(versionsBySize),
   };
 }
