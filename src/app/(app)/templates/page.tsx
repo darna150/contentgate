@@ -2,6 +2,10 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { TemplateBundleManifest } from "@/lib/template-platform/manifest";
 import {
+  getTemplateExportHistory,
+  type TemplateExportHistoryItem,
+} from "@/lib/template-ops-server";
+import {
   AssignTemplatePanel,
   ImportBundlePanel,
   PublishVersionButton,
@@ -55,17 +59,6 @@ type ImportRunRow = {
   manifest_sha256: string | null;
   report: { issues?: unknown[] } | null;
   created_at: string;
-};
-
-type RenderJobRow = {
-  id: string;
-  status: string;
-  output_format: string;
-  output_storage_path: string | null;
-  created_at: string;
-  completed_at: string | null;
-  generated_content: { title: string } | { title: string }[] | null;
-  template_variants: { variant_key: string; label: string } | { variant_key: string; label: string }[] | null;
 };
 
 type ProductRow = {
@@ -132,7 +125,7 @@ export default async function TemplatesPage() {
     { data: variantRows },
     { data: assignmentRows },
     { data: importRunRows },
-    { data: renderJobRows },
+    renderJobRows,
     { data: productRows },
   ] = await Promise.all([
     supabase
@@ -158,11 +151,7 @@ export default async function TemplatesPage() {
       .select("id, source_provider, status, manifest_sha256, report, created_at")
       .order("created_at", { ascending: false })
       .limit(8),
-    supabase
-      .from("render_jobs")
-      .select("id, status, output_format, output_storage_path, created_at, completed_at, generated_content(title), template_variants(variant_key, label)")
-      .order("created_at", { ascending: false })
-      .limit(8),
+    getTemplateExportHistory({ limit: 8 }),
     supabase
       .from("products")
       .select("id, name")
@@ -175,7 +164,7 @@ export default async function TemplatesPage() {
   const variants = (variantRows ?? []) as VariantRow[];
   const assignments = (assignmentRows ?? []) as AssignmentRow[];
   const importRuns = (importRunRows ?? []) as ImportRunRow[];
-  const renderJobs = (renderJobRows ?? []) as RenderJobRow[];
+  const renderJobs = renderJobRows as TemplateExportHistoryItem[];
   const products = (productRows ?? []) as ProductRow[];
   const versionOptions = versions
     .filter((version) => version.manifest)
@@ -318,17 +307,19 @@ export default async function TemplatesPage() {
           <h2 className="text-[15px] font-bold">Recent render jobs</h2>
           <div className="mt-4 grid gap-2">
             {renderJobs.length ? renderJobs.map((job) => {
-              const content = one(job.generated_content);
-              const variant = one(job.template_variants);
               return (
                 <div key={job.id} className="flex items-center gap-3 rounded-control border border-edge bg-page px-4 py-3">
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-[13px] font-semibold">{content?.title ?? "Rendered content"}</p>
-                    <p className="text-[11.5px] text-ink-faint">{variant?.label ?? variant?.variant_key ?? "variant"} · {job.output_format} · {dateLabel(job.completed_at ?? job.created_at)}</p>
-                    {job.output_storage_path && (
+                    <p className="truncate text-[13px] font-semibold">{job.contentTitle ?? "Rendered content"}</p>
+                    <p className="text-[11.5px] text-ink-faint">
+                      {job.variantLabel ?? job.variantKey ?? "variant"} · {job.outputFormat}
+                      {job.exportedByName ? ` · ${job.exportedByName}` : ""} ·{" "}
+                      {dateLabel(job.completedAt ?? job.createdAt)}
+                    </p>
+                    {job.outputStoragePath && (
                       <div className="mt-1 flex items-center gap-2">
                         <p className="min-w-0 flex-1 truncate text-[10.5px] text-ink-faint">
-                          Stored: {job.output_storage_path}
+                          Stored: {job.outputStoragePath}
                         </p>
                         <a
                           href={`/api/creative/render-jobs/${job.id}`}
