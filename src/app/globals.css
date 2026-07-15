@@ -91,22 +91,20 @@ body {
 /*
  * Type scale — replaces ad hoc text-[13px]/text-[11.5px] pixel picking with
  * six named sizes. Compose with color/weight utilities as needed
- * (e.g. `text-h2 text-ink-muted`). `text-display` and `text-h1` use the
- * serif family; everything else is sans.
+ * (e.g. `text-h2 text-ink-muted`). Sans throughout — no serif display type.
  */
 @layer components {
   .text-display {
-    font-family: var(--font-serif);
     font-size: clamp(1.875rem, 1.6rem + 1.1vw, 2.75rem);
     line-height: 1.05;
-    letter-spacing: -0.01em;
-    font-weight: 600;
+    letter-spacing: -0.02em;
+    font-weight: 800;
   }
   .text-h1 {
-    font-family: var(--font-serif);
     font-size: 1.75rem;
     line-height: 1.2;
-    font-weight: 600;
+    letter-spacing: -0.01em;
+    font-weight: 700;
   }
   .text-h2 {
     font-size: 0.9375rem;

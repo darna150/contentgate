@@ -27,7 +27,7 @@ export default function LoginPage() {
 
         <div className="flex max-w-md flex-1 flex-col justify-center gap-5">
           <h1 className="text-display text-white">
-            One source of truth for <span className="italic text-accent">every market</span>
+            One source of truth for <span className="text-accent">every market</span>
           </h1>
           <p className="text-body text-sidebar-text">
             Approved product knowledge, localized content, and compliant approvals — in one
