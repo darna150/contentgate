@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import type { AssetItem } from "./types";
 import { AssetGrid } from "./asset-grid";
 import { AssetPreviewDialog } from "./asset-preview-dialog";
-import { Modal } from "./modal";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AssetMetadataForm } from "./asset-metadata-form";
 import { DeleteAssetDialog } from "./delete-asset-dialog";
 import { UploadAssetDialog } from "./upload-asset-dialog";
@@ -93,9 +93,14 @@ export function ProductAssetPanel({
       )}
 
       {dialog.type === "edit" && (
-        <Modal title="Edit asset metadata" onClose={closeDialog} maxWidthClassName="max-w-lg">
-          <AssetMetadataForm asset={dialog.asset} onCancel={closeDialog} onSaved={refresh} />
-        </Modal>
+        <Dialog open onOpenChange={(next) => !next && closeDialog()}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Edit asset metadata</DialogTitle>
+            </DialogHeader>
+            <AssetMetadataForm asset={dialog.asset} onCancel={closeDialog} onSaved={refresh} />
+          </DialogContent>
+        </Dialog>
       )}
 
       {dialog.type === "delete" && (

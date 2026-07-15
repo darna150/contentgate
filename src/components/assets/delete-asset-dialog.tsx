@@ -3,7 +3,13 @@
 import { useState, useTransition } from "react";
 import { deleteProductAsset } from "@/app/(app)/products/actions";
 import { Button } from "@/components/ui/button";
-import { Modal } from "./modal";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import type { AssetItem } from "./types";
 
 type Props = {
@@ -29,8 +35,11 @@ export function DeleteAssetDialog({ asset, onDeleted, onClose }: Props) {
   }
 
   return (
-    <Modal title="Delete asset" onClose={onClose} maxWidthClassName="max-w-sm">
-      <div className="flex flex-col gap-4">
+    <Dialog open onOpenChange={(next) => !next && onClose()}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Delete asset</DialogTitle>
+        </DialogHeader>
         <p className="text-[13.5px] leading-relaxed text-ink-muted">
           Delete <span className="font-semibold text-ink">&ldquo;{asset.title}&rdquo;</span>?
           This permanently removes its metadata and the stored file. This
@@ -44,15 +53,15 @@ export function DeleteAssetDialog({ asset, onDeleted, onClose }: Props) {
             {error}
           </p>
         )}
-        <div className="flex justify-end gap-2">
+        <DialogFooter>
           <Button type="button" variant="outline" onClick={onClose} disabled={pending}>
             Cancel
           </Button>
           <Button type="button" variant="destructive" onClick={handleDelete} disabled={pending}>
             {pending ? "Deleting…" : "Delete asset"}
           </Button>
-        </div>
-      </div>
-    </Modal>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

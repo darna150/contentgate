@@ -9,9 +9,16 @@ import {
 } from "@/lib/product-assets";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { ASSET_TYPE_LABELS, type ProductOption } from "./types";
 import { formatFileSize } from "./format";
-import { Modal } from "./modal";
 import { UploadIcon } from "./icons";
 
 const FIELD_LABEL = "text-label text-ink-faint";
@@ -95,140 +102,143 @@ export function UploadAssetDialog({
   }
 
   return (
-    <Modal
-      title="Upload asset"
-      description="Approved uploads publish immediately. Only admins can upload."
-      onClose={onClose}
-      maxWidthClassName="max-w-lg"
-    >
-      <form onSubmit={handleSubmit} className="flex flex-col gap-3.5">
-        {!fixedProductId && (
+    <Dialog open onOpenChange={(next) => !next && onClose()}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Upload asset</DialogTitle>
+          <DialogDescription>
+            Approved uploads publish immediately. Only admins can upload.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-3.5">
+          {!fixedProductId && (
+            <label className="flex flex-col gap-1.5">
+              <span className={FIELD_LABEL}>
+                Product <span className="text-reject">*</span>
+              </span>
+              <select name="product_id" required defaultValue="" className={FIELD_INPUT}>
+                <option value="" disabled>
+                  Choose a product…
+                </option>
+                {products.map((product) => (
+                  <option key={product.id} value={product.id}>
+                    {product.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          {fixedProduct && (
+            <p className="text-[12.5px] text-ink-muted">
+              Uploading to <span className="font-semibold text-ink">{fixedProduct.name}</span>
+            </p>
+          )}
+
           <label className="flex flex-col gap-1.5">
             <span className={FIELD_LABEL}>
-              Product <span className="text-reject">*</span>
+              Asset type <span className="text-reject">*</span>
             </span>
-            <select name="product_id" required defaultValue="" className={FIELD_INPUT}>
-              <option value="" disabled>
-                Choose a product…
-              </option>
-              {products.map((product) => (
-                <option key={product.id} value={product.id}>
-                  {product.name}
+            <select name="asset_type" defaultValue={defaultAssetType} className={FIELD_INPUT}>
+              {PRODUCT_ASSET_TYPES.map((type) => (
+                <option key={type} value={type}>
+                  {ASSET_TYPE_LABELS[type]}
                 </option>
               ))}
             </select>
           </label>
-        )}
-        {fixedProduct && (
-          <p className="text-[12.5px] text-ink-muted">
-            Uploading to <span className="font-semibold text-ink">{fixedProduct.name}</span>
-          </p>
-        )}
 
-        <label className="flex flex-col gap-1.5">
-          <span className={FIELD_LABEL}>
-            Asset type <span className="text-reject">*</span>
-          </span>
-          <select name="asset_type" defaultValue={defaultAssetType} className={FIELD_INPUT}>
-            {PRODUCT_ASSET_TYPES.map((type) => (
-              <option key={type} value={type}>
-                {ASSET_TYPE_LABELS[type]}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <div className="flex flex-col gap-1.5">
-          <span className={FIELD_LABEL}>
-            Image <span className="text-reject">*</span>
-          </span>
-          <label
-            onDragOver={(event) => {
-              event.preventDefault();
-              setDragOver(true);
-            }}
-            onDragLeave={() => setDragOver(false)}
-            onDrop={handleDrop}
-            className={`flex cursor-pointer flex-col items-center gap-2 rounded-control border border-dashed px-4 py-6 text-center transition-colors ${
-              dragOver ? "border-brand bg-brand-tint" : "border-edge-strong bg-page hover:border-brand"
-            }`}
-          >
-            <UploadIcon className="h-5 w-5 text-ink-faint" />
-            {selectedFile ? (
-              <span className="flex flex-col items-center gap-0.5">
-                <span className="max-w-[280px] truncate text-[13px] font-semibold text-ink">
-                  {selectedFile.name}
+          <div className="flex flex-col gap-1.5">
+            <span className={FIELD_LABEL}>
+              Image <span className="text-reject">*</span>
+            </span>
+            <label
+              onDragOver={(event) => {
+                event.preventDefault();
+                setDragOver(true);
+              }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={handleDrop}
+              className={`flex cursor-pointer flex-col items-center gap-2 rounded-control border border-dashed px-4 py-6 text-center transition-colors ${
+                dragOver ? "border-brand bg-brand-tint" : "border-edge-strong bg-page hover:border-brand"
+              }`}
+            >
+              <UploadIcon className="h-5 w-5 text-ink-faint" />
+              {selectedFile ? (
+                <span className="flex flex-col items-center gap-0.5">
+                  <span className="max-w-[280px] truncate text-[13px] font-semibold text-ink">
+                    {selectedFile.name}
+                  </span>
+                  <span className="text-[11.5px] text-ink-faint">
+                    {formatFileSize(selectedFile.size)}
+                  </span>
                 </span>
-                <span className="text-[11.5px] text-ink-faint">
-                  {formatFileSize(selectedFile.size)}
+              ) : (
+                <span className="text-[12.5px] text-ink-muted">
+                  Drag an image here, or click to choose a file
                 </span>
-              </span>
-            ) : (
-              <span className="text-[12.5px] text-ink-muted">
-                Drag an image here, or click to choose a file
-              </span>
+              )}
+              <input
+                ref={fileInputRef}
+                type="file"
+                name="file"
+                accept="image/png,image/jpeg,image/webp,image/gif,image/avif"
+                required
+                className="sr-only"
+                onChange={(event) => handleFiles(event.target.files)}
+              />
+            </label>
+            <span className="text-[11.5px] text-ink-faint">
+              PNG, JPEG, WebP, GIF, or AVIF. Maximum 10 MB.
+            </span>
+            {fileError && (
+              <p role="alert" className="text-[12.5px] text-reject">
+                {fileError}
+              </p>
             )}
-            <input
-              ref={fileInputRef}
-              type="file"
-              name="file"
-              accept="image/png,image/jpeg,image/webp,image/gif,image/avif"
-              required
-              className="sr-only"
-              onChange={(event) => handleFiles(event.target.files)}
+          </div>
+
+          <label className="flex flex-col gap-1.5">
+            <span className={FIELD_LABEL}>Title</span>
+            <Input
+              name="title"
+              maxLength={120}
+              placeholder="Defaults to file name"
+              className="bg-page"
             />
           </label>
-          <span className="text-[11.5px] text-ink-faint">
-            PNG, JPEG, WebP, GIF, or AVIF. Maximum 10 MB.
-          </span>
-          {fileError && (
-            <p role="alert" className="text-[12.5px] text-reject">
-              {fileError}
+
+          <label className="flex flex-col gap-1.5">
+            <span className={FIELD_LABEL}>Tags</span>
+            <Input name="tags" placeholder="launch, social, hero" className="bg-page" />
+          </label>
+
+          {error && (
+            <p
+              role="alert"
+              className="rounded-control border border-reject-border bg-reject-tint px-3.5 py-2.5 text-[13px] text-reject"
+            >
+              {error}
             </p>
           )}
-        </div>
+          {success && !error && (
+            <p
+              role="status"
+              className="rounded-control border border-approve-border bg-approve-tint px-3.5 py-2.5 text-[13px] text-approve"
+            >
+              Uploaded. It is now live in the library.
+            </p>
+          )}
 
-        <label className="flex flex-col gap-1.5">
-          <span className={FIELD_LABEL}>Title</span>
-          <Input
-            name="title"
-            maxLength={120}
-            placeholder="Defaults to file name"
-            className="bg-page"
-          />
-        </label>
-
-        <label className="flex flex-col gap-1.5">
-          <span className={FIELD_LABEL}>Tags</span>
-          <Input name="tags" placeholder="launch, social, hero" className="bg-page" />
-        </label>
-
-        {error && (
-          <p
-            role="alert"
-            className="rounded-control border border-reject-border bg-reject-tint px-3.5 py-2.5 text-[13px] text-reject"
-          >
-            {error}
-          </p>
-        )}
-        {success && !error && (
-          <p
-            role="status"
-            className="rounded-control border border-approve-border bg-approve-tint px-3.5 py-2.5 text-[13px] text-approve"
-          >
-            Uploaded. It is now live in the library.
-          </p>
-        )}
-
-        <div className="flex justify-end gap-2 border-t border-edge pt-3.5">
-          <Button type="button" variant="outline" onClick={onClose} disabled={pending}>
-            {success ? "Close" : "Cancel"}
-          </Button>
-          <Button type="submit" disabled={pending || !!fileError || success}>
-            {pending ? "Uploading…" : success ? "Uploaded" : "Upload asset"}
-          </Button>
-        </div>
-      </form>
-    </Modal>
+          <DialogFooter className="border-t border-edge pt-3.5">
+            <Button type="button" variant="outline" onClick={onClose} disabled={pending}>
+              {success ? "Close" : "Cancel"}
+            </Button>
+            <Button type="submit" disabled={pending || !!fileError || success}>
+              {pending ? "Uploading…" : success ? "Uploaded" : "Upload asset"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
