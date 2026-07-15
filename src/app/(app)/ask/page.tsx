@@ -50,7 +50,7 @@ export default async function AskPage({
     : null;
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden">
+    <div className="flex h-full flex-col overflow-hidden">
       <NotebookClient
         products={(products ?? []).map((p) => ({ id: p.id, name: p.name }))}
         initialSessions={sessions}

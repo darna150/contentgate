@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
+import { MessageCircleQuestion, Pencil, Plus, Trash2, X } from "lucide-react";
 import {
   createSession,
   saveSession,
@@ -9,6 +10,9 @@ import {
 } from "./actions";
 import type { Citation, SessionMessage } from "./actions";
 import { resolveInitialKnowledgeSelection } from "@/lib/knowledge-hub";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 
 type Product = { id: string; name: string };
 type Doc = { id: string; title: string; product_id: string | null };
@@ -292,16 +296,16 @@ export function NotebookClient({
                 <span className="text-[10.5px] font-bold uppercase tracking-[0.07em] text-ink-faint">
                   {product.name}
                 </span>
-                <button
+                <Button
+                  variant="ghost"
+                  size="icon"
                   onClick={() => handleNew(product.id)}
                   disabled={isPending}
                   title="New conversation"
-                  className="flex h-5 w-5 items-center justify-center rounded text-ink-faint hover:bg-page hover:text-ink disabled:opacity-40"
+                  className="h-5 w-5 rounded text-ink-faint hover:bg-page hover:text-ink [&_svg]:size-[11px]"
                 >
-                  <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden>
-                    <path d="M6 1v10M1 6h10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-                  </svg>
-                </button>
+                  <Plus strokeWidth={2.2} aria-hidden />
+                </Button>
               </div>
               {ps.length === 0 && (
                 <p className="px-4 py-1 text-[11.5px] text-ink-faint">No conversations yet</p>
@@ -337,24 +341,24 @@ export function NotebookClient({
                     </span>
                   )}
                   <div className="hidden shrink-0 items-center gap-0.5 group-hover:flex">
-                    <button
+                    <Button
+                      variant="ghost"
+                      size="icon"
                       onClick={(e) => { e.stopPropagation(); startRename(s); }}
                       title="Rename"
-                      className="rounded p-0.5 text-ink-faint hover:text-ink"
+                      className="h-5 w-5 rounded p-0.5 text-ink-faint hover:bg-transparent hover:text-ink [&_svg]:size-[11px]"
                     >
-                      <svg width="11" height="11" viewBox="0 0 14 14" fill="none" aria-hidden>
-                        <path d="M9.5 2.5l2 2-7 7H2.5v-2l7-7z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
-                      </svg>
-                    </button>
-                    <button
+                      <Pencil strokeWidth={1.8} aria-hidden />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
                       onClick={(e) => { e.stopPropagation(); handleDelete(s.id); }}
                       title="Delete"
-                      className="rounded p-0.5 text-ink-faint hover:text-reject"
+                      className="h-5 w-5 rounded p-0.5 text-ink-faint hover:bg-transparent hover:text-reject [&_svg]:size-[11px]"
                     >
-                      <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden>
-                        <path d="M1.5 1.5l9 9M10.5 1.5l-9 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                      </svg>
-                    </button>
+                      <Trash2 strokeWidth={1.8} aria-hidden />
+                    </Button>
                   </div>
                 </div>
               ))}
@@ -375,18 +379,20 @@ export function NotebookClient({
               : "Knowledge Hub"}
           </span>
           <div className="flex-1" />
-          <span className="shrink-0 rounded-[5px] bg-brand-tint px-[7px] py-0.5 text-[10px] font-bold uppercase tracking-[0.06em] text-brand">
+          <Badge variant="brand" className="shrink-0 uppercase tracking-[0.06em]">
             Approved sources only
-          </span>
+          </Badge>
         </div>
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto">
           {!activeSession ? (
             <div className="flex h-full flex-col items-center justify-center gap-5 px-8 text-center">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-tint text-[22px] font-bold text-brand">?</div>
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-tint text-brand">
+                <MessageCircleQuestion className="size-6" aria-hidden />
+              </div>
               <div className="flex flex-col gap-1.5">
-                <p className="text-[15px] font-semibold">
+                <p className="text-[15px] font-semibold text-ink">
                   {selectedProduct
                     ? `Start a conversation about ${selectedProduct.name}`
                     : "Start a conversation"}
@@ -397,22 +403,24 @@ export function NotebookClient({
                     : "Pick a product on the left to begin a new conversation."}
                 </p>
                 {selectedProduct && (
-                  <button
-                    type="button"
+                  <Button
+                    size="sm"
                     onClick={() => handleNew(selectedProduct.id)}
                     disabled={isPending}
-                    className="mt-3 rounded-control bg-brand px-4 py-2 text-[13px] font-semibold text-white disabled:opacity-40"
+                    className="mt-3 self-center"
                   >
                     Start conversation
-                  </button>
+                  </Button>
                 )}
               </div>
             </div>
           ) : activeSession.messages.length === 0 && !loading ? (
             <div className="flex h-full flex-col items-center justify-center gap-5 px-8 text-center">
-              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-brand-tint text-[20px] font-bold text-brand">?</div>
+              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-brand-tint text-brand">
+                <MessageCircleQuestion className="size-5" aria-hidden />
+              </div>
               <div className="flex flex-col gap-1.5">
-                <p className="text-[14.5px] font-semibold">
+                <p className="text-[14.5px] font-semibold text-ink">
                   Ask anything about {products.find((p) => p.id === activeSession.product_id)?.name}
                 </p>
                 <p className="max-w-sm text-[13px] text-ink-muted">
@@ -421,13 +429,15 @@ export function NotebookClient({
               </div>
               <div className="flex flex-wrap justify-center gap-2">
                 {STARTERS.map((s) => (
-                  <button
+                  <Button
                     key={s}
+                    variant="outline"
+                    size="sm"
                     onClick={() => { setQuestion(s); setTimeout(() => inputRef.current?.focus(), 50); }}
-                    className="rounded-full border border-edge bg-page px-4 py-1.5 text-[12.5px] font-medium text-ink-muted transition-colors hover:bg-surface hover:text-ink"
+                    className="rounded-full font-medium text-ink-muted hover:text-ink"
                   >
                     {s}
-                  </button>
+                  </Button>
                 ))}
               </div>
             </div>
@@ -442,11 +452,13 @@ export function NotebookClient({
                   </div>
                 ) : (
                   <div key={i} className="flex flex-col gap-2.5">
-                    <div className={`rounded-card border px-5 py-4 text-[13.5px] leading-relaxed ${
-                      msg.not_found ? "border-edge bg-surface italic text-ink-muted" : "border-edge bg-surface text-ink"
-                    }`}>
+                    <Card
+                      className={`gap-0 px-5 py-4 text-[13.5px] leading-relaxed ${
+                        msg.not_found ? "italic text-ink-muted" : "text-ink"
+                      }`}
+                    >
                       {msg.content}
-                    </div>
+                    </Card>
                     {msg.citations && msg.citations.length > 0 && (
                       <div className="flex flex-col gap-2 pl-1">
                         <span className="text-[10.5px] font-bold uppercase tracking-[0.08em] text-ink-faint">
@@ -456,7 +468,7 @@ export function NotebookClient({
                           <button
                             key={j}
                             onClick={() => openSource(c)}
-                            className={`flex gap-3 rounded-[10px] border px-4 py-3 text-left transition-colors hover:border-brand ${
+                            className={`flex gap-3 rounded-card border px-4 py-3 text-left transition-colors hover:border-brand ${
                               sourcePanel?.docId === c.document_id &&
                               sourcePanel.paragraphN === (c.paragraph_n ?? null)
                                 ? "border-brand bg-brand-tint"
@@ -516,13 +528,13 @@ export function NotebookClient({
                   rows={1}
                   className="flex-1 resize-none overflow-hidden rounded-control border border-edge bg-page px-4 py-2.5 text-[13.5px] placeholder:text-ink-faint focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 disabled:opacity-50"
                 />
-                <button
+                <Button
                   type="submit"
                   disabled={!question.trim() || loading}
-                  className="self-end rounded-control bg-brand px-5 py-2.5 text-[13.5px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-40"
+                  className="self-end px-5"
                 >
                   Ask
-                </button>
+                </Button>
               </form>
             </div>
           </div>
@@ -537,15 +549,15 @@ export function NotebookClient({
               <span className="truncate text-[12px] font-bold text-ink">{sourcePanel.docTitle}</span>
               <span className="text-[10.5px] text-ink-faint">Approved source</span>
             </div>
-            <button
+            <Button
+              variant="ghost"
+              size="icon"
               onClick={() => setSourcePanel(null)}
-              className="shrink-0 text-ink-faint hover:text-ink"
+              className="h-6 w-6 shrink-0 text-ink-faint hover:bg-transparent hover:text-ink [&_svg]:size-[14px]"
               aria-label="Close source panel"
             >
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
-                <path d="M1 1l12 12M13 1L1 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-              </svg>
-            </button>
+              <X strokeWidth={1.8} aria-hidden />
+            </Button>
           </div>
 
           {/* Cited excerpt at top */}
