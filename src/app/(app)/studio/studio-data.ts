@@ -31,6 +31,7 @@ export type StudioContent = {
   rejectionNote: string | null;
   structured_fields: Record<string, string>;
   outputSize: string | null;
+  campaignRootContentId: string;
   manuallyEdited: boolean;
   canEdit: boolean;
   updatedAt: string | null;
@@ -167,6 +168,14 @@ function contentWasManuallyEdited(row: Pick<GeneratedContentRow, "prompt_context
   );
 }
 
+function campaignGroupId(row: Pick<GeneratedContentRow, "id" | "prompt_context">) {
+  const rootId = row.prompt_context?.campaign_root_content_id;
+  if (typeof rootId === "string" && rootId.length > 0) return rootId;
+  const sourceId = row.prompt_context?.campaign_source_content_id;
+  if (typeof sourceId === "string" && sourceId.length > 0) return sourceId;
+  return row.id;
+}
+
 function toStudioContent(row: GeneratedContentRow, userId?: string): StudioContent {
   return {
     id: row.id,
@@ -175,6 +184,7 @@ function toStudioContent(row: GeneratedContentRow, userId?: string): StudioConte
     rejectionNote: row.rejection_note ?? null,
     structured_fields: (row.structured_fields ?? {}) as Record<string, string>,
     outputSize: contentOutputSize(row),
+    campaignRootContentId: campaignGroupId(row),
     canEdit: userId
       ? canEditContent({
           userId,
@@ -423,6 +433,11 @@ export async function loadStudioState(input: {
     selectedContentRows = (data ?? []) as GeneratedContentRow[];
   }
 
+  const requestedCampaignRootId = requestedContentContext?.content.campaignRootContentId ?? null;
+  const campaignContentRows = requestedCampaignRootId
+    ? selectedContentRows.filter((row) => campaignGroupId(row) === requestedCampaignRootId)
+    : [];
+
   const initialContentsBySize = new Map<string, StudioContent>();
   const requestedRow =
     requestedContentContext?.content && requestedContentContext.assignment.id === selectedTemplate?.id
@@ -431,14 +446,14 @@ export async function loadStudioState(input: {
   if (requestedRow?.outputSize) {
     initialContentsBySize.set(requestedRow.outputSize, requestedRow);
   }
-  for (const row of selectedContentRows) {
+  for (const row of campaignContentRows) {
     const item = toStudioContent(row, user?.id);
     if (!item.outputSize || initialContentsBySize.has(item.outputSize)) continue;
     initialContentsBySize.set(item.outputSize, item);
   }
 
   const versionsBySize = new Map<string, StudioContent[]>();
-  for (const row of selectedContentRows) {
+  for (const row of campaignContentRows) {
     const item = toStudioContent(row, user?.id);
     if (!item.outputSize) continue;
     const list = versionsBySize.get(item.outputSize) ?? [];
