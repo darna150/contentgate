@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { StatusPill } from "@/components/status-pill";
 import type { ProductWorkspace } from "@/lib/product-workspace-server";
 import { SectionEmpty } from "./empty-state";
 
@@ -17,6 +18,13 @@ export function ApprovalsView({ workspace }: { workspace: ProductWorkspace }) {
   if (approvals.length === 0) {
     return <SectionEmpty code="queue_clear" />;
   }
+
+  const loadMoreHref = workspace.approvalsNextCursor
+    ? `/products/${workspace.product.id}?${new URLSearchParams({
+        view: "approvals",
+        approvalCursor: workspace.approvalsNextCursor,
+      }).toString()}`
+    : "";
 
   return (
     <div className="flex flex-col gap-3">
@@ -58,9 +66,7 @@ export function ApprovalsView({ workspace }: { workspace: ProductWorkspace }) {
                   {meta.join(" · ")}
                 </span>
               </span>
-              <span className="inline-flex flex-shrink-0 rounded-full bg-[#FBF3E2] px-[9px] py-0.5 text-[11.5px] font-semibold text-warn">
-                In review
-              </span>
+              <StatusPill status="in_review" />
               <span className="flex-shrink-0 text-[13px] font-semibold text-brand">
                 {canReview ? "Review →" : "View →"}
               </span>
@@ -69,11 +75,7 @@ export function ApprovalsView({ workspace }: { workspace: ProductWorkspace }) {
         })}
         {workspace.approvalsNextCursor && (
           <Button asChild variant="ghost" className="mt-1 justify-center">
-            <Link
-              href={`/products/${workspace.product.id}?view=approvals&approvalCursor=${workspace.approvalsNextCursor}`}
-            >
-              Load more approvals
-            </Link>
+            <Link href={loadMoreHref}>Load more approvals</Link>
           </Button>
         )}
       </div>
