@@ -14,7 +14,7 @@ export type TemplateBundleRenderResult = {
   height: number;
 };
 
-const CONTENTGATE_PUBLIC_ASSET_VERSION = "clean-figwright-2026-07-14-03";
+const CONTENTGATE_PUBLIC_ASSET_VERSION = "clean-figwright-2026-07-16-04";
 
 function cleanText(value: unknown) {
   return String(value ?? "")
