@@ -662,6 +662,27 @@ export function StudioWorkspace({
             />
           )}
 
+          {mode === "read" && content?.status === "approved" && (
+            <StudioGeneratePanel
+              language={language}
+              onLanguageChange={setLanguage}
+              selectedRevision={selectedRevision}
+              onRevisionChange={setSelectedRevision}
+              onGenerate={generate}
+              busy={busy}
+              generationPaused={generationPaused}
+              retryLabel={
+                generationPaused ? `Try again in ${formatRetryWait(retrySecondsRemaining)}` : null
+              }
+              buttonLabel={
+                selectedRevision
+                  ? `Create new ${activeSizeLabel} draft with refinement`
+                  : `Create new ${activeSizeLabel} draft`
+              }
+              error={error}
+            />
+          )}
+
           {mode === "review" && content && (
             <StudioReviewActions contentId={content.id} onReviewed={markReviewed} />
           )}
