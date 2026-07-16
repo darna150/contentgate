@@ -81,12 +81,10 @@ test.describe("Knowledge Hub live QA", () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await signIn(page);
     await page.goto("/ask");
-    await expect(page.getByRole("heading", { name: /Knowledge Hub/i })).toBeVisible({
-      timeout: 30_000,
-    });
 
     const input = page.getByPlaceholder(/Ask a question/i);
     await expect(input).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole("button", { name: /^Ask$/ })).toBeVisible();
 
     const inputBox = await input.evaluate((node) => {
       const textarea = node as HTMLTextAreaElement;

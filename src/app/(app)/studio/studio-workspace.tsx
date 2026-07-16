@@ -142,6 +142,9 @@ export function StudioWorkspace({
     return entries;
   }, [initialContents, sizes]);
   const initialContent = initialContentsBySize[size] ?? initialContents[0] ?? null;
+  const [campaignSourceContentId, setCampaignSourceContentId] = useState<string | null>(
+    initialContent?.id ?? null
+  );
   const [language, setLanguage] = useState("English");
   const [selectedRevision, setSelectedRevision] = useState<string | null>(null);
   const [contentsBySize, setContentsBySize] = useState<
@@ -408,6 +411,7 @@ export function StudioWorkspace({
     const nextContent = contentsBySize[nextSize] ?? null;
     const nextFields = nextContent ? nextContent.structured_fields : selectedTemplate.default_copy;
     setSize(nextSize);
+    if (nextContent) setCampaignSourceContentId(nextContent.id);
     setDraftFields(nextFields);
     setSavedFields(nextFields);
     setHasManualEdits(nextContent?.manuallyEdited ?? false);
@@ -455,6 +459,10 @@ export function StudioWorkspace({
           outputSize: size,
           revisions: selectedRevision ? [selectedRevision] : [],
           replaceContentId: mode === "edit" && content ? content.id : undefined,
+          sourceContentId:
+            mode === "edit" && content
+              ? undefined
+              : (content?.id ?? campaignSourceContentId ?? undefined),
         }),
       });
       const result = await response.json();
@@ -472,12 +480,17 @@ export function StudioWorkspace({
         rejectionNote: null,
         structured_fields: result.structured_fields as Record<string, string>,
         outputSize: (result.outputSize as string | null) ?? size,
+        campaignRootContentId:
+          (result.campaignRootContentId as string | undefined) ??
+          campaignSourceContentId ??
+          (result.contentId as string),
         manuallyEdited: false,
         canEdit: true,
         updatedAt: new Date().toISOString(),
       };
       const nextContentSize = nextContent.outputSize ?? size;
       setContentsBySize((current) => ({ ...current, [nextContentSize]: nextContent }));
+      setCampaignSourceContentId(nextContent.id);
       setSize(nextContentSize);
       setDraftFields(nextContent.structured_fields);
       setSavedFields(nextContent.structured_fields);

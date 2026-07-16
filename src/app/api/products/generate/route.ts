@@ -53,6 +53,7 @@ type Body = {
   outputSize?: string;
   revisions?: string[]; // controlled revision keys, applied as extra instructions
   replaceContentId?: string; // when revising, update this draft in place
+  sourceContentId?: string; // when adapting another size, preserve the same campaign idea
 };
 
 const ALLOWED_LANGUAGES = new Set([
@@ -291,6 +292,7 @@ export async function POST(req: Request) {
     outputSize,
     revisions = [],
     replaceContentId,
+    sourceContentId,
   } = requestBody;
   if (productTemplateId) {
     return Response.json(
@@ -397,21 +399,25 @@ export async function POST(req: Request) {
       replaceContent = existingContent as ReplaceContentRow;
     }
 
-    const { data: campaignSourceData } = await supabase
-      .from("generated_content")
-      .select("id, template_variant_id, structured_fields, prompt_context, template_variants(variant_key, label)")
-      .eq("org_id", profile.org_id)
-      .eq("product_id", assignment.productId)
-      .eq("template_version_id", assignment.versionId)
-      .eq("prompt_context->>platform_assignment_id", assignment.assignmentId)
-      .in("status", ["draft", "rejected", "in_review", "approved"])
-      .order("updated_at", { ascending: false })
-      .limit(8);
-    const campaignSourceRows = (campaignSourceData ?? []) as CampaignSourceRow[];
-    const campaignSource =
-      campaignSourceRows.find((row) => row.template_variant_id !== variantRow.id) ??
-      campaignSourceRows.find((row) => row.id !== replaceContentId) ??
-      null;
+    let campaignSource: CampaignSourceRow | null = null;
+    if (sourceContentId && sourceContentId !== replaceContentId) {
+      const { data: sourceContent } = await supabase
+        .from("generated_content")
+        .select(
+          "id, template_variant_id, structured_fields, prompt_context, template_variants(variant_key, label)"
+        )
+        .eq("id", sourceContentId)
+        .eq("org_id", profile.org_id)
+        .eq("product_id", assignment.productId)
+        .eq("template_version_id", assignment.versionId)
+        .in("status", ["draft", "rejected", "in_review", "approved"])
+        .maybeSingle();
+
+      if (!sourceContent) {
+        return Response.json({ error: "Source draft was not found." }, { status: 404 });
+      }
+      campaignSource = sourceContent as CampaignSourceRow;
+    }
 
     const { data: product } = await supabase
       .from("products")
@@ -783,6 +789,18 @@ export async function POST(req: Request) {
     const title = `${product.name} · ${assignment.familyName}`;
     const body = flattenFields(structured, editableFields);
     const savedAt = new Date().toISOString();
+    const sourcePromptContext =
+      campaignSource?.prompt_context && typeof campaignSource.prompt_context === "object"
+        ? campaignSource.prompt_context
+        : null;
+    const existingCampaignRoot =
+      typeof sourcePromptContext?.campaign_root_content_id === "string"
+        ? sourcePromptContext.campaign_root_content_id
+        : typeof replaceContent?.prompt_context?.campaign_root_content_id === "string"
+          ? replaceContent.prompt_context.campaign_root_content_id
+          : null;
+    const campaignRootContentId =
+      existingCampaignRoot ?? campaignSource?.id ?? replaceContent?.id ?? null;
     const promptContext = {
       ...(replaceContent?.prompt_context &&
       typeof replaceContent.prompt_context === "object"
@@ -795,6 +813,7 @@ export async function POST(req: Request) {
       template_family_key: assignment.familyKey,
       template_version_id: assignment.versionId,
       template_variant_id: variantRow.id,
+      campaign_root_content_id: campaignRootContentId,
       campaign_source_content_id: campaignSource?.id ?? replaceContent?.id ?? null,
       campaign_source_fields: continuityPrompt
         ? campaignSourceFields(campaignSource ?? replaceContent)
@@ -860,6 +879,7 @@ export async function POST(req: Request) {
       contentId: row.id,
       structured_fields: structured,
       outputSize: outputSizeKey,
+      campaignRootContentId: campaignRootContentId ?? row.id,
       evidence,
       title,
       platform: true,
