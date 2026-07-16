@@ -34,7 +34,10 @@ export function useFocusTrap(
       if (elements.length === 0) return;
       const first = elements[0];
       const last = elements[elements.length - 1];
-      if (event.shiftKey && document.activeElement === first) {
+      if (!panel.contains(document.activeElement)) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+      } else if (event.shiftKey && document.activeElement === first) {
         event.preventDefault();
         last.focus();
       } else if (!event.shiftKey && document.activeElement === last) {
