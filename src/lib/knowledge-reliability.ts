@@ -21,9 +21,42 @@ export type VerifiedKnowledgeCitation = {
 
 const SAFE_NO_EVIDENCE_ANSWER =
   "I could not verify an answer in the approved source documents.";
+const STOP_WORDS = new Set([
+  "about",
+  "after",
+  "again",
+  "also",
+  "and",
+  "are",
+  "can",
+  "for",
+  "from",
+  "has",
+  "how",
+  "into",
+  "its",
+  "the",
+  "their",
+  "this",
+  "what",
+  "when",
+  "where",
+  "which",
+  "who",
+  "why",
+  "with",
+  "your",
+]);
 
 function normalizeWhitespace(value: string) {
   return value.replace(/\s+/g, " ").trim();
+}
+
+function tokens(value: string) {
+  return normalizeWhitespace(value)
+    .toLowerCase()
+    .match(/[a-z0-9]+/g)
+    ?.filter((token) => token.length > 2 && !STOP_WORDS.has(token)) ?? [];
 }
 
 function evidenceKey(documentId: string, paragraphNumber: number) {
@@ -86,6 +119,58 @@ export function buildKnowledgeContext(
         `${paragraph.document_title}\n${paragraph.paragraph_text}`
     )
     .join("\n\n");
+}
+
+export function rankKnowledgeEvidence(
+  question: string,
+  evidence: readonly RetrievedKnowledgeParagraph[],
+  limit = 12
+) {
+  const questionTokens = tokens(question);
+  if (questionTokens.length === 0) return [];
+  const questionSet = new Set(questionTokens);
+
+  return [...evidence]
+    .map((paragraph, index) => {
+      const sourceTokens = tokens(`${paragraph.document_title} ${paragraph.paragraph_text}`);
+      const overlap = new Set(sourceTokens.filter((token) => questionSet.has(token))).size;
+      return {
+        paragraph,
+        index,
+        score: overlap + (paragraph.relevance ?? 0),
+      };
+    })
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score || a.index - b.index)
+    .slice(0, Math.max(1, limit))
+    .map((item) => item.paragraph);
+}
+
+export function buildExtractiveKnowledgeAnswer(
+  question: string,
+  evidence: readonly RetrievedKnowledgeParagraph[]
+) {
+  const [paragraph] = rankKnowledgeEvidence(question, evidence, 1);
+  if (!paragraph) {
+    return {
+      answer: SAFE_NO_EVIDENCE_ANSWER,
+      citations: [],
+      not_found: true,
+    };
+  }
+
+  return {
+    answer: `The approved source says: ${paragraph.paragraph_text}`,
+    citations: [
+      {
+        document_id: paragraph.document_id,
+        document_title: paragraph.document_title,
+        paragraph_n: paragraph.paragraph_n,
+        excerpt: paragraph.paragraph_text,
+      },
+    ],
+    not_found: false,
+  };
 }
 
 export function verifyKnowledgeCitations(

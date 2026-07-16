@@ -2,9 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  buildExtractiveKnowledgeAnswer,
   buildKnowledgeContext,
   finalizeKnowledgeAnswer,
   normalizeRetrievedParagraphs,
+  rankKnowledgeEvidence,
   verifyKnowledgeCitations,
 } from "./knowledge-reliability.ts";
 import { normalizeParagraphs } from "./paragraphs.ts";
@@ -108,5 +110,53 @@ test("keeps a supported answer with inspectable evidence", () => {
       citations,
     }).not_found,
     false
+  );
+});
+
+test("ranks fallback evidence by meaningful query overlap", () => {
+  const ranked = rankKnowledgeEvidence("Who is ContentGate for?", [
+    {
+      document_id: "doc-a",
+      document_title: "Unrelated geography",
+      paragraph_n: 1,
+      paragraph_text: "Paris is the capital of France.",
+    },
+    {
+      document_id: "doc-b",
+      document_title: "ContentGate overview",
+      paragraph_n: 2,
+      paragraph_text:
+        "ContentGate is built for distributed organizations where local operators need approved content.",
+    },
+  ]);
+
+  assert.equal(ranked[0]?.document_id, "doc-b");
+});
+
+test("extractive fallback remains cited and source-bound", () => {
+  assert.deepEqual(
+    buildExtractiveKnowledgeAnswer("Who is ContentGate for?", [
+      {
+        document_id: "doc-b",
+        document_title: "ContentGate overview",
+        paragraph_n: 2,
+        paragraph_text:
+          "ContentGate is built for distributed organizations where local operators need approved content.",
+      },
+    ]),
+    {
+      answer:
+        "The approved source says: ContentGate is built for distributed organizations where local operators need approved content.",
+      citations: [
+        {
+          document_id: "doc-b",
+          document_title: "ContentGate overview",
+          paragraph_n: 2,
+          excerpt:
+            "ContentGate is built for distributed organizations where local operators need approved content.",
+        },
+      ],
+      not_found: false,
+    }
   );
 });

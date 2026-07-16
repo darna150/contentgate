@@ -1,19 +1,77 @@
 import { createClient } from "@/lib/supabase/server";
 import {
+  buildExtractiveKnowledgeAnswer,
   buildKnowledgeContext,
   finalizeKnowledgeAnswer,
   normalizeRetrievedParagraphs,
+  rankKnowledgeEvidence,
   verifyKnowledgeCitations,
+  type RetrievedKnowledgeParagraph,
   type RawKnowledgeCitation,
 } from "@/lib/knowledge-reliability";
 import Anthropic from "@anthropic-ai/sdk";
 import { NextResponse } from "next/server";
 import { consumeApiRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
-export async function POST(req: Request) {
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return NextResponse.json({ error: "Knowledge Q&A is not configured." }, { status: 503 });
+type DocumentParagraphRow = {
+  id: string;
+  title: string | null;
+  paragraphs: unknown;
+};
+
+function fallbackParagraphRowsFromDocuments(
+  documents: readonly DocumentParagraphRow[]
+): RetrievedKnowledgeParagraph[] {
+  return normalizeRetrievedParagraphs(
+    documents.flatMap((document) => {
+      const paragraphs = Array.isArray(document.paragraphs)
+        ? document.paragraphs
+        : [];
+      return paragraphs.map((paragraph, index) => {
+        if (paragraph && typeof paragraph === "object" && !Array.isArray(paragraph)) {
+          const item = paragraph as { n?: unknown; text?: unknown };
+          return {
+            document_id: document.id,
+            document_title: document.title ?? "Approved source",
+            paragraph_n: Number(item.n ?? index + 1),
+            paragraph_text: typeof item.text === "string" ? item.text : "",
+          };
+        }
+        return {
+          document_id: document.id,
+          document_title: document.title ?? "Approved source",
+          paragraph_n: index + 1,
+          paragraph_text: typeof paragraph === "string" ? paragraph : "",
+        };
+      });
+    })
+  );
+}
+
+async function fallbackSearchApprovedKnowledge(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  productId: string,
+  question: string
+) {
+  const { data, error } = await supabase
+    .from("documents")
+    .select("id, title, paragraphs")
+    .eq("product_id", productId)
+    .order("updated_at", { ascending: false })
+    .limit(20);
+  if (error) {
+    console.error("knowledge fallback retrieval failed:", error);
+    return [];
   }
+
+  return rankKnowledgeEvidence(
+    question,
+    fallbackParagraphRowsFromDocuments((data ?? []) as DocumentParagraphRow[]),
+    12
+  );
+}
+
+export async function POST(req: Request) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -62,12 +120,12 @@ export async function POST(req: Request) {
       p_limit: 12,
     }
   );
+  let evidence = normalizeRetrievedParagraphs(retrievalRows ?? []);
   if (retrievalError) {
     console.error("knowledge retrieval failed:", retrievalError);
-    return NextResponse.json({ error: "Knowledge search failed. Try again." }, { status: 502 });
+    evidence = await fallbackSearchApprovedKnowledge(supabase, productId, question);
   }
 
-  const evidence = normalizeRetrievedParagraphs(retrievalRows ?? []);
   const approvedContext = buildKnowledgeContext(evidence);
 
   const system = `You are a product knowledge assistant for ${product.name}.
@@ -95,6 +153,10 @@ ${product.disclaimer_text ? `MANDATORY DISCLAIMER (always applies): ${product.di
       question,
       "I could not verify an answer in the approved source documents."
     );
+  }
+
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return NextResponse.json(buildExtractiveKnowledgeAnswer(question, evidence));
   }
 
   let response;
@@ -152,7 +214,7 @@ ${product.disclaimer_text ? `MANDATORY DISCLAIMER (always applies): ${product.di
     });
   } catch (error) {
     console.error("knowledge answer failed:", error);
-    return NextResponse.json({ error: "Knowledge search failed. Try again." }, { status: 502 });
+    return NextResponse.json(buildExtractiveKnowledgeAnswer(question, evidence));
   }
 
   const toolUse = response.content.find((b) => b.type === "tool_use");

@@ -469,6 +469,7 @@ export function StudioWorkspace({
         id: result.contentId as string,
         title: result.title as string,
         status: "draft",
+        rejectionNote: null,
         structured_fields: result.structured_fields as Record<string, string>,
         outputSize: (result.outputSize as string | null) ?? size,
         manuallyEdited: false,
@@ -585,7 +586,7 @@ export function StudioWorkspace({
     setSubmitting(false);
   }
 
-  function markReviewed(status: "approved" | "rejected") {
+  function markReviewed(status: "approved" | "rejected", rejectionNote?: string | null) {
     if (!content) return;
     const reviewedAt = new Date().toISOString();
     setContentsBySize((current) => {
@@ -596,6 +597,7 @@ export function StudioWorkspace({
         [size]: {
           ...existing,
           status,
+          rejectionNote: status === "approved" ? null : rejectionNote ?? existing.rejectionNote,
           canEdit: status === "rejected",
           updatedAt: reviewedAt,
         },
@@ -734,6 +736,14 @@ export function StudioWorkspace({
               Manual edits are tracked separately from the generated copy and require reviewer
               approval before export.
             </p>
+          )}
+          {mode === "edit" && content?.status === "rejected" && content.rejectionNote && (
+            <div className="rounded-control border border-reject-border bg-reject-tint px-3 py-2.5">
+              <p className="text-[11.5px] font-bold text-reject">Changes requested</p>
+              <p className="mt-1 text-[12px] leading-relaxed text-ink-muted">
+                {content.rejectionNote}
+              </p>
+            </div>
           )}
           {mode === "edit" && content && (
             <div className="flex items-center justify-between rounded-control border border-edge bg-page px-3 py-2">

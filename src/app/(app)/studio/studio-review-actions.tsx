@@ -12,7 +12,7 @@ export function StudioReviewActions({
   onReviewed,
 }: {
   contentId: string;
-  onReviewed?: (status: "approved" | "rejected") => void;
+  onReviewed?: (status: "approved" | "rejected", note?: string | null) => void;
 }) {
   const router = useRouter();
   const [rejecting, setRejecting] = useState(false);
@@ -41,7 +41,7 @@ export function StudioReviewActions({
         setError(result.error);
         return;
       }
-      onReviewed?.("rejected");
+      onReviewed?.("rejected", note.trim());
       router.refresh();
     });
   }

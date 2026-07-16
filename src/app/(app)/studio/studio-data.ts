@@ -28,6 +28,7 @@ export type StudioContent = {
   id: string;
   title: string;
   status: string;
+  rejectionNote: string | null;
   structured_fields: Record<string, string>;
   outputSize: string | null;
   manuallyEdited: boolean;
@@ -114,6 +115,7 @@ type GeneratedContentRow = {
   id: string;
   title: string;
   status: string;
+  rejection_note?: string | null;
   structured_fields: Record<string, string> | null;
   prompt_context: Record<string, unknown> | null;
   created_by: string;
@@ -130,7 +132,7 @@ type GeneratedContentRow = {
 };
 
 const CONTENT_SELECT =
-  "id, title, status, structured_fields, prompt_context, created_by, product_id, product_template_id, template_version_id, template_variant_id, template_variants(variant_key, label), updated_at";
+  "id, title, status, rejection_note, structured_fields, prompt_context, created_by, product_id, product_template_id, template_version_id, template_variant_id, template_variants(variant_key, label), updated_at";
 
 const ACTIVE_CONTENT_STATUSES = ["draft", "rejected", "in_review", "approved"];
 
@@ -170,6 +172,7 @@ function toStudioContent(row: GeneratedContentRow, userId?: string): StudioConte
     id: row.id,
     title: row.title,
     status: row.status,
+    rejectionNote: row.rejection_note ?? null,
     structured_fields: (row.structured_fields ?? {}) as Record<string, string>,
     outputSize: contentOutputSize(row),
     canEdit: userId
