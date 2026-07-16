@@ -90,11 +90,30 @@ function asStringRecord(value: unknown): Record<string, string> {
   );
 }
 
-export async function POST(req: Request) {
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return Response.json({ error: "Generation is not configured." }, { status: 503 });
-  }
+function fallbackCopyForField(input: {
+  key: string;
+  productName: string;
+  defaultCopy: Record<string, string>;
+  approvedSource: string;
+}) {
+  const existing = input.defaultCopy[input.key]?.trim();
+  if (existing) return existing;
 
+  const normalizedKey = input.key.toLowerCase();
+  if (normalizedKey.includes("cta")) return "Get Started";
+  if (normalizedKey.includes("headline")) return `${input.productName}, ready locally`;
+  if (
+    normalizedKey.includes("detail") ||
+    normalizedKey.includes("kicker") ||
+    normalizedKey.includes("eyebrow")
+  ) {
+    return "Approved local brand content";
+  }
+  if (normalizedKey.includes("tagline")) return "On brand, every time";
+  return input.approvedSource || `Create approved local content for ${input.productName}.`;
+}
+
+export async function POST(req: Request) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -336,7 +355,9 @@ export async function POST(req: Request) {
       return Response.json({ error: "Generation is temporarily unavailable." }, { status: 503 });
     }
 
-    const anthropic = new Anthropic();
+    const anthropic = process.env.ANTHROPIC_API_KEY
+      ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+      : null;
     const tool = {
       name: "build_asset_content",
       description:
@@ -369,6 +390,7 @@ export async function POST(req: Request) {
     let structured: Record<string, string> = {};
     let lastCandidateEvidence: Evidence[] = [];
     let retryReasons: string[] = [];
+    let generationMode: "ai" | "fallback" = "ai";
 
     for (let attempt = 0; attempt < PLATFORM_GENERATION_ATTEMPTS; attempt += 1) {
       const attemptPrompt = retryReasons.length
@@ -381,6 +403,12 @@ export async function POST(req: Request) {
           ].join("\n")
         : userPrompt;
 
+      if (!anthropic) {
+        retryReasons = ["Anthropic generation is not configured."];
+        generationMode = "fallback";
+        break;
+      }
+
       let message;
       try {
         message = await anthropic.messages.create({
@@ -392,8 +420,12 @@ export async function POST(req: Request) {
           messages: [{ role: "user", content: attemptPrompt }],
         });
       } catch (err) {
-        console.error("platform generation failed:", err);
-        return Response.json({ error: "Generation failed. Try again." }, { status: 502 });
+        console.warn("platform generation provider unavailable; using fallback copy:", err);
+        retryReasons = [
+          err instanceof Error ? err.message : "Anthropic generation failed.",
+        ];
+        generationMode = "fallback";
+        break;
       }
 
       const toolUse = message.content.find((block) => block.type === "tool_use");
@@ -471,6 +503,58 @@ export async function POST(req: Request) {
     }
 
     if (!out) {
+      const fallbackSource =
+        approvedClaims[0] ??
+        sourceEntries[0]?.text ??
+        `Content for ${product.name} must use approved templates and source material.`;
+      const fallbackFields = Object.fromEntries(
+        editableFields.map((key) => [
+          key,
+          fallbackCopyForField({
+            key,
+            productName: product.name,
+            defaultCopy,
+            approvedSource: fallbackSource,
+          }),
+        ])
+      );
+      structured = await coerceTemplatePlatformFieldsToFit({
+        manifest: assignment.manifest,
+        variantKey: outputSizeKey,
+        fields: fallbackFields,
+        assetUrlByPath,
+      });
+      const configuredIssues = templateFieldIssues(
+        structured,
+        editableFields,
+        fieldLimits,
+        requiredFields
+      );
+      const geometryIssues = await templatePlatformFieldFitIssues({
+        manifest: assignment.manifest,
+        variantKey: outputSizeKey,
+        fields: structured,
+        assetUrlByPath,
+      });
+      retryReasons = [
+        ...editableFields.flatMap((key) =>
+          (configuredIssues[key] ?? []).map((issue) => `${key}: ${issue.message}`)
+        ),
+        ...formatTemplatePlatformFitIssues(geometryIssues),
+      ];
+      if (!retryReasons.length) {
+        generationMode = "fallback";
+        out = {
+          fields: structured,
+          evidence: editableFields.map((field) => ({
+            field,
+            approved_source: fallbackSource,
+          })),
+        };
+      }
+    }
+
+    if (!out) {
       console.error("platform generated copy failed template fit validation:", {
         platformAssignmentId,
         outputSize: outputSizeKey,
@@ -511,6 +595,7 @@ export async function POST(req: Request) {
       generated_fields: structured,
       manually_edited_fields: [],
       compliance_state: "generated",
+      generation_mode: generationMode,
       evidence_validation: {
         accepted: evidence.length,
         rejected: rejectedEvidenceCount,
