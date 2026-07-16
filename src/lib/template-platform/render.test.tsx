@@ -194,6 +194,33 @@ test("generated bundle renders can be consumed by ImageResponse", async () => {
   assert.ok(png.byteLength > 0);
 });
 
+test("ContentGate link ad headlines reserve descender-safe line boxes", async () => {
+  const bundle = await buildContentGateTemplateBundle("contentgate_local_friendly");
+  const fields = {
+    cta: "Get started",
+    headline: "Share your offer—\nready to go",
+    local_detail: "Create local link ads faster",
+    proof_note: "Editable fields guided by locked templates",
+    subheadline: "Local edits from approved templates, assets, and product knowledge.",
+  };
+  const issues = await templatePlatformFieldFitIssues({
+    manifest: bundle.manifest,
+    variantKey: "link_ad",
+    fields,
+  });
+  assert.deepEqual(issues.headline ?? [], []);
+
+  const rendered = renderTemplateBundleVariant({
+    manifest: bundle.manifest,
+    variantKey: "link_ad",
+    fields,
+  });
+  assert.ok(rendered);
+  const html = renderToStaticMarkup(rendered.element);
+  assert.match(html, /Share your offer/);
+  assert.match(html, /line-height:1.04/);
+});
+
 test("reports platform copy that wraps beyond the locked text slot", async () => {
   const bundle = await buildContentGateTemplateBundle("contentgate_local_friendly");
   const issues = await templatePlatformFieldFitIssues({

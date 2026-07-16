@@ -109,6 +109,11 @@ function trimLastWord(value: string) {
   return words.slice(0, -1).join(" ").trim();
 }
 
+function descenderPadding(slot: TemplateBundleTextSlot) {
+  const lineBoxHeight = slot.fontSize * slot.lineHeight * slot.maxLines;
+  return Math.max(0, Math.min(slot.fontSize * 0.12, slot.height - lineBoxHeight));
+}
+
 export async function measureTemplatePlatformTextSlot(
   manifest: TemplateBundleManifest,
   value: unknown,
@@ -149,7 +154,9 @@ export async function measureTemplatePlatformTextSlot(
     lines,
     lineWidths: lines.map(measure),
     overlongWords: [...overlongWords],
-    renderedHeight: lines.length * slot.fontSize * slot.lineHeight,
+    renderedHeight:
+      lines.length * slot.fontSize * slot.lineHeight +
+      (lines.length > 0 ? descenderPadding(slot) : 0),
   };
 }
 
