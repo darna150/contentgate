@@ -2,6 +2,10 @@ import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@/lib/supabase/server";
 import { flattenFields, revisionInstruction, type Evidence } from "@/lib/templates";
 import {
+  formatGeneratedCopyQualityIssues,
+  generatedCopyQualityIssues,
+} from "@/lib/generated-copy-quality";
+import {
   fieldLimitInstruction,
   templateFieldIssues,
 } from "@/lib/template-fields";
@@ -38,7 +42,7 @@ const OPENAI_GENERATION_MODEL =
 const AI_PROVIDER = (process.env.AI_PROVIDER ?? "").toLowerCase();
 const PLATFORM_GENERATION_ATTEMPTS = Math.max(
   1,
-  Number(process.env.PLATFORM_GENERATION_ATTEMPTS ?? "1")
+  Number(process.env.PLATFORM_GENERATION_ATTEMPTS ?? "2")
 );
 const MAX_GENERATION_SOURCE_PARAGRAPHS = 24;
 
@@ -441,6 +445,7 @@ export async function POST(req: Request) {
       typographyInstructions.length
         ? `These rendered-line limits are strict. Prefer shorter, complete wording rather than filling the character allowance.`
         : ``,
+      `Every generated field must read like a complete thought. Short fragments are okay for CTAs and headlines, but never end a field with a dangling connector, broken hyphenated word, comma, colon, or dash.`,
       ``,
       `The existing template copy below is a length and tone reference only. Do not repeat unsupported facts from it:`,
       editableFields.map((key) => `${key}: ${defaultCopy[key] ?? ""}`).join("\n"),
@@ -566,11 +571,13 @@ export async function POST(req: Request) {
           fields: structured,
           assetUrlByPath,
         });
+        const qualityIssues = generatedCopyQualityIssues(structured, editableFields);
         retryReasons = [
           ...editableFields.flatMap((key) =>
             (configuredIssues[key] ?? []).map((issue) => `${key}: ${issue.message}`)
           ),
           ...formatTemplatePlatformFitIssues(geometryIssues),
+          ...formatGeneratedCopyQualityIssues(qualityIssues),
         ];
 
         if (!retryReasons.length) {
@@ -606,11 +613,13 @@ export async function POST(req: Request) {
         fields: structured,
         assetUrlByPath,
       });
+      const qualityIssues = generatedCopyQualityIssues(structured, editableFields);
       retryReasons = [
         ...editableFields.flatMap((key) =>
           (configuredIssues[key] ?? []).map((issue) => `${key}: ${issue.message}`)
         ),
         ...formatTemplatePlatformFitIssues(geometryIssues),
+        ...formatGeneratedCopyQualityIssues(qualityIssues),
       ];
       if (!retryReasons.length) {
         out = { fields: structured, evidence: lastCandidateEvidence };
@@ -651,11 +660,13 @@ export async function POST(req: Request) {
         fields: structured,
         assetUrlByPath,
       });
+      const qualityIssues = generatedCopyQualityIssues(structured, editableFields);
       retryReasons = [
         ...editableFields.flatMap((key) =>
           (configuredIssues[key] ?? []).map((issue) => `${key}: ${issue.message}`)
         ),
         ...formatTemplatePlatformFitIssues(geometryIssues),
+        ...formatGeneratedCopyQualityIssues(qualityIssues),
       ];
       if (!retryReasons.length) {
         generationMode = "fallback";
