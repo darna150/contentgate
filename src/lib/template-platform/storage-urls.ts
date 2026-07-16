@@ -2,6 +2,7 @@ import "server-only";
 
 import { TEMPLATE_BUNDLE_STORAGE_BUCKET } from "./importer";
 import type { TemplateBundleManifest } from "./manifest";
+import { isPublicContentGateBundle } from "./public-contentgate-assets";
 
 const TEMPLATE_BUNDLE_URL_TTL_SECONDS = 60 * 60;
 
@@ -45,9 +46,12 @@ export async function createTemplateBundleAssetUrlMap(
   supabase: StorageClient,
   manifests: readonly TemplateBundleManifest[]
 ) {
+  const privateManifests = manifests.filter(
+    (manifest) => !isPublicContentGateBundle(manifest)
+  );
   const paths = Array.from(
     new Set(
-      manifests.flatMap((manifest) =>
+      privateManifests.flatMap((manifest) =>
         manifest.assets
           .filter((asset) => SIGNED_ASSET_KINDS.has(asset.kind))
           .map((asset) => templateBundleStoragePath(manifest, asset.path))
@@ -71,7 +75,7 @@ export async function createTemplateBundleAssetUrlMap(
   );
 
   return new Map(
-    manifests.flatMap((manifest) =>
+    privateManifests.flatMap((manifest) =>
       manifest.assets
         .filter((asset) => SIGNED_ASSET_KINDS.has(asset.kind))
         .flatMap((asset) => {

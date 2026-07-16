@@ -212,6 +212,14 @@ export function StudioWorkspace({
     !hasIssues &&
     !hasLayoutOverflow &&
     saveState !== "saving";
+  const downloadDisabledReason = content
+    ? exportAllowed
+      ? undefined
+      : "Generated assets can be downloaded after approval"
+    : hasAnyGeneratedDraft
+      ? "Generate this size before downloading it"
+      : undefined;
+  const downloadDisabled = Boolean(downloadDisabledReason);
   const dims =
     (selectedTemplate.platformManifest
       ? getTemplateBundleVariantDimensions(selectedTemplate.platformManifest, size)
@@ -721,8 +729,8 @@ export function StudioWorkspace({
             onExportFormatChange={setExportFormat}
             onDownload={download}
             downloading={downloading}
-            downloadDisabled={!!content && !exportAllowed}
-            downloadDisabledReason={content && !exportAllowed ? "Generated assets can be downloaded after approval" : undefined}
+            downloadDisabled={downloadDisabled}
+            downloadDisabledReason={downloadDisabledReason}
           />
 
           {hasAnyGeneratedDraft && content && (
