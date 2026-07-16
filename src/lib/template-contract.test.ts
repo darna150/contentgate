@@ -192,3 +192,39 @@ test("fits worst-case generated copy inside every active field contract", () => 
     );
   }
 });
+
+test("template field validation can leave optional fields blank", () => {
+  assert.deepEqual(
+    templateFieldIssues(
+      {
+        headline: "Required headline",
+        optional_note: "",
+      },
+      ["headline", "optional_note"],
+      {
+        headline: { max_chars: 40 },
+        optional_note: { max_chars: 40 },
+      },
+      ["headline"]
+    ),
+    {}
+  );
+
+  assert.deepEqual(
+    templateFieldIssues(
+      {
+        headline: "",
+        optional_note: "",
+      },
+      ["headline", "optional_note"],
+      {
+        headline: { max_chars: 40 },
+        optional_note: { max_chars: 40 },
+      },
+      ["headline"]
+    ),
+    {
+      headline: [{ type: "required", message: "Required field" }],
+    }
+  );
+});

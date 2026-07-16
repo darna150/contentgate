@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 
 export function StudioFields({
   fields,
+  requiredFields,
   values,
   limits,
   editable,
@@ -14,6 +15,7 @@ export function StudioFields({
   onChange,
 }: {
   fields: string[];
+  requiredFields: string[];
   values: Record<string, string>;
   limits: FieldLimits;
   editable: boolean;
@@ -21,6 +23,7 @@ export function StudioFields({
   overflowFields: string[];
   onChange?: (key: string, value: string) => void;
 }) {
+  const required = new Set(requiredFields);
   return (
     <div className="flex flex-col gap-3 rounded-card border border-edge bg-surface p-5">
       <span className="text-label text-ink-faint">Text fields</span>
@@ -35,6 +38,7 @@ export function StudioFields({
           >
             <Label className="text-[11px] normal-case tracking-normal text-ink-faint">
               {fieldLabel(key)} · {fieldLimitText(limits[key])}
+              {!required.has(key) ? " · Optional" : ""}
             </Label>
             {editable ? (
               <Textarea

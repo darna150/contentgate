@@ -99,11 +99,16 @@ export function fieldIssues(
 export function templateFieldIssues(
   fields: Record<string, unknown>,
   order: string[],
-  limits: FieldLimits
+  limits: FieldLimits,
+  requiredFields: readonly string[] = order
 ): Record<string, FieldIssue[]> {
+  const required = new Set(requiredFields);
   return Object.fromEntries(
     order
-      .map((key) => [key, fieldIssues(fields[key], limits[key])] as const)
+      .map((key) => [
+        key,
+        fieldIssues(fields[key], limits[key], required.has(key)),
+      ] as const)
       .filter(([, issues]) => issues.length > 0)
   );
 }

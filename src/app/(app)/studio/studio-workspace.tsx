@@ -184,16 +184,20 @@ export function StudioWorkspace({
   const editable = mode === "create" || mode === "edit";
   const activeFields = content ? draftFields : selectedTemplate.default_copy;
   const activeFieldLimits = selectedTemplate.field_limits;
+  const requiredFieldSet = useMemo(
+    () => new Set(selectedTemplate.required_fields),
+    [selectedTemplate.required_fields]
+  );
 
   const issuesByField = useMemo(
     () =>
       Object.fromEntries(
         selectedTemplate.editable_fields.map((key) => [
           key,
-          fieldIssues(draftFields[key], activeFieldLimits[key]),
+          fieldIssues(draftFields[key], activeFieldLimits[key], requiredFieldSet.has(key)),
         ])
       ),
-    [activeFieldLimits, draftFields, selectedTemplate.editable_fields]
+    [activeFieldLimits, draftFields, requiredFieldSet, selectedTemplate.editable_fields]
   );
   const hasIssues = selectedTemplate.editable_fields.some(
     (key) => issuesByField[key].length > 0
@@ -608,6 +612,7 @@ export function StudioWorkspace({
 
           <StudioFields
             fields={selectedTemplate.editable_fields}
+            requiredFields={selectedTemplate.required_fields}
             values={activeFields}
             limits={activeFieldLimits}
             editable={editable}

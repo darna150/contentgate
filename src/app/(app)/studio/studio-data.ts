@@ -45,6 +45,7 @@ export type StudioTemplate = {
   platformAssetUrlByPath?: Record<string, string>;
   platformManifest?: TemplateBundleManifest;
   editable_fields: string[];
+  required_fields: string[];
   default_copy: Record<string, string>;
   field_limits: FieldLimits;
   locked_fields: string[];
@@ -204,6 +205,9 @@ function platformAssignmentsToTemplates(rows: PlatformAssignmentRow[]): StudioTe
         templateVersionId: version.id,
         platformManifest: version.manifest,
         editable_fields: runtime.fields.map((field) => field.key),
+        required_fields: runtime.fields
+          .filter((field) => field.required !== false)
+          .map((field) => field.key),
         default_copy: Object.fromEntries(
           runtime.fields.map((field) => [field.key, String(defaultCopy[field.key] ?? "")])
         ),

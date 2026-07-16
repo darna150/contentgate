@@ -242,6 +242,9 @@ export async function POST(req: Request) {
     ]);
 
     const editableFields = runtimeVariant.fields.map((field) => field.key);
+    const requiredFields = runtimeVariant.fields
+      .filter((field) => field.required !== false)
+      .map((field) => field.key);
     const fieldLimits = getTemplateBundleVariantFieldLimits(
       assignment.manifest,
       outputSizeKey
@@ -344,7 +347,7 @@ export async function POST(req: Request) {
           fields: {
             type: "object" as const,
             properties: fieldProps,
-            required: editableFields,
+            required: requiredFields,
           },
           evidence: {
             type: "array" as const,
@@ -415,7 +418,8 @@ export async function POST(req: Request) {
       const configuredIssues = templateFieldIssues(
         structured,
         editableFields,
-        fieldLimits
+        fieldLimits,
+        requiredFields
       );
       const geometryIssues = await templatePlatformFieldFitIssues({
         manifest: assignment.manifest,
@@ -446,7 +450,8 @@ export async function POST(req: Request) {
       const configuredIssues = templateFieldIssues(
         structured,
         editableFields,
-        fieldLimits
+        fieldLimits,
+        requiredFields
       );
       const geometryIssues = await templatePlatformFieldFitIssues({
         manifest: assignment.manifest,

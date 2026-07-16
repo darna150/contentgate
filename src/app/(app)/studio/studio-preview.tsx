@@ -68,7 +68,7 @@ export function ServerPreviewFrame({
   updating: boolean;
 }) {
   const viewportRef = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState(0.5);
+  const [scale, setScale] = useState(0.72);
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
   const imageFailed = failedSrc === src;
 
@@ -77,7 +77,7 @@ export function ServerPreviewFrame({
     if (!viewport) return;
     const updateScale = () => {
       const availableWidth = Math.max(1, viewport.clientWidth - 48);
-      const availableHeight = Math.max(1, Math.min(760, window.innerHeight - 250));
+      const availableHeight = Math.max(1, Math.min(900, window.innerHeight - 220));
       setScale(Math.min(1, availableWidth / width, availableHeight / height));
     };
     updateScale();
@@ -89,7 +89,10 @@ export function ServerPreviewFrame({
   return (
     <div
       ref={viewportRef}
-      className="relative flex min-h-[600px] w-full items-center justify-center overflow-hidden rounded-card border border-edge bg-[#1a1d1b] p-6"
+      className="relative flex w-full items-center justify-center overflow-auto rounded-card border border-edge bg-page p-4 sm:p-6"
+      style={{
+        minHeight: Math.round(Math.max(220, height * scale + 48)),
+      }}
     >
       {updating && (
         <div className="absolute right-4 top-4 z-10 rounded-full bg-surface/90 px-3 py-1.5 text-[11px] font-semibold text-ink-muted shadow-sm">
@@ -122,7 +125,7 @@ export function ServerPreviewFrame({
           key={src}
           src={src}
           alt="Generated template preview"
-          className="block shadow-elevated"
+          className="block rounded-[3px] shadow-elevated"
           onError={() => setFailedSrc(src)}
           style={{
             width: width * scale,

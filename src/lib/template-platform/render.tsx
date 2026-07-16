@@ -27,6 +27,8 @@ function renderTextSlot(
   fields: Record<string, unknown>
 ) {
   const text = cleanText(fields[slot.field]);
+  const horizontalAlign =
+    slot.align === "center" ? "center" : slot.align === "right" ? "flex-end" : "flex-start";
 
   return (
     <div
@@ -51,7 +53,7 @@ function renderTextSlot(
         letterSpacing: slot.letterSpacing ?? 0,
         textAlign: slot.align ?? "left",
         whiteSpace: "pre-wrap",
-        alignItems: "flex-start",
+        alignItems: horizontalAlign,
         justifyContent:
           slot.verticalAlign === "top"
             ? "flex-start"
@@ -63,8 +65,8 @@ function renderTextSlot(
       <span
         data-template-content
         style={{
-          display: "-webkit-box",
-          width: "100%",
+          display: "block",
+          maxWidth: "100%",
           minWidth: 0,
           flexShrink: 0,
           maxHeight: "100%",
