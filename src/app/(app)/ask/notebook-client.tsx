@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 import { MessageCircleQuestion, Menu, Pencil, Plus, Trash2, X } from "lucide-react";
 import {
   createSession,
@@ -34,6 +34,115 @@ const STARTERS = [
   "Who is ContentGate for?",
   "How should teams localize content?",
 ];
+
+function renderInlineMarkdown(text: string): ReactNode[] {
+  const parts = text.split(/(\*\*[^*]+?\*\*|\[[^\]]+?\]\(https?:\/\/[^)\s]+?\))/g);
+
+  return parts.map((part, index) => {
+    const boldMatch = /^\*\*([^*]+?)\*\*$/.exec(part);
+    if (boldMatch) {
+      return (
+        <strong key={index} className="font-semibold text-ink">
+          {boldMatch[1]}
+        </strong>
+      );
+    }
+
+    const linkMatch = /^\[([^\]]+?)\]\((https?:\/\/[^)\s]+?)\)$/.exec(part);
+    if (linkMatch) {
+      return (
+        <a
+          key={index}
+          href={linkMatch[2]}
+          target="_blank"
+          rel="noreferrer"
+          className="font-semibold text-brand underline decoration-brand/30 underline-offset-2 hover:decoration-brand"
+        >
+          {linkMatch[1]}
+        </a>
+      );
+    }
+
+    return part;
+  });
+}
+
+function AssistantMarkdown({ content }: { content: string }) {
+  const lines = content.split(/\r?\n/);
+  const blocks: Array<
+    | { type: "paragraph"; lines: string[] }
+    | { type: "bullets"; items: string[] }
+    | { type: "numbers"; items: string[] }
+  > = [];
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+
+    const bulletMatch = /^[-*]\s+(.+)$/.exec(trimmed);
+    if (bulletMatch) {
+      const last = blocks.at(-1);
+      if (last?.type === "bullets") {
+        last.items.push(bulletMatch[1]);
+      } else {
+        blocks.push({ type: "bullets", items: [bulletMatch[1]] });
+      }
+      continue;
+    }
+
+    const numberMatch = /^\d+[.)]\s+(.+)$/.exec(trimmed);
+    if (numberMatch) {
+      const last = blocks.at(-1);
+      if (last?.type === "numbers") {
+        last.items.push(numberMatch[1]);
+      } else {
+        blocks.push({ type: "numbers", items: [numberMatch[1]] });
+      }
+      continue;
+    }
+
+    const last = blocks.at(-1);
+    if (last?.type === "paragraph") {
+      last.lines.push(trimmed);
+    } else {
+      blocks.push({ type: "paragraph", lines: [trimmed] });
+    }
+  }
+
+  if (blocks.length === 0) return null;
+
+  return (
+    <div className="space-y-3">
+      {blocks.map((block, index) => {
+        if (block.type === "bullets") {
+          return (
+            <ul key={index} className="list-disc space-y-1 pl-5">
+              {block.items.map((item, itemIndex) => (
+                <li key={itemIndex}>{renderInlineMarkdown(item)}</li>
+              ))}
+            </ul>
+          );
+        }
+
+        if (block.type === "numbers") {
+          return (
+            <ol key={index} className="list-decimal space-y-1 pl-5">
+              {block.items.map((item, itemIndex) => (
+                <li key={itemIndex}>{renderInlineMarkdown(item)}</li>
+              ))}
+            </ol>
+          );
+        }
+
+        return (
+          <p key={index}>
+            {renderInlineMarkdown(block.lines.join(" "))}
+          </p>
+        );
+      })}
+    </div>
+  );
+}
 
 export function NotebookClient({
   products,
@@ -588,7 +697,7 @@ export function NotebookClient({
                         msg.not_found ? "italic text-ink-muted" : "text-ink"
                       }`}
                     >
-                      {msg.content}
+                      <AssistantMarkdown content={msg.content} />
                     </Card>
                     {msg.citations && msg.citations.length > 0 && (
                       <div className="flex flex-col gap-2 pl-1">

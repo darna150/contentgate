@@ -9,6 +9,7 @@ import {
   templatePlatformFieldFitIssues,
   templatePlatformFitInstructions,
 } from "./fit";
+import { isPublicContentGateBundle } from "./public-contentgate-assets";
 import { validateTemplateBundlePublishReadiness } from "./publish-readiness";
 import { renderTemplateBundleVariant } from "./render";
 
@@ -142,6 +143,19 @@ test("ContentGate figwright bundles also support legacy public package asset pat
     /\/template-packages\/contentgate\/set-a\/backgrounds\/leaderboard\.png\?v=clean-figwright-/
   );
   assert.doesNotMatch(html, /storage\.example\.test/);
+});
+
+test("ContentGate figwright bundles are recognized as public assets", async () => {
+  const bundle = await buildContentGateTemplateBundle("contentgate_local_friendly");
+  const manifest = {
+    ...bundle.manifest,
+    version: {
+      ...bundle.manifest.version,
+      name: "figwright-v1",
+    },
+  };
+
+  assert.equal(isPublicContentGateBundle(manifest), true);
 });
 
 test("reports platform copy that wraps beyond the locked text slot", async () => {

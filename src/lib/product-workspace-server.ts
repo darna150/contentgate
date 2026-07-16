@@ -217,7 +217,7 @@ function publicTemplateBundleAssetPath(
         normalizedAssetPath,
       ].join("/");
   return isPublicContentGateAsset
-    ? `${path}?v=clean-figwright-2026-07-14-03`
+    ? `${path}?v=clean-figwright-2026-07-16-04`
     : path;
 }
 

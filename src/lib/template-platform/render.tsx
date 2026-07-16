@@ -6,6 +6,7 @@ import {
   templateBundleFontStyle,
   templateBundleFontWeight,
 } from "./fonts";
+import { publicContentGateBundleAssetPath } from "./public-contentgate-assets";
 import { resolveTemplateBundleRuntimeVariant } from "./runtime";
 
 export type TemplateBundleRenderResult = {
@@ -13,8 +14,6 @@ export type TemplateBundleRenderResult = {
   width: number;
   height: number;
 };
-
-const CONTENTGATE_PUBLIC_ASSET_VERSION = "clean-figwright-2026-07-14-03";
 
 function cleanText(value: unknown) {
   return String(value ?? "")
@@ -82,25 +81,6 @@ function renderTextSlot(
       </span>
     </div>
   );
-}
-
-function publicContentGateBundleAssetPath(
-  manifest: TemplateBundleManifest,
-  assetPath: string
-) {
-  if (
-    manifest.version.name !== "figwright-v1" ||
-    !manifest.family.key.startsWith("contentgate-local-")
-  ) {
-    return null;
-  }
-  if (assetPath.startsWith("template-packages/contentgate/")) {
-    return `/${assetPath}?v=${CONTENTGATE_PUBLIC_ASSET_VERSION}`;
-  }
-  if (assetPath.startsWith("/template-packages/contentgate/")) {
-    return `${assetPath}?v=${CONTENTGATE_PUBLIC_ASSET_VERSION}`;
-  }
-  return `/template-bundles/${manifest.family.key}/${manifest.version.name}/${assetPath}?v=${CONTENTGATE_PUBLIC_ASSET_VERSION}`;
 }
 
 function resolveImageSource(
