@@ -174,22 +174,27 @@ ${product.disclaimer_text ? `MANDATORY DISCLAIMER (always applies): ${product.di
 
   // Log the query for usage analytics + audit trail. Best-effort: a logging
   // failure must never block the answer the user came for.
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("org_id")
-    .eq("id", user.id)
-    .single();
-  if (profile?.org_id) {
-    await supabase.from("knowledge_queries").insert({
-      org_id: profile.org_id,
-      product_id: productId,
-      user_id: user.id,
-      question,
-      not_found: result.not_found ?? false,
-      citation_count: result.citations?.length ?? 0,
-      answer: result.answer ?? "",
-      citations: result.citations ?? [],
-    });
+  try {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("org_id")
+      .eq("id", user.id)
+      .single();
+    if (profile?.org_id) {
+      const { error: logError } = await supabase.from("knowledge_queries").insert({
+        org_id: profile.org_id,
+        product_id: productId,
+        user_id: user.id,
+        question,
+        not_found: result.not_found ?? false,
+        citation_count: result.citations?.length ?? 0,
+        answer: result.answer ?? "",
+        citations: result.citations ?? [],
+      });
+      if (logError) console.warn("knowledge query audit log failed:", logError);
+    }
+  } catch (logError) {
+    console.warn("knowledge query audit log failed:", logError);
   }
 
   return NextResponse.json(result);
@@ -202,22 +207,27 @@ async function saveAndReturnNotFound(
   question: string,
   answer: string
 ) {
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("org_id")
-    .eq("id", userId)
-    .single();
-  if (profile?.org_id) {
-    await supabase.from("knowledge_queries").insert({
-      org_id: profile.org_id,
-      product_id: productId,
-      user_id: userId,
-      question,
-      not_found: true,
-      citation_count: 0,
-      answer,
-      citations: [],
-    });
+  try {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("org_id")
+      .eq("id", userId)
+      .single();
+    if (profile?.org_id) {
+      const { error: logError } = await supabase.from("knowledge_queries").insert({
+        org_id: profile.org_id,
+        product_id: productId,
+        user_id: userId,
+        question,
+        not_found: true,
+        citation_count: 0,
+        answer,
+        citations: [],
+      });
+      if (logError) console.warn("knowledge query audit log failed:", logError);
+    }
+  } catch (logError) {
+    console.warn("knowledge query audit log failed:", logError);
   }
   return NextResponse.json({ answer, citations: [], not_found: true });
 }

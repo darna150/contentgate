@@ -394,9 +394,14 @@ export function NotebookClient({
         )
       );
 
-      const saveResult = await saveSession(sessionId, allMessages, newTitle);
-      if (saveResult.error) {
-        setError("The answer is shown, but this conversation could not be saved. Please try again.");
+      try {
+        const saveResult = await saveSession(sessionId, allMessages, newTitle);
+        if (saveResult.error) {
+          setError("The answer is shown, but this conversation could not be saved.");
+        }
+      } catch (saveError) {
+        console.warn("knowledge session save failed:", saveError);
+        setError("The answer is shown, but this conversation could not be saved.");
       }
     } catch {
       setError("Something went wrong. Please try again.");
