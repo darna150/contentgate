@@ -17,7 +17,7 @@ export default async function NewProductPage() {
         <Link href="/products" className="text-[13px] font-semibold text-brand hover:underline">
           ← Products
         </Link>
-        <h1 className="font-serif text-[28px] font-semibold">New product</h1>
+        <h1 className="text-h1 text-ink">New product</h1>
         <p className="text-[14.5px] text-ink-muted">
           A product holds its approved claims, source documents, and templates.
           You can add all of those after creation.

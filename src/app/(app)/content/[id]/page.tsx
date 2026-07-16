@@ -180,7 +180,7 @@ export default async function ContentDetailPage({
             ← Content
           </Link>
           <div className="flex items-center gap-3">
-            <h1 className="truncate font-serif text-[28px] font-semibold leading-tight">
+            <h1 className="truncate text-h1 text-ink">
               {content.title}
             </h1>
             <StatusPill status={content.status} />

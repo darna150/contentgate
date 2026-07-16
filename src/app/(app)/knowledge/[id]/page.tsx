@@ -69,7 +69,7 @@ export default async function DocumentDetailPage({
             ← Knowledge Hub
           </Link>
           <div className="flex items-center gap-2.5">
-            <h1 className="font-serif text-[28px] font-semibold leading-tight">
+            <h1 className="text-h1 truncate text-ink">
               {doc.title}
             </h1>
             <Badge className={`${documentIndexStatusClass(indexStatus)} border-transparent`}>

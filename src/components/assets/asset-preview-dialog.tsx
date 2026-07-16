@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -18,6 +19,7 @@ type Props = {
 
 export function AssetPreviewDialog({ asset, isAdmin, onClose, onEdit, onDelete }: Props) {
   const dims = formatDimensions(asset.widthPixels, asset.heightPixels);
+  const [imageFailed, setImageFailed] = useState(false);
 
   return (
     <Dialog open onOpenChange={(next) => !next && onClose()}>
@@ -26,13 +28,25 @@ export function AssetPreviewDialog({ asset, isAdmin, onClose, onEdit, onDelete }
           <DialogTitle>{asset.title}</DialogTitle>
         </DialogHeader>
         <div className="flex flex-col gap-5 sm:flex-row">
-          <div className="flex flex-shrink-0 items-center justify-center rounded-control border border-edge bg-page p-3 sm:w-[300px]">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={asset.previewUrl}
-              alt={asset.altText || asset.title}
-              className="max-h-[320px] w-full rounded-[6px] object-contain"
-            />
+          <div className="flex h-[220px] flex-shrink-0 items-center justify-center rounded-control border border-edge bg-page p-3 sm:h-[320px] sm:w-[300px]">
+            {imageFailed ? (
+              <div className="flex flex-col items-center gap-1.5 text-center">
+                <span className="flex size-8 items-center justify-center rounded-full bg-edge text-[13px] text-ink-faint">
+                  !
+                </span>
+                <span className="px-3 text-[11px] font-medium text-ink-faint">
+                  Preview unavailable
+                </span>
+              </div>
+            ) : (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img
+                src={asset.previewUrl}
+                alt={asset.altText || asset.title}
+                className="max-h-full w-full rounded-[6px] object-contain"
+                onError={() => setImageFailed(true)}
+              />
+            )}
           </div>
 
           <div className="flex min-w-0 flex-1 flex-col gap-3.5">

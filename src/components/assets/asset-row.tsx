@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { PreviewImage } from "@/components/preview-image";
 import { AssetStatusBadge } from "./asset-status-badge";
 import { ASSET_TYPE_LABELS, type AssetItem } from "./types";
 import { formatDimensions, formatFileSize, formatDate, fileTypeLabel } from "./format";
@@ -32,12 +33,10 @@ export function AssetRow({
   }`;
 
   const thumb = (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
+    <PreviewImage
       src={asset.previewUrl}
       alt={asset.altText || asset.title}
-      className="h-full w-full object-contain p-1"
-      loading="lazy"
+      className="p-1"
     />
   );
 
