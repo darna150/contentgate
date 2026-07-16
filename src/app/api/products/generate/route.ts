@@ -31,6 +31,11 @@ const GENERATION_MODEL =
   process.env.ANTHROPIC_GENERATION_MODEL ??
   process.env.ANTHROPIC_MODEL ??
   "claude-sonnet-4-6";
+const OPENAI_GENERATION_MODEL =
+  process.env.OPENAI_GENERATION_MODEL ??
+  process.env.OPENAI_MODEL ??
+  "gpt-5.4-nano";
+const AI_PROVIDER = (process.env.AI_PROVIDER ?? "").toLowerCase();
 const PLATFORM_GENERATION_ATTEMPTS = Math.max(
   1,
   Number(process.env.PLATFORM_GENERATION_ATTEMPTS ?? "1")
@@ -69,6 +74,109 @@ type ReplaceContentRow = {
   template_variant_id: string | null;
   prompt_context: Record<string, unknown> | null;
 };
+
+type GeneratedCopy = {
+  fields: Record<string, string>;
+  evidence: Evidence[];
+};
+
+type OpenAIResponse = {
+  output_text?: string;
+  output?: Array<{
+    type?: string;
+    content?: Array<{
+      type?: string;
+      text?: string;
+    }>;
+  }>;
+};
+
+function selectedProvider() {
+  if (AI_PROVIDER === "openai" || AI_PROVIDER === "anthropic") return AI_PROVIDER;
+  if (process.env.OPENAI_API_KEY) return "openai";
+  if (process.env.ANTHROPIC_API_KEY) return "anthropic";
+  return "fallback";
+}
+
+function parseGeneratedCopy(value: unknown): GeneratedCopy {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return { fields: {}, evidence: [] };
+  }
+  const raw = value as { fields?: unknown; evidence?: unknown };
+  return {
+    fields: asStringRecord(raw.fields),
+    evidence: Array.isArray(raw.evidence) ? (raw.evidence as Evidence[]) : [],
+  };
+}
+
+function openAIOutputText(response: OpenAIResponse) {
+  if (typeof response.output_text === "string") return response.output_text;
+  return (
+    response.output
+      ?.flatMap((item) => item.content ?? [])
+      .filter((content) => content.type === "output_text" && typeof content.text === "string")
+      .map((content) => content.text)
+      .join("\n") ?? ""
+  );
+}
+
+async function generateWithOpenAI(input: {
+  system: string;
+  prompt: string;
+  editableFields: string[];
+}): Promise<GeneratedCopy> {
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error("OpenAI generation is not configured.");
+  }
+
+  const response = await fetch("https://api.openai.com/v1/responses", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: OPENAI_GENERATION_MODEL,
+      max_output_tokens: 1500,
+      input: [
+        {
+          role: "system",
+          content: input.system,
+        },
+        {
+          role: "user",
+          content: [
+            input.prompt,
+            "",
+            "Return ONLY valid JSON matching this shape:",
+            JSON.stringify({
+              fields: Object.fromEntries(input.editableFields.map((field) => [field, ""])),
+              evidence: [{ field: input.editableFields[0] ?? "field", approved_source: "" }],
+            }),
+            "Do not wrap it in Markdown.",
+          ].join("\n"),
+        },
+      ],
+      text: {
+        format: {
+          type: "json_object",
+        },
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => "");
+    throw new Error(
+      `OpenAI generation failed (${response.status}): ${errorText.slice(0, 240)}`
+    );
+  }
+
+  const json = (await response.json()) as OpenAIResponse;
+  const text = openAIOutputText(json).trim();
+  if (!text) throw new Error("OpenAI returned no text output.");
+  return parseGeneratedCopy(JSON.parse(text));
+}
 
 function filterApprovedEvidence(
   evidence: Evidence[],
@@ -310,7 +418,7 @@ export async function POST(req: Request) {
       `You write compliant brand-content and localized marketing copy for "${product.name}".`,
       `Use ONLY the approved claims and approved source text provided. Never invent features, integrations, pricing, customer guarantees, legal claims, or workflow capabilities. If a benefit is not supported by an approved claim or source, do not make it.`,
       `Write in ${language}.`,
-      `Return your answer only through the provided tool.`,
+      `Return structured content only in the requested machine-readable format.`,
     ].join(" ");
 
     const userPrompt = [
@@ -355,7 +463,8 @@ export async function POST(req: Request) {
       return Response.json({ error: "Generation is temporarily unavailable." }, { status: 503 });
     }
 
-    const anthropic = process.env.ANTHROPIC_API_KEY
+    const provider = selectedProvider();
+    const anthropic = provider === "anthropic" && process.env.ANTHROPIC_API_KEY
       ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
       : null;
     const tool = {
@@ -403,71 +512,77 @@ export async function POST(req: Request) {
           ].join("\n")
         : userPrompt;
 
-      if (!anthropic) {
-        retryReasons = ["Anthropic generation is not configured."];
+      if (provider === "fallback") {
+        retryReasons = ["AI generation is not configured."];
         generationMode = "fallback";
         break;
       }
 
-      let message;
       try {
-        message = await anthropic.messages.create({
-          model: GENERATION_MODEL,
-          max_tokens: 1500,
-          system,
-          tool_choice: { type: "tool", name: "build_asset_content" },
-          tools: [tool],
-          messages: [{ role: "user", content: attemptPrompt }],
+        let candidate: GeneratedCopy;
+        if (provider === "openai") {
+          candidate = await generateWithOpenAI({
+            system,
+            prompt: attemptPrompt,
+            editableFields,
+          });
+        } else {
+          if (!anthropic) throw new Error("Anthropic generation is not configured.");
+          const message = await anthropic.messages.create({
+            model: GENERATION_MODEL,
+            max_tokens: 1500,
+            system,
+            tool_choice: { type: "tool", name: "build_asset_content" },
+            tools: [tool],
+            messages: [{ role: "user", content: attemptPrompt }],
+          });
+          const toolUse = message.content.find((block) => block.type === "tool_use");
+          if (!toolUse || toolUse.type !== "tool_use") {
+            return Response.json({ error: "Model returned no structured output." }, { status: 502 });
+          }
+          candidate = parseGeneratedCopy(toolUse.input);
+        }
+
+        lastCandidateEvidence = Array.isArray(candidate.evidence)
+          ? candidate.evidence
+          : [];
+        structured = Object.fromEntries(
+          editableFields.map((key) => [
+            key,
+            String(candidate.fields?.[key] ?? "")
+              .replace(/\r\n?/g, "\n")
+              .trim(),
+          ])
+        );
+        const configuredIssues = templateFieldIssues(
+          structured,
+          editableFields,
+          fieldLimits,
+          requiredFields
+        );
+        const geometryIssues = await templatePlatformFieldFitIssues({
+          manifest: assignment.manifest,
+          variantKey: outputSizeKey,
+          fields: structured,
+          assetUrlByPath,
         });
+        retryReasons = [
+          ...editableFields.flatMap((key) =>
+            (configuredIssues[key] ?? []).map((issue) => `${key}: ${issue.message}`)
+          ),
+          ...formatTemplatePlatformFitIssues(geometryIssues),
+        ];
+
+        if (!retryReasons.length) {
+          out = candidate;
+          break;
+        }
       } catch (err) {
         console.warn("platform generation provider unavailable; using fallback copy:", err);
         retryReasons = [
-          err instanceof Error ? err.message : "Anthropic generation failed.",
+          err instanceof Error ? err.message : `${provider} generation failed.`,
         ];
         generationMode = "fallback";
-        break;
-      }
-
-      const toolUse = message.content.find((block) => block.type === "tool_use");
-      if (!toolUse || toolUse.type !== "tool_use") {
-        return Response.json({ error: "Model returned no structured output." }, { status: 502 });
-      }
-      const candidate = toolUse.input as {
-        fields: Record<string, string>;
-        evidence: Evidence[];
-      };
-      lastCandidateEvidence = Array.isArray(candidate.evidence)
-        ? candidate.evidence
-        : [];
-      structured = Object.fromEntries(
-        editableFields.map((key) => [
-          key,
-          String(candidate.fields?.[key] ?? "")
-            .replace(/\r\n?/g, "\n")
-            .trim(),
-        ])
-      );
-      const configuredIssues = templateFieldIssues(
-        structured,
-        editableFields,
-        fieldLimits,
-        requiredFields
-      );
-      const geometryIssues = await templatePlatformFieldFitIssues({
-        manifest: assignment.manifest,
-        variantKey: outputSizeKey,
-        fields: structured,
-        assetUrlByPath,
-      });
-      retryReasons = [
-        ...editableFields.flatMap((key) =>
-          (configuredIssues[key] ?? []).map((issue) => `${key}: ${issue.message}`)
-        ),
-        ...formatTemplatePlatformFitIssues(geometryIssues),
-      ];
-
-      if (!retryReasons.length) {
-        out = candidate;
         break;
       }
     }
@@ -595,6 +710,8 @@ export async function POST(req: Request) {
       generated_fields: structured,
       manually_edited_fields: [],
       compliance_state: "generated",
+      ai_provider: provider,
+      ai_model: provider === "openai" ? OPENAI_GENERATION_MODEL : GENERATION_MODEL,
       generation_mode: generationMode,
       evidence_validation: {
         accepted: evidence.length,
