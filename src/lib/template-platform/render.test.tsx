@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { ImageResponse } from "next/og";
 import { renderToStaticMarkup } from "react-dom/server";
 
 import { buildContentGateTemplateBundle } from "./contentgate-bundle";
@@ -12,6 +13,7 @@ import {
 import { isPublicContentGateBundle } from "./public-contentgate-assets";
 import { validateTemplateBundlePublishReadiness } from "./publish-readiness";
 import { renderTemplateBundleVariant } from "./render";
+import { loadTemplateBundleImageFonts } from "./server-fonts";
 
 test("renders platform bundle generated mode with background and text slots", async () => {
   const bundle = await buildContentGateTemplateBundle("contentgate_local_friendly");
@@ -156,6 +158,40 @@ test("ContentGate figwright bundles are recognized as public assets", async () =
   };
 
   assert.equal(isPublicContentGateBundle(manifest), true);
+});
+
+test("generated bundle renders can be consumed by ImageResponse", async () => {
+  const bundle = await buildContentGateTemplateBundle("contentgate_local_friendly");
+  const backgroundPath = "template-packages/contentgate/set-a/backgrounds/link-ad.png";
+  const rendered = renderTemplateBundleVariant({
+    manifest: bundle.manifest,
+    variantKey: "link_ad",
+    fields: {
+      cta: "Get Started Today",
+      headline: "Local Content,\nBrand Approved",
+      local_detail: "Your local team. Your brand. Ready to go.",
+      proof_note: "Trusted by branch teams,\nfranchises & field reps.",
+      subheadline:
+        "Create on-brand local marketing from approved templates—without breaking the design system.",
+    },
+    assetUrlByPath: {
+      [backgroundPath]:
+        "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=",
+    },
+  });
+
+  assert.ok(rendered);
+
+  const fonts = await loadTemplateBundleImageFonts({ manifest: bundle.manifest });
+  const response = new ImageResponse(rendered.element, {
+    width: rendered.width,
+    height: rendered.height,
+    fonts,
+  });
+  const png = await response.arrayBuffer();
+
+  assert.equal(response.headers.get("content-type"), "image/png");
+  assert.ok(png.byteLength > 0);
 });
 
 test("reports platform copy that wraps beyond the locked text slot", async () => {

@@ -123,6 +123,7 @@ export function renderTemplateBundleVariant(input: {
         data-template-platform-bundle={input.manifest.family.key}
         style={{
           position: "relative",
+          display: "flex",
           width: runtime.variant.width,
           height: runtime.variant.height,
           overflow: "hidden",
