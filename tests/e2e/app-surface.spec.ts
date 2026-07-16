@@ -96,6 +96,24 @@ async function signIn(page: Page) {
 }
 
 async function assertNoBrokenImages(page: Page, surfaceName: string) {
+  await page
+    .waitForFunction(
+      () =>
+        [...document.images]
+          .filter(
+            (image) =>
+              image.getClientRects().length > 0 &&
+              window.getComputedStyle(image).visibility !== "hidden"
+          )
+          .every((image) => image.complete && image.naturalWidth > 0 && image.naturalHeight > 0),
+      undefined,
+      { timeout: 10_000 }
+    )
+    .catch(() => {
+      // Keep the assertion below as the source of truth so failures include
+      // the exact image src/alt that did not load.
+    });
+
   const brokenImages = await page.locator("img").evaluateAll((images) =>
     images
       .map((image) => {
