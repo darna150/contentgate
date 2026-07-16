@@ -8,6 +8,7 @@ import {
 } from "@/lib/content-governance";
 import { createClient } from "@/lib/supabase/server";
 import type { TemplateBundleManifest } from "@/lib/template-platform/manifest";
+import { publicContentGateBundleVariantAssetPath } from "@/lib/template-platform/public-contentgate-assets";
 import {
   getTemplateBundleSupportedSizes,
   getTemplateBundleVariantDimensions,
@@ -27,6 +28,7 @@ export type StudioContent = {
   id: string;
   title: string;
   status: string;
+  rejectionNote: string | null;
   structured_fields: Record<string, string>;
   outputSize: string | null;
   manuallyEdited: boolean;
@@ -44,6 +46,7 @@ export type StudioTemplate = {
   templateVersionId?: string;
   platformAssetUrlByPath?: Record<string, string>;
   platformManifest?: TemplateBundleManifest;
+  referenceAssetBySize?: Record<string, string>;
   editable_fields: string[];
   required_fields: string[];
   default_copy: Record<string, string>;
@@ -112,6 +115,7 @@ type GeneratedContentRow = {
   id: string;
   title: string;
   status: string;
+  rejection_note?: string | null;
   structured_fields: Record<string, string> | null;
   prompt_context: Record<string, unknown> | null;
   created_by: string;
@@ -128,7 +132,7 @@ type GeneratedContentRow = {
 };
 
 const CONTENT_SELECT =
-  "id, title, status, structured_fields, prompt_context, created_by, product_id, product_template_id, template_version_id, template_variant_id, template_variants(variant_key, label), updated_at";
+  "id, title, status, rejection_note, structured_fields, prompt_context, created_by, product_id, product_template_id, template_version_id, template_variant_id, template_variants(variant_key, label), updated_at";
 
 const ACTIVE_CONTENT_STATUSES = ["draft", "rejected", "in_review", "approved"];
 
@@ -168,6 +172,7 @@ function toStudioContent(row: GeneratedContentRow, userId?: string): StudioConte
     id: row.id,
     title: row.title,
     status: row.status,
+    rejectionNote: row.rejection_note ?? null,
     structured_fields: (row.structured_fields ?? {}) as Record<string, string>,
     outputSize: contentOutputSize(row),
     canEdit: userId
@@ -193,6 +198,12 @@ function platformAssignmentsToTemplates(rows: PlatformAssignmentRow[]): StudioTe
     if (!defaultVariantKey) return [];
     const runtime = resolveTemplateBundleRuntimeVariant(version.manifest, defaultVariantKey);
     if (!runtime) return [];
+    const referenceAssetBySize = Object.fromEntries(
+      supportedSizes.map((size) => [
+        size,
+        publicContentGateBundleVariantAssetPath(version.manifest, size, "reference") ?? "",
+      ])
+    );
     const defaultCopy = row.default_payload ?? {};
     return [
       {
@@ -204,6 +215,7 @@ function platformAssignmentsToTemplates(rows: PlatformAssignmentRow[]): StudioTe
         platformAssignmentId: row.id,
         templateVersionId: version.id,
         platformManifest: version.manifest,
+        referenceAssetBySize,
         editable_fields: runtime.fields.map((field) => field.key),
         required_fields: runtime.fields
           .filter((field) => field.required !== false)

@@ -172,7 +172,7 @@ export function NotebookClient({
   );
   const [question, setQuestion] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [errorsBySession, setErrorsBySession] = useState<Record<string, string>>({});
   const [isPending, startTransition] = useTransition();
 
   // Source panel
@@ -200,8 +200,20 @@ export function NotebookClient({
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const activeSession = sessions.find((s) => s.id === activeId) ?? null;
+  const activeError = activeId ? errorsBySession[activeId] ?? null : null;
   const selectedProduct =
     products.find((product) => product.id === selectedProductId) ?? null;
+
+  function setSessionError(sessionId: string, message: string | null) {
+    setErrorsBySession((current) => {
+      if (!message) {
+        const next = { ...current };
+        delete next[sessionId];
+        return next;
+      }
+      return { ...current, [sessionId]: message };
+    });
+  }
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -277,6 +289,7 @@ export function NotebookClient({
       };
       setSessions((prev) => [session, ...prev]);
       setActiveId(result.id);
+      setSessionError(result.id, null);
       setSourcePanel(null);
       setTimeout(() => inputRef.current?.focus(), 80);
     });
@@ -326,7 +339,7 @@ export function NotebookClient({
     // Auto-create a session on first message if somehow none is active
     if (!sessionId) {
       const result = await createSession(productId);
-      if ("error" in result) { setError(result.error); return; }
+      if ("error" in result) return;
       sessionId = result.id;
       const session: Session = {
         id: result.id,
@@ -342,7 +355,7 @@ export function NotebookClient({
 
     setQuestion("");
     setLoading(true);
-    setError(null);
+    setSessionError(sessionId, null);
 
     const userMsg: SessionMessage = { role: "user", content: q };
 
@@ -361,7 +374,14 @@ export function NotebookClient({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ productId, question: q }),
       });
-      if (!res.ok) throw new Error("failed");
+      if (!res.ok) {
+        const payload = await res.json().catch(() => null) as { error?: unknown } | null;
+        const message =
+          typeof payload?.error === "string"
+            ? payload.error
+            : "Knowledge Q&A is temporarily unavailable. Please try again.";
+        throw new Error(message);
+      }
       const data = await res.json() as {
         answer: string;
         citations: Citation[];
@@ -394,19 +414,21 @@ export function NotebookClient({
         )
       );
 
-      const saveResult = await saveSession(sessionId, allMessages, newTitle);
-      if (saveResult.error) {
-        setError("The answer is shown, but this conversation could not be saved. Please try again.");
+      try {
+        const saveResult = await saveSession(sessionId, allMessages, newTitle);
+        if (saveResult.error) {
+          setSessionError(sessionId, "The answer is shown, but this conversation could not be saved.");
+        }
+      } catch (saveError) {
+        console.warn("knowledge session save failed:", saveError);
+        setSessionError(sessionId, "The answer is shown, but this conversation could not be saved.");
       }
-    } catch {
-      setError("Something went wrong. Please try again.");
-      setSessions((prev) =>
-        prev.map((s) =>
-          s.id === sessionId
-            ? { ...s, messages: s.messages.slice(0, -1) }
-            : s
-        )
-      );
+    } catch (caught) {
+      const message =
+        caught instanceof Error && caught.message
+          ? caught.message
+          : "Knowledge Q&A is temporarily unavailable. Please try again.";
+      setSessionError(sessionId, message);
     } finally {
       setLoading(false);
       setTimeout(() => inputRef.current?.focus(), 50);
@@ -738,7 +760,7 @@ export function NotebookClient({
                   ))}
                 </div>
               )}
-              {error && <p className="text-[13px] text-reject">{error}</p>}
+              {activeError && <p className="text-[13px] text-reject">{activeError}</p>}
               <div ref={bottomRef} />
             </div>
           )}
@@ -766,7 +788,7 @@ export function NotebookClient({
                   placeholder="Ask a question… (Enter to send, Shift+Enter for new line)"
                   disabled={loading}
                   rows={1}
-                  className="flex-1 resize-none overflow-hidden rounded-control border border-edge bg-page px-4 py-2.5 text-[13.5px] placeholder:text-ink-faint focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 disabled:opacity-50"
+                  className="min-h-[64px] flex-1 resize-none overflow-y-auto rounded-control border border-edge bg-page px-4 py-2.5 text-[13.5px] leading-5 placeholder:text-ink-faint focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 disabled:opacity-50 sm:min-h-[44px]"
                 />
                 <Button
                   type="submit"

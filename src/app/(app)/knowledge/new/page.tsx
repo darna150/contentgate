@@ -35,7 +35,7 @@ export default async function NewDocumentPage({
         <Link href={backHref} className="text-[13px] font-semibold text-brand hover:underline">
           {backLabel}
         </Link>
-        <h1 className="font-serif text-[28px] font-semibold">Add source document</h1>
+        <h1 className="text-h1 text-ink">Add source document</h1>
         <p className="text-[14.5px] text-ink-muted">
           {presetName
             ? `Add approved source knowledge to ${presetName}. Every paragraph becomes a citable source.`

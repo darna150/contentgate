@@ -24,6 +24,8 @@ import {
   templatePreviewUrl,
 } from "@/lib/creative";
 import {
+  getTemplateBundleVariantFieldLimits,
+  getTemplateBundleVariantFields,
   getTemplateBundleSupportedSizes,
   getTemplateBundleVariantDimensions,
   getTemplateBundleVariantLabel,
@@ -34,7 +36,12 @@ import {
   submitForReview,
   updateStructuredFields,
 } from "../content/actions";
-import { GenerationLoader, ServerPreviewFrame } from "./studio-preview";
+import {
+  GenerationLoader,
+  LiveTemplatePreviewFrame,
+  MissingDraftFrame,
+  ServerPreviewFrame,
+} from "./studio-preview";
 import { StudioFields } from "./studio-fields";
 import { StudioGeneratePanel } from "./studio-generate-panel";
 import { resolveStudioMode } from "./studio-mode";
@@ -183,30 +190,56 @@ export function StudioWorkspace({
   });
   const editable = mode === "create" || mode === "edit";
   const activeFields = content ? draftFields : selectedTemplate.default_copy;
-  const activeFieldLimits = selectedTemplate.field_limits;
+  const activeVariantFields = useMemo(
+    () =>
+      selectedTemplate.platformManifest
+        ? getTemplateBundleVariantFields(selectedTemplate.platformManifest, size)
+        : selectedTemplate.editable_fields.map((key) => ({
+            key,
+            required: selectedTemplate.required_fields.includes(key),
+          })),
+    [
+      selectedTemplate.editable_fields,
+      selectedTemplate.platformManifest,
+      selectedTemplate.required_fields,
+      size,
+    ]
+  );
+  const activeEditableFields = useMemo(
+    () => activeVariantFields.map((field) => field.key),
+    [activeVariantFields]
+  );
+  const activeRequiredFields = useMemo(
+    () =>
+      activeVariantFields
+        .filter((field) => field.required !== false)
+        .map((field) => field.key),
+    [activeVariantFields]
+  );
+  const activeFieldLimits = selectedTemplate.platformManifest
+    ? getTemplateBundleVariantFieldLimits(selectedTemplate.platformManifest, size)
+    : selectedTemplate.field_limits;
   const requiredFieldSet = useMemo(
-    () => new Set(selectedTemplate.required_fields),
-    [selectedTemplate.required_fields]
+    () => new Set(activeRequiredFields),
+    [activeRequiredFields]
   );
 
   const issuesByField = useMemo(
     () =>
       Object.fromEntries(
-        selectedTemplate.editable_fields.map((key) => [
+        activeEditableFields.map((key) => [
           key,
           fieldIssues(draftFields[key], activeFieldLimits[key], requiredFieldSet.has(key)),
         ])
       ),
-    [activeFieldLimits, draftFields, requiredFieldSet, selectedTemplate.editable_fields]
+    [activeEditableFields, activeFieldLimits, draftFields, requiredFieldSet]
   );
-  const hasIssues = selectedTemplate.editable_fields.some(
-    (key) => issuesByField[key].length > 0
-  );
+  const hasIssues = activeEditableFields.some((key) => issuesByField[key].length > 0);
   const hasLayoutOverflow = overflowFields.length > 0;
   const dirty =
     mode === "edit" &&
     content !== null &&
-    selectedTemplate.editable_fields.some(
+    activeEditableFields.some(
       (key) => (draftFields[key] ?? "") !== (savedFields[key] ?? "")
     );
   const exportAllowed =
@@ -232,9 +265,29 @@ export function StudioWorkspace({
   const activeSizeLabel = selectedTemplate.platformManifest
     ? getTemplateBundleVariantLabel(selectedTemplate.platformManifest, size)
     : sizeLabel(size);
-  const originalPreviewUrl = selectedTemplate.platformAssignmentId
-    ? platformTemplatePreviewUrl(selectedTemplate.platformAssignmentId, size)
-    : templatePreviewUrl(selectedTemplate.id, size);
+  const originalPreviewUrl =
+    selectedTemplate.referenceAssetBySize?.[size] ||
+    (selectedTemplate.platformAssignmentId
+      ? platformTemplatePreviewUrl(selectedTemplate.platformAssignmentId, size)
+      : templatePreviewUrl(selectedTemplate.id, size));
+  const referencePreviewUrls = useMemo(
+    () =>
+      Object.fromEntries(
+        sizes.map((key) => [
+          key,
+          selectedTemplate.referenceAssetBySize?.[key] ||
+            (selectedTemplate.platformAssignmentId
+              ? platformTemplatePreviewUrl(selectedTemplate.platformAssignmentId, key)
+              : templatePreviewUrl(selectedTemplate.id, key)),
+        ])
+      ),
+    [
+      selectedTemplate.id,
+      selectedTemplate.platformAssignmentId,
+      selectedTemplate.referenceAssetBySize,
+      sizes,
+    ]
+  );
   const generatedPreviewUrl = content
     ? draftPreviewUrl(content.id, size, savedAt ?? content.id)
     : null;
@@ -302,6 +355,18 @@ export function StudioWorkspace({
   }, [retryUntil]);
 
   useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    const timer = window.setTimeout(() => {
+      for (const src of Object.values(referencePreviewUrls)) {
+        const image = new Image();
+        image.decoding = "async";
+        image.src = src;
+      }
+    }, 600);
+    return () => window.clearTimeout(timer);
+  }, [referencePreviewUrls]);
+
+  useEffect(() => {
     if (!dirty || !content || mode !== "edit") return undefined;
     if (hasIssues || hasLayoutOverflow) return undefined;
 
@@ -356,7 +421,7 @@ export function StudioWorkspace({
 
   function updateField(key: string, value: string) {
     const nextFields = { ...draftFields, [key]: value };
-    const nextDirty = selectedTemplate.editable_fields.some(
+    const nextDirty = activeEditableFields.some(
       (field) => (nextFields[field] ?? "") !== (savedFields[field] ?? "")
     );
     setSaveState(nextDirty ? "unsaved" : "saved");
@@ -404,6 +469,7 @@ export function StudioWorkspace({
         id: result.contentId as string,
         title: result.title as string,
         status: "draft",
+        rejectionNote: null,
         structured_fields: result.structured_fields as Record<string, string>,
         outputSize: (result.outputSize as string | null) ?? size,
         manuallyEdited: false,
@@ -520,6 +586,27 @@ export function StudioWorkspace({
     setSubmitting(false);
   }
 
+  function markReviewed(status: "approved" | "rejected", rejectionNote?: string | null) {
+    if (!content) return;
+    const reviewedAt = new Date().toISOString();
+    setContentsBySize((current) => {
+      const existing = current[size];
+      if (!existing || existing.id !== content.id) return current;
+      return {
+        ...current,
+        [size]: {
+          ...existing,
+          status,
+          rejectionNote: status === "approved" ? null : rejectionNote ?? existing.rejectionNote,
+          canEdit: status === "rejected",
+          updatedAt: reviewedAt,
+        },
+      };
+    });
+    setSaveState("saved");
+    setSavedAt(reviewedAt);
+  }
+
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -608,14 +695,37 @@ export function StudioWorkspace({
             />
           )}
 
-          {mode === "review" && content && <StudioReviewActions contentId={content.id} />}
+          {mode === "read" && content?.status === "approved" && (
+            <StudioGeneratePanel
+              language={language}
+              onLanguageChange={setLanguage}
+              selectedRevision={selectedRevision}
+              onRevisionChange={setSelectedRevision}
+              onGenerate={generate}
+              busy={busy}
+              generationPaused={generationPaused}
+              retryLabel={
+                generationPaused ? `Try again in ${formatRetryWait(retrySecondsRemaining)}` : null
+              }
+              buttonLabel={
+                selectedRevision
+                  ? `Create new ${activeSizeLabel} draft with refinement`
+                  : `Create new ${activeSizeLabel} draft`
+              }
+              error={error}
+            />
+          )}
 
-          <StudioFields
-            fields={selectedTemplate.editable_fields}
-            requiredFields={selectedTemplate.required_fields}
-            values={activeFields}
-            limits={activeFieldLimits}
-            editable={editable}
+          {mode === "review" && content && (
+            <StudioReviewActions contentId={content.id} onReviewed={markReviewed} />
+          )}
+
+              <StudioFields
+                fields={activeEditableFields}
+                requiredFields={activeRequiredFields}
+                values={activeFields}
+                limits={activeFieldLimits}
+                editable={editable}
             issuesByField={issuesByField}
             overflowFields={overflowFields}
             onChange={updateField}
@@ -626,6 +736,14 @@ export function StudioWorkspace({
               Manual edits are tracked separately from the generated copy and require reviewer
               approval before export.
             </p>
+          )}
+          {mode === "edit" && content?.status === "rejected" && content.rejectionNote && (
+            <div className="rounded-control border border-reject-border bg-reject-tint px-3 py-2.5">
+              <p className="text-[11.5px] font-bold text-reject">Changes requested</p>
+              <p className="mt-1 text-[12px] leading-relaxed text-ink-muted">
+                {content.rejectionNote}
+              </p>
+            </div>
           )}
           {mode === "edit" && content && (
             <div className="flex items-center justify-between rounded-control border border-edge bg-page px-3 py-2">
@@ -759,12 +877,31 @@ export function StudioWorkspace({
 
           <div className="relative">
             {busy && <GenerationLoader />}
-            <ServerPreviewFrame
-              src={previewUrl}
-              width={dims.w}
-              height={dims.h}
-              updating={!showOriginal && serverPreviewUpdating}
-            />
+            {!content && hasAnyGeneratedDraft && !showOriginal ? (
+              <MissingDraftFrame
+                width={dims.w}
+                height={dims.h}
+                sizeLabel={activeSizeLabel}
+                busy={busy}
+                onGenerate={generate}
+              />
+            ) : !showOriginal && content && selectedTemplate.platformManifest ? (
+              <LiveTemplatePreviewFrame
+                manifest={selectedTemplate.platformManifest}
+                variantKey={size}
+                fields={draftFields}
+                width={dims.w}
+                height={dims.h}
+                updating={serverPreviewUpdating}
+              />
+            ) : (
+              <ServerPreviewFrame
+                src={previewUrl}
+                width={dims.w}
+                height={dims.h}
+                updating={!showOriginal && serverPreviewUpdating}
+              />
+            )}
           </div>
         </div>
       </div>

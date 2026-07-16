@@ -2,6 +2,7 @@
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { PreviewImage } from "@/components/preview-image";
 import { AssetStatusBadge } from "./asset-status-badge";
 import { ASSET_TYPE_LABELS, type AssetItem } from "./types";
 import { formatDimensions, formatFileSize, fileTypeLabel } from "./format";
@@ -34,12 +35,10 @@ export function AssetCard({
         aria-label={`Preview ${asset.title}`}
         className="group relative aspect-square w-full overflow-hidden rounded-[6px] border border-edge bg-page focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
       >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
+        <PreviewImage
           src={asset.previewUrl}
           alt={asset.altText || asset.title}
-          className="h-full w-full object-contain p-2"
-          loading="lazy"
+          className="p-2"
         />
         <span className="absolute inset-0 flex items-center justify-center bg-ink/0 opacity-0 transition-all group-hover:bg-ink/5 group-hover:opacity-100">
           <span className="flex items-center gap-1.5 rounded-full bg-surface px-3 py-1.5 text-[11.5px] font-semibold text-ink shadow-sm">

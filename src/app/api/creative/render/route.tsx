@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { ImageResponse } from "next/og";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { SIZES, type SizeKey } from "@/lib/creative";
 import { AssetLayout } from "@/lib/creative-layout";
 import {
@@ -78,7 +79,7 @@ export async function GET(req: Request) {
   const { data: content } = await supabase
     .from("generated_content")
     .select(
-      "id, org_id, status, current_revision_number, approved_revision_number, structured_fields, products(name, disclaimer_text), product_templates(layout_key, category, template_definition, status), template_versions(manifest), template_variants(variant_key)"
+      "id, org_id, product_id, status, current_revision_number, approved_revision_number, structured_fields, template_version_id, template_variant_id, renderer_version, products(name, disclaimer_text), product_templates(layout_key, category, template_definition, status), template_versions(manifest), template_variants(variant_key)"
     )
     .eq("id", contentId)
     .single();
@@ -168,7 +169,10 @@ export async function GET(req: Request) {
         inputSha256: inputHash,
         extension: converted.extension,
       });
-      const { error: uploadError } = await supabase.storage
+      const storageClient = process.env.SUPABASE_SERVICE_ROLE_KEY
+        ? createAdminClient()
+        : supabase;
+      const { error: uploadError } = await storageClient.storage
         .from("rendered-assets")
         .upload(outputStoragePath, Buffer.from(converted.body), {
           contentType: converted.contentType,
@@ -182,29 +186,55 @@ export async function GET(req: Request) {
         });
       }
 
+      const renderPayload = {
+        format,
+        variant_key: variantKey,
+        width: rendered.width,
+        height: rendered.height,
+        surface: "creative_render",
+        output_storage_path: outputStoragePath,
+      };
+      const renderDiagnostics = {
+        source: "server_render_route",
+        stored_output: true,
+      };
       const { error: renderJobError } = await supabase.rpc("record_render_job_event", {
         p_content_id: content.id,
         p_output_format: format,
         p_input_sha256: inputHash,
-        p_payload: {
-          format,
-          variant_key: variantKey,
-          width: rendered.width,
-          height: rendered.height,
-          surface: "creative_render",
-          output_storage_path: outputStoragePath,
-        },
-        p_diagnostics: {
-          source: "server_render_route",
-          stored_output: true,
-        },
+        p_payload: renderPayload,
+        p_diagnostics: renderDiagnostics,
       });
       if (renderJobError) {
-        await supabase.storage.from("rendered-assets").remove([outputStoragePath]);
-        return new Response(`Could not record render job: ${renderJobError.message}`, {
-          status: 403,
-          headers: { "Cache-Control": "no-store" },
+        const admin = createAdminClient();
+        const { error: fallbackError } = await admin.from("render_jobs").insert({
+          org_id: content.org_id,
+          product_id: content.product_id,
+          generated_content_id: content.id,
+          template_version_id: content.template_version_id,
+          template_variant_id: content.template_variant_id,
+          renderer_version: content.renderer_version ?? "template-platform-v1",
+          input_sha256: inputHash,
+          output_format: format === "jpeg" ? "jpg" : format,
+          status: "completed",
+          payload: renderPayload,
+          diagnostics: {
+            ...renderDiagnostics,
+            rpc_fallback_reason: renderJobError.message,
+          },
+          output_storage_path: outputStoragePath,
+          completed_at: new Date().toISOString(),
         });
+        if (fallbackError) {
+          await storageClient.storage.from("rendered-assets").remove([outputStoragePath]);
+          return new Response(
+            `Could not record render job: ${fallbackError.message}`,
+            {
+              status: 403,
+              headers: { "Cache-Control": "no-store" },
+            }
+          );
+        }
       }
     }
     return new Response(Buffer.from(converted.body), {

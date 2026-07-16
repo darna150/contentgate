@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
@@ -24,8 +25,20 @@ export async function GET() {
     });
     if (!response.ok) throw new Error(`Supabase returned ${response.status}`);
 
+    const admin = createAdminClient();
+    const { data: renderBucket, error: bucketError } = await admin.storage.getBucket(
+      "rendered-assets"
+    );
+    if (bucketError || !renderBucket) {
+      throw new Error(
+        `Supabase rendered-assets bucket unavailable: ${
+          bucketError?.message ?? "not found"
+        }`
+      );
+    }
+
     return NextResponse.json(
-      { status: "ok" },
+      { status: "ok", checks: { supabase: "ok", renderedAssetsBucket: "ok" } },
       { headers: { "Cache-Control": "no-store" } }
     );
   } catch (error) {

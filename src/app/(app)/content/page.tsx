@@ -3,6 +3,7 @@ import { StatusPill } from "@/components/status-pill";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { FilterChips } from "@/components/filter-chips";
+import { ContentFilterSelects } from "./content-filter-selects";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { sizeLabel } from "@/lib/creative";
@@ -102,24 +103,12 @@ export default async function ContentPage({
           activeValue={filter}
           getHref={(value) => buildHref({ status: value })}
         />
-        <FilterChips
-          options={[
-            { label: "All languages", value: "all" },
-            ...LANGUAGES.map((l) => ({ label: l, value: l })),
-          ]}
-          activeValue={activeLanguage}
-          getHref={(value) => buildHref({ language: value })}
+        <ContentFilterSelects
+          activeLanguage={activeLanguage}
+          activeSize={activeSize}
+          languages={LANGUAGES}
+          sizeOptions={sizeOptions.map((key) => ({ value: key, label: sizeLabel(key) }))}
         />
-        {sizeOptions.length > 0 && (
-          <FilterChips
-            options={[
-              { label: "All sizes", value: "all" },
-              ...sizeOptions.map((key) => ({ label: sizeLabel(key), value: key })),
-            ]}
-            activeValue={activeSize}
-            getHref={(value) => buildHref({ size: value })}
-          />
-        )}
       </div>
 
       {rows.length === 0 ? (

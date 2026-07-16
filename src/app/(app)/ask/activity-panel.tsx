@@ -45,11 +45,11 @@ export async function ActivityPanel() {
       {/* Stat row */}
       <div className="flex gap-3">
         <div className="flex flex-1 flex-col gap-0.5 rounded-[10px] border border-edge bg-page px-4 py-3">
-          <span className="font-serif text-[24px] font-semibold leading-none">{total ?? 0}</span>
+          <span className="text-[24px] font-bold leading-none text-ink">{total ?? 0}</span>
           <span className="text-[11.5px] text-ink-faint">Questions asked</span>
         </div>
         <div className="flex flex-1 flex-col gap-0.5 rounded-[10px] border border-edge bg-page px-4 py-3">
-          <span className="font-serif text-[24px] font-semibold leading-none">{unanswered ?? 0}</span>
+          <span className="text-[24px] font-bold leading-none text-ink">{unanswered ?? 0}</span>
           <span className="text-[11.5px] text-ink-faint">Outside approved sources</span>
         </div>
       </div>

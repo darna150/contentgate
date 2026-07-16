@@ -51,6 +51,13 @@ async function requireUser() {
   return { supabase, user, profile };
 }
 
+function revalidateContentSurfaces(id: string) {
+  revalidatePath(`/content/${id}`);
+  revalidatePath(`/studio/${id}`);
+  revalidatePath("/content");
+  revalidatePath("/approvals");
+}
+
 async function validateStoredTemplateFields(
   content: {
     structured_fields: unknown;
@@ -155,8 +162,7 @@ export async function updateContentBody(
     return { error: `Could not save: ${error?.message ?? "not found"}` };
   }
 
-  revalidatePath(`/content/${id}`);
-  revalidatePath("/content");
+  revalidateContentSurfaces(id);
   return { ok: true };
 }
 
@@ -284,8 +290,7 @@ export async function updateStructuredFields(
     return { error: `Could not save: ${error?.message ?? "not found"}` };
   }
 
-  revalidatePath(`/content/${id}`);
-  revalidatePath("/content");
+  revalidateContentSurfaces(id);
   return {
     ok: true,
     status: row.status,
@@ -411,9 +416,7 @@ export async function approveContent(id: string): Promise<ActionResult> {
   });
   if (error) return { error: `Could not approve: ${error.message}` };
 
-  revalidatePath(`/content/${id}`);
-  revalidatePath("/content");
-  revalidatePath("/approvals");
+  revalidateContentSurfaces(id);
   return { ok: true };
 }
 
@@ -436,9 +439,7 @@ export async function rejectContent(
   });
   if (error) return { error: `Could not reject: ${error.message}` };
 
-  revalidatePath(`/content/${id}`);
-  revalidatePath("/content");
-  revalidatePath("/approvals");
+  revalidateContentSurfaces(id);
   return { ok: true };
 }
 
@@ -480,8 +481,6 @@ export async function submitForReview(id: string): Promise<ActionResult> {
   });
   if (error) return { error: `Could not submit: ${error.message}` };
 
-  revalidatePath(`/content/${id}`);
-  revalidatePath("/content");
-  revalidatePath("/approvals");
+  revalidateContentSurfaces(id);
   return { ok: true };
 }

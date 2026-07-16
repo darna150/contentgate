@@ -21,6 +21,16 @@ function cleanText(value: unknown) {
     .trim();
 }
 
+function descenderPadding(slot: TemplateBundleTextSlot) {
+  // Figma text boxes can export very tight line-height values (< 1).
+  // Browser/Satori rendering can then clip glyph descenders ("g", "y",
+  // "p", "q") when the slot clips overflow. Preserve the Figma line
+  // height, but use any spare vertical room as a small internal descender
+  // buffer so glyph bottoms are not cut off.
+  const lineBoxHeight = slot.fontSize * slot.lineHeight * slot.maxLines;
+  return Math.max(0, Math.min(slot.fontSize * 0.12, slot.height - lineBoxHeight));
+}
+
 function renderTextSlot(
   manifest: TemplateBundleManifest,
   slot: TemplateBundleTextSlot,
@@ -70,6 +80,7 @@ function renderTextSlot(
           minWidth: 0,
           flexShrink: 0,
           maxHeight: "100%",
+          paddingBottom: descenderPadding(slot),
           overflow: "hidden",
           textAlign: slot.align ?? "left",
           whiteSpace: "pre-wrap",

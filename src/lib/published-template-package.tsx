@@ -612,7 +612,7 @@ function friendlyPackage(): PublishedTemplatePackage {
         ],
         [
           { field: "local_detail", x: 72, y: 134, w: 504, h: 34.54, fontSize: 14.5068, lineHeight: 1.1, weight: 600, color: RUST, maxChars: 74, maxLines: 1, lineChars: 50, family: "Inter" },
-          { field: "headline", x: 72, y: 207.24, w: 576, h: 125.6, fontSize: 60, lineHeight: 0.98, weight: 700, color: GREEN, maxChars: 58, maxLines: 2, lineChars: 20, family: "Inter" },
+          { field: "headline", x: 72, y: 207.24, w: 576, h: 136, fontSize: 60, lineHeight: 1.04, weight: 700, color: GREEN, maxChars: 58, maxLines: 2, lineChars: 20, family: "Inter" },
           { field: "subheadline", x: 72, y: 374, w: 528, h: 75.36, fontSize: 21.98, lineHeight: 1.22, weight: 400, color: MUTED, maxChars: 112, maxLines: 2, lineChars: 40, family: "Inter" },
           { field: "cta", x: 72, y: 477.28, w: 252, h: 56.52, fontSize: 20.096, lineHeight: 1.04, weight: 600, color: WHITE, maxChars: 28, maxLines: 1, align: "center", family: "Inter" },
           { field: "proof_note", x: 348, y: 477.28, w: 288, h: 56.52, fontSize: 16.328, lineHeight: 1.04, weight: 500, color: TEAL, maxChars: 64, maxLines: 2, lineChars: 32, family: "Inter" },
@@ -741,7 +741,7 @@ function premiumPackage(): PublishedTemplatePackage {
         WARM,
         [],
         [
-          { field: "headline", x: 66, y: 176, w: 528, h: 119.32, fontSize: 50, lineHeight: 0.96, weight: 700, color: GREEN, maxChars: 58, maxLines: 2, lineChars: 23, family: "Inter" },
+          { field: "headline", x: 66, y: 176, w: 528, h: 126, fontSize: 50, lineHeight: 1.04, weight: 700, color: GREEN, maxChars: 58, maxLines: 2, lineChars: 23, family: "Inter" },
           { field: "subheadline", x: 66, y: 332, w: 480, h: 75.36, fontSize: 21.98, lineHeight: 1.22, weight: 400, color: MUTED, maxChars: 112, maxLines: 2, lineChars: 40, family: "Inter" },
           { field: "cta", x: 66, y: 461.58, w: 264, h: 53.38, fontSize: 18.84, lineHeight: 1.04, weight: 600, color: WHITE, maxChars: 28, maxLines: 1, align: "center", family: "Inter" },
           { field: "proof_note", x: 360, y: 461.58, w: 264, h: 53.38, fontSize: 15.7, lineHeight: 1.12, weight: 500, color: TEAL, maxChars: 64, maxLines: 2, lineChars: 32, family: "Inter" },

@@ -52,7 +52,12 @@ function imageAssetIsUsableForVariant(
 }
 
 function slotLineBoxFits(slot: TemplateBundleTextSlot) {
-  return slot.fontSize * slot.lineHeight * slot.maxLines <= slot.height + 0.5;
+  const lineBoxHeight = slot.fontSize * slot.lineHeight * slot.maxLines;
+  const descenderPadding = Math.max(
+    0,
+    Math.min(slot.fontSize * 0.12, slot.height - lineBoxHeight)
+  );
+  return lineBoxHeight + descenderPadding <= slot.height + 0.5;
 }
 
 function fieldAcceptsSlot(field: TemplateBundleField | undefined, kind: "image" | "text") {

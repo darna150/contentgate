@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge";
+import { PreviewImage } from "@/components/preview-image";
 import { SizeChip, type SizeChipStatus } from "@/components/size-chip";
 import type { ProductWorkspace, ProductWorkspacePlatformTemplate } from "@/lib/product-workspace-server";
 import { GenerateVariant } from "../generate-variant";
@@ -48,12 +49,9 @@ function TemplateCard({
           className="overflow-hidden rounded-[8px] border border-edge bg-brand-tint"
           style={{ aspectRatio: dims ? `${dims.width} / ${dims.height}` : "1 / 1" }}
         >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
+          <PreviewImage
             src={imageSrc(previewPath)}
             alt={`${template.familyName} template preview`}
-            loading="lazy"
-            className="h-full w-full object-contain"
           />
         </div>
       ) : null}

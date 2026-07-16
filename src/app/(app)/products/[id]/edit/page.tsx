@@ -76,7 +76,7 @@ export default async function EditProductPage({
         <a href={`/products/${id}`} className="text-[13px] font-semibold text-brand hover:underline">
           ← {product.name}
         </a>
-        <h1 className="font-serif text-[28px] font-semibold">Edit product</h1>
+        <h1 className="text-h1 text-ink">Edit product</h1>
       </div>
 
       {/* Product details */}
