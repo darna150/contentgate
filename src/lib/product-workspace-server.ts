@@ -20,7 +20,7 @@ import {
   normalizeTemplatePlatformAssignment,
   type TemplatePlatformAssignmentRow,
 } from "@/lib/template-platform/assignments";
-import type { TemplateBundleManifest } from "@/lib/template-platform/manifest";
+import { publicContentGateBundleAssetPath } from "@/lib/template-platform/public-contentgate-assets";
 import { cursorFromOffset, offsetFromCursor } from "@/lib/content-listing-shared";
 
 type Joined<T> = T | T[] | null;
@@ -197,28 +197,6 @@ function one<T>(value: Joined<T>): T | null {
 
 function assertQuery(error: { message: string } | null, label: string) {
   if (error) throw new Error(`Could not load workspace ${label}: ${error.message}`);
-}
-
-function publicTemplateBundleAssetPath(
-  manifest: TemplateBundleManifest,
-  assetPath: string
-) {
-  const isPublicContentGateAsset =
-    manifest.version.name === "figwright-v1" &&
-    manifest.family.key.startsWith("contentgate-local-");
-  const normalizedAssetPath = assetPath.replace(/^\//, "");
-  const path = normalizedAssetPath.startsWith("template-packages/contentgate/")
-    ? `/${normalizedAssetPath}`
-    : [
-        "",
-        "template-bundles",
-        manifest.family.key,
-        manifest.version.name,
-        normalizedAssetPath,
-      ].join("/");
-  return isPublicContentGateAsset
-    ? `${path}?v=clean-figwright-2026-07-16-04`
-    : path;
 }
 
 export async function getProductWorkspace(
@@ -428,7 +406,9 @@ export async function getProductWorkspace(
             : null;
           return [
             size,
-            asset ? publicTemplateBundleAssetPath(template.manifest, asset.path) : "",
+            asset
+              ? (publicContentGateBundleAssetPath(template.manifest, asset.path) ?? asset.path)
+              : "",
           ];
         })
       );
@@ -440,7 +420,9 @@ export async function getProductWorkspace(
             : null;
           return [
             size,
-            asset ? publicTemplateBundleAssetPath(template.manifest, asset.path) : "",
+            asset
+              ? (publicContentGateBundleAssetPath(template.manifest, asset.path) ?? asset.path)
+              : "",
           ];
         })
       );
