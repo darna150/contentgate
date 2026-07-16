@@ -69,6 +69,8 @@ export function ServerPreviewFrame({
 }) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0.5);
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
+  const imageFailed = failedSrc === src;
 
   useEffect(() => {
     const viewport = viewportRef.current;
@@ -94,17 +96,40 @@ export function ServerPreviewFrame({
           Updating preview…
         </div>
       )}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        key={src}
-        src={src}
-        alt="Generated template preview"
-        className="block shadow-elevated"
-        style={{
-          width: width * scale,
-          height: height * scale,
-        }}
-      />
+      {imageFailed ? (
+        <div className="flex max-w-[420px] flex-col items-center gap-3 rounded-card border border-edge bg-surface px-7 py-6 text-center shadow-elevated">
+          <div className="flex size-11 items-center justify-center rounded-full bg-brand-tint text-[18px] text-brand">
+            !
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <p className="text-[14px] font-bold text-ink">Preview unavailable</p>
+            <p className="text-[12.5px] leading-5 text-ink-muted">
+              This draft preview could not be loaded. Refresh Studio, then
+              generate the size again if the draft was reset.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="mt-1 rounded-control bg-brand px-4 py-2 text-[12px] font-semibold text-white hover:bg-brand-dark"
+          >
+            Refresh Studio
+          </button>
+        </div>
+      ) : (
+        /* eslint-disable-next-line @next/next/no-img-element */
+        <img
+          key={src}
+          src={src}
+          alt="Generated template preview"
+          className="block shadow-elevated"
+          onError={() => setFailedSrc(src)}
+          style={{
+            width: width * scale,
+            height: height * scale,
+          }}
+        />
+      )}
     </div>
   );
 }
