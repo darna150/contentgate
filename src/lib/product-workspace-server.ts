@@ -21,6 +21,7 @@ import {
   type TemplatePlatformAssignmentRow,
 } from "@/lib/template-platform/assignments";
 import type { TemplateBundleManifest } from "@/lib/template-platform/manifest";
+import { cursorFromOffset, offsetFromCursor } from "@/lib/content-listing-shared";
 
 type Joined<T> = T | T[] | null;
 
@@ -115,6 +116,8 @@ export type ProductWorkspace = {
   activePlatformTemplates: ProductWorkspacePlatformTemplate[];
   content: ProductWorkspaceContent[];
   approvals: ProductWorkspaceContent[];
+  approvalsNextCursor: string | null;
+  approvalsHasMore: boolean;
   counts: {
     assets: number;
     approvedSources: number;
@@ -220,11 +223,18 @@ function publicTemplateBundleAssetPath(
 
 export async function getProductWorkspace(
   productId: string,
-  options: { view?: ProductWorkspaceView } = {}
+  options: {
+    view?: ProductWorkspaceView;
+    approvalCursor?: string | null;
+    approvalPageSize?: number;
+  } = {}
 ): Promise<ProductWorkspace | null> {
   const view = options.view ?? "overview";
   const needsAssetRows = view === "assets";
   const needsContentRows = view !== "assets" && view !== "knowledge";
+  const paginatesApprovals = view === "approvals";
+  const approvalOffset = offsetFromCursor(options.approvalCursor);
+  const approvalPageSize = Math.min(Math.max(options.approvalPageSize ?? 20, 1), 100);
   const supabase = await createClient();
   const {
     data: { user },
@@ -260,7 +270,7 @@ export async function getProductWorkspace(
     .eq("org_id", profile.org_id)
     .eq("product_id", productId)
     .order("created_at", { ascending: false });
-  const contentQuery = supabase
+  let contentQuery = supabase
     .from("generated_content")
     .select(
       needsContentRows
@@ -268,10 +278,42 @@ export async function getProductWorkspace(
         : "id, status"
     )
     .eq("org_id", profile.org_id)
-    .eq("product_id", productId)
-    .order("updated_at", { ascending: false });
+    .eq("product_id", productId);
 
-  const [assetResult, sourceResult, claimResult, platformTemplateResult, contentResult] =
+  if (paginatesApprovals) {
+    contentQuery = contentQuery
+      .eq("status", "in_review")
+      .order("created_at", { ascending: true })
+      .range(approvalOffset, approvalOffset + approvalPageSize);
+  } else {
+    contentQuery = contentQuery.order("updated_at", { ascending: false });
+  }
+
+  const contentCountQuery = paginatesApprovals
+    ? supabase
+        .from("generated_content")
+        .select("id", { count: "exact", head: true })
+        .eq("org_id", profile.org_id)
+        .eq("product_id", productId)
+    : Promise.resolve({ count: null, error: null });
+  const inReviewCountQuery = paginatesApprovals
+    ? supabase
+        .from("generated_content")
+        .select("id", { count: "exact", head: true })
+        .eq("org_id", profile.org_id)
+        .eq("product_id", productId)
+        .eq("status", "in_review")
+    : Promise.resolve({ count: null, error: null });
+
+  const [
+    assetResult,
+    sourceResult,
+    claimResult,
+    platformTemplateResult,
+    contentResult,
+    contentCountResult,
+    inReviewCountResult,
+  ] =
     await Promise.all([
       assetQuery,
       supabase
@@ -295,6 +337,8 @@ export async function getProductWorkspace(
         .eq("product_id", productId)
         .order("created_at", { ascending: true }),
       contentQuery,
+      contentCountQuery,
+      inReviewCountQuery,
     ]);
 
   assertQuery(assetResult.error, "assets");
@@ -302,6 +346,8 @@ export async function getProductWorkspace(
   assertQuery(claimResult.error, "claims");
   assertQuery(platformTemplateResult.error, "platform templates");
   assertQuery(contentResult.error, "content");
+  assertQuery(contentCountResult.error, "content count");
+  assertQuery(inReviewCountResult.error, "approval count");
 
   const assetPreviewUrls = needsAssetRows
     ? await createProductAssetPreviewUrlMap(
@@ -415,8 +461,12 @@ export async function getProductWorkspace(
         backgroundAssetBySize,
       };
     });
+  const fetchedContentRows = (contentResult.data ?? []) as unknown as ContentRow[];
+  const visibleContentRows = paginatesApprovals
+    ? fetchedContentRows.slice(0, approvalPageSize)
+    : fetchedContentRows;
   const content = needsContentRows
-    ? ((contentResult.data ?? []) as unknown as ContentRow[]).map((row) => {
+    ? visibleContentRows.map((row) => {
     const template = one(row.product_templates);
     const templateVersion = one(row.template_versions);
     const templateFamily = one(templateVersion?.template_families);
@@ -452,10 +502,13 @@ export async function getProductWorkspace(
   const approvedClaims = claims.filter((claim) => claim.status === "approved");
   const approvals = content.filter((item) => item.status === "in_review");
   const contentStatusRows = (contentResult.data ?? []) as unknown as Array<{ status: string }>;
-  const contentByStatus = contentStatusRows.reduce<Record<string, number>>((counts, item) => {
+  const contentByStatus = paginatesApprovals
+    ? { in_review: inReviewCountResult.count ?? approvals.length }
+    : contentStatusRows.reduce<Record<string, number>>((counts, item) => {
     counts[item.status] = (counts[item.status] ?? 0) + 1;
     return counts;
   }, {});
+  const approvalsHasMore = paginatesApprovals && fetchedContentRows.length > approvalPageSize;
   const counts = {
     assets: (assetResult.data ?? []).length,
     approvedSources: approvedSources.length,
@@ -463,8 +516,8 @@ export async function getProductWorkspace(
     activeTemplates: activePlatformTemplates.length,
     platformTemplates: platformTemplates.length,
     activePlatformTemplates: activePlatformTemplates.length,
-    content: contentStatusRows.length,
-    inReview: approvals.length,
+    content: contentCountResult.count ?? contentStatusRows.length,
+    inReview: inReviewCountResult.count ?? approvals.length,
     contentByStatus,
   };
   const permissions = getWorkspacePermissions({
@@ -495,6 +548,10 @@ export async function getProductWorkspace(
     activePlatformTemplates,
     content,
     approvals,
+    approvalsNextCursor: approvalsHasMore
+      ? cursorFromOffset(approvalOffset + approvalPageSize)
+      : null,
+    approvalsHasMore,
     counts,
     permissions,
     sections: getWorkspaceSectionStates({

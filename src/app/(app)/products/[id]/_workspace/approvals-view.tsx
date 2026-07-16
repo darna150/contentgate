@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Button } from "@/components/ui/button";
 import type { ProductWorkspace } from "@/lib/product-workspace-server";
 import { SectionEmpty } from "./empty-state";
 
@@ -66,6 +67,15 @@ export function ApprovalsView({ workspace }: { workspace: ProductWorkspace }) {
             </Link>
           );
         })}
+        {workspace.approvalsNextCursor && (
+          <Button asChild variant="ghost" className="mt-1 justify-center">
+            <Link
+              href={`/products/${workspace.product.id}?view=approvals&approvalCursor=${workspace.approvalsNextCursor}`}
+            >
+              Load more approvals
+            </Link>
+          </Button>
+        )}
       </div>
     </div>
   );

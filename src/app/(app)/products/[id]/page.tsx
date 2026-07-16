@@ -20,14 +20,14 @@ export default async function ProductWorkspacePage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ view?: string }>;
+  searchParams: Promise<{ view?: string; approvalCursor?: string }>;
 }) {
   const { id } = await params;
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL) notFound();
 
-  const { view: viewParam } = await searchParams;
+  const { view: viewParam, approvalCursor } = await searchParams;
   const view = parseWorkspaceView(viewParam);
-  const workspace = await getProductWorkspace(id, { view });
+  const workspace = await getProductWorkspace(id, { view, approvalCursor });
   if (!workspace) notFound();
 
   const { product, counts, permissions } = workspace;

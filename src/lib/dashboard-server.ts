@@ -56,7 +56,7 @@ export async function getDashboardSummary({
       .from("generated_content")
       .select(CONTENT_LIST_SELECT)
       .not("product_id", "is", null)
-      .order("created_at", { ascending: false })
+      .order("updated_at", { ascending: false })
       .limit(safeActivityLimit),
   ]);
 

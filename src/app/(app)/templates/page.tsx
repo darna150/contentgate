@@ -1,4 +1,6 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
+import type { ReactNode } from "react";
 import { createClient } from "@/lib/supabase/server";
 import {
   getProductTemplateAssignmentsPage,
@@ -13,6 +15,7 @@ import {
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Badge, type badgeVariants } from "@/components/ui/badge";
 import type { VariantProps } from "class-variance-authority";
 import {
@@ -54,6 +57,12 @@ type ProductRow = {
   id: string;
   name: string;
 };
+
+type TemplateOpsCursorKey =
+  | "versionCursor"
+  | "assignmentCursor"
+  | "importCursor"
+  | "renderCursor";
 
 function one<T>(value: T | T[] | null | undefined): T | null {
   if (Array.isArray(value)) return value[0] ?? null;
@@ -130,7 +139,44 @@ function StatusBadge({
   return <Badge variant={variants[status] ?? "neutral"}>{formatStatusLabel(status)}</Badge>;
 }
 
-export default async function TemplatesPage() {
+function templateOpsHref(
+  cursors: Partial<Record<TemplateOpsCursorKey, string | undefined>>,
+  override: Partial<Record<TemplateOpsCursorKey, string | null | undefined>>
+) {
+  const params = new URLSearchParams();
+  for (const key of [
+    "versionCursor",
+    "assignmentCursor",
+    "importCursor",
+    "renderCursor",
+  ] as const) {
+    const value = override[key] ?? cursors[key];
+    if (value) params.set(key, value);
+  }
+  const query = params.toString();
+  return query ? `/templates?${query}` : "/templates";
+}
+
+function PageLink({
+  children,
+  href,
+}: {
+  children: ReactNode;
+  href: string;
+}) {
+  return (
+    <Button asChild variant="ghost" className="mt-1 justify-center">
+      <Link href={href}>{children}</Link>
+    </Button>
+  );
+}
+
+export default async function TemplatesPage({
+  searchParams,
+}: {
+  searchParams: Promise<Partial<Record<TemplateOpsCursorKey, string>>>;
+}) {
+  const cursors = await searchParams;
   const supabase = await createClient();
   const {
     data: { user },
@@ -157,14 +203,14 @@ export default async function TemplatesPage() {
       .from("template_families")
       .select("id, name, family_key, status, created_at")
       .order("created_at", { ascending: false }),
-    getTemplateVersionsPage({ pageSize: 10 }),
+    getTemplateVersionsPage({ cursor: cursors.versionCursor, pageSize: 10 }),
     supabase
       .from("template_variants")
       .select("id, variant_key, label, width, height, template_versions(version_label, template_families(name))")
       .order("variant_key"),
-    getProductTemplateAssignmentsPage({ pageSize: 20 }),
-    getTemplateImportRunsPage({ pageSize: 8 }),
-    getTemplateExportHistory({ limit: 8 }),
+    getProductTemplateAssignmentsPage({ cursor: cursors.assignmentCursor, pageSize: 20 }),
+    getTemplateImportRunsPage({ cursor: cursors.importCursor, pageSize: 8 }),
+    getTemplateExportHistory({ cursor: cursors.renderCursor, limit: 8 }),
     supabase
       .from("products")
       .select("id, name")
@@ -267,6 +313,15 @@ export default async function TemplatesPage() {
                     </p>
                   </div>
                 ))}
+                {importRunPage.nextCursor && (
+                  <PageLink
+                    href={templateOpsHref(cursors, {
+                      importCursor: importRunPage.nextCursor,
+                    })}
+                  >
+                    Load more import runs
+                  </PageLink>
+                )}
               </div>
             ) : (
               <EmptyState className="py-8" title="No import runs recorded" />
@@ -298,6 +353,15 @@ export default async function TemplatesPage() {
                       </div>
                     );
                   })}
+                  {versionPage.nextCursor && (
+                    <PageLink
+                      href={templateOpsHref(cursors, {
+                        versionCursor: versionPage.nextCursor,
+                      })}
+                    >
+                      Load more versions
+                    </PageLink>
+                  )}
                 </div>
               ) : (
                 <EmptyState className="py-8" title="No template versions yet" />
@@ -350,6 +414,15 @@ export default async function TemplatesPage() {
                     </div>
                   );
                 })}
+                {assignmentPage.nextCursor && (
+                  <PageLink
+                    href={templateOpsHref(cursors, {
+                      assignmentCursor: assignmentPage.nextCursor,
+                    })}
+                  >
+                    Load more assignments
+                  </PageLink>
+                )}
               </div>
             ) : (
               <EmptyState className="py-8" title="No product assignments yet" />
@@ -390,6 +463,15 @@ export default async function TemplatesPage() {
                     <StatusBadge status={job.status} variants={RENDER_JOB_STATUS_VARIANT} />
                   </div>
                 ))}
+                {renderJobPage.nextCursor && (
+                  <PageLink
+                    href={templateOpsHref(cursors, {
+                      renderCursor: renderJobPage.nextCursor,
+                    })}
+                  >
+                    Load more render jobs
+                  </PageLink>
+                )}
               </div>
             ) : (
               <EmptyState className="py-8" title="No server render jobs yet" />

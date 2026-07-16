@@ -41,7 +41,10 @@ export default async function ApprovalsPage({
   let productName: string | null = null;
   if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
     if (productId) {
-      const workspace = await getProductWorkspace(productId, { view: "approvals" });
+      const workspace = await getProductWorkspace(productId, {
+        view: "approvals",
+        approvalCursor: cursor,
+      });
       if (!workspace) notFound();
       productName = workspace.product.name;
       rows = workspace.approvals.map((item) => ({
@@ -53,6 +56,7 @@ export default async function ApprovalsPage({
         templateName: item.templateVariant,
         creatorName: item.creatorName,
       }));
+      nextCursor = workspace.approvalsNextCursor;
     } else {
       const page = await getApprovalPage({
         cursor,
@@ -76,7 +80,8 @@ export default async function ApprovalsPage({
   function buildHref(overrides: { language?: string; cursor?: string }) {
     const nextLanguage = overrides.language ?? activeLanguage;
     const params = new URLSearchParams();
-    if (nextLanguage !== "all") params.set("language", nextLanguage);
+    if (productId) params.set("product", productId);
+    if (!productId && nextLanguage !== "all") params.set("language", nextLanguage);
     if (overrides.cursor) params.set("cursor", overrides.cursor);
     const query = params.toString();
     return query ? `/approvals?${query}` : "/approvals";
@@ -145,7 +150,7 @@ export default async function ApprovalsPage({
               </Link>
             );
           })}
-          {!productId && nextCursor && (
+          {nextCursor && (
             <Button asChild variant="ghost" className="mt-1 justify-center">
               <Link href={buildHref({ cursor: nextCursor })}>Load more approvals</Link>
             </Button>
