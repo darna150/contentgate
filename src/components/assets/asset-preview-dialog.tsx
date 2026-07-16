@@ -20,6 +20,7 @@ type Props = {
 export function AssetPreviewDialog({ asset, isAdmin, onClose, onEdit, onDelete }: Props) {
   const dims = formatDimensions(asset.widthPixels, asset.heightPixels);
   const [imageFailed, setImageFailed] = useState(false);
+  const canDownload = asset.approvalStatus === "approved" || isAdmin;
 
   return (
     <Dialog open onOpenChange={(next) => !next && onClose()}>
@@ -96,20 +97,34 @@ export function AssetPreviewDialog({ asset, isAdmin, onClose, onEdit, onDelete }
               </div>
             )}
 
-            {isAdmin && (
-              <div className="mt-auto flex gap-2 border-t border-edge pt-3.5">
-                <Button variant="outline" onClick={onEdit}>
-                  <PencilIcon className="h-3.5 w-3.5" /> Edit metadata
+            <div className="mt-auto flex flex-wrap gap-2 border-t border-edge pt-3.5">
+              {canDownload && asset.previewUrl && (
+                <Button asChild variant="secondary">
+                  <a href={asset.previewUrl} download={asset.originalFileName || asset.title}>
+                    Download asset
+                  </a>
                 </Button>
-                <Button
-                  variant="outline"
-                  onClick={onDelete}
-                  className="border-reject-border text-reject hover:border-reject-border hover:bg-reject-tint hover:text-reject"
-                >
-                  <TrashIcon className="h-3.5 w-3.5" /> Delete
-                </Button>
-              </div>
-            )}
+              )}
+              {!canDownload && (
+                <p className="text-[11.5px] leading-relaxed text-ink-faint">
+                  Raw download is available after this asset is approved.
+                </p>
+              )}
+              {isAdmin && (
+                <>
+                  <Button variant="outline" onClick={onEdit}>
+                    <PencilIcon className="h-3.5 w-3.5" /> Edit metadata
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={onDelete}
+                    className="border-reject-border text-reject hover:border-reject-border hover:bg-reject-tint hover:text-reject"
+                  >
+                    <TrashIcon className="h-3.5 w-3.5" /> Delete
+                  </Button>
+                </>
+              )}
+            </div>
           </div>
         </div>
       </DialogContent>

@@ -39,6 +39,7 @@ import {
 import {
   GenerationLoader,
   LiveTemplatePreviewFrame,
+  MissingDraftFrame,
   ServerPreviewFrame,
 } from "./studio-preview";
 import { StudioFields } from "./studio-fields";
@@ -269,6 +270,24 @@ export function StudioWorkspace({
     (selectedTemplate.platformAssignmentId
       ? platformTemplatePreviewUrl(selectedTemplate.platformAssignmentId, size)
       : templatePreviewUrl(selectedTemplate.id, size));
+  const referencePreviewUrls = useMemo(
+    () =>
+      Object.fromEntries(
+        sizes.map((key) => [
+          key,
+          selectedTemplate.referenceAssetBySize?.[key] ||
+            (selectedTemplate.platformAssignmentId
+              ? platformTemplatePreviewUrl(selectedTemplate.platformAssignmentId, key)
+              : templatePreviewUrl(selectedTemplate.id, key)),
+        ])
+      ),
+    [
+      selectedTemplate.id,
+      selectedTemplate.platformAssignmentId,
+      selectedTemplate.referenceAssetBySize,
+      sizes,
+    ]
+  );
   const generatedPreviewUrl = content
     ? draftPreviewUrl(content.id, size, savedAt ?? content.id)
     : null;
@@ -334,6 +353,18 @@ export function StudioWorkspace({
     }, 1000);
     return () => window.clearInterval(timer);
   }, [retryUntil]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    const timer = window.setTimeout(() => {
+      for (const src of Object.values(referencePreviewUrls)) {
+        const image = new Image();
+        image.decoding = "async";
+        image.src = src;
+      }
+    }, 600);
+    return () => window.clearTimeout(timer);
+  }, [referencePreviewUrls]);
 
   useEffect(() => {
     if (!dirty || !content || mode !== "edit") return undefined;
@@ -836,7 +867,15 @@ export function StudioWorkspace({
 
           <div className="relative">
             {busy && <GenerationLoader />}
-            {!showOriginal && content && selectedTemplate.platformManifest ? (
+            {!content && hasAnyGeneratedDraft && !showOriginal ? (
+              <MissingDraftFrame
+                width={dims.w}
+                height={dims.h}
+                sizeLabel={activeSizeLabel}
+                busy={busy}
+                onGenerate={generate}
+              />
+            ) : !showOriginal && content && selectedTemplate.platformManifest ? (
               <LiveTemplatePreviewFrame
                 manifest={selectedTemplate.platformManifest}
                 variantKey={size}

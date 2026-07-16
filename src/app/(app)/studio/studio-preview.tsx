@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
 import type { TemplateBundleManifest } from "@/lib/template-platform/manifest";
 import { renderTemplateBundleVariant } from "@/lib/template-platform/render";
 
@@ -135,6 +136,67 @@ export function ServerPreviewFrame({
           }}
         />
       )}
+    </div>
+  );
+}
+
+export function MissingDraftFrame({
+  width,
+  height,
+  sizeLabel,
+  busy,
+  onGenerate,
+}: {
+  width: number;
+  height: number;
+  sizeLabel: string;
+  busy: boolean;
+  onGenerate: () => void;
+}) {
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(0.72);
+
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    const updateScale = () => {
+      const availableWidth = Math.max(1, viewport.clientWidth - 48);
+      const availableHeight = Math.max(1, Math.min(900, window.innerHeight - 220));
+      setScale(Math.min(1, availableWidth / width, availableHeight / height));
+    };
+    updateScale();
+    const observer = new ResizeObserver(updateScale);
+    observer.observe(viewport);
+    return () => observer.disconnect();
+  }, [height, width]);
+
+  return (
+    <div
+      ref={viewportRef}
+      className="relative flex w-full items-center justify-center overflow-auto rounded-card border border-edge bg-page p-4 sm:p-6"
+      style={{
+        minHeight: Math.round(Math.max(220, height * scale + 48)),
+      }}
+    >
+      <div
+        className="flex flex-col items-center justify-center rounded-[3px] border border-dashed border-edge-strong bg-surface px-6 py-8 text-center shadow-sm"
+        style={{
+          width: width * scale,
+          minHeight: Math.max(220, height * scale),
+        }}
+      >
+        <div className="mb-3 flex size-11 items-center justify-center rounded-full bg-brand-tint text-[18px] font-bold text-brand">
+          +
+        </div>
+        <p className="text-[15px] font-bold text-ink">No draft for {sizeLabel} yet</p>
+        <p className="mt-2 max-w-[360px] text-[12.5px] leading-5 text-ink-muted">
+          This size needs its own fitted copy and approved snapshot. Generate it
+          here instead of reusing another format&apos;s layout.
+        </p>
+        <Button type="button" onClick={onGenerate} disabled={busy} className="mt-4">
+          {busy ? "Generating…" : `Generate ${sizeLabel} draft`}
+        </Button>
+      </div>
     </div>
   );
 }
