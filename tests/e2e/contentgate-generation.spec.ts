@@ -200,6 +200,14 @@ async function getPreviewMetrics(page: Page) {
   });
 }
 
+async function assertPreviewIsAvailable(page: Page) {
+  await expect(page.getByText("Preview unavailable")).toHaveCount(0);
+  await expect(page.getByAltText("Generated template preview")).toHaveCount(0);
+  await expect(page.locator("[data-template-platform-bundle]").first()).toBeVisible({
+    timeout: 60_000,
+  });
+}
+
 async function findEditableTextArea(page: Page) {
   const textareas = page.locator("textarea");
   const count = await textareas.count();
@@ -257,6 +265,7 @@ test.describe("ContentGate live generation QA", () => {
 
     await generateLeaderboardDraft(page);
     await attachScreenshot(page, testInfo, "02-generated-studio");
+    await assertPreviewIsAvailable(page);
 
     const initialMetrics = await getPreviewMetrics(page);
     await testInfo.attach("initial-preview-metrics.json", {
@@ -279,6 +288,20 @@ test.describe("ContentGate live generation QA", () => {
     } else {
       expect(initialMetrics.text, "Live preview rendered no editable text.").not.toEqual("");
     }
+
+    await page.getByRole("button", { name: /Square\s+1080×1080/i }).click();
+    await expect(page.getByText(/No draft for Square yet/i)).toBeVisible({
+      timeout: 20_000,
+    });
+    await expect(page.getByRole("button", { name: /Generate Square draft/i })).toBeVisible();
+    await expect(page.getByText("Preview unavailable")).toHaveCount(0);
+    await attachScreenshot(page, testInfo, "03-missing-size-draft");
+
+    await page.getByRole("button", { name: /Leaderboard\s+728×90/i }).click();
+    await expect(page.getByText(new RegExp(`DRAFT\\s*·\\s*${OUTPUT_SIZE_LABEL}`, "i"))).toBeVisible({
+      timeout: 20_000,
+    });
+    await assertPreviewIsAvailable(page);
 
     const editableField = await findEditableTextArea(page);
     const oldValue = await editableField.inputValue();
@@ -305,7 +328,7 @@ test.describe("ContentGate live generation QA", () => {
         .not.toBe(initialMetrics.src);
     }
 
-    await attachScreenshot(page, testInfo, "03-after-live-edit");
+    await attachScreenshot(page, testInfo, "04-after-live-edit");
     await attachBrowserIssues(testInfo, issues);
 
     expect(
@@ -398,6 +421,58 @@ test.describe("ContentGate live generation QA", () => {
     expect(exportResult.contentType).toMatch(/image\/png/i);
     expect(exportResult.disposition).toMatch(/attachment/i);
     expect(exportResult.bytes).toBeGreaterThan(10_000);
+
+    await attachBrowserIssues(testInfo, issues);
+    expect(
+      issues.filter((issue) => issue.kind !== "console" && !isBenignBrowserIssue(issue)),
+      `Browser/network issues: ${JSON.stringify(issues, null, 2)}`
+    ).toEqual([]);
+  });
+
+  test("surfaces reviewer rejection notes immediately", async ({ page }, testInfo) => {
+    const issues: BrowserIssue[] = [];
+    const rejectionNote = `E2E rejection note ${Date.now().toString().slice(-6)}`;
+
+    page.on("pageerror", (error) => {
+      issues.push({ kind: "pageerror", message: error.message });
+    });
+    page.on("requestfailed", (request) => {
+      issues.push({
+        kind: "requestfailed",
+        message: `${request.method()} ${request.url()} — ${
+          request.failure()?.errorText ?? "unknown"
+        }`,
+      });
+    });
+    page.on("response", (response) => {
+      const status = response.status();
+      const url = response.url();
+      if (status >= 500) {
+        issues.push({
+          kind: "http",
+          message: `${status} ${response.request().method()} ${url}`,
+        });
+      }
+    });
+
+    await signIn(page);
+    await generateLeaderboardDraft(page);
+
+    await page.getByRole("button", { name: /Submit for review/i }).click();
+    await expect(page.getByText(new RegExp(`IN REVIEW\\s*·\\s*${OUTPUT_SIZE_LABEL}`, "i"))).toBeVisible({
+      timeout: 30_000,
+    });
+
+    await page.getByRole("button", { name: /^Reject$/i }).click();
+    await page.getByPlaceholder(/What needs to change/i).fill(rejectionNote);
+    await page.getByRole("button", { name: /Reject with note/i }).click();
+
+    await expect(page.getByText(new RegExp(`REJECTED\\s*·\\s*${OUTPUT_SIZE_LABEL}`, "i"))).toBeVisible({
+      timeout: 30_000,
+    });
+    await expect(page.getByText("Changes requested")).toBeVisible();
+    await expect(page.getByText(rejectionNote)).toBeVisible();
+    await attachScreenshot(page, testInfo, "rejection-note-visible");
 
     await attachBrowserIssues(testInfo, issues);
     expect(

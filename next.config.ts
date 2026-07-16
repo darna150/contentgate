@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Keep this config file deploy-visible so PR QA changes still receive Vercel checks.
   serverExternalPackages: ["officeparser"],
   experimental: {
     serverActions: {
