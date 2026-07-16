@@ -103,56 +103,68 @@ async function openContentGateTemplate(page: Page) {
 }
 
 async function generateLeaderboardDraft(page: Page) {
-  const result = await page.evaluate(
-    async ({ platformAssignmentId, outputSize }) => {
-      const response = await fetch("/api/products/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          platformAssignmentId,
-          language: "English",
-          outputSize,
-        }),
-      });
-      const text = await response.text();
-      let json: Record<string, unknown> = {};
-      try {
-        json = JSON.parse(text) as Record<string, unknown>;
-      } catch {
-        // Keep the raw text for diagnostics below.
+  let result: {
+    ok: boolean;
+    status: number;
+    text: string;
+    json: Record<string, unknown>;
+  } | null = null;
+
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    result = await page.evaluate(
+      async ({ platformAssignmentId, outputSize }) => {
+        const response = await fetch("/api/products/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            platformAssignmentId,
+            language: "English",
+            outputSize,
+          }),
+        });
+        const text = await response.text();
+        let json: Record<string, unknown> = {};
+        try {
+          json = JSON.parse(text) as Record<string, unknown>;
+        } catch {
+          // Keep the raw text for diagnostics below.
+        }
+        return {
+          ok: response.ok,
+          status: response.status,
+          text,
+          json,
+        };
+      },
+      {
+        platformAssignmentId: PLATFORM_ASSIGNMENT_ID,
+        outputSize: OUTPUT_SIZE,
       }
-      return {
-        ok: response.ok,
-        status: response.status,
-        text,
-        json,
-      };
-    },
-    {
-      platformAssignmentId: PLATFORM_ASSIGNMENT_ID,
-      outputSize: OUTPUT_SIZE,
-    }
-  );
+    );
+
+    if (result.ok || ![429, 502, 503, 504].includes(result.status)) break;
+    await page.waitForTimeout(2_000 * attempt);
+  }
 
   expect(
-    result.ok,
-    `Generation failed with ${result.status}: ${result.text}`
+    result?.ok,
+    `Generation failed with ${result?.status}: ${result?.text}`
   ).toBeTruthy();
 
-  expect(result.json.contentId, "Generation did not return contentId.").toEqual(
+  expect(result?.json.contentId, "Generation did not return contentId.").toEqual(
     expect.any(String)
   );
 
   await page.goto(
-    `/studio/${result.json.contentId as string}?size=${
-      (result.json.outputSize as string | undefined) ?? OUTPUT_SIZE
+    `/studio/${result?.json.contentId as string}?size=${
+      (result?.json.outputSize as string | undefined) ?? OUTPUT_SIZE
     }`
   );
   await expect(page.getByText(new RegExp(`DRAFT\\s*·\\s*${OUTPUT_SIZE_LABEL}`, "i"))).toBeVisible({
     timeout: 60_000,
   });
 
-  return result.json.contentId as string;
+  return result?.json.contentId as string;
 }
 
 async function getPreviewMetrics(page: Page) {
@@ -202,6 +214,8 @@ async function findEditableTextArea(page: Page) {
 }
 
 test.describe("ContentGate live generation QA", () => {
+  test.describe.configure({ mode: "serial" });
+
   test("generates a sharp draft preview and updates it after text edits", async ({
     page,
   }, testInfo) => {
