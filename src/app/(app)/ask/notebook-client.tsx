@@ -788,7 +788,7 @@ export function NotebookClient({
                   placeholder="Ask a question… (Enter to send, Shift+Enter for new line)"
                   disabled={loading}
                   rows={1}
-                  className="min-h-[44px] flex-1 resize-none overflow-hidden rounded-control border border-edge bg-page px-4 py-2.5 text-[13.5px] leading-5 placeholder:text-ink-faint focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 disabled:opacity-50"
+                  className="min-h-[64px] flex-1 resize-none overflow-y-auto rounded-control border border-edge bg-page px-4 py-2.5 text-[13.5px] leading-5 placeholder:text-ink-faint focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 disabled:opacity-50 sm:min-h-[44px]"
                 />
                 <Button
                   type="submit"
