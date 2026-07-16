@@ -8,6 +8,7 @@ import {
 } from "@/lib/content-governance";
 import { createClient } from "@/lib/supabase/server";
 import type { TemplateBundleManifest } from "@/lib/template-platform/manifest";
+import { publicContentGateBundleVariantAssetPath } from "@/lib/template-platform/public-contentgate-assets";
 import {
   getTemplateBundleSupportedSizes,
   getTemplateBundleVariantDimensions,
@@ -44,6 +45,7 @@ export type StudioTemplate = {
   templateVersionId?: string;
   platformAssetUrlByPath?: Record<string, string>;
   platformManifest?: TemplateBundleManifest;
+  referenceAssetBySize?: Record<string, string>;
   editable_fields: string[];
   required_fields: string[];
   default_copy: Record<string, string>;
@@ -193,6 +195,12 @@ function platformAssignmentsToTemplates(rows: PlatformAssignmentRow[]): StudioTe
     if (!defaultVariantKey) return [];
     const runtime = resolveTemplateBundleRuntimeVariant(version.manifest, defaultVariantKey);
     if (!runtime) return [];
+    const referenceAssetBySize = Object.fromEntries(
+      supportedSizes.map((size) => [
+        size,
+        publicContentGateBundleVariantAssetPath(version.manifest, size, "reference") ?? "",
+      ])
+    );
     const defaultCopy = row.default_payload ?? {};
     return [
       {
@@ -204,6 +212,7 @@ function platformAssignmentsToTemplates(rows: PlatformAssignmentRow[]): StudioTe
         platformAssignmentId: row.id,
         templateVersionId: version.id,
         platformManifest: version.manifest,
+        referenceAssetBySize,
         editable_fields: runtime.fields.map((field) => field.key),
         required_fields: runtime.fields
           .filter((field) => field.required !== false)

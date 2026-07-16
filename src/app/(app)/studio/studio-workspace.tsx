@@ -264,9 +264,11 @@ export function StudioWorkspace({
   const activeSizeLabel = selectedTemplate.platformManifest
     ? getTemplateBundleVariantLabel(selectedTemplate.platformManifest, size)
     : sizeLabel(size);
-  const originalPreviewUrl = selectedTemplate.platformAssignmentId
-    ? platformTemplatePreviewUrl(selectedTemplate.platformAssignmentId, size)
-    : templatePreviewUrl(selectedTemplate.id, size);
+  const originalPreviewUrl =
+    selectedTemplate.referenceAssetBySize?.[size] ||
+    (selectedTemplate.platformAssignmentId
+      ? platformTemplatePreviewUrl(selectedTemplate.platformAssignmentId, size)
+      : templatePreviewUrl(selectedTemplate.id, size));
   const generatedPreviewUrl = content
     ? draftPreviewUrl(content.id, size, savedAt ?? content.id)
     : null;

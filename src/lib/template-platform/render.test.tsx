@@ -142,7 +142,7 @@ test("ContentGate figwright bundles also support legacy public package asset pat
   const html = renderToStaticMarkup(rendered.element);
   assert.match(
     html,
-    /\/template-packages\/contentgate\/set-a\/backgrounds\/leaderboard\.png\?v=clean-figwright-/
+    /\/template-bundles\/contentgate-local-friendly\/figwright-v1\/variants\/leaderboard\/background\.png\?v=clean-figwright-/
   );
   assert.doesNotMatch(html, /storage\.example\.test/);
 });

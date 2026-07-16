@@ -110,6 +110,37 @@ function retainedTopRustAccentPixels(reference: ImageData, background: ImageData
   return { referenceRustPixels, retainedRustPixels };
 }
 
+function retainedLeftRustAccentPixels(reference: ImageData, background: ImageData) {
+  assert.equal(background.width, reference.width);
+  assert.equal(background.height, reference.height);
+  assert.equal(background.channels, reference.channels);
+
+  const leftColumns = Math.max(1, Math.round(reference.width * 0.02));
+  let referenceRustPixels = 0;
+  let retainedRustPixels = 0;
+  let referenceMinY = Number.POSITIVE_INFINITY;
+  let referenceMaxY = -1;
+  for (let y = 0; y < reference.height; y += 1) {
+    for (let x = 0; x < leftColumns; x += 1) {
+      const index = (y * reference.width + x) * reference.channels;
+      if (!isRustAccentPixel(reference.data, index)) continue;
+      referenceRustPixels += 1;
+      referenceMinY = Math.min(referenceMinY, y);
+      referenceMaxY = Math.max(referenceMaxY, y);
+      const delta =
+        Math.abs(reference.data[index] - background.data[index]) +
+        Math.abs(reference.data[index + 1] - background.data[index + 1]) +
+        Math.abs(reference.data[index + 2] - background.data[index + 2]);
+      if (delta <= 24) retainedRustPixels += 1;
+    }
+  }
+  return {
+    referenceRustPixels,
+    retainedRustPixels,
+    referenceRustSpan: referenceMaxY >= referenceMinY ? referenceMaxY - referenceMinY + 1 : 0,
+  };
+}
+
 test("ContentGate public figwright assets are complete, sharp, and retain locked artwork", async () => {
   for (const [family, variants] of Object.entries(EXPECTED_VARIANTS)) {
     for (const [variant, [expectedWidth, expectedHeight]] of Object.entries(variants)) {
@@ -156,6 +187,17 @@ test("ContentGate public figwright assets are complete, sharp, and retain locked
         assert.ok(
           retainedRustPixels / referenceRustPixels > 0.95,
           `${family}/${variant} background lost the locked top rust accent (${retainedRustPixels}/${referenceRustPixels} retained pixels)`
+        );
+      }
+
+      const leftRust = retainedLeftRustAccentPixels(reference, background);
+      if (
+        leftRust.referenceRustPixels > 1_000 &&
+        leftRust.referenceRustSpan / reference.height > 0.8
+      ) {
+        assert.ok(
+          leftRust.retainedRustPixels / leftRust.referenceRustPixels > 0.95,
+          `${family}/${variant} background lost the locked left rust accent (${leftRust.retainedRustPixels}/${leftRust.referenceRustPixels} retained pixels)`
         );
       }
     }
