@@ -10,6 +10,7 @@ import {
 } from "./actions";
 import type { Citation, SessionMessage } from "./actions";
 import { resolveInitialKnowledgeSelection } from "@/lib/knowledge-hub";
+import { useFocusTrap } from "@/lib/use-focus-trap";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -75,6 +76,7 @@ export function NotebookClient({
   const [sourceParagraphs, setSourceParagraphs] = useState<Paragraph[] | null>(null);
   const [sourceFetching, setSourceFetching] = useState(false);
   const citedParaRef = useRef<HTMLLIElement | null>(null);
+  const sourcePanelRef = useRef<HTMLElement>(null);
 
   // Rename state
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -84,6 +86,7 @@ export function NotebookClient({
   const [sessionsOpen, setSessionsOpen] = useState(false);
   const sessionsMenuButtonRef = useRef<HTMLButtonElement>(null);
   const sessionsCloseButtonRef = useRef<HTMLButtonElement>(null);
+  const sessionsPanelRef = useRef<HTMLElement>(null);
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -100,6 +103,8 @@ export function NotebookClient({
       citedParaRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
     }
   }, [sourceParagraphs]);
+
+  useFocusTrap(sessionsOpen, sessionsPanelRef);
 
   useEffect(() => {
     if (!sessionsOpen) return;
@@ -118,6 +123,28 @@ export function NotebookClient({
       document.body.style.overflow = overflow;
     };
   }, [sessionsOpen]);
+
+  // Source panel is a full-screen modal overlay only below `lg` (see the
+  // `lg:static` panel below) — only lock/trap while it's acting as one.
+  const sourcePanelIsModal = sourcePanel !== null;
+  useFocusTrap(sourcePanelIsModal, sourcePanelRef, 1024);
+
+  useEffect(() => {
+    if (!sourcePanelIsModal || window.innerWidth >= 1024) return;
+
+    const { overflow } = document.body.style;
+    document.body.style.overflow = "hidden";
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setSourcePanel(null);
+    }
+
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = overflow;
+    };
+  }, [sourcePanelIsModal]);
 
   function closeSessionsDrawer() {
     setSessionsOpen(false);
@@ -333,17 +360,29 @@ export function NotebookClient({
           {ps.length === 0 && (
             <p className="px-4 py-1 text-[11.5px] text-ink-faint">No conversations yet</p>
           )}
-          {ps.map((s) => (
+          {ps.map((s) => {
+            function selectSession() {
+              setActiveId(s.id);
+              setSelectedProductId(s.product_id);
+              setSourcePanel(null);
+              onNavigate?.();
+            }
+            return (
             <div
               key={s.id}
+              role="button"
+              tabIndex={0}
+              aria-current={activeId === s.id}
               className={`group relative flex items-start gap-1 rounded-[7px] mx-2 px-2 py-2 transition-colors cursor-pointer ${
                 activeId === s.id ? "bg-brand-tint" : "hover:bg-page"
               }`}
-              onClick={() => {
-                setActiveId(s.id);
-                setSelectedProductId(s.product_id);
-                setSourcePanel(null);
-                onNavigate?.();
+              onClick={selectSession}
+              onKeyDown={(e) => {
+                if (e.target !== e.currentTarget) return;
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  selectSession();
+                }
               }}
             >
               {renamingId === s.id ? (
@@ -395,7 +434,8 @@ export function NotebookClient({
                 />
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       ))}
     </div>
@@ -415,6 +455,7 @@ export function NotebookClient({
             onClick={closeSessionsDrawer}
           />
           <aside
+            ref={sessionsPanelRef}
             id="mobile-sessions"
             aria-label="Conversations"
             className="relative flex h-full w-[min(320px,88vw)] flex-col border-r border-edge bg-surface shadow-elevated"
@@ -642,7 +683,11 @@ export function NotebookClient({
             className="fixed inset-0 z-50 bg-ink/40 lg:hidden"
             onClick={() => setSourcePanel(null)}
           />
-          <aside className="fixed inset-0 z-50 flex flex-col bg-surface lg:static lg:inset-auto lg:z-auto lg:w-[300px] lg:shrink-0 lg:border-l lg:border-edge">
+          <aside
+            ref={sourcePanelRef}
+            aria-label="Source document"
+            className="fixed inset-0 z-50 flex flex-col bg-surface lg:static lg:inset-auto lg:z-auto lg:w-[300px] lg:shrink-0 lg:border-l lg:border-edge"
+          >
             <div className="flex items-center gap-2 border-b border-edge px-4 py-3.5">
               <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                 <span className="truncate text-[12px] font-bold text-ink">{sourcePanel.docTitle}</span>

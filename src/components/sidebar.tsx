@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { useFocusTrap } from "@/lib/use-focus-trap";
 import {
   CheckCircle2,
   FileStack,
@@ -53,6 +54,9 @@ export function Sidebar({ orgName, orgIndustry, userName, userRole, pendingCount
   const [mobileOpen, setMobileOpen] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const mobileNavRef = useRef<HTMLElement>(null);
+
+  useFocusTrap(mobileOpen, mobileNavRef);
 
   useEffect(() => {
     if (!mobileOpen) return;
@@ -221,6 +225,7 @@ export function Sidebar({ orgName, orgIndustry, userName, userRole, pendingCount
             onClick={closeMobile}
           />
           <aside
+            ref={mobileNavRef}
             id="mobile-navigation"
             aria-label="Mobile navigation"
             className="relative flex h-full w-[min(320px,88vw)] flex-col gap-4 border-r border-edge bg-surface px-3.5 py-5 shadow-elevated"
