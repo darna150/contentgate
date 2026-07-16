@@ -96,12 +96,14 @@ async function validateStoredTemplateFields(
     ? content.template_variants[0]
     : content.template_variants;
   if (!template && version?.manifest && variant?.variant_key) {
-    const order = getTemplateBundleVariantFields(version.manifest, variant.variant_key).map(
-      (field) => field.key
-    );
+    const platformFields = getTemplateBundleVariantFields(version.manifest, variant.variant_key);
+    const order = platformFields.map((field) => field.key);
+    const requiredFields = platformFields
+      .filter((field) => field.required !== false)
+      .map((field) => field.key);
     const limits = getTemplateBundleVariantFieldLimits(version.manifest, variant.variant_key);
     const fields = (content.structured_fields ?? {}) as Record<string, unknown>;
-    const issues = templateFieldIssues(fields, order, limits);
+    const issues = templateFieldIssues(fields, order, limits, requiredFields);
     const firstIssue = Object.entries(issues)[0];
     if (firstIssue) {
       return `${firstIssue[0]}: ${firstIssue[1].map((issue) => issue.message).join(", ")}`;
@@ -187,9 +189,18 @@ export async function updateStructuredFields(
 
   const order = template
     ? ((template.editable_fields ?? []) as string[])
-    : getTemplateBundleVariantFields(version!.manifest as TemplateBundleManifest, variant!.variant_key).map(
-        (field) => field.key
-      );
+    : getTemplateBundleVariantFields(
+        version!.manifest as TemplateBundleManifest,
+        variant!.variant_key
+      ).map((field) => field.key);
+  const requiredFields = template
+    ? order
+    : getTemplateBundleVariantFields(
+        version!.manifest as TemplateBundleManifest,
+        variant!.variant_key
+      )
+        .filter((field) => field.required !== false)
+        .map((field) => field.key);
   const cleaned = Object.fromEntries(
     order.map((key) => [key, String(fields[key] ?? "")])
   );
@@ -214,7 +225,7 @@ export async function updateStructuredFields(
           version!.manifest as TemplateBundleManifest,
           variant!.variant_key
         );
-        const issues = templateFieldIssues(cleaned, order, limits);
+        const issues = templateFieldIssues(cleaned, order, limits, requiredFields);
         const firstIssue = Object.entries(issues)[0];
         return firstIssue
           ? `${firstIssue[0]}: ${firstIssue[1].map((issue) => issue.message).join(", ")}`
@@ -310,14 +321,16 @@ export async function checkDraftStructuredFieldsFit(
     : content.template_variants;
 
   if (!template && version?.manifest && variant?.variant_key) {
-    const order = getTemplateBundleVariantFields(version.manifest, variant.variant_key).map(
-      (field) => field.key
-    );
+    const platformFields = getTemplateBundleVariantFields(version.manifest, variant.variant_key);
+    const order = platformFields.map((field) => field.key);
+    const requiredFields = platformFields
+      .filter((field) => field.required !== false)
+      .map((field) => field.key);
     const limits = getTemplateBundleVariantFieldLimits(version.manifest, variant.variant_key);
     const cleaned = Object.fromEntries(
       order.map((key) => [key, String(fields[key] ?? "")])
     );
-    const configuredIssues = templateFieldIssues(cleaned, order, limits);
+    const configuredIssues = templateFieldIssues(cleaned, order, limits, requiredFields);
     const assetUrlByPath = Object.fromEntries(
       await createTemplateBundleAssetUrlMap(ctx.supabase, [version.manifest])
     );
