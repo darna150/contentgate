@@ -1,6 +1,15 @@
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
 import { StatusPill } from "@/components/status-pill";
+import { PageHeader } from "@/components/page-header";
+import { EmptyState } from "@/components/empty-state";
+import { FilterChips } from "@/components/filter-chips";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { sizeLabel } from "@/lib/creative";
+import {
+  getContentPage,
+  type FlattenedContentRow,
+} from "@/lib/content-listing";
 
 const FILTERS = [
   { key: "all", label: "All" },
@@ -10,100 +19,125 @@ const FILTERS = [
   { key: "rejected", label: "Rejected" },
 ];
 
-type Joined<T> = T | T[] | null;
-type ContentRow = {
-  id: string;
-  title: string;
-  status: string;
-  target_language: string;
-  audience: string | null;
-  created_at: string;
-  products: Joined<{ name: string }>;
-  product_templates: Joined<{ variant: string }>;
-};
+const LANGUAGES = ["English", "Filipino", "Spanish", "Portuguese", "Vietnamese", "Thai"];
 
-function one<T>(v: Joined<T>): T | null {
-  return Array.isArray(v) ? (v[0] ?? null) : v;
+function formatDate(iso: string) {
+  return new Date(iso).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
 }
 
 export default async function ContentPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string }>;
+  searchParams: Promise<{
+    status?: string;
+    language?: string;
+    size?: string;
+    cursor?: string;
+  }>;
 }) {
-  const { status } = await searchParams;
+  const { status, language, size, cursor } = await searchParams;
   const filter = FILTERS.some((f) => f.key === status) ? status! : "all";
+  const activeLanguage = language && LANGUAGES.includes(language) ? language : "all";
+  const activeSize = size ?? "all";
 
-  let rows: ContentRow[] = [];
+  let rows: FlattenedContentRow[] = [];
+  let nextCursor: string | null = null;
   if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
-    const supabase = await createClient();
-    let query = supabase
-      .from("generated_content")
-      .select(
-        "id, title, status, target_language, audience, created_at, products(name), product_templates(variant)"
-      )
-      .not("product_id", "is", null)
-      .order("created_at", { ascending: false });
-    if (filter !== "all") query = query.eq("status", filter);
-    const { data } = await query;
-    rows = (data as ContentRow[]) ?? [];
+    const page = await getContentPage({
+      cursor,
+      status: filter === "all" ? null : filter,
+      targetLanguage: activeLanguage === "all" ? null : activeLanguage,
+      variantKey: activeSize === "all" ? null : activeSize,
+    });
+    rows = page.rows;
+    nextCursor = page.nextCursor;
+  }
+
+  // Size filter options are derived from the sizes visible on this page (no
+  // fixed enum exists — variant keys are product/template specific). Keep the
+  // active size in the option set even if the current page has zero matches
+  // for it, so the chip stays clickable to reset.
+  const sizeKeysOnPage = new Set(
+    rows.map((r) => r.sizeKey).filter((v): v is string => Boolean(v))
+  );
+  if (activeSize !== "all") sizeKeysOnPage.add(activeSize);
+  const sizeOptions = Array.from(sizeKeysOnPage);
+
+  function buildHref(overrides: {
+    status?: string;
+    language?: string;
+    size?: string;
+    cursor?: string;
+  }) {
+    const nextStatus = overrides.status ?? filter;
+    const nextLanguage = overrides.language ?? activeLanguage;
+    const nextSize = overrides.size ?? activeSize;
+    const params = new URLSearchParams();
+    if (nextStatus !== "all") params.set("status", nextStatus);
+    if (nextLanguage !== "all") params.set("language", nextLanguage);
+    if (nextSize !== "all") params.set("size", nextSize);
+    if (overrides.cursor) params.set("cursor", overrides.cursor);
+    const query = params.toString();
+    return query ? `/content?${query}` : "/content";
   }
 
   return (
-    <div className="mx-auto flex max-w-[1280px] flex-col gap-6 px-10 py-9">
-      <div className="flex items-end gap-4">
-        <div className="flex flex-col gap-1.5">
-          <h1 className="font-serif text-[28px] font-semibold">Content</h1>
-          <p className="text-[14.5px] text-ink-muted">
-            Everything generated, from draft to approved. Only approved content
-            can be exported.
-          </p>
-        </div>
-        <div className="flex-1" />
-        <Link
-          href="/products"
-          className="rounded-control bg-brand px-[18px] py-2.5 text-[13.5px] font-semibold text-white transition-opacity hover:opacity-90"
-        >
-          Generate content
-        </Link>
-      </div>
+    <div className="mx-auto flex max-w-[1280px] flex-col gap-6 px-4 py-9 sm:px-10">
+      <PageHeader
+        title="Content"
+        description="Everything generated, from draft to approved. Only approved content can be exported."
+        actions={
+          <Button asChild>
+            <Link href="/products">Generate content</Link>
+          </Button>
+        }
+      />
 
-      <div className="flex gap-1.5">
-        {FILTERS.map((f) => (
-          <Link
-            key={f.key}
-            href={f.key === "all" ? "/content" : `/content?status=${f.key}`}
-            className={`rounded-full px-3 py-[5px] text-xs font-semibold transition-colors ${
-              filter === f.key
-                ? "bg-brand-dark text-white"
-                : "border border-edge-strong text-ink-muted hover:border-brand"
-            }`}
-          >
-            {f.label}
-          </Link>
-        ))}
+      <div className="flex flex-col gap-2.5">
+        <FilterChips
+          options={FILTERS.map((f) => ({ label: f.label, value: f.key }))}
+          activeValue={filter}
+          getHref={(value) => buildHref({ status: value })}
+        />
+        <FilterChips
+          options={[
+            { label: "All languages", value: "all" },
+            ...LANGUAGES.map((l) => ({ label: l, value: l })),
+          ]}
+          activeValue={activeLanguage}
+          getHref={(value) => buildHref({ language: value })}
+        />
+        {sizeOptions.length > 0 && (
+          <FilterChips
+            options={[
+              { label: "All sizes", value: "all" },
+              ...sizeOptions.map((key) => ({ label: sizeLabel(key), value: key })),
+            ]}
+            activeValue={activeSize}
+            getHref={(value) => buildHref({ size: value })}
+          />
+        )}
       </div>
 
       {rows.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 rounded-card border border-dashed border-edge-strong bg-surface px-8 py-16 text-center">
-          <p className="text-[15px] font-semibold">
-            {filter === "all" ? "Nothing generated yet" : "Nothing here"}
-          </p>
-          <p className="max-w-md text-sm text-ink-muted">
-            {filter === "all"
+        <EmptyState
+          title={filter === "all" ? "Nothing generated yet" : "Nothing here"}
+          description={
+            filter === "all"
               ? "Pick a product to generate your first piece of content from its approved knowledge."
-              : "No content matches this filter."}
-          </p>
-        </div>
+              : "No content matches this filter."
+          }
+        />
       ) : (
-        <div className="flex flex-col gap-1 rounded-card border border-edge bg-surface p-3">
+        <Card className="gap-1 p-3">
           {rows.map((row) => {
-            const product = one(row.products);
-            const template = one(row.product_templates);
             const meta = [
-              product?.name,
-              template?.variant,
-              row.target_language,
+              row.productName,
+              row.templateName,
+              row.targetLanguage,
               row.audience,
             ].filter(Boolean);
             return (
@@ -119,17 +153,19 @@ export default async function ContentPage({
                   <span className="text-[11.5px] text-ink-faint">
                     {meta.join(" · ")}
                     {meta.length > 0 ? " · " : ""}
-                    {new Date(row.created_at).toLocaleDateString("en-US", {
-                      month: "short",
-                      day: "numeric",
-                    })}
+                    {formatDate(row.createdAt)}
                   </span>
                 </span>
                 <StatusPill status={row.status} />
               </Link>
             );
           })}
-        </div>
+          {nextCursor && (
+            <Button asChild variant="ghost" className="mt-1 justify-center">
+              <Link href={buildHref({ cursor: nextCursor })}>Load older content</Link>
+            </Button>
+          )}
+        </Card>
       )}
     </div>
   );

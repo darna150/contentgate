@@ -1,9 +1,12 @@
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
 import * as opentype from "opentype.js";
 import type { Font, Glyph } from "opentype.js";
 
 import type { TemplateBundleManifest, TemplateBundleTextSlot } from "./manifest.ts";
+import {
+  templateBundleFontDescription,
+  templateBundleFontForSlot,
+} from "./fonts.ts";
+import { loadTemplateBundleFontData } from "./server-fonts.ts";
 import { getTemplateBundleVariant } from "./runtime.ts";
 
 export type TemplatePlatformFitIssue = {
@@ -19,56 +22,51 @@ export type TemplatePlatformTextLayout = {
   renderedHeight: number;
 };
 
-const FONT_FILE_BY_WEIGHT: Record<number, string> = {
-  400: "Inter-Regular.ttf",
-  500: "Inter-Medium.ttf",
-  600: "Inter-SemiBold.ttf",
-  700: "Inter-Bold.ttf",
+export type TemplatePlatformFontSource = {
+  assetUrlByPath?: Record<string, string>;
+  assetDataByPath?: Record<string, ArrayBuffer | Uint8Array>;
 };
 
-const fontPromises = new Map<number, Promise<Font>>();
+const fontPromises = new Map<string, Promise<Font>>();
 const parseFont =
   opentype.parse ??
   (opentype as typeof opentype & { default?: { parse?: typeof opentype.parse } })
     .default?.parse;
 
-function supportedWeight(weight: number) {
-  if (weight >= 650) return 700;
-  if (weight >= 550) return 600;
-  if (weight >= 450) return 500;
-  return 400;
-}
-
-function slotWeight(slot: TemplateBundleTextSlot) {
-  if (slot.fontKey.includes("bold")) return 700;
-  if (slot.fontKey.includes("semibold")) return 600;
-  if (slot.fontKey.includes("medium")) return 500;
-  return 400;
-}
-
-function styleName(slot: TemplateBundleTextSlot) {
-  const weight = slotWeight(slot);
-  if (weight >= 650) return "Bold";
-  if (weight >= 550) return "Semi Bold";
-  if (weight >= 450) return "Medium";
-  return "Regular";
-}
-
-async function loadInterFont(weight: number): Promise<Font> {
-  const resolvedWeight = supportedWeight(weight);
-  let promise = fontPromises.get(resolvedWeight);
+async function loadTemplateFont(
+  manifest: TemplateBundleManifest,
+  slot: TemplateBundleTextSlot,
+  fontSource?: TemplatePlatformFontSource
+): Promise<Font> {
+  const font = templateBundleFontForSlot(manifest, slot);
+  const cacheKey = font
+    ? `${manifest.family.key}:${manifest.version.name}:${font.key}:${font.sha256}`
+    : `fallback:${slot.fontKey}`;
+  let promise = fontPromises.get(cacheKey);
   if (!promise) {
-    promise = readFile(
-      join(process.cwd(), "public", "fonts", FONT_FILE_BY_WEIGHT[resolvedWeight])
-    ).then((buffer) =>
-      parseFont!(
-        buffer.buffer.slice(
-          buffer.byteOffset,
-          buffer.byteOffset + buffer.byteLength
-        ) as ArrayBuffer
-      )
-    );
-    fontPromises.set(resolvedWeight, promise);
+    promise = (async () => {
+      if (!font) {
+        throw new Error(`Font "${slot.fontKey}" is not declared in template bundle.`);
+      }
+      const data = await loadTemplateBundleFontData({
+        manifest,
+        font,
+        assetUrlByPath: fontSource?.assetUrlByPath,
+        assetDataByPath: fontSource?.assetDataByPath,
+      });
+      if (!data) {
+        throw new Error(`Font asset for "${font.key}" could not be loaded.`);
+      }
+      return parseFont!(data);
+    })();
+    // A failed load (missing asset, transient network error on the signed
+    // URL fetch) must not poison this cache key forever — evict on
+    // rejection so the next call retries instead of failing every fit check
+    // and every render for the rest of the process lifetime.
+    promise.catch(() => {
+      if (fontPromises.get(cacheKey) === promise) fontPromises.delete(cacheKey);
+    });
+    fontPromises.set(cacheKey, promise);
   }
   return promise;
 }
@@ -79,7 +77,12 @@ function cleanText(value: unknown) {
     .trim();
 }
 
-function glyphWidth(font: Font, text: string, fontSize: number) {
+function glyphWidth(
+  font: Font,
+  text: string,
+  fontSize: number,
+  letterSpacing = 0
+) {
   const glyphs = Array.from(text).map((character) => font.charToGlyph(character));
   let units = 0;
   for (let index = 0; index < glyphs.length; index += 1) {
@@ -88,7 +91,8 @@ function glyphWidth(font: Font, text: string, fontSize: number) {
     const nextGlyph: Glyph | undefined = glyphs[index + 1];
     if (nextGlyph) units += font.getKerningValue(glyph, nextGlyph);
   }
-  return (units / font.unitsPerEm) * fontSize;
+  const spacing = Math.max(0, glyphs.length - 1) * letterSpacing;
+  return (units / font.unitsPerEm) * fontSize + spacing;
 }
 
 function textSlots(manifest: TemplateBundleManifest, variantKey: string) {
@@ -106,16 +110,19 @@ function trimLastWord(value: string) {
 }
 
 export async function measureTemplatePlatformTextSlot(
+  manifest: TemplateBundleManifest,
   value: unknown,
-  slot: TemplateBundleTextSlot
+  slot: TemplateBundleTextSlot,
+  fontSource?: TemplatePlatformFontSource
 ): Promise<TemplatePlatformTextLayout> {
   const text = cleanText(value);
   if (!text) {
     return { lines: [], lineWidths: [], overlongWords: [], renderedHeight: 0 };
   }
 
-  const font = await loadInterFont(slotWeight(slot));
-  const measure = (line: string) => glyphWidth(font, line, slot.fontSize);
+  const font = await loadTemplateFont(manifest, slot, fontSource);
+  const measure = (line: string) =>
+    glyphWidth(font, line, slot.fontSize, slot.letterSpacing ?? 0);
   const lines: string[] = [];
   const overlongWords = new Set<string>();
 
@@ -146,14 +153,21 @@ export async function measureTemplatePlatformTextSlot(
   };
 }
 
-export async function templatePlatformFieldFitIssues(input: {
-  manifest: TemplateBundleManifest;
-  variantKey: string;
-  fields: Record<string, unknown>;
-}): Promise<Record<string, TemplatePlatformFitIssue[]>> {
+export async function templatePlatformFieldFitIssues(
+  input: {
+    manifest: TemplateBundleManifest;
+    variantKey: string;
+    fields: Record<string, unknown>;
+  } & TemplatePlatformFontSource
+): Promise<Record<string, TemplatePlatformFitIssue[]>> {
   const entries = await Promise.all(
     textSlots(input.manifest, input.variantKey).map(async (slot) => {
-      const layout = await measureTemplatePlatformTextSlot(input.fields[slot.field], slot);
+      const layout = await measureTemplatePlatformTextSlot(
+        input.manifest,
+        input.fields[slot.field],
+        slot,
+        { assetUrlByPath: input.assetUrlByPath, assetDataByPath: input.assetDataByPath }
+      );
       const issues: TemplatePlatformFitIssue[] = [];
       if (layout.overlongWords.length) {
         issues.push({
@@ -197,16 +211,22 @@ export function templatePlatformFitInstructions(input: {
 }) {
   return textSlots(input.manifest, input.variantKey).map(
     (slot) =>
-      `- ${slot.field}: Inter ${styleName(slot)} ${Number(slot.fontSize.toFixed(2))}px in a ${Number(slot.width.toFixed(2))}px-wide by ${Number(slot.height.toFixed(2))}px-tall box; maximum ${slot.maxLines} rendered line${slot.maxLines === 1 ? "" : "s"}`
+      `- ${slot.field}: ${templateBundleFontDescription(input.manifest, slot)} ${Number(slot.fontSize.toFixed(2))}px in a ${Number(slot.width.toFixed(2))}px-wide by ${Number(slot.height.toFixed(2))}px-tall box; maximum ${slot.maxLines} rendered line${slot.maxLines === 1 ? "" : "s"}`
   );
 }
 
-export async function coerceTemplatePlatformFieldsToFit(input: {
-  manifest: TemplateBundleManifest;
-  variantKey: string;
-  fields: Record<string, string>;
-}): Promise<Record<string, string>> {
+export async function coerceTemplatePlatformFieldsToFit(
+  input: {
+    manifest: TemplateBundleManifest;
+    variantKey: string;
+    fields: Record<string, string>;
+  } & TemplatePlatformFontSource
+): Promise<Record<string, string>> {
   const coerced = { ...input.fields };
+  const fontSource: TemplatePlatformFontSource = {
+    assetUrlByPath: input.assetUrlByPath,
+    assetDataByPath: input.assetDataByPath,
+  };
 
   for (const slot of textSlots(input.manifest, input.variantKey)) {
     let value = cleanText(coerced[slot.field]);
@@ -216,7 +236,7 @@ export async function coerceTemplatePlatformFieldsToFit(input: {
     }
 
     for (let attempt = 0; attempt < 120; attempt += 1) {
-      const layout = await measureTemplatePlatformTextSlot(value, slot);
+      const layout = await measureTemplatePlatformTextSlot(input.manifest, value, slot, fontSource);
       const fits =
         layout.overlongWords.length === 0 &&
         layout.lines.length <= slot.maxLines &&

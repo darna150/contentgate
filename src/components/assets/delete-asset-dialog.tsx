@@ -2,7 +2,14 @@
 
 import { useState, useTransition } from "react";
 import { deleteProductAsset } from "@/app/(app)/products/actions";
-import { Modal } from "./modal";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import type { AssetItem } from "./types";
 
 type Props = {
@@ -28,8 +35,11 @@ export function DeleteAssetDialog({ asset, onDeleted, onClose }: Props) {
   }
 
   return (
-    <Modal title="Delete asset" onClose={onClose} maxWidthClassName="max-w-sm">
-      <div className="flex flex-col gap-4">
+    <Dialog open onOpenChange={(next) => !next && onClose()}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Delete asset</DialogTitle>
+        </DialogHeader>
         <p className="text-[13.5px] leading-relaxed text-ink-muted">
           Delete <span className="font-semibold text-ink">&ldquo;{asset.title}&rdquo;</span>?
           This permanently removes its metadata and the stored file. This
@@ -43,25 +53,15 @@ export function DeleteAssetDialog({ asset, onDeleted, onClose }: Props) {
             {error}
           </p>
         )}
-        <div className="flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={pending}
-            className="rounded-control border border-edge-strong px-4 py-2.5 text-[13px] font-semibold text-ink-muted transition-colors hover:border-brand hover:text-brand disabled:opacity-50"
-          >
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={onClose} disabled={pending}>
             Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleDelete}
-            disabled={pending}
-            className="rounded-control bg-reject px-4 py-2.5 text-[13px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
-          >
+          </Button>
+          <Button type="button" variant="destructive" onClick={handleDelete} disabled={pending}>
             {pending ? "Deleting…" : "Delete asset"}
-          </button>
-        </div>
-      </div>
-    </Modal>
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

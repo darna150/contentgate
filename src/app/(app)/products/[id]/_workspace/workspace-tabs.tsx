@@ -1,16 +1,18 @@
 import Link from "next/link";
+import { cn } from "@/lib/utils";
 
 export const WORKSPACE_VIEWS = [
-  "assets",
-  "knowledge",
+  "overview",
   "templates",
   "content",
   "approvals",
+  "knowledge",
+  "assets",
 ] as const;
 
 export type WorkspaceView = (typeof WORKSPACE_VIEWS)[number];
 
-export const DEFAULT_WORKSPACE_VIEW: WorkspaceView = "templates";
+export const DEFAULT_WORKSPACE_VIEW: WorkspaceView = "overview";
 
 export function parseWorkspaceView(value: string | undefined): WorkspaceView {
   return WORKSPACE_VIEWS.includes(value as WorkspaceView)
@@ -19,17 +21,18 @@ export function parseWorkspaceView(value: string | undefined): WorkspaceView {
 }
 
 const LABELS: Record<WorkspaceView, string> = {
-  assets: "Assets",
-  knowledge: "Knowledge",
+  overview: "Overview",
   templates: "Templates",
   content: "Content",
   approvals: "Approvals",
+  knowledge: "Knowledge",
+  assets: "Assets",
 };
 
 type Props = {
   productId: string;
   active: WorkspaceView;
-  counts: Record<WorkspaceView, number>;
+  counts: Partial<Record<WorkspaceView, number>>;
 };
 
 export function WorkspaceTabs({ productId, active, counts }: Props) {
@@ -37,7 +40,7 @@ export function WorkspaceTabs({ productId, active, counts }: Props) {
     <div
       role="tablist"
       aria-label="Product workspace views"
-      className="-mx-2 flex gap-1 overflow-x-auto border-b border-edge px-2"
+      className="-mx-1 flex gap-1 overflow-x-auto border-b border-edge px-1"
     >
       {WORKSPACE_VIEWS.map((view) => {
         const isActive = view === active;
@@ -49,20 +52,24 @@ export function WorkspaceTabs({ productId, active, counts }: Props) {
             role="tab"
             aria-selected={isActive}
             scroll={false}
-            className={`flex flex-shrink-0 items-center gap-1.5 border-b-2 px-3 py-2.5 text-[13.5px] font-semibold transition-colors ${
+            className={cn(
+              "flex flex-shrink-0 items-center gap-1.5 border-b-2 px-3 py-2.5 text-[13.5px] font-semibold transition-colors",
               isActive
                 ? "border-brand text-brand"
                 : "border-transparent text-ink-muted hover:text-ink"
-            }`}
+            )}
           >
             {LABELS[view]}
-            <span
-              className={`rounded-full px-[7px] py-px text-[11px] font-bold ${
-                isActive ? "bg-brand-tint text-brand" : "bg-page text-ink-faint"
-              }`}
-            >
-              {count}
-            </span>
+            {typeof count === "number" && (
+              <span
+                className={cn(
+                  "rounded-full px-[7px] py-px text-[11px] font-bold",
+                  isActive ? "bg-brand-tint text-brand" : "bg-page text-ink-faint"
+                )}
+              >
+                {count}
+              </span>
+            )}
           </Link>
         );
       })}

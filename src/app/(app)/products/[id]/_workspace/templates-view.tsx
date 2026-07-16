@@ -1,5 +1,6 @@
-import { SIZES } from "@/lib/creative";
-import type { ProductWorkspace } from "@/lib/product-workspace-server";
+import { Badge } from "@/components/ui/badge";
+import { SizeChip, type SizeChipStatus } from "@/components/size-chip";
+import type { ProductWorkspace, ProductWorkspacePlatformTemplate } from "@/lib/product-workspace-server";
 import { GenerateVariant } from "../generate-variant";
 import { SectionEmpty } from "./empty-state";
 
@@ -10,10 +11,100 @@ function imageSrc(path: string) {
   return `/${path}`;
 }
 
+function toSizeChipStatus(status: string): SizeChipStatus {
+  if (status === "approved") return "approved";
+  if (status === "in_review") return "in_review";
+  return "draft";
+}
+
+function buildSizeStatusMap(content: ProductWorkspace["content"]) {
+  const map: Record<string, Record<string, SizeChipStatus>> = {};
+  for (const item of content) {
+    if (!item.templateVersionId || !item.sizeKey) continue;
+    const bucket = map[item.templateVersionId] ?? (map[item.templateVersionId] = {});
+    // Content is ordered newest-updated first, so the first hit per size is current.
+    if (bucket[item.sizeKey]) continue;
+    bucket[item.sizeKey] = toSizeChipStatus(item.status);
+  }
+  return map;
+}
+
+function TemplateCard({
+  template,
+  canGenerate,
+  sizeStatus,
+}: {
+  template: ProductWorkspacePlatformTemplate;
+  canGenerate: boolean;
+  sizeStatus: Record<string, SizeChipStatus>;
+}) {
+  const previewPath = template.referenceAssetBySize[template.defaultVariantKey] ?? "";
+  const dims = template.variantMetaBySize[template.defaultVariantKey];
+
+  return (
+    <div className="flex flex-col gap-3 rounded-card border border-edge bg-surface p-3 transition-colors hover:border-brand/40">
+      {previewPath ? (
+        <div
+          className="overflow-hidden rounded-[8px] border border-edge bg-brand-tint"
+          style={{ aspectRatio: dims ? `${dims.width} / ${dims.height}` : "1 / 1" }}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={imageSrc(previewPath)}
+            alt={`${template.familyName} template preview`}
+            loading="lazy"
+            className="h-full w-full object-contain"
+          />
+        </div>
+      ) : null}
+
+      <div className="flex items-center gap-2 px-0.5">
+        <span className="min-w-0 truncate text-[14px] font-bold text-ink">
+          {template.familyName}
+        </span>
+        <Badge variant="approve" className="shrink-0">
+          Locked design
+        </Badge>
+      </div>
+
+      <div className="flex flex-wrap gap-1.5 px-0.5">
+        {template.supportedSizes.map((size) => (
+          <SizeChip
+            key={size}
+            label={template.variantMetaBySize[size]?.label ?? size}
+            dims={
+              template.variantMetaBySize[size]
+                ? {
+                    w: template.variantMetaBySize[size].width,
+                    h: template.variantMetaBySize[size].height,
+                  }
+                : undefined
+            }
+            status={sizeStatus[size] ?? "empty"}
+          />
+        ))}
+      </div>
+
+      {canGenerate && (
+        <div className="px-0.5">
+          <GenerateVariant
+            platformAssignmentId={template.assignmentId}
+            variant={template.familyName}
+            sizes={template.supportedSizes}
+            initialSize={template.defaultVariantKey}
+            compact
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function TemplatesView({ workspace }: { workspace: ProductWorkspace }) {
-  const { product, activePlatformTemplates, permissions, sections } = workspace;
+  const { product, activePlatformTemplates, permissions, sections, content } = workspace;
   const canGenerate = permissions.canGenerateContent;
   const isArchived = product.status === "archived";
+  const sizeStatusByTemplate = buildSizeStatusMap(content);
 
   if (activePlatformTemplates.length === 0) {
     return (
@@ -26,7 +117,7 @@ export function TemplatesView({ workspace }: { workspace: ProductWorkspace }) {
   }
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-4">
       {isArchived ? (
         <p className="rounded-control border border-edge-strong bg-page px-4 py-3 text-[13px] text-ink-muted">
           This product is archived. Templates stay visible for reference, but new
@@ -34,84 +125,24 @@ export function TemplatesView({ workspace }: { workspace: ProductWorkspace }) {
         </p>
       ) : (
         <p className="text-[13px] text-ink-muted">
-          Choose a template variant. Each variant guides how content is written,
-          using only this product&apos;s approved knowledge.
+          Pick a format, then generate copy inside locked, on-brand artwork. Only
+          the text fields change &mdash; layout and imagery stay compliant by
+          construction.
           {!canGenerate &&
             " Generation is unavailable until an active template is configured."}
         </p>
       )}
 
-      {activePlatformTemplates.length > 0 && (
-        <div className="flex flex-col gap-3 rounded-card border border-brand/25 bg-brand-tint/40 p-[22px]">
-          <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-[15px] font-bold">Platform templates</h2>
-            <span className="rounded-[5px] bg-brand px-[6px] py-0.5 text-[9.5px] font-bold uppercase tracking-[0.05em] text-white">
-              v1
-            </span>
-            <span className="rounded-[5px] bg-approve-tint px-[6px] py-0.5 text-[9.5px] font-bold uppercase tracking-[0.05em] text-approve">
-              Recommended
-            </span>
-          </div>
-          <p className="text-[12px] leading-relaxed text-ink-muted">
-            Versioned platform templates use approved source material,
-            size-first generation, locked artwork, and editable text fields.
-          </p>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {activePlatformTemplates.map((template) => {
-              const previewPath =
-                template.referenceAssetBySize[template.defaultVariantKey] ?? "";
-              const dims = SIZES[template.defaultVariantKey as keyof typeof SIZES];
-              return (
-                <div
-                  key={template.assignmentId}
-                  className="flex flex-col gap-2.5 rounded-control border border-brand/20 bg-surface p-3"
-                >
-                  {previewPath && dims ? (
-                    <div
-                      className="overflow-hidden rounded-[8px] border border-edge bg-brand-tint"
-                      style={{ aspectRatio: `${dims.w} / ${dims.h}` }}
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={imageSrc(previewPath)}
-                        alt={`${template.familyName} template preview`}
-                        loading="lazy"
-                        className="h-full w-full object-contain"
-                      />
-                    </div>
-                  ) : null}
-                  <div className="flex items-center gap-2 px-0.5">
-                    <span className="min-w-0 truncate text-[13px] font-semibold">
-                      {template.familyName}
-                    </span>
-                    <span className="shrink-0 whitespace-nowrap rounded-[5px] bg-brand-tint px-[6px] py-0.5 text-[9.5px] font-bold uppercase tracking-[0.05em] text-brand">
-                      {template.fieldCount} fields
-                    </span>
-                  </div>
-                  <p className="line-clamp-1 px-0.5 text-[11px] text-ink-faint">
-                    {template.supportedSizes.join(" · ")}
-                  </p>
-                  <p className="px-0.5 text-[11px] text-ink-muted">
-                    Platform v1 · locked design · size-specific generation.
-                  </p>
-                  {canGenerate && (
-                    <div className="px-0.5">
-                      <GenerateVariant
-                        productId={product.id}
-                        platformAssignmentId={template.assignmentId}
-                        variant={template.familyName}
-                        sizes={template.supportedSizes as (keyof typeof SIZES)[]}
-                        initialSize={template.defaultVariantKey as keyof typeof SIZES}
-                        compact
-                      />
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {activePlatformTemplates.map((template) => (
+          <TemplateCard
+            key={template.assignmentId}
+            template={template}
+            canGenerate={canGenerate}
+            sizeStatus={sizeStatusByTemplate[template.versionId] ?? {}}
+          />
+        ))}
+      </div>
     </div>
   );
 }

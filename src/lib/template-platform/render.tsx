@@ -1,6 +1,11 @@
 import React from "react";
 
 import type { TemplateBundleManifest, TemplateBundleTextSlot } from "./manifest";
+import {
+  templateBundleFontStack,
+  templateBundleFontStyle,
+  templateBundleFontWeight,
+} from "./fonts";
 import { resolveTemplateBundleRuntimeVariant } from "./runtime";
 
 export type TemplateBundleRenderResult = {
@@ -9,18 +14,7 @@ export type TemplateBundleRenderResult = {
   height: number;
 };
 
-const INTER_STACK = `"Inter", "ContentGate Sans", ui-sans-serif, system-ui, sans-serif`;
 const CONTENTGATE_PUBLIC_ASSET_VERSION = "clean-figwright-2026-07-14-03";
-
-function slotFontWeight(slot: TemplateBundleTextSlot) {
-  return slot.fontKey.includes("bold")
-    ? 700
-    : slot.fontKey.includes("semibold")
-      ? 600
-      : slot.fontKey.includes("medium")
-        ? 500
-        : 400;
-}
 
 function cleanText(value: unknown) {
   return String(value ?? "")
@@ -28,7 +22,11 @@ function cleanText(value: unknown) {
     .trim();
 }
 
-function renderTextSlot(slot: TemplateBundleTextSlot, fields: Record<string, unknown>) {
+function renderTextSlot(
+  manifest: TemplateBundleManifest,
+  slot: TemplateBundleTextSlot,
+  fields: Record<string, unknown>
+) {
   const text = cleanText(fields[slot.field]);
 
   return (
@@ -46,9 +44,10 @@ function renderTextSlot(slot: TemplateBundleTextSlot, fields: Record<string, unk
         color: slot.color,
         display: "flex",
         flexDirection: "column",
-        fontFamily: INTER_STACK,
+        fontFamily: templateBundleFontStack(manifest, slot),
         fontSize: slot.fontSize,
-        fontWeight: slotFontWeight(slot),
+        fontWeight: templateBundleFontWeight(manifest, slot),
+        fontStyle: templateBundleFontStyle(manifest, slot),
         lineHeight: slot.lineHeight,
         letterSpacing: slot.letterSpacing ?? 0,
         textAlign: slot.align ?? "left",
@@ -171,7 +170,7 @@ export function renderTemplateBundleVariant(input: {
         {!input.original &&
           runtime.variant.slots
             .filter((slot): slot is TemplateBundleTextSlot => slot.kind === "text")
-            .map((slot) => renderTextSlot(slot, input.fields))}
+            .map((slot) => renderTextSlot(input.manifest, slot, input.fields))}
       </div>
     ),
   };

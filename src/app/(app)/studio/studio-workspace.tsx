@@ -1,0 +1,760 @@
+"use client";
+
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
+
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  draftPreviewUrl,
+  knownSizeDimensions,
+  platformTemplatePreviewUrl,
+  renderUrl,
+  sizeLabel,
+  studioContentUrl,
+  studioNewUrl,
+  templatePreviewUrl,
+} from "@/lib/creative";
+import {
+  getTemplateBundleSupportedSizes,
+  getTemplateBundleVariantDimensions,
+  getTemplateBundleVariantLabel,
+} from "@/lib/template-platform/runtime";
+import { fieldIssues } from "@/lib/template-fields";
+import {
+  checkDraftStructuredFieldsFit,
+  submitForReview,
+  updateStructuredFields,
+} from "../content/actions";
+import { GenerationLoader, ServerPreviewFrame } from "./studio-preview";
+import { StudioFields } from "./studio-fields";
+import { StudioGeneratePanel } from "./studio-generate-panel";
+import { resolveStudioMode } from "./studio-mode";
+import { StudioReviewActions } from "./studio-review-actions";
+import { StudioToolbar, type ExportFormat } from "./studio-toolbar";
+import { StudioVersions } from "./studio-versions";
+import type {
+  StudioContent,
+  StudioProduct,
+  StudioTemplate,
+} from "./studio-data";
+
+function generatedContentSizeKey(
+  content: StudioContent | null,
+  fallback: string,
+  supportedSizes: readonly string[]
+) {
+  if (content?.outputSize && supportedSizes.includes(content.outputSize)) {
+    return content.outputSize;
+  }
+  return fallback;
+}
+
+function formatRetryWait(seconds: number) {
+  const safeSeconds = Math.max(1, Math.ceil(seconds));
+  const minutes = Math.floor(safeSeconds / 60);
+  const remainder = safeSeconds % 60;
+  return minutes > 0
+    ? `${minutes}m${remainder > 0 ? ` ${remainder}s` : ""}`
+    : `${remainder}s`;
+}
+
+function retryAfterSecondsFromPayload(payload: unknown) {
+  if (
+    payload &&
+    typeof payload === "object" &&
+    "retryAfterSeconds" in payload &&
+    typeof payload.retryAfterSeconds === "number"
+  ) {
+    return Math.max(1, payload.retryAfterSeconds);
+  }
+  return null;
+}
+
+async function downloadUrl(url: string, filename: string) {
+  const response = await fetch(url, { cache: "no-store" });
+  if (!response.ok) throw new Error("Download failed.");
+  const blob = await response.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = objectUrl;
+  anchor.download = filename;
+  anchor.click();
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
+}
+
+const STATUS_LABEL: Record<string, string> = {
+  draft: "Draft",
+  in_review: "In review",
+  approved: "Approved",
+  rejected: "Rejected",
+};
+
+export function StudioWorkspace({
+  templates,
+  selectedProduct,
+  selectedTemplate,
+  initialContents,
+  initialSize,
+  versionsBySize,
+  canReview,
+}: {
+  templates: StudioTemplate[];
+  selectedProduct: StudioProduct;
+  selectedTemplate: StudioTemplate;
+  initialContents: StudioContent[];
+  initialSize: string | null;
+  versionsBySize: Record<string, StudioContent[]>;
+  canReview: boolean;
+}) {
+  const router = useRouter();
+  const sizes = useMemo(
+    () =>
+      selectedTemplate.platformManifest
+        ? getTemplateBundleSupportedSizes(selectedTemplate.platformManifest)
+        : [],
+    [selectedTemplate.platformManifest]
+  );
+  const [size, setSize] = useState<string>(
+    initialSize && sizes.includes(initialSize) ? initialSize : sizes[0]
+  );
+  const initialContentsBySize = useMemo(() => {
+    const entries: Partial<Record<string, StudioContent>> = {};
+    for (const item of initialContents) {
+      const itemSize = generatedContentSizeKey(item, sizes[0], sizes);
+      if (!entries[itemSize]) entries[itemSize] = item;
+    }
+    return entries;
+  }, [initialContents, sizes]);
+  const initialContent = initialContentsBySize[size] ?? initialContents[0] ?? null;
+  const [language, setLanguage] = useState("English");
+  const [selectedRevision, setSelectedRevision] = useState<string | null>(null);
+  const [contentsBySize, setContentsBySize] = useState<
+    Partial<Record<string, StudioContent>>
+  >(() => initialContentsBySize);
+  const content = contentsBySize[size] ?? null;
+  const hasAnyGeneratedDraft = Object.keys(contentsBySize).length > 0;
+  const [hasManualEdits, setHasManualEdits] = useState(
+    initialContent?.manuallyEdited ?? false
+  );
+  const [draftFields, setDraftFields] = useState<Record<string, string>>(
+    initialContent?.structured_fields ?? selectedTemplate.default_copy
+  );
+  const [savedFields, setSavedFields] = useState<Record<string, string>>(
+    initialContent?.structured_fields ?? selectedTemplate.default_copy
+  );
+  const [busy, setBusy] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [exportFormat, setExportFormat] = useState<ExportFormat>("png");
+  const [copied, setCopied] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [retryUntil, setRetryUntil] = useState<number | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+  const [saveState, setSaveState] = useState<
+    "idle" | "unsaved" | "saving" | "saved" | "error"
+  >("idle");
+  const [savedAt, setSavedAt] = useState<string | null>(null);
+  const [overflowFields, setOverflowFields] = useState<string[]>([]);
+  const saveSequence = useRef(0);
+  const retrySecondsRemaining = retryUntil
+    ? Math.max(0, Math.ceil((retryUntil - now) / 1000))
+    : 0;
+  const generationPaused = retrySecondsRemaining > 0;
+
+  const productTemplates = useMemo(
+    () => templates.filter((template) => template.product_id === selectedProduct.id),
+    [templates, selectedProduct.id]
+  );
+
+  const mode = resolveStudioMode({
+    hasContent: content !== null,
+    status: content?.status,
+    canEditContent: content?.canEdit ?? false,
+    canReview,
+  });
+  const editable = mode === "create" || mode === "edit";
+  const activeFields = content ? draftFields : selectedTemplate.default_copy;
+  const activeFieldLimits = selectedTemplate.field_limits;
+
+  const issuesByField = useMemo(
+    () =>
+      Object.fromEntries(
+        selectedTemplate.editable_fields.map((key) => [
+          key,
+          fieldIssues(draftFields[key], activeFieldLimits[key]),
+        ])
+      ),
+    [activeFieldLimits, draftFields, selectedTemplate.editable_fields]
+  );
+  const hasIssues = selectedTemplate.editable_fields.some(
+    (key) => issuesByField[key].length > 0
+  );
+  const hasLayoutOverflow = overflowFields.length > 0;
+  const dirty =
+    mode === "edit" &&
+    content !== null &&
+    selectedTemplate.editable_fields.some(
+      (key) => (draftFields[key] ?? "") !== (savedFields[key] ?? "")
+    );
+  const exportAllowed =
+    !!content &&
+    content.status === "approved" &&
+    !dirty &&
+    !hasIssues &&
+    !hasLayoutOverflow &&
+    saveState !== "saving";
+  const dims =
+    (selectedTemplate.platformManifest
+      ? getTemplateBundleVariantDimensions(selectedTemplate.platformManifest, size)
+      : null) ??
+    knownSizeDimensions(size) ?? { w: 1080, h: 1080 };
+  const activeSizeLabel = selectedTemplate.platformManifest
+    ? getTemplateBundleVariantLabel(selectedTemplate.platformManifest, size)
+    : sizeLabel(size);
+  const originalPreviewUrl = selectedTemplate.platformAssignmentId
+    ? platformTemplatePreviewUrl(selectedTemplate.platformAssignmentId, size)
+    : templatePreviewUrl(selectedTemplate.id, size);
+  const generatedPreviewUrl = content
+    ? draftPreviewUrl(content.id, size, savedAt ?? content.id)
+    : null;
+  const serverPreviewUpdating =
+    !!content && (dirty || saveState === "unsaved" || saveState === "saving");
+  const [showOriginal, setShowOriginal] = useState(false);
+  const previewUrl = showOriginal || !generatedPreviewUrl ? originalPreviewUrl : generatedPreviewUrl;
+  const versions = versionsBySize[size] ?? [];
+
+  function confirmDiscardUnsavedChanges() {
+    if (!dirty) return true;
+    return window.confirm("You have unsaved copy edits. Discard them and continue?");
+  }
+
+  // Debounced measured-fit check while editing (advisory in the editor;
+  // save/submit/approve re-run the authoritative check server-side).
+  useEffect(() => {
+    let cancelled = false;
+    let timer: number;
+    if (!content || mode !== "edit") {
+      timer = window.setTimeout(() => {
+        if (!cancelled) setOverflowFields([]);
+      }, 0);
+      return () => {
+        cancelled = true;
+        window.clearTimeout(timer);
+      };
+    }
+    if (hasIssues) {
+      timer = window.setTimeout(() => {
+        if (!cancelled) setOverflowFields([]);
+      }, 0);
+      return () => {
+        cancelled = true;
+        window.clearTimeout(timer);
+      };
+    }
+    const snapshot = { ...draftFields };
+    timer = window.setTimeout(async () => {
+      const result = await checkDraftStructuredFieldsFit(content.id, snapshot);
+      if (cancelled) return;
+      if ("error" in result) {
+        setOverflowFields(["layout"]);
+        return;
+      }
+      setOverflowFields(result.overflowFields);
+    }, 400);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [content, draftFields, hasIssues, mode, size]);
+
+  useEffect(() => {
+    if (!retryUntil) return undefined;
+    const timer = window.setInterval(() => {
+      const nextNow = Date.now();
+      setNow(nextNow);
+      if (nextNow >= retryUntil) {
+        setRetryUntil(null);
+        window.clearInterval(timer);
+      }
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [retryUntil]);
+
+  useEffect(() => {
+    if (!dirty || !content || mode !== "edit") return undefined;
+    if (hasIssues || hasLayoutOverflow) return undefined;
+
+    const snapshot = { ...draftFields };
+    const sequence = ++saveSequence.current;
+    const timer = window.setTimeout(async () => {
+      setSaveState("saving");
+      const result = await updateStructuredFields(content.id, snapshot);
+      if (sequence !== saveSequence.current) return;
+      if ("error" in result) {
+        setSaveState("error");
+        setError(result.error);
+        return;
+      }
+      setSavedFields(snapshot);
+      setSavedAt(result.savedAt ?? new Date().toISOString());
+      setSaveState("saved");
+      setHasManualEdits(result.manuallyEdited ?? false);
+      setError(null);
+      setContentsBySize((current) => {
+        const existing = current[size];
+        if (!existing || existing.id !== content.id) return current;
+        return {
+          ...current,
+          [size]: {
+            ...existing,
+            status: result.status ?? existing.status,
+            structured_fields: snapshot,
+            manuallyEdited: result.manuallyEdited ?? false,
+          },
+        };
+      });
+    }, 750);
+    return () => window.clearTimeout(timer);
+  }, [content, dirty, draftFields, hasIssues, hasLayoutOverflow, mode, size]);
+
+  function selectSize(nextSize: string) {
+    if (nextSize !== size && !confirmDiscardUnsavedChanges()) return;
+    const nextContent = contentsBySize[nextSize] ?? null;
+    const nextFields = nextContent ? nextContent.structured_fields : selectedTemplate.default_copy;
+    setSize(nextSize);
+    setDraftFields(nextFields);
+    setSavedFields(nextFields);
+    setHasManualEdits(nextContent?.manuallyEdited ?? false);
+    setError(null);
+    setCopied(false);
+    setOverflowFields([]);
+    setSaveState("idle");
+    setSavedAt(null);
+    setShowOriginal(false);
+  }
+
+  function updateField(key: string, value: string) {
+    const nextFields = { ...draftFields, [key]: value };
+    const nextDirty = selectedTemplate.editable_fields.some(
+      (field) => (nextFields[field] ?? "") !== (savedFields[field] ?? "")
+    );
+    setSaveState(nextDirty ? "unsaved" : "saved");
+    setHasManualEdits(nextDirty ? true : (content?.manuallyEdited ?? false));
+    setDraftFields(nextFields);
+  }
+
+  function switchTemplate(templateId: string) {
+    if (!confirmDiscardUnsavedChanges()) return;
+    const nextTemplate = templates.find((template) => template.id === templateId);
+    router.push(
+      studioNewUrl({
+        productId: selectedProduct.id,
+        assignmentId: nextTemplate?.platformAssignmentId,
+      })
+    );
+  }
+
+  async function generate() {
+    if (generationPaused) return;
+    if (dirty && !confirmDiscardUnsavedChanges()) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/products/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          platformAssignmentId: selectedTemplate.platformAssignmentId,
+          language,
+          outputSize: size,
+          revisions: selectedRevision ? [selectedRevision] : [],
+          replaceContentId: mode === "edit" && content ? content.id : undefined,
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        const retryAfterSeconds = retryAfterSecondsFromPayload(result);
+        if (retryAfterSeconds) setRetryUntil(Date.now() + retryAfterSeconds * 1000);
+        setError(result.error ?? "Generation failed.");
+        return;
+      }
+      setRetryUntil(null);
+      const nextContent: StudioContent = {
+        id: result.contentId as string,
+        title: result.title as string,
+        status: "draft",
+        structured_fields: result.structured_fields as Record<string, string>,
+        outputSize: (result.outputSize as string | null) ?? size,
+        manuallyEdited: false,
+        canEdit: true,
+        updatedAt: new Date().toISOString(),
+      };
+      const nextContentSize = nextContent.outputSize ?? size;
+      setContentsBySize((current) => ({ ...current, [nextContentSize]: nextContent }));
+      setSize(nextContentSize);
+      setDraftFields(nextContent.structured_fields);
+      setSavedFields(nextContent.structured_fields);
+      setSaveState("saved");
+      setSavedAt(new Date().toISOString());
+      setHasManualEdits(false);
+      setSelectedRevision(null);
+      setShowOriginal(false);
+      router.replace(studioContentUrl(nextContent.id, nextContentSize), { scroll: false });
+    } catch {
+      setError("Generation failed. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function copyText() {
+    setError(null);
+    try {
+      if (content && !exportAllowed) {
+        throw new Error("Generated copy must be approved before export.");
+      }
+      if (content) {
+        const response = await fetch(`/api/export/${content.id}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ format: "clipboard_text", surface: "studio", size }),
+        });
+        if (!response.ok) throw new Error("Export could not be recorded.");
+      }
+      const text = selectedTemplate.editable_fields
+        .map((key) => activeFields[key])
+        .filter(Boolean)
+        .join("\n\n");
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1600);
+    } catch (caught) {
+      const message = caught instanceof Error ? caught.message : "";
+      setError(
+        message === "Generated copy must be approved before export."
+          ? message
+          : "Copy could not be copied. Check your browser permissions and try again."
+      );
+    }
+  }
+
+  async function download() {
+    setDownloading(true);
+    setError(null);
+    try {
+      if (content) {
+        if (!exportAllowed) {
+          throw new Error("Generated content must be approved before export.");
+        }
+        const response = await fetch(`/api/export/${content.id}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ format: exportFormat, surface: "studio", size }),
+        });
+        if (!response.ok) throw new Error("Export could not be recorded.");
+        const serverRenderUrl = new URL(renderUrl(content.id, size), window.location.origin);
+        serverRenderUrl.searchParams.set("format", exportFormat);
+        serverRenderUrl.searchParams.set("download", "1");
+        const filename = `${selectedProduct.name}-${selectedTemplate.variant}-${size}`
+          .replace(/[^\w]+/g, "-")
+          .toLowerCase();
+        await downloadUrl(
+          serverRenderUrl.toString(),
+          `${filename}.${exportFormat === "jpeg" ? "jpg" : exportFormat}`
+        );
+        return;
+      }
+      const filename = `${selectedProduct.name}-${selectedTemplate.variant}-original-${size}`
+        .replace(/[^\w]+/g, "-")
+        .toLowerCase();
+      const serverPreviewUrl = new URL(originalPreviewUrl, window.location.origin);
+      serverPreviewUrl.searchParams.set("format", exportFormat);
+      serverPreviewUrl.searchParams.set("download", "1");
+      await downloadUrl(
+        serverPreviewUrl.toString(),
+        `${filename}.${exportFormat === "jpeg" ? "jpg" : exportFormat}`
+      );
+    } catch {
+      setError("The preview could not be downloaded.");
+    } finally {
+      setDownloading(false);
+    }
+  }
+
+  async function submit() {
+    if (!content || dirty || hasIssues || hasLayoutOverflow || saveState === "saving") return;
+    setSubmitting(true);
+    setError(null);
+    const result = await submitForReview(content.id);
+    if ("error" in result) {
+      setError(result.error);
+    } else {
+      setContentsBySize((current) => {
+        const existing = current[size];
+        if (!existing || existing.id !== content.id) return current;
+        return { ...current, [size]: { ...existing, status: "in_review" } };
+      });
+      router.refresh();
+    }
+    setSubmitting(false);
+  }
+
+  return (
+    <div className="flex flex-col gap-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-2 text-[13.5px]">
+          <Link href="/products" className="font-semibold text-ink-faint hover:text-brand">
+            Products
+          </Link>
+          <span className="text-ink-faint">/</span>
+          <Link
+            href={`/products/${selectedProduct.id}`}
+            className="font-semibold text-ink-muted hover:text-brand"
+          >
+            {selectedProduct.name}
+          </Link>
+          <span className="text-ink-faint">/</span>
+          <span className="font-semibold text-ink">{selectedTemplate.variant}</span>
+          {content && (
+            <Badge
+              variant={
+                content.status === "approved"
+                  ? "approve"
+                  : content.status === "in_review"
+                    ? "warn"
+                    : content.status === "rejected"
+                      ? "reject"
+                      : "neutral"
+              }
+            >
+              {STATUS_LABEL[content.status] ?? content.status}
+            </Badge>
+          )}
+        </div>
+        {productTemplates.length > 1 && (
+          <Select value={selectedTemplate.id} onValueChange={switchTemplate}>
+            <SelectTrigger size="sm" aria-label="Switch template">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {productTemplates.map((template) => (
+                <SelectItem key={template.id} value={template.id}>
+                  {template.variant}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
+        <div className="flex flex-col gap-5">
+          {mode === "create" && (
+            <StudioGeneratePanel
+              language={language}
+              onLanguageChange={setLanguage}
+              selectedRevision={selectedRevision}
+              onRevisionChange={setSelectedRevision}
+              onGenerate={generate}
+              busy={busy}
+              generationPaused={generationPaused}
+              retryLabel={
+                generationPaused ? `Try again in ${formatRetryWait(retrySecondsRemaining)}` : null
+              }
+              buttonLabel={
+                selectedRevision
+                  ? `Generate ${activeSizeLabel} with refinement`
+                  : `Generate ${activeSizeLabel} draft`
+              }
+              error={error}
+            />
+          )}
+
+          {mode === "edit" && (
+            <StudioGeneratePanel
+              language={language}
+              onLanguageChange={setLanguage}
+              selectedRevision={selectedRevision}
+              onRevisionChange={setSelectedRevision}
+              onGenerate={generate}
+              busy={busy}
+              generationPaused={generationPaused}
+              retryLabel={
+                generationPaused ? `Try again in ${formatRetryWait(retrySecondsRemaining)}` : null
+              }
+              buttonLabel={selectedRevision ? "Apply refinement to draft" : "Regenerate draft"}
+              error={error}
+            />
+          )}
+
+          {mode === "review" && content && <StudioReviewActions contentId={content.id} />}
+
+          <StudioFields
+            fields={selectedTemplate.editable_fields}
+            values={activeFields}
+            limits={activeFieldLimits}
+            editable={editable}
+            issuesByField={issuesByField}
+            overflowFields={overflowFields}
+            onChange={updateField}
+          />
+
+          {mode === "edit" && content && hasManualEdits && (
+            <p className="rounded-control border border-warn-border bg-warn-tint px-3 py-2 text-[11.5px] leading-relaxed text-warn">
+              Manual edits are tracked separately from the generated copy and require reviewer
+              approval before export.
+            </p>
+          )}
+          {mode === "edit" && content && (
+            <div className="flex items-center justify-between rounded-control border border-edge bg-page px-3 py-2">
+              <span
+                className={`text-[11.5px] font-semibold ${
+                  saveState === "error"
+                    ? "text-reject"
+                    : saveState === "saved"
+                      ? "text-approve"
+                      : "text-ink-muted"
+                }`}
+              >
+                {hasIssues
+                  ? "Fix field limits to save"
+                  : hasLayoutOverflow
+                    ? "Shorten copy to fit the locked design"
+                    : saveState === "saving"
+                      ? "Saving…"
+                      : saveState === "unsaved"
+                        ? "Unsaved changes"
+                        : saveState === "saved"
+                          ? "✓ Draft saved"
+                          : saveState === "error"
+                            ? "Save failed"
+                            : "Draft synced"}
+              </span>
+              {savedAt && (
+                <span className="text-[10.5px] text-ink-faint">
+                  {new Date(savedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+                </span>
+              )}
+            </div>
+          )}
+          {mode === "edit" && content && (
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={submit}
+              disabled={submitting || dirty || hasIssues || hasLayoutOverflow || saveState === "saving" || saveState === "error"}
+            >
+              {submitting ? "Submitting…" : "Submit for review"}
+            </Button>
+          )}
+          {mode === "review" && (
+            <p className="rounded-control bg-brand-tint px-3 py-2 text-[11.5px] font-semibold text-brand">
+              Awaiting your review. Editing is paused until it is approved or returned.
+            </p>
+          )}
+          {mode === "read" && content?.status === "in_review" && (
+            <p className="rounded-control bg-brand-tint px-3 py-2 text-[11.5px] font-semibold text-brand">
+              Submitted for review. Editing is paused until it is approved or returned.
+            </p>
+          )}
+          {mode === "read" && content?.status === "approved" && (
+            <p className="rounded-control bg-approve-tint px-3 py-2 text-[11.5px] font-semibold text-approve">
+              Approved snapshot. Download is enabled.
+            </p>
+          )}
+          {mode === "read" && content?.status === "rejected" && (
+            <p className="rounded-control bg-page px-3 py-2 text-[11.5px] leading-relaxed text-ink-muted">
+              Changes were requested on this draft.
+            </p>
+          )}
+
+          <Button
+            type="button"
+            variant="outline"
+            onClick={copyText}
+            disabled={!!content && !exportAllowed}
+            title={content && !exportAllowed ? "Generated copy can be copied after approval" : undefined}
+          >
+            {copied ? "Copied" : `Copy ${content ? "generated" : "original"} copy`}
+          </Button>
+
+          {versions.length > 1 && (
+            <StudioVersions versions={versions} currentContentId={content?.id ?? null} size={size} />
+          )}
+        </div>
+
+        <div className="flex min-w-0 flex-col gap-4">
+          <StudioToolbar
+            sizes={sizes}
+            activeSize={size}
+            sizeLabel={(key) =>
+              selectedTemplate.platformManifest
+                ? getTemplateBundleVariantLabel(selectedTemplate.platformManifest, key)
+                : sizeLabel(key)
+            }
+            sizeDims={(key) =>
+              (selectedTemplate.platformManifest
+                ? getTemplateBundleVariantDimensions(selectedTemplate.platformManifest, key)
+                : knownSizeDimensions(key)) ?? undefined
+            }
+            sizeStatus={(key) => {
+              const item = contentsBySize[key];
+              if (!item) return "empty";
+              if (item.status === "approved") return "approved";
+              if (item.status === "in_review") return "in_review";
+              return "draft";
+            }}
+            onSelectSize={selectSize}
+            statusSummary={
+              content ? `${STATUS_LABEL[content.status] ?? content.status} · ${activeSizeLabel}` : `not generated · ${activeSizeLabel}`
+            }
+            exportFormat={exportFormat}
+            onExportFormatChange={setExportFormat}
+            onDownload={download}
+            downloading={downloading}
+            downloadDisabled={!!content && !exportAllowed}
+            downloadDisabledReason={content && !exportAllowed ? "Generated assets can be downloaded after approval" : undefined}
+          />
+
+          {hasAnyGeneratedDraft && content && (
+            <div className="flex items-center gap-1 self-start rounded-control bg-page p-1">
+              <button
+                type="button"
+                onClick={() => setShowOriginal(false)}
+                className={`rounded-[7px] px-3 py-1.5 text-[12px] font-semibold ${!showOriginal ? "bg-surface text-brand shadow-sm" : "text-ink-muted"}`}
+              >
+                Your draft
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowOriginal(true)}
+                className={`rounded-[7px] px-3 py-1.5 text-[12px] font-semibold ${showOriginal ? "bg-surface text-brand shadow-sm" : "text-ink-muted"}`}
+              >
+                Brand reference
+              </button>
+            </div>
+          )}
+
+          <div className="relative">
+            {busy && <GenerationLoader />}
+            <ServerPreviewFrame
+              src={previewUrl}
+              width={dims.w}
+              height={dims.h}
+              updating={!showOriginal && serverPreviewUpdating}
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

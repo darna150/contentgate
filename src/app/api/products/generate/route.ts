@@ -5,8 +5,8 @@ import {
   fieldLimitInstruction,
   templateFieldIssues,
 } from "@/lib/template-fields";
-import { TEMPLATE_OUTPUT_SIZES, type TemplateSizeKey } from "@/lib/template-contract";
 import { isProductLifecycleActive } from "@/lib/product-workspace";
+import { evidenceSourceIsApproved } from "@/lib/evidence-validation";
 import { consumeApiRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import {
   normalizeTemplatePlatformAssignment,
@@ -22,6 +22,7 @@ import {
   templatePlatformFieldFitIssues,
   templatePlatformFitInstructions,
 } from "@/lib/template-platform/fit";
+import { createTemplateBundleAssetUrlMap } from "@/lib/template-platform/storage-urls";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -59,26 +60,15 @@ type SourceEntry = {
   text: string;
 };
 
-function normalizeEvidence(value: string) {
-  return value
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function evidenceIsApproved(source: string, approvedSources: string[]) {
-  const needle = normalizeEvidence(source);
-  if (!needle) return false;
-
-  return approvedSources.some((approved) => {
-    const haystack = normalizeEvidence(approved);
-    return (
-      haystack.length > 0 &&
-      (haystack.includes(needle) || needle.includes(haystack))
-    );
-  });
-}
+type ReplaceContentRow = {
+  id: string;
+  status: string;
+  created_by: string;
+  product_id: string;
+  template_version_id: string | null;
+  template_variant_id: string | null;
+  prompt_context: Record<string, unknown> | null;
+};
 
 function filterApprovedEvidence(
   evidence: Evidence[],
@@ -89,14 +79,8 @@ function filterApprovedEvidence(
   return evidence.filter((item) => {
     if (!validFields.has(item.field)) return false;
     if (typeof item.approved_source !== "string") return false;
-    return evidenceIsApproved(item.approved_source, approvedSources);
+    return evidenceSourceIsApproved(item.approved_source, approvedSources);
   });
-}
-
-function asTemplateSizeKey(value: unknown): TemplateSizeKey | null {
-  return typeof value === "string" && value in TEMPLATE_OUTPUT_SIZES
-    ? (value as TemplateSizeKey)
-    : null;
 }
 
 function asStringRecord(value: unknown): Record<string, string> {
@@ -117,14 +101,6 @@ export async function POST(req: Request) {
   } = await supabase.auth.getUser();
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-  try {
-    const rateLimit = await consumeApiRateLimit(supabase, "content.generate");
-    if (!rateLimit.allowed) return rateLimitResponse(rateLimit);
-  } catch (error) {
-    console.error("content generation rate limit failed:", error);
-    return Response.json({ error: "Generation is temporarily unavailable." }, { status: 503 });
-  }
-
   let requestBody: Body;
   try {
     requestBody = (await req.json()) as Body;
@@ -141,12 +117,12 @@ export async function POST(req: Request) {
   } = requestBody;
   if (productTemplateId) {
     return Response.json(
-      { error: "Legacy templates are read-only. Choose a Platform v1 template." },
+      { error: "This older template is read-only. Choose an approved template." },
       { status: 410 }
     );
   }
   if (!platformAssignmentId) {
-    return Response.json({ error: "Missing platform template." }, { status: 400 });
+    return Response.json({ error: "Missing approved template." }, { status: 400 });
   }
   if (!ALLOWED_LANGUAGES.has(language)) {
     return Response.json({ error: "Unsupported language." }, { status: 400 });
@@ -163,13 +139,7 @@ export async function POST(req: Request) {
   if (!profile) return Response.json({ error: "No profile." }, { status: 401 });
 
   if (platformAssignmentId) {
-    if (replaceContentId) {
-      return Response.json(
-        { error: "Platform template regeneration is not wired yet." },
-        { status: 409 }
-      );
-    }
-    const outputSizeKey = asTemplateSizeKey(outputSize);
+    const outputSizeKey = typeof outputSize === "string" ? outputSize : null;
     if (!outputSizeKey) {
       return Response.json(
         { error: "Choose an output size before generating this template." },
@@ -215,6 +185,41 @@ export async function POST(req: Request) {
       return Response.json({ error: "Template variant not found." }, { status: 409 });
     }
 
+    let replaceContent: ReplaceContentRow | null = null;
+    if (replaceContentId) {
+      const { data: existingContent } = await supabase
+        .from("generated_content")
+        .select(
+          "id, status, created_by, product_id, template_version_id, template_variant_id, prompt_context"
+        )
+        .eq("id", replaceContentId)
+        .eq("org_id", profile.org_id)
+        .single();
+      if (!existingContent) {
+        return Response.json({ error: "Draft to regenerate was not found." }, { status: 404 });
+      }
+      if (existingContent.created_by !== user.id) {
+        return Response.json({ error: "Only the draft author can regenerate it." }, { status: 403 });
+      }
+      if (!["draft", "rejected"].includes(existingContent.status)) {
+        return Response.json(
+          { error: "Only draft or returned content can be regenerated." },
+          { status: 409 }
+        );
+      }
+      if (
+        existingContent.product_id !== assignment.productId ||
+        existingContent.template_version_id !== assignment.versionId ||
+        existingContent.template_variant_id !== variantRow.id
+      ) {
+        return Response.json(
+          { error: "This draft belongs to a different template or output size." },
+          { status: 409 }
+        );
+      }
+      replaceContent = existingContent as ReplaceContentRow;
+    }
+
     const { data: product } = await supabase
       .from("products")
       .select("id, name, description, disclaimer_text, status")
@@ -240,6 +245,9 @@ export async function POST(req: Request) {
     const fieldLimits = getTemplateBundleVariantFieldLimits(
       assignment.manifest,
       outputSizeKey
+    );
+    const assetUrlByPath = Object.fromEntries(
+      await createTemplateBundleAssetUrlMap(supabase, [assignment.manifest])
     );
     const typographyInstructions = templatePlatformFitInstructions({
       manifest: assignment.manifest,
@@ -293,7 +301,7 @@ export async function POST(req: Request) {
       `TASK: Create copy for ${assignment.familyName}.`,
       generationProfile ? `GENERATION PROFILE: ${generationProfile}` : ``,
       extraInstructions ? `\nADDITIONAL DIRECTION: ${extraInstructions}` : ``,
-      `\nSELECTED OUTPUT SIZE: ${TEMPLATE_OUTPUT_SIZES[outputSizeKey].label} (${TEMPLATE_OUTPUT_SIZES[outputSizeKey].w}x${TEMPLATE_OUTPUT_SIZES[outputSizeKey].h}). Generate copy only for this size and stay inside its field limits.`,
+      `\nSELECTED OUTPUT SIZE: ${runtimeVariant.variant.label} (${runtimeVariant.variant.width}x${runtimeVariant.variant.height}). Generate copy only for this size and stay inside its field limits.`,
       ``,
       `Produce exactly these fields: ${editableFields.join(", ")}.`,
       `FIELD LIMITS:`,
@@ -315,6 +323,14 @@ export async function POST(req: Request) {
         type: "string",
         ...(fieldLimits[f]?.max_chars ? { maxLength: fieldLimits[f].max_chars } : {}),
       };
+    }
+
+    try {
+      const rateLimit = await consumeApiRateLimit(supabase, "content.generate");
+      if (!rateLimit.allowed) return rateLimitResponse(rateLimit);
+    } catch (error) {
+      console.error("content generation rate limit failed:", error);
+      return Response.json({ error: "Generation is temporarily unavailable." }, { status: 503 });
     }
 
     const anthropic = new Anthropic();
@@ -348,6 +364,7 @@ export async function POST(req: Request) {
 
     let out: { fields: Record<string, string>; evidence: Evidence[] } | null = null;
     let structured: Record<string, string> = {};
+    let lastCandidateEvidence: Evidence[] = [];
     let retryReasons: string[] = [];
 
     for (let attempt = 0; attempt < PLATFORM_GENERATION_ATTEMPTS; attempt += 1) {
@@ -384,6 +401,9 @@ export async function POST(req: Request) {
         fields: Record<string, string>;
         evidence: Evidence[];
       };
+      lastCandidateEvidence = Array.isArray(candidate.evidence)
+        ? candidate.evidence
+        : [];
       structured = Object.fromEntries(
         editableFields.map((key) => [
           key,
@@ -401,6 +421,7 @@ export async function POST(req: Request) {
         manifest: assignment.manifest,
         variantKey: outputSizeKey,
         fields: structured,
+        assetUrlByPath,
       });
       retryReasons = [
         ...editableFields.flatMap((key) =>
@@ -420,6 +441,7 @@ export async function POST(req: Request) {
         manifest: assignment.manifest,
         variantKey: outputSizeKey,
         fields: structured,
+        assetUrlByPath,
       });
       const configuredIssues = templateFieldIssues(
         structured,
@@ -430,6 +452,7 @@ export async function POST(req: Request) {
         manifest: assignment.manifest,
         variantKey: outputSizeKey,
         fields: structured,
+        assetUrlByPath,
       });
       retryReasons = [
         ...editableFields.flatMap((key) =>
@@ -438,7 +461,7 @@ export async function POST(req: Request) {
         ...formatTemplatePlatformFitIssues(geometryIssues),
       ];
       if (!retryReasons.length) {
-        out = { fields: structured, evidence: [] };
+        out = { fields: structured, evidence: lastCandidateEvidence };
       }
     }
 
@@ -466,45 +489,68 @@ export async function POST(req: Request) {
     const rejectedEvidenceCount = rawEvidence.length - evidence.length;
     const title = `${product.name} · ${assignment.familyName}`;
     const body = flattenFields(structured, editableFields);
+    const savedAt = new Date().toISOString();
+    const promptContext = {
+      ...(replaceContent?.prompt_context &&
+      typeof replaceContent.prompt_context === "object"
+        ? replaceContent.prompt_context
+        : {}),
+      language,
+      output_size: outputSizeKey,
+      revisions,
+      platform_assignment_id: assignment.assignmentId,
+      template_family_key: assignment.familyKey,
+      template_version_id: assignment.versionId,
+      template_variant_id: variantRow.id,
+      field_limits: fieldLimits,
+      generated_fields: structured,
+      manually_edited_fields: [],
+      compliance_state: "generated",
+      evidence_validation: {
+        accepted: evidence.length,
+        rejected: rejectedEvidenceCount,
+      },
+      last_generated_at: savedAt,
+    };
 
-    const { data: row, error: writeError } = await supabase
-      .from("generated_content")
-      .insert({
-        org_id: profile.org_id,
-        created_by: user.id,
-        product_id: product.id,
-        product_template_id: null,
-        template_version_id: assignment.versionId,
-        template_variant_id: variantRow.id,
-        renderer_version: "template-platform-v1",
-        template_id: null,
-        structured_fields: structured,
-        source_document_ids: sourceDocs.map((d) => d.id),
-        citations: evidence,
-        title,
-        body,
-        target_language: language,
-        prompt_context: {
-          language,
-          output_size: outputSizeKey,
-          revisions,
-          platform_assignment_id: assignment.assignmentId,
-          template_family_key: assignment.familyKey,
+    const writeQuery = replaceContent
+      ? supabase
+          .from("generated_content")
+          .update({
+            structured_fields: structured,
+            source_document_ids: sourceDocs.map((d) => d.id),
+            citations: evidence,
+            title,
+            body,
+            target_language: language,
+            prompt_context: promptContext,
+            template_version_id: assignment.versionId,
+            template_variant_id: variantRow.id,
+            renderer_version: "template-platform-v1",
+            status: "draft",
+            updated_at: savedAt,
+          })
+          .eq("id", replaceContent.id)
+      : supabase.from("generated_content").insert({
+          org_id: profile.org_id,
+          created_by: user.id,
+          product_id: product.id,
+          product_template_id: null,
           template_version_id: assignment.versionId,
           template_variant_id: variantRow.id,
-          field_limits: fieldLimits,
-          generated_fields: structured,
-          manually_edited_fields: [],
-          compliance_state: "generated",
-          evidence_validation: {
-            accepted: evidence.length,
-            rejected: rejectedEvidenceCount,
-          },
-        },
-        status: "draft",
-      })
-      .select("id")
-      .single();
+          renderer_version: "template-platform-v1",
+          template_id: null,
+          structured_fields: structured,
+          source_document_ids: sourceDocs.map((d) => d.id),
+          citations: evidence,
+          title,
+          body,
+          target_language: language,
+          prompt_context: promptContext,
+          status: "draft",
+        });
+
+    const { data: row, error: writeError } = await writeQuery.select("id").single();
 
     if (writeError || !row) {
       return Response.json({ error: `Could not save draft: ${writeError?.message}` }, { status: 500 });
@@ -521,7 +567,7 @@ export async function POST(req: Request) {
   }
 
   return Response.json(
-    { error: "Legacy templates are read-only. Choose a Platform v1 template." },
+    { error: "This older template is read-only. Choose an approved template." },
     { status: 410 }
   );
 }

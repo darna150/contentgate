@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { EmptyState } from "@/components/empty-state";
 import type { WorkspaceEmptyStateCode } from "@/lib/product-workspace";
 
 const COPY: Record<WorkspaceEmptyStateCode, { title: string; body: string }> = {
@@ -41,17 +41,10 @@ type Props = {
 export function SectionEmpty({ code, actionHref, actionLabel }: Props) {
   const copy = COPY[code];
   return (
-    <div className="flex flex-col items-center gap-3 rounded-card border border-dashed border-edge-strong bg-surface px-8 py-14 text-center">
-      <p className="text-[15px] font-semibold">{copy.title}</p>
-      <p className="max-w-md text-[13.5px] text-ink-muted">{copy.body}</p>
-      {actionHref && actionLabel && (
-        <Link
-          href={actionHref}
-          className="mt-1 rounded-control bg-brand px-4 py-2 text-[13px] font-semibold text-white transition-opacity hover:opacity-90"
-        >
-          {actionLabel}
-        </Link>
-      )}
-    </div>
+    <EmptyState
+      title={copy.title}
+      description={copy.body}
+      action={actionHref && actionLabel ? { href: actionHref, label: actionLabel } : undefined}
+    />
   );
 }

@@ -1,8 +1,4 @@
 import type { FieldLimits } from "../template-fields.ts";
-import {
-  TEMPLATE_OUTPUT_SIZES,
-  type TemplateSizeKey,
-} from "../template-contract.ts";
 import type {
   TemplateBundleField,
   TemplateBundleManifest,
@@ -18,10 +14,6 @@ export type TemplateBundleRuntimeVariant = {
   backgroundAssetPath: string;
 };
 
-function isSizeKey(value: string): value is TemplateSizeKey {
-  return value in TEMPLATE_OUTPUT_SIZES;
-}
-
 function textSlots(variant: TemplateBundleVariant): TemplateBundleTextSlot[] {
   return variant.slots.filter((slot): slot is TemplateBundleTextSlot => slot.kind === "text");
 }
@@ -32,10 +24,8 @@ function assetPath(manifest: TemplateBundleManifest, assetKey: string) {
 
 export function getTemplateBundleSupportedSizes(
   manifest: TemplateBundleManifest
-): TemplateSizeKey[] {
-  return manifest.variants
-    .map((variant) => variant.key)
-    .filter(isSizeKey);
+): string[] {
+  return manifest.variants.map((variant) => variant.key);
 }
 
 export function getTemplateBundleVariant(
@@ -43,6 +33,21 @@ export function getTemplateBundleVariant(
   variantKey: string
 ): TemplateBundleVariant | null {
   return manifest.variants.find((variant) => variant.key === variantKey) ?? null;
+}
+
+export function getTemplateBundleVariantLabel(
+  manifest: TemplateBundleManifest,
+  variantKey: string
+): string {
+  return getTemplateBundleVariant(manifest, variantKey)?.label ?? variantKey;
+}
+
+export function getTemplateBundleVariantDimensions(
+  manifest: TemplateBundleManifest,
+  variantKey: string
+): { w: number; h: number } | null {
+  const variant = getTemplateBundleVariant(manifest, variantKey);
+  return variant ? { w: variant.width, h: variant.height } : null;
 }
 
 export function getTemplateBundleVariantFields(

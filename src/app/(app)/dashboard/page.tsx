@@ -1,161 +1,134 @@
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
+import { PageHeader } from "@/components/page-header";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusPill } from "@/components/status-pill";
+import { getDashboardSummary, type DashboardSummary } from "@/lib/dashboard-server";
 
-type RecentRow = {
-  id: string;
-  title: string;
-  status: string;
-  target_language: string;
-  created_at: string;
-};
+function formatDate(iso: string) {
+  return new Date(iso).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
+}
+
+const TONE_STYLES = {
+  warn: "border-warn-border bg-warn-tint",
+  positive: "border-approve-tint bg-approve-tint/40",
+} as const;
+
+function getAttentionItem(summary: DashboardSummary) {
+  const { counts } = summary;
+
+  if (counts.inReview > 0) {
+    return {
+      tone: "warn" as const,
+      title: `${counts.inReview} ${counts.inReview === 1 ? "piece" : "pieces"} waiting for review`,
+      body: "Review drafts submitted across every product before they can be exported.",
+      actionHref: "/approvals",
+      actionLabel: "Review now",
+    };
+  }
+  return {
+    tone: "positive" as const,
+    title: "You're all caught up",
+    body: "Nothing needs your review right now.",
+    actionHref: null,
+    actionLabel: undefined,
+  };
+}
 
 export default async function DashboardPage() {
-  let docCount: number | null = null;
-  let contentCount: number | null = null;
-  let pendingCount: number | null = null;
-  let recent: RecentRow[] = [];
+  const summary = process.env.NEXT_PUBLIC_SUPABASE_URL
+    ? await getDashboardSummary()
+    : {
+        counts: { documents: 0, content: 0, inReview: 0 },
+        attention: [],
+        recentActivity: [],
+      };
 
-  if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
-    const supabase = await createClient();
-    const [docs, content, pending, recentRes] = await Promise.all([
-      supabase.from("documents").select("id", { count: "exact", head: true }),
-      supabase
-        .from("generated_content")
-        .select("id", { count: "exact", head: true })
-        .not("product_id", "is", null),
-      supabase
-        .from("generated_content")
-        .select("id", { count: "exact", head: true })
-        .not("product_id", "is", null)
-        .eq("status", "in_review"),
-      supabase
-        .from("generated_content")
-        .select("id, title, status, target_language, created_at")
-        .not("product_id", "is", null)
-        .order("created_at", { ascending: false })
-        .limit(5),
-    ]);
-    docCount = docs.count ?? 0;
-    contentCount = content.count ?? 0;
-    pendingCount = pending.count ?? 0;
-    recent = recentRes.data ?? [];
-  }
+  const attention = getAttentionItem(summary);
+  const { counts, recentActivity } = summary;
 
-  const cards = [
-    {
-      label: "Documents",
-      value: docCount,
-      hint: "in the Knowledge Hub",
-      href: "/knowledge",
-    },
-    {
-      label: "Generated content",
-      value: contentCount,
-      hint: "drafts and approved",
-      href: "/content",
-    },
-    {
-      label: "Awaiting approval",
-      value: pendingCount,
-      hint: "in the queue",
-      href: "/approvals",
-    },
+  const stats = [
+    { label: "Documents", value: counts.documents, href: "/knowledge" },
+    { label: "Content", value: counts.content, href: "/content" },
+    { label: "In review", value: counts.inReview, href: "/approvals" },
   ];
 
   return (
-    <div className="mx-auto flex max-w-[1280px] flex-col gap-6 px-10 py-9">
-      <div className="flex flex-col gap-1.5">
-        <h1 className="font-serif text-[28px] font-semibold">Dashboard</h1>
-        <p className="text-[14.5px] text-ink-muted">
-          Recent content and what&apos;s waiting on approval.
-        </p>
+    <div className="mx-auto flex max-w-[1280px] flex-col gap-6 px-4 py-9 sm:px-10">
+      <PageHeader
+        title="Dashboard"
+        description="Recent content and what's waiting on approval."
+      />
+
+      <div className={`flex flex-col gap-2 rounded-card border p-5 ${TONE_STYLES[attention.tone]}`}>
+        <p className="text-[15px] font-bold text-ink">{attention.title}</p>
+        <p className="text-[13px] leading-relaxed text-ink-muted">{attention.body}</p>
+        {attention.actionHref && attention.actionLabel && (
+          <div>
+            <Button asChild size="sm">
+              <Link href={attention.actionHref}>{attention.actionLabel}</Link>
+            </Button>
+          </div>
+        )}
       </div>
 
-      <div className="grid grid-cols-3 gap-5">
-        {cards.map((card) => (
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        {stats.map((stat) => (
           <Link
-            key={card.label}
-            href={card.href}
-            className="flex flex-col gap-1 rounded-card border border-edge bg-surface p-6 transition-colors hover:border-brand"
+            key={stat.label}
+            href={stat.href}
+            className="flex flex-col gap-1 rounded-card border border-edge bg-surface p-4 transition-colors hover:border-brand"
           >
-            <span className="text-[13px] font-semibold text-ink-muted">
-              {card.label}
-            </span>
-            <span className="font-serif text-3xl font-semibold">
-              {card.value ?? "—"}
-            </span>
-            <span className="text-xs text-ink-faint">{card.hint}</span>
+            <span className="text-[22px] font-bold text-ink">{stat.value}</span>
+            <span className="text-[11.5px] font-semibold text-ink-faint">{stat.label}</span>
           </Link>
         ))}
       </div>
 
-      {docCount === 0 ? (
-        <div className="flex flex-col items-center gap-3 rounded-card border border-dashed border-edge-strong bg-surface px-8 py-16 text-center">
-          <p className="text-[15px] font-semibold">Start with your documents</p>
-          <p className="max-w-md text-sm text-ink-muted">
-            Add approved product guides and claim sheets to the Knowledge Hub —
-            everything ContentGate generates is grounded in them.
-          </p>
+      <Card>
+        <CardHeader className="flex-row items-center justify-between gap-3 space-y-0">
+          <CardTitle>Recent activity</CardTitle>
           <Link
-            href="/knowledge/new"
-            className="mt-2 rounded-control bg-brand px-[18px] py-2.5 text-[13.5px] font-semibold text-white transition-opacity hover:opacity-90"
+            href="/content"
+            className="text-[13px] font-semibold text-brand hover:underline"
           >
-            Add a document
+            View all content →
           </Link>
-        </div>
-      ) : recent.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 rounded-card border border-dashed border-edge-strong bg-surface px-8 py-16 text-center">
-          <p className="text-[15px] font-semibold">Ready to generate</p>
-          <p className="max-w-md text-sm text-ink-muted">
-            Your Knowledge Hub has sources. Pick a product to generate your
-            first piece of content.
-          </p>
-          <Link
-            href="/products"
-            className="mt-2 rounded-control bg-brand px-[18px] py-2.5 text-[13.5px] font-semibold text-white transition-opacity hover:opacity-90"
-          >
-            Generate content
-          </Link>
-        </div>
-      ) : (
-        <div className="flex flex-col gap-3.5 rounded-card border border-edge bg-surface p-[22px]">
-          <div className="flex items-center">
-            <h2 className="text-[15px] font-bold">Recent content</h2>
-            <div className="flex-1" />
-            <Link
-              href="/content"
-              className="text-[13px] font-semibold text-brand hover:underline"
-            >
-              View all →
-            </Link>
-          </div>
-          <ul className="flex flex-col gap-0.5">
-            {recent.map((row) => (
-              <li key={row.id}>
-                <Link
-                  href={`/content/${row.id}`}
-                  className="-mx-2 flex items-center gap-3 rounded-control px-2 py-2.5 transition-colors hover:bg-page"
-                >
-                  <span className="flex min-w-0 flex-1 flex-col">
-                    <span className="truncate text-[13px] font-semibold">
-                      {row.title}
+        </CardHeader>
+        <CardContent>
+          {recentActivity.length === 0 ? (
+            <p className="text-[13px] text-ink-muted">
+              Generated content will show up here as soon as the team creates something.
+            </p>
+          ) : (
+            <div className="flex flex-col gap-1">
+              {recentActivity.map((item) => {
+                const meta = [item.productName, item.templateName, item.targetLanguage, formatDate(item.updatedAt ?? item.createdAt)]
+                  .filter(Boolean)
+                  .join(" · ");
+                return (
+                  <Link
+                    key={item.id}
+                    href={`/content/${item.id}`}
+                    className="flex items-center gap-3.5 rounded-control px-3.5 py-3 transition-colors hover:bg-page"
+                  >
+                    <span className="flex min-w-0 flex-1 flex-col">
+                      <span className="truncate text-[13.5px] font-semibold text-ink">
+                        {item.title}
+                      </span>
+                      <span className="truncate text-[11.5px] text-ink-faint">{meta}</span>
                     </span>
-                    <span className="text-[11.5px] text-ink-faint">
-                      {row.target_language} ·{" "}
-                      {new Date(row.created_at).toLocaleDateString("en-US", {
-                        month: "short",
-                        day: "numeric",
-                      })}
-                    </span>
-                  </span>
-                  <StatusPill status={row.status} />
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+                    <StatusPill status={item.status} />
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

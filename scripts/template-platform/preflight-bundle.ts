@@ -77,6 +77,7 @@ async function main() {
   const report = await preflightTemplateBundle({
     manifest: bundle.manifest,
     samples: samples.length ? samples : undefined,
+    assets: bundle.assets,
   });
   const assetIssues = validateTemplateBundleAssetPayloads(
     bundle.manifest.assets,

@@ -2,10 +2,12 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import type { AssetItem } from "./types";
 import { AssetGrid } from "./asset-grid";
 import { AssetPreviewDialog } from "./asset-preview-dialog";
-import { Modal } from "./modal";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AssetMetadataForm } from "./asset-metadata-form";
 import { DeleteAssetDialog } from "./delete-asset-dialog";
 import { UploadAssetDialog } from "./upload-asset-dialog";
@@ -48,39 +50,37 @@ export function ProductAssetPanel({
   }
 
   return (
-    <div className="flex flex-col gap-4 rounded-card border border-edge bg-surface p-[22px]">
-      <div className="flex items-start justify-between gap-3">
+    <Card>
+      <CardHeader className="flex-row items-start justify-between gap-3">
         <div className="flex flex-col gap-1">
-          <h2 className="text-[15px] font-bold">Brand assets</h2>
-          <p className="text-[12.5px] text-ink-muted">
+          <h2 className="text-h2 text-ink">Brand assets</h2>
+          <p className="text-caption text-ink-muted">
             Manage logos, packshots, backgrounds, and supporting images.
           </p>
         </div>
         {isAdmin && productStatus === "active" && (
-          <button
-            type="button"
-            onClick={() => setDialog({ type: "upload" })}
-            className="flex flex-shrink-0 items-center gap-1.5 rounded-control bg-brand px-3.5 py-2 text-[12.5px] font-semibold text-white transition-opacity hover:opacity-90"
-          >
+          <Button size="sm" onClick={() => setDialog({ type: "upload" })} className="flex-shrink-0">
             <UploadIcon className="h-3.5 w-3.5" /> Upload
-          </button>
+          </Button>
         )}
-      </div>
+      </CardHeader>
 
-      {visibleAssets.length === 0 ? (
-        <p className="rounded-control border border-dashed border-edge-strong bg-page px-4 py-6 text-center text-[13px] text-ink-faint">
-          No assets yet.{isAdmin ? " Upload one to get started." : ""}
-        </p>
-      ) : (
-        <AssetGrid
-          assets={visibleAssets}
-          isAdmin={isAdmin}
-          showProduct={false}
-          onPreview={(asset) => setDialog({ type: "preview", asset })}
-          onEdit={(asset) => setDialog({ type: "edit", asset })}
-          onDelete={(asset) => setDialog({ type: "delete", asset })}
-        />
-      )}
+      <CardContent>
+        {visibleAssets.length === 0 ? (
+          <p className="rounded-control border border-dashed border-edge-strong bg-page px-4 py-6 text-center text-[13px] text-ink-faint">
+            No assets yet.{isAdmin ? " Upload one to get started." : ""}
+          </p>
+        ) : (
+          <AssetGrid
+            assets={visibleAssets}
+            isAdmin={isAdmin}
+            showProduct={false}
+            onPreview={(asset) => setDialog({ type: "preview", asset })}
+            onEdit={(asset) => setDialog({ type: "edit", asset })}
+            onDelete={(asset) => setDialog({ type: "delete", asset })}
+          />
+        )}
+      </CardContent>
 
       {dialog.type === "preview" && (
         <AssetPreviewDialog
@@ -93,9 +93,14 @@ export function ProductAssetPanel({
       )}
 
       {dialog.type === "edit" && (
-        <Modal title="Edit asset metadata" onClose={closeDialog} maxWidthClassName="max-w-lg">
-          <AssetMetadataForm asset={dialog.asset} onCancel={closeDialog} onSaved={refresh} />
-        </Modal>
+        <Dialog open onOpenChange={(next) => !next && closeDialog()}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Edit asset metadata</DialogTitle>
+            </DialogHeader>
+            <AssetMetadataForm asset={dialog.asset} onCancel={closeDialog} onSaved={refresh} />
+          </DialogContent>
+        </Dialog>
       )}
 
       {dialog.type === "delete" && (
@@ -118,6 +123,6 @@ export function ProductAssetPanel({
           onUploaded={refresh}
         />
       )}
-    </div>
+    </Card>
   );
 }

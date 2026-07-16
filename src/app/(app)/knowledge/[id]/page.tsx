@@ -2,6 +2,12 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { DeleteDocumentButton } from "./delete-button";
+import { Badge } from "@/components/ui/badge";
+import {
+  documentIndexStatus,
+  documentIndexStatusClass,
+  documentIndexStatusLabel,
+} from "@/lib/document-index-status";
 
 export default async function DocumentDetailPage({
   params,
@@ -38,6 +44,11 @@ export default async function DocumentDetailPage({
   const uploader = Array.isArray(doc.profiles) ? doc.profiles[0] : doc.profiles;
   const product = Array.isArray(doc.products) ? doc.products[0] : doc.products;
   const paragraphs = (doc.paragraphs ?? []) as { n: number; text: string }[];
+  const indexStatus = documentIndexStatus({
+    contentText: doc.content_text,
+    paragraphs: doc.paragraphs,
+    storagePath: doc.storage_path,
+  });
 
   let fileUrl: string | null = null;
   if (doc.storage_path) {
@@ -48,7 +59,7 @@ export default async function DocumentDetailPage({
   }
 
   return (
-    <div className="mx-auto flex max-w-[920px] flex-col gap-6 px-10 py-9">
+    <div className="mx-auto flex max-w-[920px] flex-col gap-6 px-4 py-9 sm:px-10">
       <div className="flex items-end gap-4">
         <div className="flex min-w-0 flex-col gap-1.5">
           <Link
@@ -57,9 +68,14 @@ export default async function DocumentDetailPage({
           >
             ← Knowledge Hub
           </Link>
-          <h1 className="font-serif text-[28px] font-semibold leading-tight">
-            {doc.title}
-          </h1>
+          <div className="flex items-center gap-2.5">
+            <h1 className="font-serif text-[28px] font-semibold leading-tight">
+              {doc.title}
+            </h1>
+            <Badge className={`${documentIndexStatusClass(indexStatus)} border-transparent`}>
+              {documentIndexStatusLabel(indexStatus)}
+            </Badge>
+          </div>
           <p className="text-[13.5px] text-ink-muted">
             {product?.name ? `${product.name} · ` : "Workspace-wide · "}
             {paragraphs.length} citable paragraphs · added{" "}

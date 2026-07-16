@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
 import { AssetStatusBadge } from "./asset-status-badge";
 import { ASSET_TYPE_LABELS, type AssetItem } from "./types";
 import { formatDimensions, formatFileSize, formatDate, fileTypeLabel } from "./format";
@@ -42,35 +43,38 @@ export function AssetRow({
 
   const actions = (
     <div className="flex flex-shrink-0 items-center gap-1">
-      <button
-        type="button"
+      <Button
+        variant="ghost"
+        size="icon"
         onClick={onPreview}
         title="Preview"
         aria-label={`Preview ${asset.title}`}
-        className="flex h-7 w-7 items-center justify-center rounded-[6px] text-ink-faint transition-colors hover:bg-page hover:text-ink"
+        className="h-7 w-7"
       >
         <EyeIcon className="h-3.5 w-3.5" />
-      </button>
+      </Button>
       {isAdmin && (
         <>
-          <button
-            type="button"
+          <Button
+            variant="ghost"
+            size="icon"
             onClick={onEdit}
             title="Edit metadata"
             aria-label={`Edit ${asset.title}`}
-            className="flex h-7 w-7 items-center justify-center rounded-[6px] text-ink-faint transition-colors hover:bg-page hover:text-ink"
+            className="h-7 w-7"
           >
             <PencilIcon className="h-3.5 w-3.5" />
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
             onClick={onDelete}
             title="Delete asset"
             aria-label={`Delete ${asset.title}`}
-            className="flex h-7 w-7 items-center justify-center rounded-[6px] text-ink-faint transition-colors hover:bg-reject-tint hover:text-reject"
+            className="h-7 w-7 hover:bg-reject-tint hover:text-reject"
           >
             <TrashIcon className="h-3.5 w-3.5" />
-          </button>
+          </Button>
         </>
       )}
     </div>

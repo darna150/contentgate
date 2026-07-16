@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { ImageResponse } from "next/og";
 import { createClient } from "@/lib/supabase/server";
 import { SIZES, type SizeKey } from "@/lib/creative";
@@ -23,8 +24,15 @@ import type { TemplateBundleManifest } from "@/lib/template-platform/manifest";
 import { renderTemplateBundleVariant } from "@/lib/template-platform/render";
 import { resolveTemplateBundleRuntimeVariant } from "@/lib/template-platform/runtime";
 import { createTemplateBundleAssetUrlMap } from "@/lib/template-platform/storage-urls";
+import { loadTemplateBundleImageFonts } from "@/lib/template-platform/server-fonts";
+import {
+  convertServerRenderedPng,
+  type ServerExportFormat,
+} from "@/lib/server-export-formats";
+import { renderOutputStoragePath } from "@/lib/render-output-storage";
 import {
   isTemplateSizeAllowed,
+  type TemplateSizeKey,
   usesRegisteredTemplateContract,
 } from "@/lib/template-contract";
 import { renderContractTemplate } from "@/lib/template-renderer";
@@ -32,11 +40,33 @@ import { canExportContent, type ContentStatus } from "@/lib/content-governance";
 
 export const runtime = "nodejs";
 
+function exportFormat(value: string | null): ServerExportFormat {
+  return value === "jpeg" || value === "pdf" ? value : "png";
+}
+
+function safeFilename(value: string) {
+  return (
+    value
+      .replace(/[^\w\d-]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .toLowerCase() || "content"
+  );
+}
+
+function renderInputSha256(value: unknown) {
+  return createHash("sha256")
+    .update(JSON.stringify(value))
+    .digest("hex");
+}
+
 // Renders an org-visible piece of content into its product's locked layout.
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const contentId = searchParams.get("content");
-  const requestedSize = searchParams.get("size") ?? "square";
+  const requestedSizeParam = searchParams.get("size");
+  const requestedSize = requestedSizeParam ?? "square";
+  const format = exportFormat(searchParams.get("format"));
+  const download = searchParams.get("download") === "1";
   if (!contentId) return new Response("Missing content id", { status: 400 });
 
   const supabase = await createClient();
@@ -48,7 +78,7 @@ export async function GET(req: Request) {
   const { data: content } = await supabase
     .from("generated_content")
     .select(
-      "id, status, current_revision_number, approved_revision_number, structured_fields, products(name, disclaimer_text), product_templates(layout_key, category, template_definition, status), template_versions(manifest), template_variants(variant_key)"
+      "id, org_id, status, current_revision_number, approved_revision_number, structured_fields, products(name, disclaimer_text), product_templates(layout_key, category, template_definition, status), template_versions(manifest), template_variants(variant_key)"
     )
     .eq("id", contentId)
     .single();
@@ -82,27 +112,109 @@ export async function GET(req: Request) {
 
   if (platformVersion?.manifest && platformVariant?.variant_key) {
     const manifest = platformVersion.manifest as TemplateBundleManifest;
-    const variantKey = requestedSize === "square" ? platformVariant.variant_key : requestedSize;
+    const variantKey = platformVariant.variant_key;
+    if (requestedSizeParam && requestedSizeParam !== variantKey) {
+      return new Response("Rendered size must match the approved template size.", {
+        status: 403,
+        headers: { "Cache-Control": "no-store" },
+      });
+    }
     const runtime = resolveTemplateBundleRuntimeVariant(manifest, variantKey);
     if (!runtime) {
       return new Response("Unsupported size for this template", { status: 400 });
     }
+    const assetUrlByPath = Object.fromEntries(
+      await createTemplateBundleAssetUrlMap(supabase, [manifest])
+    );
     const rendered = renderTemplateBundleVariant({
       manifest,
       variantKey,
       fields,
       assetOrigin: new URL(req.url).origin,
-      assetUrlByPath: Object.fromEntries(
-        await createTemplateBundleAssetUrlMap(supabase, [manifest])
-      ),
+      assetUrlByPath,
     });
     if (!rendered) return new Response("Template render failed", { status: 500 });
-    const fonts = await loadContentGateFonts();
-    return new ImageResponse(rendered.element, {
+    const fonts = await loadTemplateBundleImageFonts({ manifest, assetUrlByPath });
+    const image = new ImageResponse(rendered.element, {
       width: rendered.width,
       height: rendered.height,
-      fonts,
+      fonts: fonts.length ? fonts : await loadContentGateFonts(),
       headers: cacheHeaders,
+    });
+    if (format === "png" && !download) return image;
+
+    const converted = await convertServerRenderedPng({
+      png: await image.arrayBuffer(),
+      width: rendered.width,
+      height: rendered.height,
+      size: variantKey as SizeKey,
+      format,
+    });
+    const filename = `${safeFilename(`${productName}-${variantKey}`)}.${converted.extension}`;
+    if (download) {
+      const inputHash = renderInputSha256({
+        contentId: content.id,
+        fields,
+        format,
+        variantKey,
+        revision: content.current_revision_number,
+      });
+      const outputStoragePath = renderOutputStoragePath({
+        orgId: content.org_id,
+        contentId: content.id,
+        revision: content.current_revision_number,
+        variantKey,
+        format,
+        inputSha256: inputHash,
+        extension: converted.extension,
+      });
+      const { error: uploadError } = await supabase.storage
+        .from("rendered-assets")
+        .upload(outputStoragePath, Buffer.from(converted.body), {
+          contentType: converted.contentType,
+          cacheControl: "31536000",
+          upsert: true,
+        });
+      if (uploadError) {
+        return new Response(`Could not store rendered output: ${uploadError.message}`, {
+          status: 500,
+          headers: { "Cache-Control": "no-store" },
+        });
+      }
+
+      const { error: renderJobError } = await supabase.rpc("record_render_job_event", {
+        p_content_id: content.id,
+        p_output_format: format,
+        p_input_sha256: inputHash,
+        p_payload: {
+          format,
+          variant_key: variantKey,
+          width: rendered.width,
+          height: rendered.height,
+          surface: "creative_render",
+          output_storage_path: outputStoragePath,
+        },
+        p_diagnostics: {
+          source: "server_render_route",
+          stored_output: true,
+        },
+      });
+      if (renderJobError) {
+        await supabase.storage.from("rendered-assets").remove([outputStoragePath]);
+        return new Response(`Could not record render job: ${renderJobError.message}`, {
+          status: 403,
+          headers: { "Cache-Control": "no-store" },
+        });
+      }
+    }
+    return new Response(Buffer.from(converted.body), {
+      headers: {
+        "Content-Type": converted.contentType,
+        "Content-Disposition": download
+          ? `attachment; filename="${filename}"`
+          : `inline; filename="${filename}"`,
+        "Cache-Control": "no-store",
+      },
     });
   }
 
@@ -116,7 +228,7 @@ export async function GET(req: Request) {
   if (!isTemplateSizeAllowed(templateSizeInput, requestedSize)) {
     return new Response("Unsupported size for this template", { status: 400 });
   }
-  const sizeKey = requestedSize as SizeKey;
+  const sizeKey = requestedSize as TemplateSizeKey;
   const size = SIZES[sizeKey];
 
   const contractRender = usesRegisteredTemplateContract(templateSizeInput)

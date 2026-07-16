@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Button } from "@/components/ui/button";
 import { getProductWorkspace } from "@/lib/product-workspace-server";
 import {
   parseWorkspaceView,
@@ -7,6 +8,7 @@ import {
   type WorkspaceView,
 } from "./_workspace/workspace-tabs";
 import { ProductStatusBadge } from "./_workspace/product-status-badge";
+import { OverviewView } from "./_workspace/overview-view";
 import { AssetsView } from "./_workspace/assets-view";
 import { KnowledgeView } from "./_workspace/knowledge-view";
 import { TemplatesView } from "./_workspace/templates-view";
@@ -18,19 +20,19 @@ export default async function ProductWorkspacePage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ view?: string }>;
+  searchParams: Promise<{ view?: string; approvalCursor?: string }>;
 }) {
   const { id } = await params;
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL) notFound();
 
-  const { view: viewParam } = await searchParams;
+  const { view: viewParam, approvalCursor } = await searchParams;
   const view = parseWorkspaceView(viewParam);
-  const workspace = await getProductWorkspace(id, { view });
+  const workspace = await getProductWorkspace(id, { view, approvalCursor });
   if (!workspace) notFound();
 
   const { product, counts, permissions } = workspace;
 
-  const tabCounts: Record<WorkspaceView, number> = {
+  const tabCounts: Partial<Record<WorkspaceView, number>> = {
     assets: counts.assets,
     knowledge: workspace.sections.knowledge.count,
     templates: counts.activeTemplates,
@@ -44,7 +46,7 @@ export default async function ProductWorkspacePage({
       <div className="flex flex-col gap-3">
         <Link
           href="/products"
-          className="text-[13px] font-semibold text-brand hover:underline"
+          className="text-label text-brand hover:underline"
         >
           ← Products
         </Link>
@@ -52,24 +54,17 @@ export default async function ProductWorkspacePage({
           <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[10px] bg-brand-dark text-[15px] font-bold text-white">
             {product.name[0]}
           </span>
-          <h1 className="min-w-0 font-serif text-[26px] font-semibold sm:text-[28px]">
-            {product.name}
-          </h1>
+          <h1 className="min-w-0 text-h1 text-ink">{product.name}</h1>
           <ProductStatusBadge status={product.status} />
           <div className="flex-1" />
           {permissions.canEditProduct && (
-            <Link
-              href={`/products/${id}/edit`}
-              className="flex-shrink-0 rounded-control border border-edge px-4 py-2 text-[13px] font-semibold text-ink-muted transition-colors hover:border-brand hover:text-brand"
-            >
-              Edit product
-            </Link>
+            <Button asChild variant="outline" size="sm" className="flex-shrink-0">
+              <Link href={`/products/${id}/edit`}>Edit product</Link>
+            </Button>
           )}
         </div>
         {product.description && (
-          <p className="max-w-2xl text-[14.5px] text-ink-muted">
-            {product.description}
-          </p>
+          <p className="max-w-2xl text-body text-ink-muted">{product.description}</p>
         )}
       </div>
 
@@ -78,6 +73,7 @@ export default async function ProductWorkspacePage({
 
       {/* Active view */}
       <div>
+        {view === "overview" && <OverviewView workspace={workspace} />}
         {view === "assets" && <AssetsView workspace={workspace} />}
         {view === "knowledge" && <KnowledgeView workspace={workspace} />}
         {view === "templates" && <TemplatesView workspace={workspace} />}

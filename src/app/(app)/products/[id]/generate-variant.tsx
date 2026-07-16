@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { SIZES, type SizeKey } from "@/lib/creative";
+import { sizeLabel, studioContentUrl, type SizeKey } from "@/lib/creative";
 
 const LANGUAGES = ["English", "Filipino", "Spanish", "Portuguese", "Vietnamese", "Thai"];
 const LOADER_MESSAGES = [
@@ -34,17 +34,13 @@ function retryAfterSecondsFromPayload(payload: unknown) {
 }
 
 export function GenerateVariant({
-  productId,
-  templateId,
   platformAssignmentId,
   variant,
   sizes,
   initialSize,
   compact = false,
 }: {
-  productId: string;
-  templateId?: string;
-  platformAssignmentId?: string;
+  platformAssignmentId: string;
   variant: string;
   sizes: SizeKey[];
   initialSize: SizeKey;
@@ -86,9 +82,7 @@ export function GenerateVariant({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ...(platformAssignmentId
-            ? { platformAssignmentId }
-            : { productTemplateId: templateId }),
+          platformAssignmentId,
           language,
           outputSize,
         }),
@@ -104,22 +98,10 @@ export function GenerateVariant({
       }
       setRetryUntil(null);
       if (j.platform) {
-        const params = new URLSearchParams({
-          product: productId,
-          template: `platform:${platformAssignmentId ?? ""}`,
-          content: j.contentId,
-          size: (j.outputSize as string) ?? outputSize,
-        });
-        router.push(`/studio?${params.toString()}`);
+        router.push(studioContentUrl(j.contentId as string, (j.outputSize as string) ?? outputSize));
         return;
       }
-      const params = new URLSearchParams({
-        product: productId,
-        template: templateId ?? "",
-        content: j.contentId,
-        size: (j.outputSize as string) ?? outputSize,
-      });
-      router.push(`/studio?${params.toString()}`);
+      setError("Generation returned an unsupported template type.");
     } catch {
       setError("Generation failed. Try again.");
     } finally {
@@ -172,7 +154,7 @@ export function GenerateVariant({
       >
         {sizes.map((size) => (
           <option key={size} value={size}>
-            {SIZES[size].label}
+            {sizeLabel(size)}
           </option>
         ))}
       </select>

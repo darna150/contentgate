@@ -1,15 +1,17 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { PageHeader } from "@/components/page-header";
+import { EmptyState } from "@/components/empty-state";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/server";
-
-type DocRow = {
-  id: string;
-  title: string;
-  storage_path: string | null;
-  created_at: string;
-  paragraphs: { n: number }[] | null;
-  products: { name: string } | { name: string }[] | null;
-};
+import { getDocumentPage } from "@/lib/document-listing";
+import {
+  documentIndexStatusClass,
+  documentIndexStatusLabel,
+  type DocumentIndexStatus,
+} from "@/lib/document-index-status";
+import type { FlattenedDocumentRow } from "@/lib/document-listing-shared";
 
 function UploadIcon() {
   return (
@@ -20,56 +22,59 @@ function UploadIcon() {
   );
 }
 
-export default async function KnowledgePage() {
-  let docs: DocRow[] = [];
+function IndexStatusBadge({ status }: { status: DocumentIndexStatus }) {
+  return (
+    <Badge className={`${documentIndexStatusClass(status)} border-transparent`}>
+      {documentIndexStatusLabel(status)}
+    </Badge>
+  );
+}
+
+export default async function KnowledgePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ cursor?: string }>;
+}) {
+  const { cursor } = await searchParams;
+
+  let docs: FlattenedDocumentRow[] = [];
+  let nextCursor: string | null = null;
 
   if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
     const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     if (!user) redirect("/login");
     const { data: me } = await supabase.from("profiles").select("role").eq("id", user.id).single();
     if (me?.role !== "admin") redirect("/ask");
-    const { data } = await supabase
-      .from("documents")
-      .select("id, title, storage_path, created_at, paragraphs, products(name)")
-      .order("created_at", { ascending: false });
-    docs = (data as DocRow[]) ?? [];
+
+    const page = await getDocumentPage({ cursor });
+    docs = page.rows;
+    nextCursor = page.nextCursor;
   }
 
   return (
-    <div className="mx-auto flex max-w-[1280px] flex-col gap-6 px-10 py-9">
-      <div className="flex items-end gap-4">
-        <div className="flex flex-col gap-1.5">
-          <h1 className="font-serif text-[28px] font-semibold">Source documents</h1>
-          <p className="text-[14.5px] text-ink-muted">
-            Every approved document across your products, in one place.
-          </p>
-        </div>
-        <div className="flex-1" />
-        <Link
-          href="/knowledge/new"
-          className="flex items-center gap-2 rounded-control bg-brand px-[18px] py-2.5 text-[13.5px] font-semibold text-white transition-opacity hover:opacity-90"
-        >
-          <UploadIcon />
-          Add document
-        </Link>
-      </div>
+    <div className="mx-auto flex max-w-[1280px] flex-col gap-6 px-4 py-9 sm:px-10">
+      <PageHeader
+        title="Source documents"
+        description="Every approved document across your products, in one place."
+        actions={
+          <Button asChild>
+            <Link href="/knowledge/new">
+              <UploadIcon />
+              Add document
+            </Link>
+          </Button>
+        }
+      />
 
       {docs.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 rounded-card border border-dashed border-edge-strong bg-surface px-8 py-16 text-center">
-          <p className="text-[15px] font-semibold">No documents yet</p>
-          <p className="max-w-md text-sm text-ink-muted">
-            Add a product&apos;s approved guides, claim sheets, and FAQs.
-            Generated content can only draw on what lives here.
-          </p>
-          <Link
-            href="/knowledge/new"
-            className="mt-2 flex items-center gap-2 rounded-control bg-brand px-[18px] py-2.5 text-[13.5px] font-semibold text-white transition-opacity hover:opacity-90"
-          >
-            <UploadIcon />
-            Add your first document
-          </Link>
-        </div>
+        <EmptyState
+          title="No documents yet"
+          description="Add a product's approved guides, claim sheets, and FAQs. Generated content can only draw on what lives here."
+          action={{ label: "Add your first document", href: "/knowledge/new" }}
+        />
       ) : (
         <div className="flex flex-col gap-3.5 rounded-card border border-edge bg-surface p-[22px]">
           <div className="flex items-center">
@@ -80,37 +85,40 @@ export default async function KnowledgePage() {
             </span>
           </div>
           <ul className="flex flex-col">
-            {docs.map((doc) => {
-              const product = Array.isArray(doc.products) ? doc.products[0] : doc.products;
-              return (
-                <li key={doc.id}>
-                  <Link
-                    href={`/knowledge/${doc.id}`}
-                    className="-mx-2 flex items-center gap-3 rounded-control px-2 py-2.5 transition-colors hover:bg-page"
-                  >
-                    <span className="flex h-8 w-8 items-center justify-center rounded-[8px] bg-[#EDF0EC] text-[9.5px] font-bold text-ink-muted">
-                      {doc.storage_path ? "FILE" : "TEXT"}
+            {docs.map((doc) => (
+              <li key={doc.id}>
+                <Link
+                  href={`/knowledge/${doc.id}`}
+                  className="-mx-2 flex items-center gap-3 rounded-control px-2 py-2.5 transition-colors hover:bg-page"
+                >
+                  <span className="flex h-8 w-8 items-center justify-center rounded-[8px] bg-[#EDF0EC] text-[9.5px] font-bold text-ink-muted">
+                    {doc.storagePath ? "FILE" : "TEXT"}
+                  </span>
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    <span className="truncate text-[13px] font-semibold">{doc.title}</span>
+                    <span className="text-[11.5px] text-ink-faint">
+                      {doc.productName ? `${doc.productName} · ` : "Unassigned · "}
+                      {doc.paragraphCount} paragraphs ·{" "}
+                      {new Date(doc.createdAt).toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                      })}
                     </span>
-                    <span className="flex min-w-0 flex-1 flex-col">
-                      <span className="truncate text-[13px] font-semibold">{doc.title}</span>
-                      <span className="text-[11.5px] text-ink-faint">
-                        {product?.name ? `${product.name} · ` : "Unassigned · "}
-                        {doc.paragraphs?.length ?? 0} paragraphs ·{" "}
-                        {new Date(doc.created_at).toLocaleDateString("en-US", {
-                          month: "short",
-                          day: "numeric",
-                          year: "numeric",
-                        })}
-                      </span>
-                    </span>
-                    <span className="inline-flex rounded-full bg-approve-tint px-[9px] py-0.5 text-[11.5px] font-semibold text-approve">
-                      Indexed
-                    </span>
-                  </Link>
-                </li>
-              );
-            })}
+                  </span>
+                  <IndexStatusBadge status={doc.indexStatus} />
+                </Link>
+              </li>
+            ))}
           </ul>
+          {nextCursor && (
+            <Link
+              href={`/knowledge?cursor=${nextCursor}`}
+              className="rounded-control px-3.5 py-3 text-center text-[13px] font-semibold text-brand transition-colors hover:bg-page"
+            >
+              Load more documents
+            </Link>
+          )}
         </div>
       )}
     </div>

@@ -154,7 +154,10 @@ export async function writeFigmaPublisherBundle(input: {
   }
 
   const bundle = await loadTemplateBundleDirectory(outputDirectory);
-  const report = await preflightTemplateBundle({ manifest: bundle.manifest });
+  const report = await preflightTemplateBundle({
+    manifest: bundle.manifest,
+    assets: bundle.assets,
+  });
   const assetIssues = validateTemplateBundleAssetPayloads(
     bundle.manifest.assets,
     bundle.assets

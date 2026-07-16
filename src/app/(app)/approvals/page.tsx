@@ -1,7 +1,15 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { PageHeader } from "@/components/page-header";
+import { EmptyState } from "@/components/empty-state";
+import { FilterChips } from "@/components/filter-chips";
+import { StatusPill } from "@/components/status-pill";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { getApprovalPage } from "@/lib/content-listing";
 import { getProductWorkspace } from "@/lib/product-workspace-server";
+
+const LANGUAGES = ["English", "Filipino", "Spanish", "Portuguese", "Vietnamese", "Thai"];
 
 type QueueRow = {
   id: string;
@@ -13,23 +21,30 @@ type QueueRow = {
   creatorName: string | null;
 };
 
-type Joined<T> = T | T[] | null;
-
-function one<T>(value: Joined<T>): T | null {
-  return Array.isArray(value) ? (value[0] ?? null) : value;
+function formatDate(iso: string) {
+  return new Date(iso).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
 }
 
 export default async function ApprovalsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ product?: string }>;
+  searchParams: Promise<{ product?: string; language?: string; cursor?: string }>;
 }) {
-  const { product: productId } = await searchParams;
+  const { product: productId, language, cursor } = await searchParams;
+  const activeLanguage = language && LANGUAGES.includes(language) ? language : "all";
+
   let rows: QueueRow[] = [];
+  let nextCursor: string | null = null;
   let productName: string | null = null;
   if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
     if (productId) {
-      const workspace = await getProductWorkspace(productId);
+      const workspace = await getProductWorkspace(productId, {
+        view: "approvals",
+        approvalCursor: cursor,
+      });
       if (!workspace) notFound();
       productName = workspace.product.name;
       rows = workspace.approvals.map((item) => ({
@@ -41,31 +56,39 @@ export default async function ApprovalsPage({
         templateName: item.templateVariant,
         creatorName: item.creatorName,
       }));
+      nextCursor = workspace.approvalsNextCursor;
     } else {
-      const supabase = await createClient();
-      const { data } = await supabase
-        .from("generated_content")
-        .select(
-          "id, title, target_language, audience, created_at, templates(name), product_templates(variant), creator:profiles!generated_content_created_by_fkey(full_name)"
-        )
-        .eq("status", "in_review")
-        .not("product_id", "is", null)
-        .order("created_at", { ascending: true });
-      rows = (data ?? []).map((row) => ({
-        id: row.id,
-        title: row.title,
-        target_language: row.target_language,
-        audience: row.audience,
-        created_at: row.created_at,
-        templateName:
-          one(row.product_templates)?.variant ?? one(row.templates)?.name ?? null,
-        creatorName: one(row.creator)?.full_name ?? null,
-      }));
+      const page = await getApprovalPage({
+        cursor,
+        targetLanguage: activeLanguage === "all" ? null : activeLanguage,
+      });
+      rows = page.rows.map((row) => {
+        return {
+          id: row.id,
+          title: row.title,
+          target_language: row.targetLanguage,
+          audience: row.audience,
+          created_at: row.createdAt,
+          templateName: row.templateName,
+          creatorName: row.creatorName,
+        };
+      });
+      nextCursor = page.nextCursor;
     }
   }
 
+  function buildHref(overrides: { language?: string; cursor?: string }) {
+    const nextLanguage = overrides.language ?? activeLanguage;
+    const params = new URLSearchParams();
+    if (productId) params.set("product", productId);
+    if (!productId && nextLanguage !== "all") params.set("language", nextLanguage);
+    if (overrides.cursor) params.set("cursor", overrides.cursor);
+    const query = params.toString();
+    return query ? `/approvals?${query}` : "/approvals";
+  }
+
   return (
-    <div className="mx-auto flex max-w-[1280px] flex-col gap-6 px-10 py-9">
+    <div className="mx-auto flex max-w-[1280px] flex-col gap-6 px-4 py-9 sm:px-10">
       <div className="flex flex-col gap-1.5">
         {productId && productName && (
           <Link
@@ -75,23 +98,34 @@ export default async function ApprovalsPage({
             ← {productName}
           </Link>
         )}
-        <h1 className="font-serif text-[28px] font-semibold">Approval Queue</h1>
-        <p className="text-[14.5px] text-ink-muted">
-          {productName
-            ? `Content for ${productName} waiting for review.`
-            : "Content waiting for review. Only approved content can be exported."}
-        </p>
+        <PageHeader
+          title="Approval Queue"
+          description={
+            productName
+              ? `Content for ${productName} waiting for review.`
+              : "Content waiting for review. Only approved content can be exported."
+          }
+        />
       </div>
 
+      {!productId && (
+        <FilterChips
+          options={[
+            { label: "All languages", value: "all" },
+            ...LANGUAGES.map((l) => ({ label: l, value: l })),
+          ]}
+          activeValue={activeLanguage}
+          getHref={(value) => buildHref({ language: value })}
+        />
+      )}
+
       {rows.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 rounded-card border border-dashed border-edge-strong bg-surface px-8 py-16 text-center">
-          <p className="text-[15px] font-semibold">The queue is clear</p>
-          <p className="max-w-md text-sm text-ink-muted">
-            When someone submits content for review, it lands here.
-          </p>
-        </div>
+        <EmptyState
+          title="The queue is clear"
+          description="When someone submits content for review, it lands here."
+        />
       ) : (
-        <div className="flex flex-col gap-1 rounded-card border border-edge bg-surface p-3">
+        <Card className="gap-1 p-3">
           {rows.map((row) => {
             return (
               <Link
@@ -106,23 +140,22 @@ export default async function ApprovalsPage({
                   <span className="text-[11.5px] text-ink-faint">
                     {row.templateName ?? "Custom"} · {row.target_language}
                     {row.audience ? ` · ${row.audience}` : ""} · submitted by{" "}
-                    {row.creatorName ?? "a teammate"} ·{" "}
-                    {new Date(row.created_at).toLocaleDateString("en-US", {
-                      month: "short",
-                      day: "numeric",
-                    })}
+                    {row.creatorName ?? "a teammate"} · {formatDate(row.created_at)}
                   </span>
                 </span>
-                <span className="inline-flex rounded-full bg-[#FBF3E2] px-[9px] py-0.5 text-[11.5px] font-semibold text-warn">
-                  In review
-                </span>
+                <StatusPill status="in_review" />
                 <span className="text-[13px] font-semibold text-brand">
                   Review →
                 </span>
               </Link>
             );
           })}
-        </div>
+          {nextCursor && (
+            <Button asChild variant="ghost" className="mt-1 justify-center">
+              <Link href={buildHref({ cursor: nextCursor })}>Load more approvals</Link>
+            </Button>
+          )}
+        </Card>
       )}
     </div>
   );

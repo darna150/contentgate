@@ -14,11 +14,14 @@ import {
   getTemplateBundleVariantFieldLimits,
   getTemplateBundleVariantFields,
 } from "@/lib/template-platform/runtime";
+import { createTemplateBundleAssetUrlMap } from "@/lib/template-platform/storage-urls";
 import {
   canReviewContent,
   canSubmitContent,
   type ContentStatus,
 } from "@/lib/content-governance";
+
+type FitStorageClient = Awaited<ReturnType<typeof createClient>>;
 
 type ActionResult =
   | {
@@ -27,6 +30,10 @@ type ActionResult =
       savedAt?: string;
       manuallyEdited?: boolean;
     }
+  | { error: string };
+
+type DraftFitResult =
+  | { ok: true; overflowFields: string[]; message?: string }
   | { error: string };
 
 async function requireUser() {
@@ -44,38 +51,41 @@ async function requireUser() {
   return { supabase, user, profile };
 }
 
-async function validateStoredTemplateFields(content: {
-  structured_fields: unknown;
-  prompt_context?: unknown;
-  product_templates:
-    | {
-        layout_key: string;
-        category: string;
-        editable_fields: unknown;
-        field_limits: unknown;
-        locked_fields: unknown;
-        template_definition: unknown;
-        status: string;
-      }
-    | {
-        layout_key: string;
-        category: string;
-        editable_fields: unknown;
-        field_limits: unknown;
-        locked_fields: unknown;
-        template_definition: unknown;
-        status: string;
-      }[]
-    | null;
-  template_versions?:
-    | { manifest: TemplateBundleManifest }
-    | { manifest: TemplateBundleManifest }[]
-    | null;
-  template_variants?:
-    | { variant_key: string }
-    | { variant_key: string }[]
-    | null;
-}): Promise<string | null> {
+async function validateStoredTemplateFields(
+  content: {
+    structured_fields: unknown;
+    prompt_context?: unknown;
+    product_templates:
+      | {
+          layout_key: string;
+          category: string;
+          editable_fields: unknown;
+          field_limits: unknown;
+          locked_fields: unknown;
+          template_definition: unknown;
+          status: string;
+        }
+      | {
+          layout_key: string;
+          category: string;
+          editable_fields: unknown;
+          field_limits: unknown;
+          locked_fields: unknown;
+          template_definition: unknown;
+          status: string;
+        }[]
+      | null;
+    template_versions?:
+      | { manifest: TemplateBundleManifest }
+      | { manifest: TemplateBundleManifest }[]
+      | null;
+    template_variants?:
+      | { variant_key: string }
+      | { variant_key: string }[]
+      | null;
+  },
+  supabase: FitStorageClient
+): Promise<string | null> {
   const template = Array.isArray(content.product_templates)
     ? content.product_templates[0]
     : content.product_templates;
@@ -96,10 +106,14 @@ async function validateStoredTemplateFields(content: {
     if (firstIssue) {
       return `${firstIssue[0]}: ${firstIssue[1].map((issue) => issue.message).join(", ")}`;
     }
+    const assetUrlByPath = Object.fromEntries(
+      await createTemplateBundleAssetUrlMap(supabase, [version.manifest])
+    );
     const geometryIssues = await templatePlatformFieldFitIssues({
       manifest: version.manifest,
       variantKey: variant.variant_key,
       fields,
+      assetUrlByPath,
     });
     return formatTemplatePlatformFitIssues(geometryIssues)[0] ?? null;
   }
@@ -208,10 +222,16 @@ export async function updateStructuredFields(
       })();
   if (validationError) return { error: validationError };
   if (!template) {
+    const assetUrlByPath = Object.fromEntries(
+      await createTemplateBundleAssetUrlMap(ctx.supabase, [
+        version!.manifest as TemplateBundleManifest,
+      ])
+    );
     const geometryIssues = await templatePlatformFieldFitIssues({
       manifest: version!.manifest as TemplateBundleManifest,
       variantKey: variant!.variant_key,
       fields: cleaned,
+      assetUrlByPath,
     });
     const firstGeometryIssue = formatTemplatePlatformFitIssues(geometryIssues)[0];
     if (firstGeometryIssue) return { error: firstGeometryIssue };
@@ -263,6 +283,89 @@ export async function updateStructuredFields(
   };
 }
 
+export async function checkDraftStructuredFieldsFit(
+  id: string,
+  fields: Record<string, string>
+): Promise<DraftFitResult> {
+  const ctx = await requireUser();
+  if (!ctx) return { error: "Your session expired — sign in again." };
+
+  const { data: content } = await ctx.supabase
+    .from("generated_content")
+    .select(
+      "structured_fields, prompt_context, product_templates(layout_key, category, editable_fields, field_limits, locked_fields, template_definition, status), template_versions(manifest), template_variants(variant_key)"
+    )
+    .eq("id", id)
+    .single();
+  if (!content) return { error: "Content not found." };
+
+  const template = Array.isArray(content.product_templates)
+    ? content.product_templates[0]
+    : content.product_templates;
+  const version = Array.isArray(content.template_versions)
+    ? content.template_versions[0]
+    : content.template_versions;
+  const variant = Array.isArray(content.template_variants)
+    ? content.template_variants[0]
+    : content.template_variants;
+
+  if (!template && version?.manifest && variant?.variant_key) {
+    const order = getTemplateBundleVariantFields(version.manifest, variant.variant_key).map(
+      (field) => field.key
+    );
+    const limits = getTemplateBundleVariantFieldLimits(version.manifest, variant.variant_key);
+    const cleaned = Object.fromEntries(
+      order.map((key) => [key, String(fields[key] ?? "")])
+    );
+    const configuredIssues = templateFieldIssues(cleaned, order, limits);
+    const assetUrlByPath = Object.fromEntries(
+      await createTemplateBundleAssetUrlMap(ctx.supabase, [version.manifest])
+    );
+    const geometryIssues = await templatePlatformFieldFitIssues({
+      manifest: version.manifest,
+      variantKey: variant.variant_key,
+      fields: cleaned,
+      assetUrlByPath,
+    });
+    return {
+      ok: true,
+      overflowFields: [
+        ...new Set([
+          ...Object.keys(configuredIssues),
+          ...Object.keys(geometryIssues),
+        ]),
+      ],
+      message: formatTemplatePlatformFitIssues(geometryIssues)[0],
+    };
+  }
+
+  if (!template) return { error: "Template configuration was not found." };
+  const order = (template.editable_fields ?? []) as string[];
+  const cleaned = Object.fromEntries(
+    order.map((key) => [key, String(fields[key] ?? "")])
+  );
+  const promptContext =
+    content.prompt_context && typeof content.prompt_context === "object"
+      ? (content.prompt_context as Record<string, unknown>)
+      : {};
+  const validationError = await validateTemplateContentFit({
+    layoutKey: template.layout_key,
+    category: template.category,
+    editableFields: order,
+    fieldLimits: (template.field_limits ?? {}) as FieldLimits,
+    lockedFields: (template.locked_fields ?? []) as string[],
+    definition: template.template_definition,
+    status: template.status,
+    fields: cleaned,
+    promptContext,
+  });
+  return {
+    ok: true,
+    overflowFields: validationError ? ["layout"] : [],
+    message: validationError ?? undefined,
+  };
+}
+
 export async function approveContent(id: string): Promise<ActionResult> {
   const ctx = await requireUser();
   if (!ctx) return { error: "Your session expired — sign in again." };
@@ -283,7 +386,7 @@ export async function approveContent(id: string): Promise<ActionResult> {
   if (row.status !== "in_review") {
     return { error: "Only content in review can be approved." };
   }
-  const validationError = await validateStoredTemplateFields(row);
+  const validationError = await validateStoredTemplateFields(row, ctx.supabase);
   if (validationError) {
     return { error: `Content no longer fits its template: ${validationError}` };
   }
@@ -352,7 +455,7 @@ export async function submitForReview(id: string): Promise<ActionResult> {
     }
     return { error: "Only the author or an admin can submit this content." };
   }
-  const validationError = await validateStoredTemplateFields(current);
+  const validationError = await validateStoredTemplateFields(current, ctx.supabase);
   if (validationError) {
     return { error: `Content does not fit its template: ${validationError}` };
   }
