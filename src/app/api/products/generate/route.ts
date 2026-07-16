@@ -77,6 +77,18 @@ type ReplaceContentRow = {
   template_version_id: string | null;
   template_variant_id: string | null;
   prompt_context: Record<string, unknown> | null;
+  structured_fields: Record<string, string> | null;
+};
+
+type CampaignSourceRow = {
+  id: string;
+  template_variant_id: string | null;
+  structured_fields: Record<string, string> | null;
+  prompt_context: Record<string, unknown> | null;
+  template_variants:
+    | { variant_key: string; label: string | null }
+    | { variant_key: string; label: string | null }[]
+    | null;
 };
 
 type GeneratedCopy = {
@@ -202,6 +214,40 @@ function asStringRecord(value: unknown): Record<string, string> {
   );
 }
 
+function one<T>(value: T | T[] | null | undefined): T | null {
+  if (Array.isArray(value)) return value[0] ?? null;
+  return value ?? null;
+}
+
+function campaignSourceFields(row: CampaignSourceRow | ReplaceContentRow | null) {
+  if (!row) return {};
+  const campaignFields =
+    row.prompt_context && typeof row.prompt_context === "object"
+      ? asStringRecord(row.prompt_context.campaign_source_fields)
+      : {};
+  const generatedFields =
+    row.prompt_context && typeof row.prompt_context === "object"
+      ? asStringRecord(row.prompt_context.generated_fields)
+      : {};
+  const structuredFields = asStringRecord(row.structured_fields);
+  if (Object.keys(campaignFields).length) return campaignFields;
+  return Object.keys(generatedFields).length ? generatedFields : structuredFields;
+}
+
+function formatCampaignSource(input: {
+  fields: Record<string, string>;
+  sourceSizeLabel?: string | null;
+}) {
+  const entries = Object.entries(input.fields)
+    .map(([key, value]) => [key, value.trim()] as const)
+    .filter(([, value]) => value.length > 0);
+  if (!entries.length) return "";
+  return [
+    `SOURCE CAMPAIGN IDEA${input.sourceSizeLabel ? ` (${input.sourceSizeLabel})` : ""}:`,
+    ...entries.map(([key, value]) => `${key}: ${value}`),
+  ].join("\n");
+}
+
 function fallbackCopyForField(input: {
   key: string;
   productName: string;
@@ -321,7 +367,7 @@ export async function POST(req: Request) {
       const { data: existingContent } = await supabase
         .from("generated_content")
         .select(
-          "id, status, created_by, product_id, template_version_id, template_variant_id, prompt_context"
+          "id, status, created_by, product_id, template_version_id, template_variant_id, prompt_context, structured_fields"
         )
         .eq("id", replaceContentId)
         .eq("org_id", profile.org_id)
@@ -350,6 +396,22 @@ export async function POST(req: Request) {
       }
       replaceContent = existingContent as ReplaceContentRow;
     }
+
+    const { data: campaignSourceData } = await supabase
+      .from("generated_content")
+      .select("id, template_variant_id, structured_fields, prompt_context, template_variants(variant_key, label)")
+      .eq("org_id", profile.org_id)
+      .eq("product_id", assignment.productId)
+      .eq("template_version_id", assignment.versionId)
+      .eq("prompt_context->>platform_assignment_id", assignment.assignmentId)
+      .in("status", ["draft", "rejected", "in_review", "approved"])
+      .order("updated_at", { ascending: false })
+      .limit(8);
+    const campaignSourceRows = (campaignSourceData ?? []) as CampaignSourceRow[];
+    const campaignSource =
+      campaignSourceRows.find((row) => row.template_variant_id !== variantRow.id) ??
+      campaignSourceRows.find((row) => row.id !== replaceContentId) ??
+      null;
 
     const { data: product } = await supabase
       .from("products")
@@ -417,6 +479,15 @@ export async function POST(req: Request) {
       typeof (assignmentRow as TemplatePlatformAssignmentRow).generation_profile === "object"
         ? JSON.stringify((assignmentRow as TemplatePlatformAssignmentRow).generation_profile)
         : "";
+    const campaignSourceVariant = one(campaignSource?.template_variants);
+    const campaignSourcePrompt = formatCampaignSource({
+      fields: campaignSourceFields(campaignSource),
+      sourceSizeLabel: campaignSourceVariant?.label ?? campaignSourceVariant?.variant_key,
+    });
+    const replaceSourcePrompt = formatCampaignSource({
+      fields: campaignSourceFields(replaceContent),
+    });
+    const continuityPrompt = campaignSourcePrompt || replaceSourcePrompt;
 
     const system = [
       `You write compliant brand-content and localized marketing copy for "${product.name}".`,
@@ -434,6 +505,13 @@ export async function POST(req: Request) {
       ``,
       `TASK: Create copy for ${assignment.familyName}.`,
       generationProfile ? `GENERATION PROFILE: ${generationProfile}` : ``,
+      continuityPrompt
+        ? [
+            ``,
+            continuityPrompt,
+            `This new output must be part of the same campaign idea. Preserve the same core message, CTA intent, tone, offer/benefit angle, and approved evidence. Adapt only the wording and length needed for the selected output size. Do not introduce a different campaign concept unless the additional direction explicitly asks for one.`,
+          ].join("\n")
+        : ``,
       extraInstructions ? `\nADDITIONAL DIRECTION: ${extraInstructions}` : ``,
       `\nSELECTED OUTPUT SIZE: ${runtimeVariant.variant.label} (${runtimeVariant.variant.width}x${runtimeVariant.variant.height}). Generate copy only for this size and stay inside its field limits.`,
       ``,
@@ -717,6 +795,10 @@ export async function POST(req: Request) {
       template_family_key: assignment.familyKey,
       template_version_id: assignment.versionId,
       template_variant_id: variantRow.id,
+      campaign_source_content_id: campaignSource?.id ?? replaceContent?.id ?? null,
+      campaign_source_fields: continuityPrompt
+        ? campaignSourceFields(campaignSource ?? replaceContent)
+        : structured,
       field_limits: fieldLimits,
       generated_fields: structured,
       manually_edited_fields: [],
