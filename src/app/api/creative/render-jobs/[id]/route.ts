@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
 
@@ -25,7 +26,10 @@ export async function GET(
     return new Response("Stored render output is unavailable.", { status: 404 });
   }
 
-  const { data, error } = await supabase.storage
+  const storageClient = process.env.SUPABASE_SERVICE_ROLE_KEY
+    ? createAdminClient()
+    : supabase;
+  const { data, error } = await storageClient.storage
     .from("rendered-assets")
     .createSignedUrl(job.output_storage_path, 60);
   if (error || !data?.signedUrl) {

@@ -7,7 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { approveContent, rejectContent } from "../content/actions";
 
-export function StudioReviewActions({ contentId }: { contentId: string }) {
+export function StudioReviewActions({
+  contentId,
+  onReviewed,
+}: {
+  contentId: string;
+  onReviewed?: (status: "approved" | "rejected") => void;
+}) {
   const router = useRouter();
   const [rejecting, setRejecting] = useState(false);
   const [note, setNote] = useState("");
@@ -22,6 +28,7 @@ export function StudioReviewActions({ contentId }: { contentId: string }) {
         setError(result.error);
         return;
       }
+      onReviewed?.("approved");
       router.refresh();
     });
   }
@@ -34,6 +41,7 @@ export function StudioReviewActions({ contentId }: { contentId: string }) {
         setError(result.error);
         return;
       }
+      onReviewed?.("rejected");
       router.refresh();
     });
   }

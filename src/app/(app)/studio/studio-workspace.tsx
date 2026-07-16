@@ -552,6 +552,26 @@ export function StudioWorkspace({
     setSubmitting(false);
   }
 
+  function markReviewed(status: "approved" | "rejected") {
+    if (!content) return;
+    const reviewedAt = new Date().toISOString();
+    setContentsBySize((current) => {
+      const existing = current[size];
+      if (!existing || existing.id !== content.id) return current;
+      return {
+        ...current,
+        [size]: {
+          ...existing,
+          status,
+          canEdit: status === "rejected",
+          updatedAt: reviewedAt,
+        },
+      };
+    });
+    setSaveState("saved");
+    setSavedAt(reviewedAt);
+  }
+
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -640,7 +660,9 @@ export function StudioWorkspace({
             />
           )}
 
-          {mode === "review" && content && <StudioReviewActions contentId={content.id} />}
+          {mode === "review" && content && (
+            <StudioReviewActions contentId={content.id} onReviewed={markReviewed} />
+          )}
 
               <StudioFields
                 fields={activeEditableFields}

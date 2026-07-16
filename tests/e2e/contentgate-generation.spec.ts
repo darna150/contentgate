@@ -151,6 +151,8 @@ async function generateLeaderboardDraft(page: Page) {
   await expect(page.getByText(new RegExp(`DRAFT\\s*·\\s*${OUTPUT_SIZE_LABEL}`, "i"))).toBeVisible({
     timeout: 60_000,
   });
+
+  return result.json.contentId as string;
 }
 
 async function getPreviewMetrics(page: Page) {
@@ -292,6 +294,98 @@ test.describe("ContentGate live generation QA", () => {
     await attachScreenshot(page, testInfo, "03-after-live-edit");
     await attachBrowserIssues(testInfo, issues);
 
+    expect(
+      issues.filter((issue) => issue.kind !== "console" && !isBenignBrowserIssue(issue)),
+      `Browser/network issues: ${JSON.stringify(issues, null, 2)}`
+    ).toEqual([]);
+  });
+
+  test("submits, approves, and downloads the approved PNG export", async ({
+    page,
+  }, testInfo) => {
+    const issues: BrowserIssue[] = [];
+
+    page.on("pageerror", (error) => {
+      issues.push({ kind: "pageerror", message: error.message });
+    });
+    page.on("requestfailed", (request) => {
+      issues.push({
+        kind: "requestfailed",
+        message: `${request.method()} ${request.url()} — ${
+          request.failure()?.errorText ?? "unknown"
+        }`,
+      });
+    });
+    page.on("response", (response) => {
+      const status = response.status();
+      const url = response.url();
+      if (status >= 500) {
+        issues.push({
+          kind: "http",
+          message: `${status} ${response.request().method()} ${url}`,
+        });
+      }
+    });
+
+    await signIn(page);
+    const contentId = await generateLeaderboardDraft(page);
+
+    await page.getByRole("button", { name: /Submit for review/i }).click();
+    await expect(page.getByText(new RegExp(`IN REVIEW\\s*·\\s*${OUTPUT_SIZE_LABEL}`, "i"))).toBeVisible({
+      timeout: 30_000,
+    });
+    await expect(page.getByText(/Awaiting your review/i)).toBeVisible();
+
+    await page.getByRole("button", { name: /^Approve$/i }).click();
+    await expect(page.getByText(new RegExp(`APPROVED\\s*·\\s*${OUTPUT_SIZE_LABEL}`, "i"))).toBeVisible({
+      timeout: 30_000,
+    });
+    await expect(page.getByText(/Approved snapshot/i)).toBeVisible();
+
+    const exportResult = await page.evaluate(
+      async ({ id, size }) => {
+        const response = await fetch(
+          `/api/creative/render?content=${encodeURIComponent(id)}&size=${encodeURIComponent(
+            size
+          )}&format=png&download=1`
+        );
+        if (!response.ok) {
+          return {
+            ok: false,
+            status: response.status,
+            contentType: response.headers.get("content-type"),
+            disposition: response.headers.get("content-disposition"),
+            text: await response.text(),
+            bytes: 0,
+          };
+        }
+        const body = await response.arrayBuffer();
+        return {
+          ok: true,
+          status: response.status,
+          contentType: response.headers.get("content-type"),
+          disposition: response.headers.get("content-disposition"),
+          text: "",
+          bytes: body.byteLength,
+        };
+      },
+      { id: contentId, size: OUTPUT_SIZE }
+    );
+
+    await testInfo.attach("approved-export-result.json", {
+      contentType: "application/json",
+      body: Buffer.from(JSON.stringify(exportResult, null, 2)),
+    });
+
+    expect(
+      exportResult.ok,
+      `Approved export failed with ${exportResult.status}: ${exportResult.text}`
+    ).toBeTruthy();
+    expect(exportResult.contentType).toMatch(/image\/png/i);
+    expect(exportResult.disposition).toMatch(/attachment/i);
+    expect(exportResult.bytes).toBeGreaterThan(10_000);
+
+    await attachBrowserIssues(testInfo, issues);
     expect(
       issues.filter((issue) => issue.kind !== "console" && !isBenignBrowserIssue(issue)),
       `Browser/network issues: ${JSON.stringify(issues, null, 2)}`
