@@ -24,6 +24,8 @@ import {
   templatePreviewUrl,
 } from "@/lib/creative";
 import {
+  getTemplateBundleVariantFieldLimits,
+  getTemplateBundleVariantFields,
   getTemplateBundleSupportedSizes,
   getTemplateBundleVariantDimensions,
   getTemplateBundleVariantLabel,
@@ -34,7 +36,11 @@ import {
   submitForReview,
   updateStructuredFields,
 } from "../content/actions";
-import { GenerationLoader, ServerPreviewFrame } from "./studio-preview";
+import {
+  GenerationLoader,
+  LiveTemplatePreviewFrame,
+  ServerPreviewFrame,
+} from "./studio-preview";
 import { StudioFields } from "./studio-fields";
 import { StudioGeneratePanel } from "./studio-generate-panel";
 import { resolveStudioMode } from "./studio-mode";
@@ -183,30 +189,56 @@ export function StudioWorkspace({
   });
   const editable = mode === "create" || mode === "edit";
   const activeFields = content ? draftFields : selectedTemplate.default_copy;
-  const activeFieldLimits = selectedTemplate.field_limits;
+  const activeVariantFields = useMemo(
+    () =>
+      selectedTemplate.platformManifest
+        ? getTemplateBundleVariantFields(selectedTemplate.platformManifest, size)
+        : selectedTemplate.editable_fields.map((key) => ({
+            key,
+            required: selectedTemplate.required_fields.includes(key),
+          })),
+    [
+      selectedTemplate.editable_fields,
+      selectedTemplate.platformManifest,
+      selectedTemplate.required_fields,
+      size,
+    ]
+  );
+  const activeEditableFields = useMemo(
+    () => activeVariantFields.map((field) => field.key),
+    [activeVariantFields]
+  );
+  const activeRequiredFields = useMemo(
+    () =>
+      activeVariantFields
+        .filter((field) => field.required !== false)
+        .map((field) => field.key),
+    [activeVariantFields]
+  );
+  const activeFieldLimits = selectedTemplate.platformManifest
+    ? getTemplateBundleVariantFieldLimits(selectedTemplate.platformManifest, size)
+    : selectedTemplate.field_limits;
   const requiredFieldSet = useMemo(
-    () => new Set(selectedTemplate.required_fields),
-    [selectedTemplate.required_fields]
+    () => new Set(activeRequiredFields),
+    [activeRequiredFields]
   );
 
   const issuesByField = useMemo(
     () =>
       Object.fromEntries(
-        selectedTemplate.editable_fields.map((key) => [
+        activeEditableFields.map((key) => [
           key,
           fieldIssues(draftFields[key], activeFieldLimits[key], requiredFieldSet.has(key)),
         ])
       ),
-    [activeFieldLimits, draftFields, requiredFieldSet, selectedTemplate.editable_fields]
+    [activeEditableFields, activeFieldLimits, draftFields, requiredFieldSet]
   );
-  const hasIssues = selectedTemplate.editable_fields.some(
-    (key) => issuesByField[key].length > 0
-  );
+  const hasIssues = activeEditableFields.some((key) => issuesByField[key].length > 0);
   const hasLayoutOverflow = overflowFields.length > 0;
   const dirty =
     mode === "edit" &&
     content !== null &&
-    selectedTemplate.editable_fields.some(
+    activeEditableFields.some(
       (key) => (draftFields[key] ?? "") !== (savedFields[key] ?? "")
     );
   const exportAllowed =
@@ -356,7 +388,7 @@ export function StudioWorkspace({
 
   function updateField(key: string, value: string) {
     const nextFields = { ...draftFields, [key]: value };
-    const nextDirty = selectedTemplate.editable_fields.some(
+    const nextDirty = activeEditableFields.some(
       (field) => (nextFields[field] ?? "") !== (savedFields[field] ?? "")
     );
     setSaveState(nextDirty ? "unsaved" : "saved");
@@ -610,12 +642,12 @@ export function StudioWorkspace({
 
           {mode === "review" && content && <StudioReviewActions contentId={content.id} />}
 
-          <StudioFields
-            fields={selectedTemplate.editable_fields}
-            requiredFields={selectedTemplate.required_fields}
-            values={activeFields}
-            limits={activeFieldLimits}
-            editable={editable}
+              <StudioFields
+                fields={activeEditableFields}
+                requiredFields={activeRequiredFields}
+                values={activeFields}
+                limits={activeFieldLimits}
+                editable={editable}
             issuesByField={issuesByField}
             overflowFields={overflowFields}
             onChange={updateField}
@@ -759,12 +791,23 @@ export function StudioWorkspace({
 
           <div className="relative">
             {busy && <GenerationLoader />}
-            <ServerPreviewFrame
-              src={previewUrl}
-              width={dims.w}
-              height={dims.h}
-              updating={!showOriginal && serverPreviewUpdating}
-            />
+            {!showOriginal && content && selectedTemplate.platformManifest ? (
+              <LiveTemplatePreviewFrame
+                manifest={selectedTemplate.platformManifest}
+                variantKey={size}
+                fields={draftFields}
+                width={dims.w}
+                height={dims.h}
+                updating={serverPreviewUpdating}
+              />
+            ) : (
+              <ServerPreviewFrame
+                src={previewUrl}
+                width={dims.w}
+                height={dims.h}
+                updating={!showOriginal && serverPreviewUpdating}
+              />
+            )}
           </div>
         </div>
       </div>

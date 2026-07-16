@@ -110,7 +110,13 @@ export function GenerateVariant({
   }
 
   return (
-    <div className="flex shrink-0 items-center gap-2">
+    <div
+      className={
+        compact
+          ? "grid w-full grid-cols-2 gap-2"
+          : "flex shrink-0 items-center gap-2"
+      }
+    >
       {busy && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-page/75 p-6 backdrop-blur-[3px]"
@@ -150,7 +156,7 @@ export function GenerateVariant({
         onChange={(e) => setOutputSize(e.target.value as SizeKey)}
         disabled={busy}
         aria-label="Output size"
-        className="rounded-control border border-edge-strong bg-surface px-2.5 py-2 text-[12.5px] outline-none focus:border-brand"
+        className="min-w-0 rounded-control border border-edge-strong bg-surface px-2.5 py-2 text-[12.5px] outline-none focus:border-brand"
       >
         {sizes.map((size) => (
           <option key={size} value={size}>
@@ -162,7 +168,7 @@ export function GenerateVariant({
         value={language}
         onChange={(e) => setLanguage(e.target.value)}
         disabled={busy}
-        className="rounded-control border border-edge-strong bg-surface px-2.5 py-2 text-[12.5px] outline-none focus:border-brand"
+        className="min-w-0 rounded-control border border-edge-strong bg-surface px-2.5 py-2 text-[12.5px] outline-none focus:border-brand"
       >
         {LANGUAGES.map((l) => (
           <option key={l}>{l}</option>
@@ -172,7 +178,9 @@ export function GenerateVariant({
         type="button"
         onClick={generate}
         disabled={busy || generationPaused}
-        className="whitespace-nowrap rounded-control bg-brand px-4 py-2 text-[12.5px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+        className={`whitespace-nowrap rounded-control bg-brand px-4 py-2 text-[12.5px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60 ${
+          compact ? "col-span-2 w-full" : ""
+        }`}
       >
         {generationPaused
           ? `Try again in ${formatRetryWait(retrySecondsRemaining)}`
@@ -182,7 +190,15 @@ export function GenerateVariant({
             ? "Generate"
             : `Generate ${variant}`}
       </button>
-      {error && <span className="whitespace-nowrap text-[12px] text-reject">{error}</span>}
+      {error && (
+        <span
+          className={`text-[12px] text-reject ${
+            compact ? "col-span-2 whitespace-normal" : "whitespace-nowrap"
+          }`}
+        >
+          {error}
+        </span>
+      )}
     </div>
   );
 }

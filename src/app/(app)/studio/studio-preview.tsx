@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { TemplateBundleManifest } from "@/lib/template-platform/manifest";
+import { renderTemplateBundleVariant } from "@/lib/template-platform/render";
 
 const GENERATION_MESSAGES = [
   "Reading the approved brief.",
@@ -133,6 +135,89 @@ export function ServerPreviewFrame({
           }}
         />
       )}
+    </div>
+  );
+}
+
+export function LiveTemplatePreviewFrame({
+  manifest,
+  variantKey,
+  fields,
+  width,
+  height,
+  updating,
+}: {
+  manifest: TemplateBundleManifest;
+  variantKey: string;
+  fields: Record<string, unknown>;
+  width: number;
+  height: number;
+  updating: boolean;
+}) {
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(0.72);
+  const rendered = renderTemplateBundleVariant({
+    manifest,
+    variantKey,
+    fields,
+  });
+
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    const updateScale = () => {
+      const availableWidth = Math.max(1, viewport.clientWidth - 48);
+      const availableHeight = Math.max(1, Math.min(900, window.innerHeight - 220));
+      setScale(Math.min(1, availableWidth / width, availableHeight / height));
+    };
+    updateScale();
+    const observer = new ResizeObserver(updateScale);
+    observer.observe(viewport);
+    return () => observer.disconnect();
+  }, [height, width]);
+
+  if (!rendered) {
+    return (
+      <ServerPreviewFrame
+        src=""
+        width={width}
+        height={height}
+        updating={updating}
+      />
+    );
+  }
+
+  return (
+    <div
+      ref={viewportRef}
+      className="relative flex w-full items-center justify-center overflow-auto rounded-card border border-edge bg-page p-4 sm:p-6"
+      style={{
+        minHeight: Math.round(Math.max(220, height * scale + 48)),
+      }}
+    >
+      {updating && (
+        <div className="absolute right-4 top-4 z-10 rounded-full bg-surface/90 px-3 py-1.5 text-[11px] font-semibold text-ink-muted shadow-sm">
+          Saving…
+        </div>
+      )}
+      <div
+        className="rounded-[3px] shadow-elevated"
+        style={{
+          width: width * scale,
+          height: height * scale,
+        }}
+      >
+        <div
+          style={{
+            width,
+            height,
+            transform: `scale(${scale})`,
+            transformOrigin: "top left",
+          }}
+        >
+          {rendered.element}
+        </div>
+      </div>
     </div>
   );
 }
