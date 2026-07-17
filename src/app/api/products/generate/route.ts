@@ -2,6 +2,10 @@ import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@/lib/supabase/server";
 import { flattenFields, revisionInstruction, type Evidence } from "@/lib/templates";
 import {
+  generationSourceFields,
+  regenerationInstruction,
+} from "@/lib/generation-context";
+import {
   formatGeneratedCopyQualityIssues,
   generatedCopyQualityIssues,
 } from "@/lib/generated-copy-quality";
@@ -219,21 +223,6 @@ function asStringRecord(value: unknown): Record<string, string> {
 function one<T>(value: T | T[] | null | undefined): T | null {
   if (Array.isArray(value)) return value[0] ?? null;
   return value ?? null;
-}
-
-function campaignSourceFields(row: CampaignSourceRow | ReplaceContentRow | null) {
-  if (!row) return {};
-  const campaignFields =
-    row.prompt_context && typeof row.prompt_context === "object"
-      ? asStringRecord(row.prompt_context.campaign_source_fields)
-      : {};
-  const generatedFields =
-    row.prompt_context && typeof row.prompt_context === "object"
-      ? asStringRecord(row.prompt_context.generated_fields)
-      : {};
-  const structuredFields = asStringRecord(row.structured_fields);
-  if (Object.keys(campaignFields).length) return campaignFields;
-  return Object.keys(generatedFields).length ? generatedFields : structuredFields;
 }
 
 function formatCampaignSource(input: {
@@ -487,14 +476,22 @@ export async function POST(req: Request) {
         ? JSON.stringify((assignmentRow as TemplatePlatformAssignmentRow).generation_profile)
         : "";
     const campaignSourceVariant = one(campaignSource?.template_variants);
+    const campaignSourceCopy = generationSourceFields(campaignSource);
+    const replaceSourceCopy = generationSourceFields(replaceContent, {
+      preferCurrentDraft: true,
+    });
     const campaignSourcePrompt = formatCampaignSource({
-      fields: campaignSourceFields(campaignSource),
+      fields: campaignSourceCopy,
       sourceSizeLabel: campaignSourceVariant?.label ?? campaignSourceVariant?.variant_key,
     });
     const replaceSourcePrompt = formatCampaignSource({
-      fields: campaignSourceFields(replaceContent),
+      fields: replaceSourceCopy,
     });
     const continuityPrompt = campaignSourcePrompt || replaceSourcePrompt;
+    const replacementInstruction = regenerationInstruction({
+      replacingDraft: Boolean(replaceContent),
+      hasRevision: revisions.length > 0,
+    });
 
     const system = [
       `You write compliant brand-content and localized marketing copy for "${product.name}".`,
@@ -520,6 +517,7 @@ export async function POST(req: Request) {
           ].join("\n")
         : ``,
       extraInstructions ? `\nADDITIONAL DIRECTION: ${extraInstructions}` : ``,
+      replacementInstruction ? `\nREGENERATION RULE: ${replacementInstruction}` : ``,
       `\nSELECTED OUTPUT SIZE: ${runtimeVariant.variant.label} (${runtimeVariant.variant.width}x${runtimeVariant.variant.height}). Generate copy only for this size and stay inside its field limits.`,
       ``,
       `Produce exactly these fields: ${editableFields.join(", ")}.`,
@@ -823,7 +821,9 @@ export async function POST(req: Request) {
       campaign_root_content_id: campaignRootContentId,
       campaign_source_content_id: campaignSource?.id ?? replaceContent?.id ?? null,
       campaign_source_fields: continuityPrompt
-        ? campaignSourceFields(campaignSource ?? replaceContent)
+        ? campaignSource
+          ? campaignSourceCopy
+          : replaceSourceCopy
         : structured,
       field_limits: fieldLimits,
       generated_fields: structured,
