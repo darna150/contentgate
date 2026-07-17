@@ -330,11 +330,14 @@ export function StudioWorkspace({
     return window.confirm("You have unsaved copy edits. Discard them and continue?");
   }
 
-  // Debounced measured-fit check + shrink-to-fit layout resolution. The
-  // overflow advisory only matters while editing; layout resolution (what
-  // drives the live preview's actual font size) runs in every mode that
-  // shows a platform-manifest draft, not just "edit", so read-only/review
-  // views also see real shrink-to-fit sizing instead of the authored max.
+  // Debounced measured-fit check + shrink-to-fit layout resolution. Layout
+  // resolution (what drives the live preview's actual font size) must run
+  // in every mode that shows a platform-manifest draft — including when the
+  // legacy character-count hint (hasIssues) already objects, since that
+  // heuristic is stricter than the real glyph-measured shrink range and
+  // otherwise silently starves the live preview of a resolved size. The
+  // overflow advisory message is still edit-mode-only and suppressed while
+  // hasIssues already has its own message, to avoid double-reporting.
   // save/submit/approve re-run the fit check authoritatively server-side.
   useEffect(() => {
     let cancelled = false;
@@ -351,24 +354,17 @@ export function StudioWorkspace({
         window.clearTimeout(timer);
       };
     }
-    if (mode === "edit" && hasIssues) {
-      timer = window.setTimeout(() => {
-        if (!cancelled) setOverflowFields([]);
-      }, 0);
-      return () => {
-        cancelled = true;
-        window.clearTimeout(timer);
-      };
-    }
+    const showOverflowAdvisory = mode === "edit" && !hasIssues;
     const snapshot = { ...draftFields };
     timer = window.setTimeout(async () => {
       const result = await checkDraftStructuredFieldsFit(content.id, snapshot);
       if (cancelled) return;
       if ("error" in result) {
-        if (mode === "edit") setOverflowFields(["layout"]);
+        if (showOverflowAdvisory) setOverflowFields(["layout"]);
         return;
       }
-      if (mode === "edit") setOverflowFields(result.overflowFields);
+      if (showOverflowAdvisory) setOverflowFields(result.overflowFields);
+      else if (mode === "edit") setOverflowFields([]);
       setTextLayoutByField(result.textLayoutByField);
     }, 400);
     return () => {
