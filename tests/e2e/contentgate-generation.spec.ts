@@ -11,6 +11,10 @@ const OUTPUT_SIZE_LABEL = "Leaderboard";
 const LIVE_EDIT_TEXT = `QA Live ${Date.now().toString().slice(-5)}`;
 const BASE_URL = process.env.CONTENTGATE_E2E_BASE_URL ?? "";
 
+const OUTPUT_SIZE_DIMENSIONS: Record<string, { width: number; height: number }> = {
+  leaderboard: { width: 728, height: 90 },
+};
+
 type BrowserIssue = {
   kind: "console" | "pageerror" | "requestfailed" | "http";
   message: string;
@@ -221,6 +225,25 @@ async function findEditableTextArea(page: Page) {
   throw new Error("Could not find a populated editable text field in Studio.");
 }
 
+function readPngDimensions(bytes: number[]) {
+  const signature = [137, 80, 78, 71, 13, 10, 26, 10];
+  expect(bytes.slice(0, signature.length), "Downloaded export is not a PNG file.").toEqual(
+    signature
+  );
+
+  const readUInt32 = (offset: number) =>
+    ((bytes[offset] << 24) |
+      (bytes[offset + 1] << 16) |
+      (bytes[offset + 2] << 8) |
+      bytes[offset + 3]) >>>
+    0;
+
+  return {
+    width: readUInt32(16),
+    height: readUInt32(20),
+  };
+}
+
 test.describe("ContentGate live generation QA", () => {
   test.describe.configure({ mode: "serial" });
 
@@ -396,9 +419,11 @@ test.describe("ContentGate live generation QA", () => {
             disposition: response.headers.get("content-disposition"),
             text: await response.text(),
             bytes: 0,
+            headerBytes: [],
           };
         }
         const body = await response.arrayBuffer();
+        const bytes = Array.from(new Uint8Array(body));
         return {
           ok: true,
           status: response.status,
@@ -406,6 +431,7 @@ test.describe("ContentGate live generation QA", () => {
           disposition: response.headers.get("content-disposition"),
           text: "",
           bytes: body.byteLength,
+          headerBytes: bytes.slice(0, 32),
         };
       },
       { id: contentId, size: OUTPUT_SIZE }
@@ -423,6 +449,7 @@ test.describe("ContentGate live generation QA", () => {
     expect(exportResult.contentType).toMatch(/image\/png/i);
     expect(exportResult.disposition).toMatch(/attachment/i);
     expect(exportResult.bytes).toBeGreaterThan(10_000);
+    expect(readPngDimensions(exportResult.headerBytes)).toEqual(OUTPUT_SIZE_DIMENSIONS[OUTPUT_SIZE]);
 
     await attachBrowserIssues(testInfo, issues);
     expect(
