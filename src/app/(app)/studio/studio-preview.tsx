@@ -3,7 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import type { TemplateBundleManifest } from "@/lib/template-platform/manifest";
-import { renderTemplateBundleVariant } from "@/lib/template-platform/render";
+import {
+  renderTemplateBundleVariant,
+  type TemplateBundleTextLayout,
+} from "@/lib/template-platform/render";
 
 const GENERATION_MESSAGES = [
   "Reading the approved brief.",
@@ -205,6 +208,7 @@ export function LiveTemplatePreviewFrame({
   manifest,
   variantKey,
   fields,
+  textLayoutByField,
   width,
   height,
   updating,
@@ -212,6 +216,11 @@ export function LiveTemplatePreviewFrame({
   manifest: TemplateBundleManifest;
   variantKey: string;
   fields: Record<string, unknown>;
+  /** Debounced, server-resolved {fontSize, lines} per field (see
+   * checkDraftStructuredFieldsFit in content/actions.ts). Undefined until
+   * the first resolution lands — falls back to raw-text CSS wrap at the
+   * authored size for that brief window, then upgrades in place. */
+  textLayoutByField?: Record<string, TemplateBundleTextLayout>;
   width: number;
   height: number;
   updating: boolean;
@@ -222,6 +231,7 @@ export function LiveTemplatePreviewFrame({
     manifest,
     variantKey,
     fields,
+    textLayoutByField,
   });
 
   useEffect(() => {

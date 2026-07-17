@@ -109,25 +109,25 @@ function trimLastWord(value: string) {
   return words.slice(0, -1).join(" ").trim();
 }
 
-function descenderPadding(slot: TemplateBundleTextSlot) {
-  const lineBoxHeight = slot.fontSize * slot.lineHeight * slot.maxLines;
-  return Math.max(0, Math.min(slot.fontSize * 0.12, slot.height - lineBoxHeight));
+function descenderPadding(slot: TemplateBundleTextSlot, fontSize: number) {
+  const lineBoxHeight = fontSize * slot.lineHeight * slot.maxLines;
+  return Math.max(0, Math.min(fontSize * 0.12, slot.height - lineBoxHeight));
 }
 
-export async function measureTemplatePlatformTextSlot(
+async function measureAtSize(
   manifest: TemplateBundleManifest,
-  value: unknown,
   slot: TemplateBundleTextSlot,
+  text: string,
+  fontSize: number,
   fontSource?: TemplatePlatformFontSource
 ): Promise<TemplatePlatformTextLayout> {
-  const text = cleanText(value);
   if (!text) {
     return { lines: [], lineWidths: [], overlongWords: [], renderedHeight: 0 };
   }
 
   const font = await loadTemplateFont(manifest, slot, fontSource);
   const measure = (line: string) =>
-    glyphWidth(font, line, slot.fontSize, slot.letterSpacing ?? 0);
+    glyphWidth(font, line, fontSize, slot.letterSpacing ?? 0);
   const lines: string[] = [];
   const overlongWords = new Set<string>();
 
@@ -155,9 +155,109 @@ export async function measureTemplatePlatformTextSlot(
     lineWidths: lines.map(measure),
     overlongWords: [...overlongWords],
     renderedHeight:
-      lines.length * slot.fontSize * slot.lineHeight +
-      (lines.length > 0 ? descenderPadding(slot) : 0),
+      lines.length * fontSize * slot.lineHeight +
+      (lines.length > 0 ? descenderPadding(slot, fontSize) : 0),
   };
+}
+
+function fitsLayout(layout: TemplatePlatformTextLayout, slot: TemplateBundleTextSlot) {
+  return (
+    layout.overlongWords.length === 0 &&
+    layout.lines.length <= slot.maxLines &&
+    layout.renderedHeight <= slot.height + 0.5
+  );
+}
+
+export async function measureTemplatePlatformTextSlot(
+  manifest: TemplateBundleManifest,
+  value: unknown,
+  slot: TemplateBundleTextSlot,
+  fontSource?: TemplatePlatformFontSource
+): Promise<TemplatePlatformTextLayout> {
+  return measureAtSize(manifest, slot, cleanText(value), slot.fontSize, fontSource);
+}
+
+export type TemplatePlatformResolvedTextLayout = TemplatePlatformTextLayout & {
+  /** The font size actually chosen. Equal to slot.fontSize for "fixed" slots. */
+  fontSize: number;
+  /** True when some size in the slot's allowed range renders without overflow. */
+  fits: boolean;
+};
+
+/**
+ * Resolve the font size + explicit line breaks a text slot should render at.
+ * "fixed" slots (or shrink_to_fit slots missing a usable minFontSize) always
+ * resolve at slot.fontSize, unchanged from prior behavior. "shrink_to_fit"
+ * slots binary-search the largest size in [minFontSize, fontSize] that fits;
+ * callers render exactly the returned lines at the returned size, so a
+ * passing fit can't re-wrap differently at render time.
+ */
+export async function resolveTemplatePlatformTextSlotLayout(
+  manifest: TemplateBundleManifest,
+  value: unknown,
+  slot: TemplateBundleTextSlot,
+  fontSource?: TemplatePlatformFontSource
+): Promise<TemplatePlatformResolvedTextLayout> {
+  const text = cleanText(value);
+  const maxSize = slot.fontSize;
+  if (!text) {
+    return { lines: [], lineWidths: [], overlongWords: [], renderedHeight: 0, fontSize: maxSize, fits: true };
+  }
+
+  const atMax = await measureAtSize(manifest, slot, text, maxSize, fontSource);
+  if (
+    slot.fit !== "shrink_to_fit" ||
+    !slot.minFontSize ||
+    slot.minFontSize >= maxSize
+  ) {
+    return { ...atMax, fontSize: maxSize, fits: fitsLayout(atMax, slot) };
+  }
+  if (fitsLayout(atMax, slot)) {
+    return { ...atMax, fontSize: maxSize, fits: true };
+  }
+
+  const minSize = slot.minFontSize;
+  let low = minSize;
+  let high = maxSize;
+  let found: { fontSize: number; layout: TemplatePlatformTextLayout } | null = null;
+  for (let step = 0; step < 18 && high - low > 0.25; step += 1) {
+    const mid = (low + high) / 2;
+    const layout = await measureAtSize(manifest, slot, text, mid, fontSource);
+    if (fitsLayout(layout, slot)) {
+      found = { fontSize: mid, layout };
+      low = mid;
+    } else {
+      high = mid;
+    }
+  }
+  if (found) {
+    return { ...found.layout, fontSize: found.fontSize, fits: true };
+  }
+
+  const atMin = await measureAtSize(manifest, slot, text, minSize, fontSource);
+  return { ...atMin, fontSize: minSize, fits: fitsLayout(atMin, slot) };
+}
+
+/** Resolves every text slot of a variant in one pass, keyed by field name. */
+export async function resolveTemplatePlatformVariantLayout(
+  input: {
+    manifest: TemplateBundleManifest;
+    variantKey: string;
+    fields: Record<string, unknown>;
+  } & TemplatePlatformFontSource
+): Promise<Record<string, TemplatePlatformResolvedTextLayout>> {
+  const entries = await Promise.all(
+    textSlots(input.manifest, input.variantKey).map(async (slot) => {
+      const resolved = await resolveTemplatePlatformTextSlotLayout(
+        input.manifest,
+        input.fields[slot.field],
+        slot,
+        { assetUrlByPath: input.assetUrlByPath, assetDataByPath: input.assetDataByPath }
+      );
+      return [slot.field, resolved] as const;
+    })
+  );
+  return Object.fromEntries(entries);
 }
 
 export async function templatePlatformFieldFitIssues(
@@ -169,7 +269,7 @@ export async function templatePlatformFieldFitIssues(
 ): Promise<Record<string, TemplatePlatformFitIssue[]>> {
   const entries = await Promise.all(
     textSlots(input.manifest, input.variantKey).map(async (slot) => {
-      const layout = await measureTemplatePlatformTextSlot(
+      const layout = await resolveTemplatePlatformTextSlotLayout(
         input.manifest,
         input.fields[slot.field],
         slot,
@@ -243,12 +343,8 @@ export async function coerceTemplatePlatformFieldsToFit(
     }
 
     for (let attempt = 0; attempt < 120; attempt += 1) {
-      const layout = await measureTemplatePlatformTextSlot(input.manifest, value, slot, fontSource);
-      const fits =
-        layout.overlongWords.length === 0 &&
-        layout.lines.length <= slot.maxLines &&
-        layout.renderedHeight <= slot.height + 0.5;
-      if (fits) break;
+      const layout = await resolveTemplatePlatformTextSlotLayout(input.manifest, value, slot, fontSource);
+      if (layout.fits) break;
 
       const tooLongWord = layout.overlongWords[0];
       if (tooLongWord) {

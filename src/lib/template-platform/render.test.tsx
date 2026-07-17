@@ -7,6 +7,7 @@ import { buildContentGateTemplateBundle } from "./contentgate-bundle";
 import {
   formatTemplatePlatformFitIssues,
   measureTemplatePlatformTextSlot,
+  resolveTemplatePlatformVariantLayout,
   templatePlatformFieldFitIssues,
   templatePlatformFitInstructions,
 } from "./fit";
@@ -54,6 +55,38 @@ test("renders platform bundle with signed asset URLs when provided", async () =>
   assert.ok(rendered);
   const html = renderToStaticMarkup(rendered.element);
   assert.match(html, /https:\/\/storage\.example\.test\/signed-background\.png/);
+});
+
+test("a shrink_to_fit slot renders at its resolved smaller size, not the authored max", async () => {
+  const longHeadline = "Approved local marketing copy for every team";
+  const textLayoutByField = await resolveTemplatePlatformVariantLayout({
+    manifest: validTemplateBundleManifest,
+    variantKey: "square",
+    fields: { headline: longHeadline },
+  });
+  assert.ok(textLayoutByField.headline.fontSize < 72);
+
+  const withResolvedLayout = renderTemplateBundleVariant({
+    manifest: validTemplateBundleManifest,
+    variantKey: "square",
+    fields: { headline: longHeadline },
+    textLayoutByField,
+  });
+  assert.ok(withResolvedLayout);
+  const resolvedHtml = renderToStaticMarkup(withResolvedLayout.element);
+  assert.match(resolvedHtml, new RegExp(`font-size:${textLayoutByField.headline.fontSize}px`));
+
+  // Without a resolved layout, the slot falls back to the authored max —
+  // confirms the shrink actually came from textLayoutByField, not some
+  // other code path.
+  const withoutResolvedLayout = renderTemplateBundleVariant({
+    manifest: validTemplateBundleManifest,
+    variantKey: "square",
+    fields: { headline: longHeadline },
+  });
+  assert.ok(withoutResolvedLayout);
+  const unresolvedHtml = renderToStaticMarkup(withoutResolvedLayout.element);
+  assert.match(unresolvedHtml, /font-size:72px/);
 });
 
 test("renders selected designer-approved background option in generated mode", () => {

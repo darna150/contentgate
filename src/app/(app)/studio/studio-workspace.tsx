@@ -38,6 +38,7 @@ import {
   submitForReview,
   updateStructuredFields,
 } from "../content/actions";
+import type { TemplateBundleTextLayout } from "@/lib/template-platform/render";
 import {
   GenerationLoader,
   LiveTemplatePreviewFrame,
@@ -177,6 +178,9 @@ export function StudioWorkspace({
   >("idle");
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [overflowFields, setOverflowFields] = useState<string[]>([]);
+  const [textLayoutByField, setTextLayoutByField] = useState<
+    Record<string, TemplateBundleTextLayout> | undefined
+  >(undefined);
   const saveSequence = useRef(0);
   const retrySecondsRemaining = retryUntil
     ? Math.max(0, Math.ceil((retryUntil - now) / 1000))
@@ -326,21 +330,28 @@ export function StudioWorkspace({
     return window.confirm("You have unsaved copy edits. Discard them and continue?");
   }
 
-  // Debounced measured-fit check while editing (advisory in the editor;
-  // save/submit/approve re-run the authoritative check server-side).
+  // Debounced measured-fit check + shrink-to-fit layout resolution. The
+  // overflow advisory only matters while editing; layout resolution (what
+  // drives the live preview's actual font size) runs in every mode that
+  // shows a platform-manifest draft, not just "edit", so read-only/review
+  // views also see real shrink-to-fit sizing instead of the authored max.
+  // save/submit/approve re-run the fit check authoritatively server-side.
   useEffect(() => {
     let cancelled = false;
     let timer: number;
-    if (!content || mode !== "edit") {
+    if (!content || !selectedTemplate.platformManifest) {
       timer = window.setTimeout(() => {
-        if (!cancelled) setOverflowFields([]);
+        if (!cancelled) {
+          setOverflowFields([]);
+          setTextLayoutByField(undefined);
+        }
       }, 0);
       return () => {
         cancelled = true;
         window.clearTimeout(timer);
       };
     }
-    if (hasIssues) {
+    if (mode === "edit" && hasIssues) {
       timer = window.setTimeout(() => {
         if (!cancelled) setOverflowFields([]);
       }, 0);
@@ -354,16 +365,17 @@ export function StudioWorkspace({
       const result = await checkDraftStructuredFieldsFit(content.id, snapshot);
       if (cancelled) return;
       if ("error" in result) {
-        setOverflowFields(["layout"]);
+        if (mode === "edit") setOverflowFields(["layout"]);
         return;
       }
-      setOverflowFields(result.overflowFields);
+      if (mode === "edit") setOverflowFields(result.overflowFields);
+      setTextLayoutByField(result.textLayoutByField);
     }, 400);
     return () => {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [content, draftFields, hasIssues, mode, size]);
+  }, [content, draftFields, hasIssues, mode, selectedTemplate.platformManifest, size]);
 
   useEffect(() => {
     if (!retryUntil) return undefined;
@@ -940,6 +952,7 @@ export function StudioWorkspace({
                 manifest={selectedTemplate.platformManifest}
                 variantKey={size}
                 fields={draftFields}
+                textLayoutByField={textLayoutByField}
                 width={dims.w}
                 height={dims.h}
                 updating={serverPreviewUpdating}

@@ -24,22 +24,37 @@ function cleanText(value: unknown) {
     .trim();
 }
 
-function descenderPadding(slot: TemplateBundleTextSlot) {
+function descenderPadding(slot: TemplateBundleTextSlot, fontSize: number) {
   // Figma text boxes can export very tight line-height values (< 1).
   // Browser/Satori rendering can then clip glyph descenders ("g", "y",
   // "p", "q") when the slot clips overflow. Preserve the Figma line
   // height, but use any spare vertical room as a small internal descender
   // buffer so glyph bottoms are not cut off.
-  const lineBoxHeight = slot.fontSize * slot.lineHeight * slot.maxLines;
-  return Math.max(0, Math.min(slot.fontSize * 0.12, slot.height - lineBoxHeight));
+  const lineBoxHeight = fontSize * slot.lineHeight * slot.maxLines;
+  return Math.max(0, Math.min(fontSize * 0.12, slot.height - lineBoxHeight));
 }
+
+/**
+ * A pre-resolved font size + explicit line breaks for one text slot, as
+ * produced by resolveTemplatePlatformVariantLayout / resolveTemplatePlatformTextSlotLayout
+ * in fit.ts. When supplied, the slot renders exactly these lines at exactly
+ * this size instead of letting Satori re-wrap the raw field text — this is
+ * what makes "shrink_to_fit" slots actually shrink instead of clipping.
+ */
+export type TemplateBundleTextLayout = {
+  fontSize: number;
+  lines: string[];
+};
 
 function renderTextSlot(
   manifest: TemplateBundleManifest,
   slot: TemplateBundleTextSlot,
-  fields: Record<string, unknown>
+  fields: Record<string, unknown>,
+  layoutByField?: Record<string, TemplateBundleTextLayout>
 ) {
-  const text = cleanText(fields[slot.field]);
+  const resolved = layoutByField?.[slot.field];
+  const fontSize = resolved?.fontSize ?? slot.fontSize;
+  const content = resolved ? resolved.lines.join("\n") : cleanText(fields[slot.field]);
   const horizontalAlign =
     slot.align === "center" ? "center" : slot.align === "right" ? "flex-end" : "flex-start";
 
@@ -48,6 +63,7 @@ function renderTextSlot(
       key={slot.key}
       data-template-field={slot.field}
       data-template-max-lines={slot.maxLines}
+      data-template-font-size={fontSize}
       style={{
         position: "absolute",
         left: slot.x,
@@ -59,7 +75,7 @@ function renderTextSlot(
         display: "flex",
         flexDirection: "column",
         fontFamily: templateBundleFontStack(manifest, slot),
-        fontSize: slot.fontSize,
+        fontSize,
         fontWeight: templateBundleFontWeight(manifest, slot),
         fontStyle: templateBundleFontStyle(manifest, slot),
         lineHeight: slot.lineHeight,
@@ -83,17 +99,17 @@ function renderTextSlot(
           minWidth: 0,
           flexShrink: 0,
           maxHeight: "100%",
-          paddingBottom: descenderPadding(slot),
+          paddingBottom: descenderPadding(slot, fontSize),
           overflow: "hidden",
           textAlign: slot.align ?? "left",
           whiteSpace: "pre-wrap",
           wordBreak: "normal",
           overflowWrap: "normal",
           WebkitBoxOrient: "vertical",
-          WebkitLineClamp: slot.maxLines,
+          WebkitLineClamp: resolved ? resolved.lines.length : slot.maxLines,
         }}
       >
-        {text}
+        {content}
       </span>
     </div>
   );
@@ -124,6 +140,10 @@ export function renderTemplateBundleVariant(input: {
   assetUrlByPath?: Record<string, string>;
   assetOrigin?: string;
   original?: boolean;
+  /** Pre-resolved {fontSize, lines} per field, from fit.ts. Optional so
+   * callers that haven't resolved layout (or slots with fit: "fixed") fall
+   * back to raw-text CSS wrap/clamp at the authored fontSize. */
+  textLayoutByField?: Record<string, TemplateBundleTextLayout>;
 }): TemplateBundleRenderResult | null {
   const selectedBackgroundKey =
     typeof input.fields[BACKGROUND_CHOICE_FIELD] === "string"
@@ -175,7 +195,9 @@ export function renderTemplateBundleVariant(input: {
         {!input.original &&
           runtime.variant.slots
             .filter((slot): slot is TemplateBundleTextSlot => slot.kind === "text")
-            .map((slot) => renderTextSlot(input.manifest, slot, input.fields))}
+            .map((slot) =>
+              renderTextSlot(input.manifest, slot, input.fields, input.textLayoutByField)
+            )}
       </div>
     ),
   };
