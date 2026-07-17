@@ -252,14 +252,6 @@ export function StudioWorkspace({
     !hasIssues &&
     !hasLayoutOverflow &&
     saveState !== "saving";
-  const downloadDisabledReason = content
-    ? exportAllowed
-      ? undefined
-      : "Generated assets can be downloaded after approval"
-    : hasAnyGeneratedDraft
-      ? "Generate this size before downloading it"
-      : undefined;
-  const downloadDisabled = Boolean(downloadDisabledReason);
   const dims =
     (selectedTemplate.platformManifest
       ? getTemplateBundleVariantDimensions(selectedTemplate.platformManifest, size)
@@ -297,7 +289,16 @@ export function StudioWorkspace({
   const serverPreviewUpdating =
     !!content && (dirty || saveState === "unsaved" || saveState === "saving");
   const [showOriginal, setShowOriginal] = useState(false);
+  const isBrandReferenceView = showOriginal || (!content && !hasAnyGeneratedDraft);
   const previewUrl = showOriginal || !generatedPreviewUrl ? originalPreviewUrl : generatedPreviewUrl;
+  const downloadDisabledReason = isBrandReferenceView
+    ? undefined
+    : content
+      ? exportAllowed
+        ? undefined
+        : "Generated assets can be downloaded after approval"
+      : "Generate this size before downloading it";
+  const downloadDisabled = Boolean(downloadDisabledReason);
   const versions = versionsBySize[size] ?? [];
 
   function confirmDiscardUnsavedChanges() {
@@ -542,36 +543,38 @@ export function StudioWorkspace({
     setDownloading(true);
     setError(null);
     try {
-      if (content) {
-        if (!exportAllowed) {
-          throw new Error("Generated content must be approved before export.");
-        }
-        const response = await fetch(`/api/export/${content.id}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ format: exportFormat, surface: "studio", size }),
-        });
-        if (!response.ok) throw new Error("Export could not be recorded.");
-        const serverRenderUrl = new URL(renderUrl(content.id, size), window.location.origin);
-        serverRenderUrl.searchParams.set("format", exportFormat);
-        serverRenderUrl.searchParams.set("download", "1");
-        const filename = `${selectedProduct.name}-${selectedTemplate.variant}-${size}`
+      if (isBrandReferenceView) {
+        const filename = `${selectedProduct.name}-${selectedTemplate.variant}-brand-reference-${size}`
           .replace(/[^\w]+/g, "-")
           .toLowerCase();
+        const serverPreviewUrl = new URL(originalPreviewUrl, window.location.origin);
+        serverPreviewUrl.searchParams.set("format", exportFormat);
+        serverPreviewUrl.searchParams.set("download", "1");
         await downloadUrl(
-          serverRenderUrl.toString(),
+          serverPreviewUrl.toString(),
           `${filename}.${exportFormat === "jpeg" ? "jpg" : exportFormat}`
         );
         return;
       }
-      const filename = `${selectedProduct.name}-${selectedTemplate.variant}-original-${size}`
+
+      if (!content || !exportAllowed) {
+        throw new Error("Generated content must be approved before export.");
+      }
+
+      const response = await fetch(`/api/export/${content.id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ format: exportFormat, surface: "studio", size }),
+      });
+      if (!response.ok) throw new Error("Export could not be recorded.");
+      const serverRenderUrl = new URL(renderUrl(content.id, size), window.location.origin);
+      serverRenderUrl.searchParams.set("format", exportFormat);
+      serverRenderUrl.searchParams.set("download", "1");
+      const filename = `${selectedProduct.name}-${selectedTemplate.variant}-${size}`
         .replace(/[^\w]+/g, "-")
         .toLowerCase();
-      const serverPreviewUrl = new URL(originalPreviewUrl, window.location.origin);
-      serverPreviewUrl.searchParams.set("format", exportFormat);
-      serverPreviewUrl.searchParams.set("download", "1");
       await downloadUrl(
-        serverPreviewUrl.toString(),
+        serverRenderUrl.toString(),
         `${filename}.${exportFormat === "jpeg" ? "jpg" : exportFormat}`
       );
     } catch {
@@ -859,7 +862,11 @@ export function StudioWorkspace({
             }}
             onSelectSize={selectSize}
             statusSummary={
-              content ? `${STATUS_LABEL[content.status] ?? content.status} · ${activeSizeLabel}` : `not generated · ${activeSizeLabel}`
+              isBrandReferenceView
+                ? `Brand reference · ${activeSizeLabel}`
+                : content
+                  ? `${STATUS_LABEL[content.status] ?? content.status} · ${activeSizeLabel}`
+                  : `not generated · ${activeSizeLabel}`
             }
             exportFormat={exportFormat}
             onExportFormatChange={setExportFormat}
