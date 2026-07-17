@@ -1,8 +1,10 @@
 "use client";
 
+import { useRef } from "react";
 import { Check } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
+import { nextRovingIndex } from "@/lib/roving-focus";
 import type { TemplateBundleManifest } from "@/lib/template-platform/manifest";
 import { publicContentGateBundleAssetPath } from "@/lib/template-platform/public-contentgate-assets";
 import type { TemplateBundleRuntimeBackgroundOption } from "@/lib/template-platform/runtime";
@@ -33,7 +35,21 @@ export function StudioBackgroundPicker({
   editable: boolean;
   onChange: (value: string) => void;
 }) {
+  const buttonRefs = useRef<Array<HTMLButtonElement | null>>([]);
+
   if (options.length < 2) return null;
+
+  const selectedIndex = options.findIndex((option) => option.key === value);
+  const focusableIndex = selectedIndex === -1 ? 0 : selectedIndex;
+
+  function handleKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+    if (!editable) return;
+    const nextIndex = nextRovingIndex(focusableIndex, event.key, options.length);
+    if (nextIndex === null) return;
+    event.preventDefault();
+    onChange(options[nextIndex].key);
+    buttonRefs.current[nextIndex]?.focus();
+  }
 
   return (
     <div className="flex flex-col gap-3 rounded-card border border-edge bg-surface p-5">
@@ -51,15 +67,20 @@ export function StudioBackgroundPicker({
       <div
         role="radiogroup"
         aria-label="Background style"
+        onKeyDown={handleKeyDown}
         className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-2"
       >
-        {options.map((option) => {
+        {options.map((option, index) => {
           const selected = value === option.key;
           return (
             <button
               key={option.key}
+              ref={(el) => {
+                buttonRefs.current[index] = el;
+              }}
               type="button"
               role="radio"
+              tabIndex={index === focusableIndex ? 0 : -1}
               onClick={() => editable && onChange(option.key)}
               disabled={!editable}
               aria-checked={selected}
