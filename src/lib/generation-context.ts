@@ -41,8 +41,8 @@ export function regenerationInstruction(input: {
 }) {
   if (!input.replacingDraft) return "";
   return input.hasRevision
-    ? "Apply the selected refinement to the CURRENT DRAFT COPY. Rewrite the headline/title field and visibly change the relevant wording while preserving approved evidence and template fit."
-    : "Create a fresh alternative version of the CURRENT DRAFT COPY. Rewrite the headline/title field and preserve the same approved evidence, CTA intent, and campaign idea, but do not return identical or near-identical wording.";
+    ? "Apply the selected refinement to the CURRENT DRAFT COPY. Rewrite the headline/title field with a genuinely different lead angle and sentence structure, not a synonym swap or word-order tweak, while preserving approved evidence and template fit."
+    : "Create a fresh alternative version of the CURRENT DRAFT COPY. Rewrite the headline/title field with a different lead angle, structure, and wording throughout, preserving the same approved evidence, CTA intent, and campaign idea, but do not return identical or near-identical wording. Reusing more than a few consecutive words from the previous headline counts as near-identical.";
 }
 
 function normalizedCopy(value: unknown) {
@@ -79,4 +79,32 @@ export function changedPrimaryTitleField(input: {
   const field = primaryTitleField(input.fieldOrder);
   if (!field) return true;
   return normalizedCopy(input.before[field]) !== normalizedCopy(input.after[field]);
+}
+
+function tokenize(value: unknown) {
+  return normalizedCopy(value)
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean);
+}
+
+// Catches "dramatic rewrite" requests that came back as a synonym swap or
+// word-order shuffle: changedPrimaryTitleField already passed (some
+// character differs) but most of the same words are still present.
+export function primaryTitleFieldTooSimilar(input: {
+  before: Record<string, unknown>;
+  after: Record<string, unknown>;
+  fieldOrder: readonly string[];
+  threshold?: number;
+}) {
+  const field = primaryTitleField(input.fieldOrder);
+  if (!field) return false;
+  const beforeTokens = tokenize(input.before[field]);
+  const afterTokens = tokenize(input.after[field]);
+  if (!beforeTokens.length || !afterTokens.length) return false;
+  const beforeSet = new Set(beforeTokens);
+  const afterSet = new Set(afterTokens);
+  const shared = [...afterSet].filter((token) => beforeSet.has(token)).length;
+  const union = new Set([...beforeSet, ...afterSet]).size;
+  if (!union) return false;
+  return shared / union >= (input.threshold ?? 0.6);
 }

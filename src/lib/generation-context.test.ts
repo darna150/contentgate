@@ -6,6 +6,7 @@ import {
   changedPrimaryTitleField,
   generationSourceFields,
   primaryTitleField,
+  primaryTitleFieldTooSimilar,
   regenerationInstruction,
 } from "./generation-context.ts";
 
@@ -98,6 +99,35 @@ test("draft regeneration requires the primary title field to change", () => {
       fieldOrder: ["headline", "subheadline"],
     }),
     true
+  );
+});
+
+test("draft regeneration flags a headline that only swapped a word or two", () => {
+  assert.equal(
+    primaryTitleFieldTooSimilar({
+      before: { headline: "Locked templates and approvals—ready locally" },
+      after: { headline: "Locked templates & approvals—ready locally" },
+      fieldOrder: ["headline", "subheadline"],
+    }),
+    true
+  );
+
+  assert.equal(
+    primaryTitleFieldTooSimilar({
+      before: { headline: "Locked templates and approvals—ready locally" },
+      after: { headline: "Launch every local campaign without waiting on approvals" },
+      fieldOrder: ["headline", "subheadline"],
+    }),
+    false
+  );
+
+  assert.equal(
+    primaryTitleFieldTooSimilar({
+      before: { headline: "" },
+      after: { headline: "Launch local campaigns faster" },
+      fieldOrder: ["headline", "subheadline"],
+    }),
+    false
   );
 });
 

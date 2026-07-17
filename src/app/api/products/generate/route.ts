@@ -5,6 +5,7 @@ import {
   changedGeneratedFields,
   changedPrimaryTitleField,
   generationSourceFields,
+  primaryTitleFieldTooSimilar,
   regenerationInstruction,
 } from "@/lib/generation-context";
 import {
@@ -490,6 +491,7 @@ export async function POST(req: Request) {
       fields: replaceSourceCopy,
     });
     const continuityPrompt = campaignSourcePrompt || replaceSourcePrompt;
+    const isCrossSizeAdaptation = Boolean(campaignSourcePrompt);
     const replacementInstruction = regenerationInstruction({
       replacingDraft: Boolean(replaceContent),
       hasRevision: revisions.length > 0,
@@ -515,7 +517,9 @@ export async function POST(req: Request) {
         ? [
             ``,
             continuityPrompt,
-            `This new output must be part of the same campaign idea. Preserve the same core message, CTA intent, tone, offer/benefit angle, and approved evidence. Adapt only the wording and length needed for the selected output size. Do not introduce a different campaign concept unless the additional direction explicitly asks for one.`,
+            isCrossSizeAdaptation
+              ? `This new output must be part of the same campaign idea. Preserve the same core message, CTA intent, tone, offer/benefit angle, and approved evidence. Adapt only the wording and length needed for the selected output size. Do not introduce a different campaign concept unless the additional direction explicitly asks for one.`
+              : `This new output must stay grounded in the same approved evidence, CTA intent, and campaign idea, but it must read as a genuinely different creative take on that idea: a different lead angle, sentence structure, and phrasing throughout, especially for the headline/title field. Do not just swap a few words or reorder the same sentence as the source campaign idea above.`,
           ].join("\n")
         : ``,
       extraInstructions ? `\nADDITIONAL DIRECTION: ${extraInstructions}` : ``,
@@ -671,6 +675,15 @@ export async function POST(req: Request) {
             after: structured,
             fieldOrder: editableFields,
           });
+        const nearIdenticalReplacementTitle =
+          replaceContent &&
+          !revisions.length &&
+          !unchangedReplacementTitle &&
+          primaryTitleFieldTooSimilar({
+            before: asStringRecord(replaceContent.structured_fields),
+            after: structured,
+            fieldOrder: editableFields,
+          });
         retryReasons = [
           ...editableFields.flatMap((key) =>
             (configuredIssues[key] ?? []).map((issue) => `${key}: ${issue.message}`)
@@ -682,6 +695,11 @@ export async function POST(req: Request) {
             : []),
           ...(unchangedReplacementTitle
             ? ["regeneration must rewrite the headline/title field"]
+            : []),
+          ...(nearIdenticalReplacementTitle
+            ? [
+                "regeneration headline is too close to the current draft — use a different lead angle and sentence structure, not a word swap",
+              ]
             : []),
         ];
 
