@@ -75,6 +75,27 @@ test("builds a valid ContentGate Set B template bundle with portrait support", a
   assert.deepEqual(validateTemplateBundleManifest(bundle.manifest), []);
 });
 
+test("ContentGate text slots are vertically centered to match the Figma reference exports", async () => {
+  const [friendly, premium] = await Promise.all([
+    buildContentGateTemplateBundle("contentgate_local_friendly"),
+    buildContentGateTemplateBundle("contentgate_local_premium"),
+  ]);
+
+  for (const bundle of [friendly, premium]) {
+    for (const variant of bundle.manifest.variants) {
+      const textSlots = variant.slots.filter((slot) => slot.kind === "text");
+      assert.ok(textSlots.length > 0, `${bundle.manifest.family.key}/${variant.key} has no text slots`);
+      for (const slot of textSlots) {
+        assert.equal(
+          slot.kind === "text" ? slot.verticalAlign : undefined,
+          "middle",
+          `${bundle.manifest.family.key}/${variant.key}/${slot.field} must match Figma vertical alignment`
+        );
+      }
+    }
+  }
+});
+
 test("bundle asset payloads match manifest asset paths and checksums", async () => {
   const bundle = await buildContentGateTemplateBundle("contentgate_local_friendly");
   const payloadPaths = new Set(bundle.assets.map((asset) => asset.path));

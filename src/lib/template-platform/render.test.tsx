@@ -40,6 +40,33 @@ test("renders platform bundle generated mode with background and text slots", as
   assert.match(html, /overflow:hidden/);
 });
 
+test("centers legacy ContentGate text slots whose stored manifest still says top", async () => {
+  const bundle = await buildContentGateTemplateBundle("contentgate_local_friendly");
+  const manifest = {
+    ...bundle.manifest,
+    variants: bundle.manifest.variants.map((variant) => ({
+      ...variant,
+      slots: variant.slots.map((slot) =>
+        slot.kind === "text" ? { ...slot, verticalAlign: "top" as const } : slot
+      ),
+    })),
+  };
+  const rendered = renderTemplateBundleVariant({
+    manifest,
+    variantKey: "square",
+    fields: {
+      headline: "Local offers, ready in minutes",
+      subheadline: "Create localized marketing content using approved templates.",
+      cta: "Create content",
+    },
+  });
+
+  assert.ok(rendered);
+  const html = renderToStaticMarkup(rendered.element);
+  assert.match(html, /data-template-field="cta"/);
+  assert.match(html, /justify-content:center/);
+});
+
 test("renders platform bundle with signed asset URLs when provided", async () => {
   const bundle = await buildContentGateTemplateBundle("contentgate_local_friendly");
   const rendered = renderTemplateBundleVariant({

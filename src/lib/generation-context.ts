@@ -44,3 +44,21 @@ export function regenerationInstruction(input: {
     ? "Apply the selected refinement to the CURRENT DRAFT COPY. The result must visibly change the relevant wording while preserving approved evidence and template fit."
     : "Create a fresh alternative version of the CURRENT DRAFT COPY. Preserve the same approved evidence, CTA intent, and campaign idea, but do not return identical or near-identical wording.";
 }
+
+function normalizedCopy(value: unknown) {
+  return String(value ?? "")
+    .replace(/\r\n?/g, "\n")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+export function changedGeneratedFields(input: {
+  before: Record<string, unknown>;
+  after: Record<string, unknown>;
+  fieldOrder: readonly string[];
+}) {
+  return input.fieldOrder.some(
+    (field) => normalizedCopy(input.before[field]) !== normalizedCopy(input.after[field])
+  );
+}

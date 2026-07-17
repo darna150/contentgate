@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  changedGeneratedFields,
   generationSourceFields,
   regenerationInstruction,
 } from "./generation-context.ts";
@@ -62,5 +63,25 @@ test("draft regeneration prompt asks for visible new wording", () => {
   assert.equal(
     regenerationInstruction({ replacingDraft: false, hasRevision: false }),
     ""
+  );
+});
+
+test("draft regeneration detects unchanged generated fields", () => {
+  assert.equal(
+    changedGeneratedFields({
+      before: { headline: "Local offers", cta: "Create content" },
+      after: { headline: " Local   offers ", cta: "Create content" },
+      fieldOrder: ["headline", "cta"],
+    }),
+    false
+  );
+
+  assert.equal(
+    changedGeneratedFields({
+      before: { headline: "Local offers", cta: "Create content" },
+      after: { headline: "Fresh local offers", cta: "Create content" },
+      fieldOrder: ["headline", "cta"],
+    }),
+    true
   );
 });

@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@/lib/supabase/server";
 import { flattenFields, revisionInstruction, type Evidence } from "@/lib/templates";
 import {
+  changedGeneratedFields,
   generationSourceFields,
   regenerationInstruction,
 } from "@/lib/generation-context";
@@ -655,12 +656,22 @@ export async function POST(req: Request) {
           assetUrlByPath,
         });
         const qualityIssues = generatedCopyQualityIssues(structured, editableFields);
+        const unchangedReplacement =
+          replaceContent &&
+          !changedGeneratedFields({
+            before: asStringRecord(replaceContent.structured_fields),
+            after: structured,
+            fieldOrder: editableFields,
+          });
         retryReasons = [
           ...editableFields.flatMap((key) =>
             (configuredIssues[key] ?? []).map((issue) => `${key}: ${issue.message}`)
           ),
           ...formatTemplatePlatformFitIssues(geometryIssues),
           ...formatGeneratedCopyQualityIssues(qualityIssues),
+          ...(unchangedReplacement
+            ? ["regeneration returned copy identical to the current draft"]
+            : []),
         ];
 
         if (!retryReasons.length) {
@@ -697,12 +708,22 @@ export async function POST(req: Request) {
         assetUrlByPath,
       });
       const qualityIssues = generatedCopyQualityIssues(structured, editableFields);
+      const unchangedReplacement =
+        replaceContent &&
+        !changedGeneratedFields({
+          before: asStringRecord(replaceContent.structured_fields),
+          after: structured,
+          fieldOrder: editableFields,
+        });
       retryReasons = [
         ...editableFields.flatMap((key) =>
           (configuredIssues[key] ?? []).map((issue) => `${key}: ${issue.message}`)
         ),
         ...formatTemplatePlatformFitIssues(geometryIssues),
         ...formatGeneratedCopyQualityIssues(qualityIssues),
+        ...(unchangedReplacement
+          ? ["regeneration returned copy identical to the current draft"]
+          : []),
       ];
       if (!retryReasons.length) {
         out = { fields: structured, evidence: lastCandidateEvidence };
@@ -744,12 +765,22 @@ export async function POST(req: Request) {
         assetUrlByPath,
       });
       const qualityIssues = generatedCopyQualityIssues(structured, editableFields);
+      const unchangedReplacement =
+        replaceContent &&
+        !changedGeneratedFields({
+          before: asStringRecord(replaceContent.structured_fields),
+          after: structured,
+          fieldOrder: editableFields,
+        });
       retryReasons = [
         ...editableFields.flatMap((key) =>
           (configuredIssues[key] ?? []).map((issue) => `${key}: ${issue.message}`)
         ),
         ...formatTemplatePlatformFitIssues(geometryIssues),
         ...formatGeneratedCopyQualityIssues(qualityIssues),
+        ...(unchangedReplacement
+          ? ["regeneration returned copy identical to the current draft"]
+          : []),
       ];
       if (!retryReasons.length) {
         generationMode = "fallback";

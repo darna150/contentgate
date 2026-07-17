@@ -57,6 +57,12 @@ function renderTextSlot(
   const content = resolved ? resolved.lines.join("\n") : cleanText(fields[slot.field]);
   const horizontalAlign =
     slot.align === "center" ? "center" : slot.align === "right" ? "flex-end" : "flex-start";
+  const verticalAlign =
+    manifest.family.key.startsWith("contentgate-local-") &&
+    slot.kind === "text" &&
+    slot.verticalAlign === "top"
+      ? "middle"
+      : slot.verticalAlign;
 
   return (
     <div
@@ -84,9 +90,9 @@ function renderTextSlot(
         whiteSpace: "pre-wrap",
         alignItems: horizontalAlign,
         justifyContent:
-          slot.verticalAlign === "top"
+          verticalAlign === "top"
             ? "flex-start"
-            : slot.verticalAlign === "bottom"
+            : verticalAlign === "bottom"
               ? "flex-end"
               : "center",
       }}
