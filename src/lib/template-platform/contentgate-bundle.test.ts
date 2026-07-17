@@ -25,6 +25,28 @@ test("builds a valid ContentGate Set A template bundle from Figma exports", asyn
     ),
     true
   );
+  assert.deepEqual(bundle.manifest.variants[0].backgroundOptions, [
+    {
+      key: "classic-cream",
+      label: "Classic cream",
+      asset: "square-background",
+    },
+    {
+      key: "mint-glow",
+      label: "Mint glow",
+      asset: "square-mint-glow-background",
+    },
+    {
+      key: "terracotta-edge",
+      label: "Terracotta edge",
+      asset: "square-terracotta-edge-background",
+    },
+    {
+      key: "sage-grid",
+      label: "Sage grid",
+      asset: "square-sage-grid-background",
+    },
+  ]);
   assert.deepEqual(validateTemplateBundleManifest(bundle.manifest), []);
 
   const compiled = compileTemplateBundleImport(bundle.manifest, {

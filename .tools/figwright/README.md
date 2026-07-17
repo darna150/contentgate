@@ -30,6 +30,35 @@ Export full publisher bundles from Figwright into the Template Platform v1 contr
 npm run figwright:export-contentgate-bundles
 ```
 
+Create the Figma-side source/reference page for designer-approved background options:
+
+```bash
+node .tools/figwright/create-background-options-source.mjs
+```
+
+This creates a page named `04 ContentGate Background Options` with sections for Set A and
+Set B. Background option layers are named with the machine-readable pattern:
+
+```text
+BG_OPTION/{set}/{size}/{option-key}
+```
+
+For the current ContentGate templates, the approved option keys are:
+
+- `classic-cream`
+- `mint-glow`
+- `terracotta-edge`
+- `sage-grid`
+
+Designers should keep editable text layers out of these background-only option frames.
+The production renderer treats the selected option as a locked background and overlays
+the same editable text slots on top.
+
+Background options should stay safe-zone aware: use subtle color washes, gradients,
+or texture that do not add new foreground bars, badges, circles, text, logos, or
+illustration elements. The goal is to offer a different mood while preserving the
+template's locked composition across every output size.
+
 This exports 2x full-reference PNGs, 2x background-only PNGs, exact editable text layer coordinates/typography, bundled Inter font checksums, `publisher-input.json`, and a preflighted bundle folder under:
 
 ```text
