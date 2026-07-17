@@ -75,6 +75,30 @@ test("builds a valid ContentGate Set B template bundle with portrait support", a
   assert.deepEqual(validateTemplateBundleManifest(bundle.manifest), []);
 });
 
+test("CTA slots are vertically centered inside their pill-shaped background", async () => {
+  // The CTA box is authored much taller than one line of text (room for the
+  // pill shape), and pill backgrounds render text centered — a slot missing
+  // verticalAlign defaults to "top" and reads visibly high in the pill.
+  const [friendly, premium] = await Promise.all([
+    buildContentGateTemplateBundle("contentgate_local_friendly"),
+    buildContentGateTemplateBundle("contentgate_local_premium"),
+  ]);
+
+  for (const bundle of [friendly, premium]) {
+    for (const variant of bundle.manifest.variants) {
+      const ctaSlot = variant.slots.find(
+        (slot) => slot.kind === "text" && slot.field === "cta"
+      );
+      assert.ok(ctaSlot, `${bundle.manifest.family.key}/${variant.key} is missing a cta slot`);
+      assert.equal(
+        ctaSlot?.kind === "text" ? ctaSlot.verticalAlign : undefined,
+        "middle",
+        `${bundle.manifest.family.key}/${variant.key} cta slot must be vertically centered`
+      );
+    }
+  }
+});
+
 test("bundle asset payloads match manifest asset paths and checksums", async () => {
   const bundle = await buildContentGateTemplateBundle("contentgate_local_friendly");
   const payloadPaths = new Set(bundle.assets.map((asset) => asset.path));
