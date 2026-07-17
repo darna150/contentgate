@@ -115,10 +115,15 @@ test.describe("Knowledge Hub live QA", () => {
     await input.fill("Who is ContentGate for?");
     await page.getByRole("button", { name: /^Ask$/ }).click();
 
-    await expect(page.getByText(/From approved sources/i)).toBeVisible({
+    await expect(page.getByText(/From approved sources/i).first()).toBeVisible({
       timeout: 60_000,
     });
-    await expect(page.getByText(/ContentGate/i).nth(1)).toBeVisible();
+    await expect(
+      page
+        .locator("main")
+        .getByText(/approved source says|distributed organizations|brand-content management platform/i)
+        .first()
+    ).toBeVisible();
     await expect(page.getByText(/Something went wrong/i)).toHaveCount(0);
 
     await testInfo.attach("knowledge-hub-answer.png", {

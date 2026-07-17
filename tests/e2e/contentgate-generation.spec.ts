@@ -293,7 +293,9 @@ test.describe("ContentGate live generation QA", () => {
     await expect(page.getByText(/No draft for Square yet/i)).toBeVisible({
       timeout: 20_000,
     });
-    await expect(page.getByRole("button", { name: /Generate Square draft/i })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: /Generate Square draft/i }).first()
+    ).toBeVisible();
     await expect(page.getByText("Preview unavailable")).toHaveCount(0);
     await attachScreenshot(page, testInfo, "03-missing-size-draft");
 
