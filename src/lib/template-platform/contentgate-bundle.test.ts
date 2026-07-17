@@ -75,10 +75,13 @@ test("builds a valid ContentGate Set B template bundle with portrait support", a
   assert.deepEqual(validateTemplateBundleManifest(bundle.manifest), []);
 });
 
-test("CTA slots are vertically centered inside their pill-shaped background", async () => {
-  // The CTA box is authored much taller than one line of text (room for the
-  // pill shape), and pill backgrounds render text centered — a slot missing
-  // verticalAlign defaults to "top" and reads visibly high in the pill.
+test("every text slot is vertically centered, matching the real Figma layer data", async () => {
+  // Every text box is authored taller than its content needs (room for
+  // Figma's own box model / the pill shape on cta), and every layer in the
+  // actual Figma file has textAlignVertical: CENTER — confirmed directly
+  // against a real figwright export of this template. A slot with no
+  // verticalAlign silently defaults to "top" and reads visibly misplaced
+  // (most obviously on cta, where the mismatch sits inside a drawn pill).
   const [friendly, premium] = await Promise.all([
     buildContentGateTemplateBundle("contentgate_local_friendly"),
     buildContentGateTemplateBundle("contentgate_local_premium"),
@@ -86,15 +89,15 @@ test("CTA slots are vertically centered inside their pill-shaped background", as
 
   for (const bundle of [friendly, premium]) {
     for (const variant of bundle.manifest.variants) {
-      const ctaSlot = variant.slots.find(
-        (slot) => slot.kind === "text" && slot.field === "cta"
-      );
-      assert.ok(ctaSlot, `${bundle.manifest.family.key}/${variant.key} is missing a cta slot`);
-      assert.equal(
-        ctaSlot?.kind === "text" ? ctaSlot.verticalAlign : undefined,
-        "middle",
-        `${bundle.manifest.family.key}/${variant.key} cta slot must be vertically centered`
-      );
+      const textSlots = variant.slots.filter((slot) => slot.kind === "text");
+      assert.ok(textSlots.length > 0, `${bundle.manifest.family.key}/${variant.key} has no text slots`);
+      for (const slot of textSlots) {
+        assert.equal(
+          slot.kind === "text" ? slot.verticalAlign : undefined,
+          "middle",
+          `${bundle.manifest.family.key}/${variant.key}/${slot.field} must be vertically centered`
+        );
+      }
     }
   }
 });
