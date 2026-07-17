@@ -11,6 +11,7 @@ import {
   templatePlatformFieldFitIssues,
 } from "@/lib/template-platform/fit";
 import {
+  BACKGROUND_CHOICE_FIELD,
   getTemplateBundleVariantFieldLimits,
   getTemplateBundleVariantFields,
 } from "@/lib/template-platform/runtime";
@@ -210,6 +211,9 @@ export async function updateStructuredFields(
   const cleaned = Object.fromEntries(
     order.map((key) => [key, String(fields[key] ?? "")])
   );
+  if (!template && typeof fields[BACKGROUND_CHOICE_FIELD] === "string") {
+    cleaned[BACKGROUND_CHOICE_FIELD] = fields[BACKGROUND_CHOICE_FIELD];
+  }
   const promptContext =
     content?.prompt_context && typeof content.prompt_context === "object"
       ? (content.prompt_context as Record<string, unknown>)

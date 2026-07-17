@@ -1,10 +1,22 @@
 import type { FieldLimits } from "../template-fields.ts";
 import type {
+  TemplateBundleBackgroundOption,
   TemplateBundleField,
   TemplateBundleManifest,
   TemplateBundleTextSlot,
   TemplateBundleVariant,
 } from "./manifest.ts";
+
+export const BACKGROUND_CHOICE_FIELD = "__backgroundAssetKey";
+
+export type TemplateBundleRuntimeBackgroundOption = {
+  key: string;
+  label: string;
+  assetKey: string;
+  assetPath: string;
+  thumbnailAssetKey?: string;
+  thumbnailAssetPath: string;
+};
 
 export type TemplateBundleRuntimeVariant = {
   variant: TemplateBundleVariant;
@@ -12,6 +24,7 @@ export type TemplateBundleRuntimeVariant = {
   fieldLimits: FieldLimits;
   referenceAssetPath: string;
   backgroundAssetPath: string;
+  backgroundOptions: TemplateBundleRuntimeBackgroundOption[];
 };
 
 function textSlots(variant: TemplateBundleVariant): TemplateBundleTextSlot[] {
@@ -20,6 +33,16 @@ function textSlots(variant: TemplateBundleVariant): TemplateBundleTextSlot[] {
 
 function assetPath(manifest: TemplateBundleManifest, assetKey: string) {
   return manifest.assets.find((asset) => asset.key === assetKey)?.path ?? null;
+}
+
+function defaultBackgroundOption(
+  variant: TemplateBundleVariant
+): TemplateBundleBackgroundOption {
+  return {
+    key: "default",
+    label: "Default",
+    asset: variant.backgroundAsset,
+  };
 }
 
 export function getTemplateBundleSupportedSizes(
@@ -78,14 +101,66 @@ export function getTemplateBundleVariantFieldLimits(
   return limits;
 }
 
-export function resolveTemplateBundleRuntimeVariant(
+export function getTemplateBundleVariantBackgroundOptions(
   manifest: TemplateBundleManifest,
   variantKey: string
+): TemplateBundleRuntimeBackgroundOption[] {
+  const variant = getTemplateBundleVariant(manifest, variantKey);
+  if (!variant) return [];
+
+  const declaredOptions = variant.backgroundOptions ?? [];
+  const hasDefaultBackground = declaredOptions.some(
+    (option) => option.key === "default" || option.asset === variant.backgroundAsset
+  );
+  const options = hasDefaultBackground
+    ? declaredOptions
+    : [defaultBackgroundOption(variant), ...declaredOptions];
+
+  return options.flatMap((option) => {
+    const resolvedAssetPath = assetPath(manifest, option.asset);
+    if (!resolvedAssetPath) return [];
+    const resolvedThumbnailPath =
+      (option.thumbnailAsset ? assetPath(manifest, option.thumbnailAsset) : null) ??
+      resolvedAssetPath;
+
+    return [
+      {
+        key: option.key,
+        label: option.label,
+        assetKey: option.asset,
+        assetPath: resolvedAssetPath,
+        thumbnailAssetKey: option.thumbnailAsset,
+        thumbnailAssetPath: resolvedThumbnailPath,
+      },
+    ];
+  });
+}
+
+export function resolveTemplateBundleBackgroundAssetPath(
+  manifest: TemplateBundleManifest,
+  variant: TemplateBundleVariant,
+  selectedBackgroundKey?: string | null
+): string | null {
+  const options = getTemplateBundleVariantBackgroundOptions(manifest, variant.key);
+  const selected = selectedBackgroundKey
+    ? options.find((option) => option.key === selectedBackgroundKey)
+    : null;
+  return selected?.assetPath ?? assetPath(manifest, variant.backgroundAsset);
+}
+
+export function resolveTemplateBundleRuntimeVariant(
+  manifest: TemplateBundleManifest,
+  variantKey: string,
+  selectedBackgroundKey?: string | null
 ): TemplateBundleRuntimeVariant | null {
   const variant = getTemplateBundleVariant(manifest, variantKey);
   if (!variant) return null;
   const referenceAssetPath = assetPath(manifest, variant.referenceAsset);
-  const backgroundAssetPath = assetPath(manifest, variant.backgroundAsset);
+  const backgroundAssetPath = resolveTemplateBundleBackgroundAssetPath(
+    manifest,
+    variant,
+    selectedBackgroundKey
+  );
   if (!referenceAssetPath || !backgroundAssetPath) return null;
 
   return {
@@ -94,5 +169,6 @@ export function resolveTemplateBundleRuntimeVariant(
     fieldLimits: getTemplateBundleVariantFieldLimits(manifest, variantKey),
     referenceAssetPath,
     backgroundAssetPath,
+    backgroundOptions: getTemplateBundleVariantBackgroundOptions(manifest, variantKey),
   };
 }

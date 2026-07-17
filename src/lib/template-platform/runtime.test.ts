@@ -4,6 +4,7 @@ import test from "node:test";
 import { buildContentGateTemplateBundle } from "./contentgate-bundle";
 import { validTemplateBundleManifest } from "./test-fixtures";
 import {
+  getTemplateBundleVariantBackgroundOptions,
   getTemplateBundleSupportedSizes,
   getTemplateBundleVariantDimensions,
   getTemplateBundleVariantFieldLimits,
@@ -105,5 +106,43 @@ test("exposes arbitrary manifest variant keys instead of filtering through the l
     resolveTemplateBundleRuntimeVariant(manifest, "billboard_970x250")
       ?.backgroundAssetPath,
     "variants/billboard_970x250/background.png"
+  );
+});
+
+test("resolves designer-approved background options and selected background path", () => {
+  const options = getTemplateBundleVariantBackgroundOptions(
+    validTemplateBundleManifest,
+    "square"
+  );
+
+  assert.deepEqual(
+    options.map((option) => ({
+      key: option.key,
+      label: option.label,
+      assetPath: option.assetPath,
+    })),
+    [
+      {
+        key: "default",
+        label: "Default",
+        assetPath: "variants/square/background.png",
+      },
+      {
+        key: "warm",
+        label: "Warm layout",
+        assetPath: "variants/square/background-alt.png",
+      },
+    ]
+  );
+
+  assert.equal(
+    resolveTemplateBundleRuntimeVariant(validTemplateBundleManifest, "square", "warm")
+      ?.backgroundAssetPath,
+    "variants/square/background-alt.png"
+  );
+  assert.equal(
+    resolveTemplateBundleRuntimeVariant(validTemplateBundleManifest, "square", "unknown")
+      ?.backgroundAssetPath,
+    "variants/square/background.png"
   );
 });

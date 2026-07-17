@@ -62,3 +62,36 @@ test("requires unique semantic keys so Figma layer names are not the contract", 
     true
   );
 });
+
+test("validates background option keys and asset references", () => {
+  const invalid: TemplateBundleManifest = {
+    ...validManifest,
+    variants: [
+      {
+        ...validManifest.variants[0],
+        backgroundOptions: [
+          {
+            key: "default",
+            label: "Default",
+            asset: "square-background",
+          },
+          {
+            key: "default",
+            label: "Duplicate",
+            asset: "missing-background",
+          },
+        ],
+      },
+    ],
+  };
+
+  const issues = validateTemplateBundleManifest(invalid);
+  assert.equal(
+    issues.some((issue) => issue.code === "duplicate_key" && issue.path.endsWith(".key")),
+    true
+  );
+  assert.equal(
+    issues.some((issue) => issue.code === "asset_reference" && issue.path.endsWith(".asset")),
+    true
+  );
+});

@@ -24,6 +24,8 @@ import {
   templatePreviewUrl,
 } from "@/lib/creative";
 import {
+  BACKGROUND_CHOICE_FIELD,
+  getTemplateBundleVariantBackgroundOptions,
   getTemplateBundleVariantFieldLimits,
   getTemplateBundleVariantFields,
   getTemplateBundleSupportedSizes,
@@ -42,6 +44,7 @@ import {
   MissingDraftFrame,
   ServerPreviewFrame,
 } from "./studio-preview";
+import { StudioBackgroundPicker } from "./studio-background-picker";
 import { StudioFields } from "./studio-fields";
 import { StudioGeneratePanel } from "./studio-generate-panel";
 import { resolveStudioMode } from "./studio-mode";
@@ -212,6 +215,23 @@ export function StudioWorkspace({
     () => activeVariantFields.map((field) => field.key),
     [activeVariantFields]
   );
+  const backgroundOptions = useMemo(
+    () =>
+      selectedTemplate.platformManifest
+        ? getTemplateBundleVariantBackgroundOptions(selectedTemplate.platformManifest, size)
+        : [],
+    [selectedTemplate.platformManifest, size]
+  );
+  const hasBackgroundOptions = backgroundOptions.length > 1;
+  const selectedBackgroundKey =
+    draftFields[BACKGROUND_CHOICE_FIELD] || backgroundOptions[0]?.key || "default";
+  const persistedFieldKeys = useMemo(
+    () =>
+      hasBackgroundOptions
+        ? [...activeEditableFields, BACKGROUND_CHOICE_FIELD]
+        : activeEditableFields,
+    [activeEditableFields, hasBackgroundOptions]
+  );
   const activeRequiredFields = useMemo(
     () =>
       activeVariantFields
@@ -242,7 +262,7 @@ export function StudioWorkspace({
   const dirty =
     mode === "edit" &&
     content !== null &&
-    activeEditableFields.some(
+    persistedFieldKeys.some(
       (key) => (draftFields[key] ?? "") !== (savedFields[key] ?? "")
     );
   const exportAllowed =
@@ -426,7 +446,7 @@ export function StudioWorkspace({
 
   function updateField(key: string, value: string) {
     const nextFields = { ...draftFields, [key]: value };
-    const nextDirty = activeEditableFields.some(
+    const nextDirty = persistedFieldKeys.some(
       (field) => (nextFields[field] ?? "") !== (savedFields[field] ?? "")
     );
     setSaveState(nextDirty ? "unsaved" : "saved");
@@ -736,12 +756,22 @@ export function StudioWorkspace({
             <StudioReviewActions contentId={content.id} onReviewed={markReviewed} />
           )}
 
-              <StudioFields
-                fields={activeEditableFields}
-                requiredFields={activeRequiredFields}
-                values={activeFields}
-                limits={activeFieldLimits}
-                editable={editable}
+          {content && !showOriginal && selectedTemplate.platformManifest && hasBackgroundOptions && (
+            <StudioBackgroundPicker
+              manifest={selectedTemplate.platformManifest}
+              options={backgroundOptions}
+              value={selectedBackgroundKey}
+              editable={editable}
+              onChange={(value) => updateField(BACKGROUND_CHOICE_FIELD, value)}
+            />
+          )}
+
+          <StudioFields
+            fields={activeEditableFields}
+            requiredFields={activeRequiredFields}
+            values={activeFields}
+            limits={activeFieldLimits}
+            editable={editable}
             issuesByField={issuesByField}
             overflowFields={overflowFields}
             onChange={updateField}

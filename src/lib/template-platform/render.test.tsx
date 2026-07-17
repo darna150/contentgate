@@ -13,7 +13,9 @@ import {
 import { isPublicContentGateBundle } from "./public-contentgate-assets";
 import { validateTemplateBundlePublishReadiness } from "./publish-readiness";
 import { renderTemplateBundleVariant } from "./render";
+import { BACKGROUND_CHOICE_FIELD } from "./runtime";
 import { loadTemplateBundleImageFonts } from "./server-fonts";
+import { validTemplateBundleManifest } from "./test-fixtures";
 
 test("renders platform bundle generated mode with background and text slots", async () => {
   const bundle = await buildContentGateTemplateBundle("contentgate_local_friendly");
@@ -52,6 +54,21 @@ test("renders platform bundle with signed asset URLs when provided", async () =>
   assert.ok(rendered);
   const html = renderToStaticMarkup(rendered.element);
   assert.match(html, /https:\/\/storage\.example\.test\/signed-background\.png/);
+});
+
+test("renders selected designer-approved background option in generated mode", () => {
+  const rendered = renderTemplateBundleVariant({
+    manifest: validTemplateBundleManifest,
+    variantKey: "square",
+    fields: {
+      headline: "Background option test",
+      [BACKGROUND_CHOICE_FIELD]: "warm",
+    },
+  });
+
+  assert.ok(rendered);
+  const html = renderToStaticMarkup(rendered.element);
+  assert.match(html, /variants\/square\/background-alt\.png/);
 });
 
 test("renders platform bundle original mode with reference only", async () => {

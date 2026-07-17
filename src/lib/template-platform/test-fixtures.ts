@@ -62,6 +62,15 @@ export const validTemplateBundleManifest: TemplateBundleManifest = {
       height: 1080,
       mimeType: "image/png",
     },
+    {
+      key: "square-background-alt",
+      kind: "background",
+      path: "variants/square/background-alt.png",
+      sha256: "d".repeat(64),
+      width: 1080,
+      height: 1080,
+      mimeType: "image/png",
+    },
   ],
   fonts: [
     {
@@ -82,6 +91,18 @@ export const validTemplateBundleManifest: TemplateBundleManifest = {
       height: 1080,
       referenceAsset: "square-reference",
       backgroundAsset: "square-background",
+      backgroundOptions: [
+        {
+          key: "default",
+          label: "Default",
+          asset: "square-background",
+        },
+        {
+          key: "warm",
+          label: "Warm layout",
+          asset: "square-background-alt",
+        },
+      ],
       slots: [
         {
           key: "headline-slot",
