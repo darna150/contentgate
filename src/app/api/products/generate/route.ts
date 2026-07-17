@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { flattenFields, revisionInstruction, type Evidence } from "@/lib/templates";
 import {
   changedGeneratedFields,
+  changedPrimaryTitleField,
   generationSourceFields,
   regenerationInstruction,
 } from "@/lib/generation-context";
@@ -663,6 +664,13 @@ export async function POST(req: Request) {
             after: structured,
             fieldOrder: editableFields,
           });
+        const unchangedReplacementTitle =
+          replaceContent &&
+          !changedPrimaryTitleField({
+            before: asStringRecord(replaceContent.structured_fields),
+            after: structured,
+            fieldOrder: editableFields,
+          });
         retryReasons = [
           ...editableFields.flatMap((key) =>
             (configuredIssues[key] ?? []).map((issue) => `${key}: ${issue.message}`)
@@ -671,6 +679,9 @@ export async function POST(req: Request) {
           ...formatGeneratedCopyQualityIssues(qualityIssues),
           ...(unchangedReplacement
             ? ["regeneration returned copy identical to the current draft"]
+            : []),
+          ...(unchangedReplacementTitle
+            ? ["regeneration must rewrite the headline/title field"]
             : []),
         ];
 
@@ -715,6 +726,13 @@ export async function POST(req: Request) {
           after: structured,
           fieldOrder: editableFields,
         });
+      const unchangedReplacementTitle =
+        replaceContent &&
+        !changedPrimaryTitleField({
+          before: asStringRecord(replaceContent.structured_fields),
+          after: structured,
+          fieldOrder: editableFields,
+        });
       retryReasons = [
         ...editableFields.flatMap((key) =>
           (configuredIssues[key] ?? []).map((issue) => `${key}: ${issue.message}`)
@@ -723,6 +741,9 @@ export async function POST(req: Request) {
         ...formatGeneratedCopyQualityIssues(qualityIssues),
         ...(unchangedReplacement
           ? ["regeneration returned copy identical to the current draft"]
+          : []),
+        ...(unchangedReplacementTitle
+          ? ["regeneration must rewrite the headline/title field"]
           : []),
       ];
       if (!retryReasons.length) {
@@ -772,6 +793,13 @@ export async function POST(req: Request) {
           after: structured,
           fieldOrder: editableFields,
         });
+      const unchangedReplacementTitle =
+        replaceContent &&
+        !changedPrimaryTitleField({
+          before: asStringRecord(replaceContent.structured_fields),
+          after: structured,
+          fieldOrder: editableFields,
+        });
       retryReasons = [
         ...editableFields.flatMap((key) =>
           (configuredIssues[key] ?? []).map((issue) => `${key}: ${issue.message}`)
@@ -780,6 +808,9 @@ export async function POST(req: Request) {
         ...formatGeneratedCopyQualityIssues(qualityIssues),
         ...(unchangedReplacement
           ? ["regeneration returned copy identical to the current draft"]
+          : []),
+        ...(unchangedReplacementTitle
+          ? ["regeneration must rewrite the headline/title field"]
           : []),
       ];
       if (!retryReasons.length) {

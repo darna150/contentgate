@@ -41,8 +41,8 @@ export function regenerationInstruction(input: {
 }) {
   if (!input.replacingDraft) return "";
   return input.hasRevision
-    ? "Apply the selected refinement to the CURRENT DRAFT COPY. The result must visibly change the relevant wording while preserving approved evidence and template fit."
-    : "Create a fresh alternative version of the CURRENT DRAFT COPY. Preserve the same approved evidence, CTA intent, and campaign idea, but do not return identical or near-identical wording.";
+    ? "Apply the selected refinement to the CURRENT DRAFT COPY. Rewrite the headline/title field and visibly change the relevant wording while preserving approved evidence and template fit."
+    : "Create a fresh alternative version of the CURRENT DRAFT COPY. Rewrite the headline/title field and preserve the same approved evidence, CTA intent, and campaign idea, but do not return identical or near-identical wording.";
 }
 
 function normalizedCopy(value: unknown) {
@@ -61,4 +61,22 @@ export function changedGeneratedFields(input: {
   return input.fieldOrder.some(
     (field) => normalizedCopy(input.before[field]) !== normalizedCopy(input.after[field])
   );
+}
+
+export function primaryTitleField(fieldOrder: readonly string[]) {
+  return (
+    fieldOrder.find((field) => field === "headline") ??
+    fieldOrder.find((field) => /\b(headline|title|subject)\b/i.test(field)) ??
+    null
+  );
+}
+
+export function changedPrimaryTitleField(input: {
+  before: Record<string, unknown>;
+  after: Record<string, unknown>;
+  fieldOrder: readonly string[];
+}) {
+  const field = primaryTitleField(input.fieldOrder);
+  if (!field) return true;
+  return normalizedCopy(input.before[field]) !== normalizedCopy(input.after[field]);
 }

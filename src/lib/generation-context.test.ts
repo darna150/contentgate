@@ -3,7 +3,9 @@ import test from "node:test";
 
 import {
   changedGeneratedFields,
+  changedPrimaryTitleField,
   generationSourceFields,
+  primaryTitleField,
   regenerationInstruction,
 } from "./generation-context.ts";
 
@@ -57,12 +59,45 @@ test("draft regeneration prompt asks for visible new wording", () => {
     /fresh alternative version/
   );
   assert.match(
+    regenerationInstruction({ replacingDraft: true, hasRevision: false }),
+    /Rewrite the headline\/title field/
+  );
+  assert.match(
     regenerationInstruction({ replacingDraft: true, hasRevision: true }),
-    /visibly change/
+    /Rewrite the headline\/title field/
   );
   assert.equal(
     regenerationInstruction({ replacingDraft: false, hasRevision: false }),
     ""
+  );
+});
+
+test("draft regeneration requires the primary title field to change", () => {
+  assert.equal(primaryTitleField(["local_detail", "headline", "cta"]), "headline");
+  assert.equal(primaryTitleField(["subject", "body", "cta"]), "subject");
+
+  assert.equal(
+    changedPrimaryTitleField({
+      before: {
+        headline: "Local offers, ready in minutes",
+        subheadline: "Create localized marketing content.",
+      },
+      after: {
+        headline: "Local offers, ready in minutes",
+        subheadline: "Create brand-approved localized content.",
+      },
+      fieldOrder: ["headline", "subheadline"],
+    }),
+    false
+  );
+
+  assert.equal(
+    changedPrimaryTitleField({
+      before: { headline: "Local offers, ready in minutes" },
+      after: { headline: "Launch local offers faster" },
+      fieldOrder: ["headline", "subheadline"],
+    }),
+    true
   );
 });
 
