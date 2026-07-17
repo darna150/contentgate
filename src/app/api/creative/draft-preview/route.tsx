@@ -2,6 +2,7 @@ import { ImageResponse } from "next/og";
 import { createClient } from "@/lib/supabase/server";
 import type { TemplateBundleManifest } from "@/lib/template-platform/manifest";
 import { renderTemplateBundleVariant } from "@/lib/template-platform/render";
+import { resolveTemplatePlatformVariantLayout } from "@/lib/template-platform/fit";
 import { resolveTemplateBundleRuntimeVariant } from "@/lib/template-platform/runtime";
 import { createTemplateBundleAssetUrlMap } from "@/lib/template-platform/storage-urls";
 import { loadTemplateBundleImageFonts } from "@/lib/template-platform/server-fonts";
@@ -59,12 +60,20 @@ export async function GET(req: Request) {
   const assetUrlByPath = Object.fromEntries(
     await createTemplateBundleAssetUrlMap(supabase, [manifest])
   );
+  const fields = (content.structured_fields ?? {}) as Record<string, string>;
+  const textLayoutByField = await resolveTemplatePlatformVariantLayout({
+    manifest,
+    variantKey,
+    fields,
+    assetUrlByPath,
+  });
   const rendered = renderTemplateBundleVariant({
     manifest,
     variantKey,
-    fields: (content.structured_fields ?? {}) as Record<string, string>,
+    fields,
     assetOrigin: new URL(req.url).origin,
     assetUrlByPath,
+    textLayoutByField,
   });
   if (!rendered) return new Response("Template render failed.", { status: 500 });
 
