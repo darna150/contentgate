@@ -212,6 +212,12 @@ async function assertPreviewIsAvailable(page: Page) {
   });
 }
 
+async function findFieldTextarea(page: Page, labelPattern: RegExp) {
+  const label = page.locator("label").filter({ hasText: labelPattern }).first();
+  await expect(label).toBeVisible();
+  return label.locator("xpath=following-sibling::textarea").first();
+}
+
 async function findEditableTextArea(page: Page) {
   const textareas = page.locator("textarea");
   const count = await textareas.count();
@@ -502,6 +508,82 @@ test.describe("ContentGate live generation QA", () => {
     await expect(page.getByText("Changes requested")).toBeVisible();
     await expect(page.getByText(rejectionNote)).toBeVisible();
     await attachScreenshot(page, testInfo, "rejection-note-visible");
+
+    await attachBrowserIssues(testInfo, issues);
+    expect(
+      issues.filter((issue) => issue.kind !== "console" && !isBenignBrowserIssue(issue)),
+      `Browser/network issues: ${JSON.stringify(issues, null, 2)}`
+    ).toEqual([]);
+  });
+
+  test("shrinks long headline copy to fit instead of clipping or truncating", async ({
+    page,
+  }, testInfo) => {
+    const issues: BrowserIssue[] = [];
+    page.on("pageerror", (error) => issues.push({ kind: "pageerror", message: error.message }));
+    page.on("requestfailed", (request) => {
+      issues.push({
+        kind: "requestfailed",
+        message: `${request.method()} ${request.url()} — ${
+          request.failure()?.errorText ?? "unknown"
+        }`,
+      });
+    });
+
+    await signIn(page);
+    await generateLeaderboardDraft(page);
+    await assertPreviewIsAvailable(page);
+
+    const headlineField = await findFieldTextarea(page, /^Headline/i);
+    const headlineSlot = page.locator('[data-template-field="headline"]');
+    await expect(headlineSlot).toBeVisible({ timeout: 20_000 });
+
+    // Baseline: short copy renders at the slot's full authored size.
+    await headlineField.fill("Go");
+    await expect
+      .poll(async () => headlineSlot.getAttribute("data-template-font-size"), {
+        timeout: 5_000,
+        message: "Live headline slot never reported a resolved font size.",
+      })
+      .not.toBeNull();
+    const maxFontSize = Number(await headlineSlot.getAttribute("data-template-font-size"));
+    expect(maxFontSize, "Expected a positive authored font size.").toBeGreaterThan(0);
+
+    // Long enough to overflow the authored size but still fit once shrunk —
+    // see src/lib/template-platform/fit.test.ts for the same slot's bounds.
+    const longHeadline = "Approved local marketing copy for every team";
+    await headlineField.fill(longHeadline);
+    await expect(headlineField).toHaveValue(longHeadline);
+
+    await expect
+      .poll(
+        async () => Number(await headlineSlot.getAttribute("data-template-font-size")),
+        {
+          timeout: 5_000,
+          message: "Headline font size did not shrink for long copy — shrink-to-fit did not kick in.",
+        }
+      )
+      .toBeLessThan(maxFontSize);
+
+    await expect(
+      headlineSlot,
+      "Long headline text was truncated instead of shrunk to fit."
+    ).toContainText(longHeadline);
+
+    await attachScreenshot(page, testInfo, "shrink-to-fit-long-headline");
+    await testInfo.attach("shrink-to-fit-metrics.json", {
+      contentType: "application/json",
+      body: Buffer.from(
+        JSON.stringify(
+          {
+            maxFontSize,
+            shrunkFontSize: Number(await headlineSlot.getAttribute("data-template-font-size")),
+          },
+          null,
+          2
+        )
+      ),
+    });
 
     await attachBrowserIssues(testInfo, issues);
     expect(
