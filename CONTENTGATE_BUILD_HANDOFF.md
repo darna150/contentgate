@@ -408,14 +408,12 @@ Then open:
 http://localhost:3000
 ```
 
-Known test account used during QA:
+A QA test account exists for manual/E2E testing. Credentials are not stored in
+this repo — get them from the password manager or from whoever ran the last QA
+pass.
 
-```text
-hol@justdebbie.ing
-DarnaProject101
-```
-
-Treat credentials carefully. Do not paste secrets into code.
+Treat credentials carefully. Never paste secrets into code or docs, even
+temporarily — this file is committed to a public repo.
 
 ## Vercel/OpenAI/Supabase notes
 
