@@ -45,6 +45,25 @@ const FIELD_LABELS: Record<string, string> = {
   subheadline: "Subheadline",
 };
 
+const BACKGROUND_OPTIONS = [
+  {
+    key: "classic-cream",
+    label: "Classic cream",
+  },
+  {
+    key: "mint-glow",
+    label: "Mint glow",
+  },
+  {
+    key: "terracotta-edge",
+    label: "Terracotta edge",
+  },
+  {
+    key: "sage-grid",
+    label: "Sage grid",
+  },
+] as const;
+
 const LAYOUT_FAMILY_KEYS: Record<string, string> = {
   contentgate_local_friendly: "contentgate-local-friendly",
   contentgate_local_premium: "contentgate-local-premium",
@@ -95,6 +114,13 @@ function fontKeyForWeight(weight: number) {
   if (weight >= 550) return "inter-semibold";
   if (weight >= 450) return "inter-medium";
   return "inter-regular";
+}
+
+function backgroundOptionPath(baseBackgroundPath: string, optionKey: string) {
+  return baseBackgroundPath.replace(
+    /\/backgrounds\/([^/]+)$/i,
+    `/background-options/${optionKey}/$1`
+  );
 }
 
 function variantChannel(size: TemplateSizeKey): TemplateBundleVariant["channel"] {
@@ -217,6 +243,7 @@ async function buildVariantAssets(input: {
     throw new Error(`ContentGate ${input.packageKey}/${input.size} is missing Figma exports.`);
   }
 
+  const generatedImage = input.frame.generatedImage;
   const dimensions = TEMPLATE_OUTPUT_SIZES[input.size];
   const [reference, background] = await Promise.all([
     readBundleAsset({
@@ -229,17 +256,48 @@ async function buildVariantAssets(input: {
     readBundleAsset({
       key: assetKey(input.size, "background"),
       kind: "background",
-      path: input.frame.generatedImage,
+      path: generatedImage,
       width: dimensions.w,
       height: dimensions.h,
     }),
   ]);
+  const alternateBackgrounds = await Promise.all(
+    BACKGROUND_OPTIONS.filter((option) => option.key !== "classic-cream").map((option) =>
+      readBundleAsset({
+        key: assetKey(input.size, option.key, "background"),
+        kind: "background",
+        path: backgroundOptionPath(generatedImage, option.key),
+        width: dimensions.w,
+        height: dimensions.h,
+      }).then((entry) => ({ ...entry, option }))
+    )
+  );
 
   return {
-    assets: [reference.asset, background.asset],
-    sources: [reference.source, background.source],
+    assets: [
+      reference.asset,
+      background.asset,
+      ...alternateBackgrounds.map((entry) => entry.asset),
+    ],
+    sources: [
+      reference.source,
+      background.source,
+      ...alternateBackgrounds.map((entry) => entry.source),
+    ],
     referenceKey: reference.asset.key,
     backgroundKey: background.asset.key,
+    backgroundOptions: [
+      {
+        key: "classic-cream",
+        label: "Classic cream",
+        asset: background.asset.key,
+      },
+      ...alternateBackgrounds.map((entry) => ({
+        key: entry.option.key,
+        label: entry.option.label,
+        asset: entry.asset.key,
+      })),
+    ],
   };
 }
 
@@ -275,6 +333,7 @@ export async function buildContentGateTemplateBundle(
       height: dimensions.h,
       referenceAsset: variantAssets.referenceKey,
       backgroundAsset: variantAssets.backgroundKey,
+      backgroundOptions: variantAssets.backgroundOptions,
       slots: frame.textSlots.map(toTextSlot),
     };
   });

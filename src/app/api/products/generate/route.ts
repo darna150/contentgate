@@ -17,6 +17,7 @@ import {
   type TemplatePlatformAssignmentRow,
 } from "@/lib/template-platform/assignments";
 import {
+  BACKGROUND_CHOICE_FIELD,
   getTemplateBundleVariantFieldLimits,
   resolveTemplateBundleRuntimeVariant,
 } from "@/lib/template-platform/runtime";
@@ -786,6 +787,12 @@ export async function POST(req: Request) {
       approvedEvidenceSources
     );
     const rejectedEvidenceCount = rawEvidence.length - evidence.length;
+    const inheritedBackgroundChoice =
+      asStringRecord(replaceContent?.structured_fields)[BACKGROUND_CHOICE_FIELD] ??
+      asStringRecord(campaignSource?.structured_fields)[BACKGROUND_CHOICE_FIELD];
+    if (inheritedBackgroundChoice) {
+      structured[BACKGROUND_CHOICE_FIELD] = inheritedBackgroundChoice;
+    }
     const title = `${product.name} · ${assignment.familyName}`;
     const body = flattenFields(structured, editableFields);
     const savedAt = new Date().toISOString();

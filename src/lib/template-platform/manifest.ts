@@ -81,6 +81,13 @@ export type TemplateBundleImageSlot = {
 
 export type TemplateBundleSlot = TemplateBundleTextSlot | TemplateBundleImageSlot;
 
+export type TemplateBundleBackgroundOption = {
+  key: string;
+  label: string;
+  asset: string;
+  thumbnailAsset?: string;
+};
+
 export type TemplateBundleVariant = {
   key: string;
   label: string;
@@ -89,6 +96,7 @@ export type TemplateBundleVariant = {
   height: number;
   referenceAsset: string;
   backgroundAsset: string;
+  backgroundOptions?: readonly TemplateBundleBackgroundOption[];
   slots: readonly TemplateBundleSlot[];
 };
 
@@ -281,6 +289,48 @@ export function validateTemplateBundleManifest(
         );
       }
     }
+
+    const backgroundOptionKeys = new Set<string>();
+    asArray(variant.backgroundOptions).forEach((option, optionIndex) => {
+      const optionPath = `variants.${variantIndex}.backgroundOptions.${optionIndex}`;
+      if (!isRecord(option)) return;
+
+      if (typeof option.key !== "string" || option.key.length === 0) {
+        issues.push(issue("value", `${optionPath}.key`, "Background option key is required."));
+      } else if (backgroundOptionKeys.has(option.key)) {
+        issues.push(
+          issue(
+            "duplicate_key",
+            `${optionPath}.key`,
+            `Duplicate background option key "${option.key}".`
+          )
+        );
+      } else {
+        backgroundOptionKeys.add(option.key);
+      }
+
+      if (typeof option.label !== "string" || option.label.length === 0) {
+        issues.push(issue("value", `${optionPath}.label`, "Background option label is required."));
+      }
+      if (!assetKeys.has(String(option.asset))) {
+        issues.push(
+          issue(
+            "asset_reference",
+            `${optionPath}.asset`,
+            `Background option asset "${option.asset}" is not declared.`
+          )
+        );
+      }
+      if (option.thumbnailAsset != null && !assetKeys.has(String(option.thumbnailAsset))) {
+        issues.push(
+          issue(
+            "asset_reference",
+            `${optionPath}.thumbnailAsset`,
+            `Background option thumbnail asset "${option.thumbnailAsset}" is not declared.`
+          )
+        );
+      }
+    });
 
     asArray(variant.slots).forEach((slot, slotIndex) => {
       const slotPath = `variants.${variantIndex}.slots.${slotIndex}`;

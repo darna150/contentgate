@@ -233,6 +233,52 @@ export function validateTemplateBundlePublishReadiness(
       }
     }
 
+    variant.backgroundOptions?.forEach((option, optionIndex) => {
+      const optionPath = `${variantPath}.backgroundOptions.${optionIndex}`;
+      const optionAsset = assets.get(option.asset);
+      const thumbnailAsset = option.thumbnailAsset ? assets.get(option.thumbnailAsset) : null;
+
+      if (optionAsset) {
+        if (optionAsset.kind !== "background") {
+          issues.push(
+            issue(
+              "asset_reference",
+              `${optionPath}.asset`,
+              "Background option asset must point to a background asset."
+            )
+          );
+        }
+        if (!imageAssetIsUsableForVariant(optionAsset, variant)) {
+          issues.push(
+            issue(
+              "asset_quality",
+              `${optionPath}.asset`,
+              "Background option image must include dimensions at 1x, 2x, or 3x of the variant canvas."
+            )
+          );
+        }
+        if (strict && !optionAsset.mimeType?.startsWith("image/")) {
+          issues.push(
+            issue(
+              "asset_quality",
+              `${optionPath}.asset`,
+              "Background option asset must declare an image MIME type."
+            )
+          );
+        }
+      }
+
+      if (thumbnailAsset && strict && !thumbnailAsset.mimeType?.startsWith("image/")) {
+        issues.push(
+          issue(
+            "asset_quality",
+            `${optionPath}.thumbnailAsset`,
+            "Background option thumbnail must declare an image MIME type."
+          )
+        );
+      }
+    });
+
     if (reference && background) {
       if (reference.key === background.key || reference.path === background.path) {
         issues.push(

@@ -7,7 +7,10 @@ import {
   templateBundleFontWeight,
 } from "./fonts";
 import { publicContentGateBundleAssetPath } from "./public-contentgate-assets";
-import { resolveTemplateBundleRuntimeVariant } from "./runtime";
+import {
+  BACKGROUND_CHOICE_FIELD,
+  resolveTemplateBundleRuntimeVariant,
+} from "./runtime";
 
 export type TemplateBundleRenderResult = {
   element: React.ReactElement;
@@ -122,7 +125,15 @@ export function renderTemplateBundleVariant(input: {
   assetOrigin?: string;
   original?: boolean;
 }): TemplateBundleRenderResult | null {
-  const runtime = resolveTemplateBundleRuntimeVariant(input.manifest, input.variantKey);
+  const selectedBackgroundKey =
+    typeof input.fields[BACKGROUND_CHOICE_FIELD] === "string"
+      ? String(input.fields[BACKGROUND_CHOICE_FIELD])
+      : undefined;
+  const runtime = resolveTemplateBundleRuntimeVariant(
+    input.manifest,
+    input.variantKey,
+    selectedBackgroundKey
+  );
   if (!runtime) return null;
   const imagePath = input.original
     ? runtime.referenceAssetPath

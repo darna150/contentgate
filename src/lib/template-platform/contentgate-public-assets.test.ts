@@ -5,6 +5,12 @@ import test from "node:test";
 import sharp from "sharp";
 
 const PUBLIC_BUNDLE_ROOT = join(process.cwd(), "public", "template-bundles");
+const PUBLIC_PACKAGE_ROOT = join(
+  process.cwd(),
+  "public",
+  "template-packages",
+  "contentgate"
+);
 
 const EXPECTED_VARIANTS = {
   "contentgate-local-friendly": {
@@ -22,6 +28,29 @@ const EXPECTED_VARIANTS = {
     story: [2160, 3840],
   },
 } as const;
+
+const EXPECTED_PACKAGE_VARIANTS = {
+  "set-a": {
+    square: [1080, 1080],
+    story: [1080, 1920],
+    "link-ad": [1200, 628],
+    leaderboard: [728, 90],
+    "medium-rectangle": [300, 250],
+  },
+  "set-b": {
+    square: [1080, 1080],
+    portrait: [1080, 1350],
+    story: [1080, 1920],
+    "link-ad": [1200, 628],
+    "medium-rectangle": [300, 250],
+  },
+} as const;
+
+const BACKGROUND_OPTION_KEYS = [
+  "mint-glow",
+  "terracotta-edge",
+  "sage-grid",
+] as const;
 
 type ImageData = {
   data: Buffer;
@@ -198,6 +227,29 @@ test("ContentGate public figwright assets are complete, sharp, and retain locked
         assert.ok(
           leftRust.retainedRustPixels / leftRust.referenceRustPixels > 0.95,
           `${family}/${variant} background lost the locked left rust accent (${leftRust.retainedRustPixels}/${leftRust.referenceRustPixels} retained pixels)`
+        );
+      }
+    }
+  }
+});
+
+test("ContentGate selectable background options exist at exact 1x template dimensions", async () => {
+  for (const [set, variants] of Object.entries(EXPECTED_PACKAGE_VARIANTS)) {
+    for (const [variant, [expectedWidth, expectedHeight]] of Object.entries(variants)) {
+      for (const optionKey of BACKGROUND_OPTION_KEYS) {
+        const image = await loadImage(
+          join(PUBLIC_PACKAGE_ROOT, set, "background-options", optionKey, `${variant}.png`)
+        );
+
+        assert.equal(
+          image.width,
+          expectedWidth,
+          `${set}/${optionKey}/${variant}.png width drifted`
+        );
+        assert.equal(
+          image.height,
+          expectedHeight,
+          `${set}/${optionKey}/${variant}.png height drifted`
         );
       }
     }

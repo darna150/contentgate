@@ -127,11 +127,12 @@ test("uploads every verified asset before inserting compiled template rows", asy
   assert.equal(repo.inserted.length, 1);
   assert.deepEqual(
     repo.calls.map((call) => call.startsWith("upload:") ? "upload" : call),
-    ["find-family", "upload", "upload", "upload", "insert-compiled"]
+    ["find-family", "upload", "upload", "upload", "upload", "insert-compiled"]
   );
   assert.deepEqual(
     repo.uploads.map((upload) => upload.bucket),
     [
+      TEMPLATE_BUNDLE_STORAGE_BUCKET,
       TEMPLATE_BUNDLE_STORAGE_BUCKET,
       TEMPLATE_BUNDLE_STORAGE_BUCKET,
       TEMPLATE_BUNDLE_STORAGE_BUCKET,
