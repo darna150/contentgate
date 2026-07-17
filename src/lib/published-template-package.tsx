@@ -564,11 +564,11 @@ function friendlyPackage(): PublishedTemplatePackage {
           { kind: "rect", x: 97.2, y: 945, w: 367.2, h: 59.4, color: GREEN, radius: 999 },
         ],
         [
-          { field: "local_detail", x: 97.2, y: 594, w: 777.6, h: 48.6, fontSize: 18, lineHeight: 1.1, weight: 600, color: RUST, maxChars: 74, maxLines: 1, lineChars: 60, verticalAlign: "center", family: "Inter" },
-          { field: "headline", x: 97.2, y: 648, w: 885.6, h: 172.8, fontSize: 66.96, lineHeight: 0.98, weight: 700, color: GREEN, maxChars: 58, maxLines: 2, lineChars: 27, fallback: "Local content, made on brand.", verticalAlign: "center", family: "Inter" },
-          { field: "subheadline", x: 97.2, y: 826.2, w: 799.2, h: 81, fontSize: 27, lineHeight: 1.18, weight: 400, color: MUTED, maxChars: 130, maxLines: 2, lineChars: 58, verticalAlign: "center", family: "Inter" },
-          { field: "cta", x: 97.2, y: 945, w: 367.2, h: 59.4, fontSize: 22.68, lineHeight: 1.04, weight: 600, color: WHITE, maxChars: 28, maxLines: 1, align: "center", verticalAlign: "center", family: "Inter" },
-          { field: "proof_note", x: 507.6, y: 945, w: 453.6, h: 59.4, fontSize: 20.52, lineHeight: 1.04, weight: 500, color: TEAL, maxChars: 64, maxLines: 1, lineChars: 42, verticalAlign: "center", family: "Inter" },
+          { field: "local_detail", x: 97.2, y: 594, w: 777.6, h: 48.6, fontSize: 18, lineHeight: 1.1, weight: 600, color: RUST, maxChars: 74, maxLines: 1, lineChars: 60, family: "Inter" },
+          { field: "headline", x: 97.2, y: 648, w: 885.6, h: 172.8, fontSize: 66.96, lineHeight: 0.98, weight: 700, color: GREEN, maxChars: 58, maxLines: 2, lineChars: 27, fallback: "Local content, made on brand.", family: "Inter" },
+          { field: "subheadline", x: 97.2, y: 826.2, w: 799.2, h: 81, fontSize: 27, lineHeight: 1.18, weight: 400, color: MUTED, maxChars: 130, maxLines: 2, lineChars: 58, family: "Inter" },
+          { field: "cta", x: 97.2, y: 945, w: 367.2, h: 59.4, fontSize: 22.68, lineHeight: 1.04, weight: 600, color: WHITE, maxChars: 28, maxLines: 1, align: "center", family: "Inter" },
+          { field: "proof_note", x: 507.6, y: 945, w: 453.6, h: 59.4, fontSize: 20.52, lineHeight: 1.04, weight: 500, color: TEAL, maxChars: 64, maxLines: 1, lineChars: 42, family: "Inter" },
         ],
         [],
         {
@@ -587,11 +587,11 @@ function friendlyPackage(): PublishedTemplatePackage {
           { kind: "rect", x: 97.2, y: 1584, w: 885.6, h: 105.6, color: GREEN, radius: 999 },
         ],
         [
-          { field: "local_detail", x: 97.2, y: 940.8, w: 842.4, h: 76.8, fontSize: 18, lineHeight: 1.1, weight: 600, color: RUST, maxChars: 74, maxLines: 1, lineChars: 60, verticalAlign: "center", family: "Inter" },
-          { field: "headline", x: 97.2, y: 1036.8, w: 885.6, h: 249.6, fontSize: 92.88, lineHeight: 0.94, weight: 700, color: GREEN, maxChars: 58, maxLines: 2, lineChars: 18, verticalAlign: "center", family: "Inter" },
-          { field: "subheadline", x: 97.2, y: 1344, w: 842.4, h: 163.2, fontSize: 38.88, lineHeight: 1.18, weight: 400, color: MUTED, maxChars: 130, maxLines: 3, lineChars: 40, verticalAlign: "center", family: "Inter" },
-          { field: "cta", x: 97.2, y: 1584, w: 885.6, h: 105.6, fontSize: 34.56, lineHeight: 1.04, weight: 600, color: WHITE, maxChars: 28, maxLines: 1, align: "center", verticalAlign: "center", family: "Inter" },
-          { field: "proof_note", x: 97.2, y: 1737.6, w: 885.6, h: 67.2, fontSize: 25.92, lineHeight: 1.04, weight: 500, color: TEAL, maxChars: 64, maxLines: 1, lineChars: 48, align: "center", verticalAlign: "center", family: "Inter" },
+          { field: "local_detail", x: 97.2, y: 940.8, w: 842.4, h: 76.8, fontSize: 18, lineHeight: 1.1, weight: 600, color: RUST, maxChars: 74, maxLines: 1, lineChars: 60, family: "Inter" },
+          { field: "headline", x: 97.2, y: 1036.8, w: 885.6, h: 249.6, fontSize: 92.88, lineHeight: 0.94, weight: 700, color: GREEN, maxChars: 58, maxLines: 2, lineChars: 18, family: "Inter" },
+          { field: "subheadline", x: 97.2, y: 1344, w: 842.4, h: 163.2, fontSize: 38.88, lineHeight: 1.18, weight: 400, color: MUTED, maxChars: 130, maxLines: 3, lineChars: 40, family: "Inter" },
+          { field: "cta", x: 97.2, y: 1584, w: 885.6, h: 105.6, fontSize: 34.56, lineHeight: 1.04, weight: 600, color: WHITE, maxChars: 28, maxLines: 1, align: "center", family: "Inter" },
+          { field: "proof_note", x: 97.2, y: 1737.6, w: 885.6, h: 67.2, fontSize: 25.92, lineHeight: 1.04, weight: 500, color: TEAL, maxChars: 64, maxLines: 1, lineChars: 48, align: "center", family: "Inter" },
         ],
         [],
         {
@@ -611,11 +611,11 @@ function friendlyPackage(): PublishedTemplatePackage {
           { kind: "rect", x: 72, y: 477.28, w: 252, h: 56.52, color: GREEN, radius: 999 },
         ],
         [
-          { field: "local_detail", x: 72, y: 134, w: 504, h: 34.54, fontSize: 14.5068, lineHeight: 1.1, weight: 600, color: RUST, maxChars: 74, maxLines: 1, lineChars: 50, verticalAlign: "center", family: "Inter" },
-          { field: "headline", x: 72, y: 207.24, w: 576, h: 136, fontSize: 60, lineHeight: 1.04, weight: 700, color: GREEN, maxChars: 58, maxLines: 2, lineChars: 20, verticalAlign: "center", family: "Inter" },
-          { field: "subheadline", x: 72, y: 374, w: 528, h: 75.36, fontSize: 21.98, lineHeight: 1.22, weight: 400, color: MUTED, maxChars: 112, maxLines: 2, lineChars: 40, verticalAlign: "center", family: "Inter" },
-          { field: "cta", x: 72, y: 477.28, w: 252, h: 56.52, fontSize: 20.096, lineHeight: 1.04, weight: 600, color: WHITE, maxChars: 28, maxLines: 1, align: "center", verticalAlign: "center", family: "Inter" },
-          { field: "proof_note", x: 348, y: 477.28, w: 288, h: 56.52, fontSize: 16.328, lineHeight: 1.04, weight: 500, color: TEAL, maxChars: 64, maxLines: 2, lineChars: 32, verticalAlign: "center", family: "Inter" },
+          { field: "local_detail", x: 72, y: 134, w: 504, h: 34.54, fontSize: 14.5068, lineHeight: 1.1, weight: 600, color: RUST, maxChars: 74, maxLines: 1, lineChars: 50, family: "Inter" },
+          { field: "headline", x: 72, y: 207.24, w: 576, h: 136, fontSize: 60, lineHeight: 1.04, weight: 700, color: GREEN, maxChars: 58, maxLines: 2, lineChars: 20, family: "Inter" },
+          { field: "subheadline", x: 72, y: 374, w: 528, h: 75.36, fontSize: 21.98, lineHeight: 1.22, weight: 400, color: MUTED, maxChars: 112, maxLines: 2, lineChars: 40, family: "Inter" },
+          { field: "cta", x: 72, y: 477.28, w: 252, h: 56.52, fontSize: 20.096, lineHeight: 1.04, weight: 600, color: WHITE, maxChars: 28, maxLines: 1, align: "center", family: "Inter" },
+          { field: "proof_note", x: 348, y: 477.28, w: 288, h: 56.52, fontSize: 16.328, lineHeight: 1.04, weight: 500, color: TEAL, maxChars: 64, maxLines: 2, lineChars: 32, family: "Inter" },
         ],
         [],
         {
@@ -632,9 +632,9 @@ function friendlyPackage(): PublishedTemplatePackage {
           { kind: "rect", x: 560, y: 24, w: 132, h: 42, color: GREEN, radius: 999 },
         ],
         [
-          { field: "headline", x: 250, y: 16, w: 355, h: 28, fontSize: 20, lineHeight: 1.04, weight: 700, color: GREEN, maxChars: 31, maxLines: 1, lineChars: 31, verticalAlign: "center", family: "Inter" },
-          { field: "subheadline", x: 250, y: 46, w: 260, h: 20, fontSize: 13, lineHeight: 1.04, weight: 400, color: MUTED, maxChars: 78, maxLines: 1, lineChars: 42, verticalAlign: "center", family: "Inter" },
-          { field: "cta", x: 560, y: 24, w: 132, h: 42, fontSize: 15, lineHeight: 1.04, weight: 600, color: WHITE, maxChars: 18, maxLines: 1, align: "center", verticalAlign: "center", family: "Inter" },
+          { field: "headline", x: 250, y: 16, w: 355, h: 28, fontSize: 20, lineHeight: 1.04, weight: 700, color: GREEN, maxChars: 31, maxLines: 1, lineChars: 31, family: "Inter" },
+          { field: "subheadline", x: 250, y: 46, w: 260, h: 20, fontSize: 13, lineHeight: 1.04, weight: 400, color: MUTED, maxChars: 78, maxLines: 1, lineChars: 42, family: "Inter" },
+          { field: "cta", x: 560, y: 24, w: 132, h: 42, fontSize: 15, lineHeight: 1.04, weight: 600, color: WHITE, maxChars: 18, maxLines: 1, align: "center", family: "Inter" },
         ],
         [],
         {
@@ -652,10 +652,10 @@ function friendlyPackage(): PublishedTemplatePackage {
           { kind: "rect", x: 24, y: 200, w: 142, h: 32, color: GREEN, radius: 999 },
         ],
         [
-          { field: "headline", x: 24, y: 69, w: 252, h: 62, fontSize: 29, lineHeight: 0.96, weight: 700, color: GREEN, maxChars: 34, maxLines: 2, lineChars: 15, verticalAlign: "center", family: "Inter" },
-          { field: "subheadline", x: 24, y: 133, w: 232, h: 42, fontSize: 13, lineHeight: 1.16, weight: 400, color: MUTED, maxChars: 54, maxLines: 2, lineChars: 29, verticalAlign: "center", family: "Inter" },
-          { field: "cta", x: 24, y: 200, w: 142, h: 32, fontSize: 13, lineHeight: 1.04, weight: 600, color: WHITE, maxChars: 18, maxLines: 1, align: "center", verticalAlign: "center", family: "Inter" },
-          { field: "proof_note", x: 176, y: 200, w: 92, h: 32, fontSize: 10, lineHeight: 1.04, weight: 500, color: TEAL, maxChars: 24, maxLines: 1, verticalAlign: "center", family: "Inter" },
+          { field: "headline", x: 24, y: 69, w: 252, h: 62, fontSize: 29, lineHeight: 0.96, weight: 700, color: GREEN, maxChars: 34, maxLines: 2, lineChars: 15, family: "Inter" },
+          { field: "subheadline", x: 24, y: 133, w: 232, h: 42, fontSize: 13, lineHeight: 1.16, weight: 400, color: MUTED, maxChars: 54, maxLines: 2, lineChars: 29, family: "Inter" },
+          { field: "cta", x: 24, y: 200, w: 142, h: 32, fontSize: 13, lineHeight: 1.04, weight: 600, color: WHITE, maxChars: 18, maxLines: 1, align: "center", family: "Inter" },
+          { field: "proof_note", x: 176, y: 200, w: 92, h: 32, fontSize: 10, lineHeight: 1.04, weight: 500, color: TEAL, maxChars: 24, maxLines: 1, family: "Inter" },
         ],
         [],
         {
@@ -687,10 +687,10 @@ function premiumPackage(): PublishedTemplatePackage {
           { kind: "rect", x: 72.36, y: 912.6, w: 324, h: 59.4, color: GREEN, radius: 999 },
         ],
         [
-          { field: "headline", x: 72, y: 591, w: 864, h: 151.2, fontSize: 62.64, lineHeight: 0.96, weight: 700, color: GREEN, maxChars: 64, maxLines: 2, lineChars: 27, verticalAlign: "center", family: "Inter" },
-          { field: "subheadline", x: 72.36, y: 772.2, w: 723.6, h: 86.4, fontSize: 24.84, lineHeight: 1.22, weight: 400, color: MUTED, maxChars: 132, maxLines: 2, lineChars: 48, verticalAlign: "center", family: "Inter" },
-          { field: "cta", x: 72.36, y: 912.6, w: 324, h: 59.4, fontSize: 21.6, lineHeight: 1.04, weight: 600, color: WHITE, maxChars: 30, maxLines: 1, align: "center", verticalAlign: "center", family: "Inter" },
-          { field: "proof_note", x: 432, y: 912.6, w: 496.8, h: 59.4, fontSize: 19.44, lineHeight: 1.12, weight: 500, color: TEAL, maxChars: 64, maxLines: 1, lineChars: 44, verticalAlign: "center", family: "Inter" },
+          { field: "headline", x: 72, y: 591, w: 864, h: 151.2, fontSize: 62.64, lineHeight: 0.96, weight: 700, color: GREEN, maxChars: 64, maxLines: 2, lineChars: 27, family: "Inter" },
+          { field: "subheadline", x: 72.36, y: 772.2, w: 723.6, h: 86.4, fontSize: 24.84, lineHeight: 1.22, weight: 400, color: MUTED, maxChars: 132, maxLines: 2, lineChars: 48, family: "Inter" },
+          { field: "cta", x: 72.36, y: 912.6, w: 324, h: 59.4, fontSize: 21.6, lineHeight: 1.04, weight: 600, color: WHITE, maxChars: 30, maxLines: 1, align: "center", family: "Inter" },
+          { field: "proof_note", x: 432, y: 912.6, w: 496.8, h: 59.4, fontSize: 19.44, lineHeight: 1.12, weight: 500, color: TEAL, maxChars: 64, maxLines: 1, lineChars: 44, family: "Inter" },
         ],
         [],
         {
@@ -709,10 +709,10 @@ function premiumPackage(): PublishedTemplatePackage {
           { kind: "rect", x: 81, y: 1140.75, w: 432, h: 70.2, color: GREEN, radius: 999 },
         ],
         [
-          { field: "headline", x: 81, y: 742.5, w: 842.4, h: 189, fontSize: 64.8, lineHeight: 0.96, weight: 700, color: GREEN, maxChars: 64, maxLines: 3, lineChars: 22, verticalAlign: "center", family: "Inter" },
-          { field: "subheadline", x: 81, y: 965.25, w: 799.2, h: 108, fontSize: 27, lineHeight: 1.22, weight: 400, color: MUTED, maxChars: 132, maxLines: 3, lineChars: 46, verticalAlign: "center", family: "Inter" },
-          { field: "cta", x: 81, y: 1140.75, w: 432, h: 70.2, fontSize: 21.6, lineHeight: 1.04, weight: 600, color: WHITE, maxChars: 30, maxLines: 1, align: "center", verticalAlign: "center", family: "Inter" },
-          { field: "proof_note", x: 550.8, y: 1140.75, w: 399.6, h: 70.2, fontSize: 19.44, lineHeight: 1.12, weight: 500, color: TEAL, maxChars: 64, maxLines: 2, lineChars: 34, verticalAlign: "center", family: "Inter" },
+          { field: "headline", x: 81, y: 742.5, w: 842.4, h: 189, fontSize: 64.8, lineHeight: 0.96, weight: 700, color: GREEN, maxChars: 64, maxLines: 3, lineChars: 22, family: "Inter" },
+          { field: "subheadline", x: 81, y: 965.25, w: 799.2, h: 108, fontSize: 27, lineHeight: 1.22, weight: 400, color: MUTED, maxChars: 132, maxLines: 3, lineChars: 46, family: "Inter" },
+          { field: "cta", x: 81, y: 1140.75, w: 432, h: 70.2, fontSize: 21.6, lineHeight: 1.04, weight: 600, color: WHITE, maxChars: 30, maxLines: 1, align: "center", family: "Inter" },
+          { field: "proof_note", x: 550.8, y: 1140.75, w: 399.6, h: 70.2, fontSize: 19.44, lineHeight: 1.12, weight: 500, color: TEAL, maxChars: 64, maxLines: 2, lineChars: 34, family: "Inter" },
         ],
         [],
         {
@@ -725,10 +725,10 @@ function premiumPackage(): PublishedTemplatePackage {
         WARM,
         [],
         [
-          { field: "headline", x: 86.4, y: 1171.2, w: 885.6, h: 249.6, fontSize: 79.92, lineHeight: 0.94, weight: 700, color: GREEN, maxChars: 64, maxLines: 3, lineChars: 20, verticalAlign: "center", family: "Inter" },
-          { field: "subheadline", x: 86.4, y: 1468.8, w: 842.4, h: 144, fontSize: 35.64, lineHeight: 1.22, weight: 400, color: MUTED, maxChars: 132, maxLines: 3, lineChars: 40, verticalAlign: "center", family: "Inter" },
-          { field: "cta", x: 86.4, y: 1680, w: 907.2, h: 103.68, fontSize: 32.4, lineHeight: 1.04, weight: 600, color: WHITE, maxChars: 30, maxLines: 1, align: "center", verticalAlign: "center", family: "Inter" },
-          { field: "proof_note", x: 86.4, y: 1814.4, w: 907.2, h: 48, fontSize: 23.76, lineHeight: 1.1, weight: 500, color: TEAL, maxChars: 64, maxLines: 1, lineChars: 46, align: "center", verticalAlign: "center", family: "Inter" },
+          { field: "headline", x: 86.4, y: 1171.2, w: 885.6, h: 249.6, fontSize: 79.92, lineHeight: 0.94, weight: 700, color: GREEN, maxChars: 64, maxLines: 3, lineChars: 20, family: "Inter" },
+          { field: "subheadline", x: 86.4, y: 1468.8, w: 842.4, h: 144, fontSize: 35.64, lineHeight: 1.22, weight: 400, color: MUTED, maxChars: 132, maxLines: 3, lineChars: 40, family: "Inter" },
+          { field: "cta", x: 86.4, y: 1680, w: 907.2, h: 103.68, fontSize: 32.4, lineHeight: 1.04, weight: 600, color: WHITE, maxChars: 30, maxLines: 1, align: "center", family: "Inter" },
+          { field: "proof_note", x: 86.4, y: 1814.4, w: 907.2, h: 48, fontSize: 23.76, lineHeight: 1.1, weight: 500, color: TEAL, maxChars: 64, maxLines: 1, lineChars: 46, align: "center", family: "Inter" },
         ],
         [],
         {
@@ -741,10 +741,10 @@ function premiumPackage(): PublishedTemplatePackage {
         WARM,
         [],
         [
-          { field: "headline", x: 66, y: 176, w: 528, h: 126, fontSize: 50, lineHeight: 1.04, weight: 700, color: GREEN, maxChars: 58, maxLines: 2, lineChars: 23, verticalAlign: "center", family: "Inter" },
-          { field: "subheadline", x: 66, y: 332, w: 480, h: 75.36, fontSize: 21.98, lineHeight: 1.22, weight: 400, color: MUTED, maxChars: 112, maxLines: 2, lineChars: 40, verticalAlign: "center", family: "Inter" },
-          { field: "cta", x: 66, y: 461.58, w: 264, h: 53.38, fontSize: 18.84, lineHeight: 1.04, weight: 600, color: WHITE, maxChars: 28, maxLines: 1, align: "center", verticalAlign: "center", family: "Inter" },
-          { field: "proof_note", x: 360, y: 461.58, w: 264, h: 53.38, fontSize: 15.7, lineHeight: 1.12, weight: 500, color: TEAL, maxChars: 64, maxLines: 2, lineChars: 32, verticalAlign: "center", family: "Inter" },
+          { field: "headline", x: 66, y: 176, w: 528, h: 126, fontSize: 50, lineHeight: 1.04, weight: 700, color: GREEN, maxChars: 58, maxLines: 2, lineChars: 23, family: "Inter" },
+          { field: "subheadline", x: 66, y: 332, w: 480, h: 75.36, fontSize: 21.98, lineHeight: 1.22, weight: 400, color: MUTED, maxChars: 112, maxLines: 2, lineChars: 40, family: "Inter" },
+          { field: "cta", x: 66, y: 461.58, w: 264, h: 53.38, fontSize: 18.84, lineHeight: 1.04, weight: 600, color: WHITE, maxChars: 28, maxLines: 1, align: "center", family: "Inter" },
+          { field: "proof_note", x: 360, y: 461.58, w: 264, h: 53.38, fontSize: 15.7, lineHeight: 1.12, weight: 500, color: TEAL, maxChars: 64, maxLines: 2, lineChars: 32, family: "Inter" },
         ],
         [],
         {
@@ -757,10 +757,10 @@ function premiumPackage(): PublishedTemplatePackage {
         WARM,
         [],
         [
-          { field: "headline", x: 22, y: 76, w: 156, h: 62, fontSize: 27, lineHeight: 0.95, weight: 700, color: GREEN, maxChars: 34, maxLines: 2, lineChars: 9, verticalAlign: "center", family: "Inter" },
-          { field: "subheadline", x: 22, y: 151, w: 244, h: 34, fontSize: 13, lineHeight: 1.16, weight: 400, color: MUTED, maxChars: 54, maxLines: 2, lineChars: 29, verticalAlign: "center", family: "Inter" },
-          { field: "cta", x: 22, y: 198, w: 98, h: 31, fontSize: 13, lineHeight: 1.04, weight: 600, color: WHITE, maxChars: 18, maxLines: 1, align: "center", verticalAlign: "center", family: "Inter" },
-          { field: "proof_note", x: 132, y: 198, w: 134, h: 31, fontSize: 10, lineHeight: 1.1, weight: 500, color: TEAL, maxChars: 24, maxLines: 1, verticalAlign: "center", family: "Inter" },
+          { field: "headline", x: 22, y: 76, w: 156, h: 62, fontSize: 27, lineHeight: 0.95, weight: 700, color: GREEN, maxChars: 34, maxLines: 2, lineChars: 9, family: "Inter" },
+          { field: "subheadline", x: 22, y: 151, w: 244, h: 34, fontSize: 13, lineHeight: 1.16, weight: 400, color: MUTED, maxChars: 54, maxLines: 2, lineChars: 29, family: "Inter" },
+          { field: "cta", x: 22, y: 198, w: 98, h: 31, fontSize: 13, lineHeight: 1.04, weight: 600, color: WHITE, maxChars: 18, maxLines: 1, align: "center", family: "Inter" },
+          { field: "proof_note", x: 132, y: 198, w: 134, h: 31, fontSize: 10, lineHeight: 1.1, weight: 500, color: TEAL, maxChars: 24, maxLines: 1, family: "Inter" },
         ],
         [],
         {

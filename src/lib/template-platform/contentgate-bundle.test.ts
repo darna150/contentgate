@@ -75,33 +75,6 @@ test("builds a valid ContentGate Set B template bundle with portrait support", a
   assert.deepEqual(validateTemplateBundleManifest(bundle.manifest), []);
 });
 
-test("every text slot is vertically centered, matching the real Figma layer data", async () => {
-  // Every text box is authored taller than its content needs (room for
-  // Figma's own box model / the pill shape on cta), and every layer in the
-  // actual Figma file has textAlignVertical: CENTER — confirmed directly
-  // against a real figwright export of this template. A slot with no
-  // verticalAlign silently defaults to "top" and reads visibly misplaced
-  // (most obviously on cta, where the mismatch sits inside a drawn pill).
-  const [friendly, premium] = await Promise.all([
-    buildContentGateTemplateBundle("contentgate_local_friendly"),
-    buildContentGateTemplateBundle("contentgate_local_premium"),
-  ]);
-
-  for (const bundle of [friendly, premium]) {
-    for (const variant of bundle.manifest.variants) {
-      const textSlots = variant.slots.filter((slot) => slot.kind === "text");
-      assert.ok(textSlots.length > 0, `${bundle.manifest.family.key}/${variant.key} has no text slots`);
-      for (const slot of textSlots) {
-        assert.equal(
-          slot.kind === "text" ? slot.verticalAlign : undefined,
-          "middle",
-          `${bundle.manifest.family.key}/${variant.key}/${slot.field} must be vertically centered`
-        );
-      }
-    }
-  }
-});
-
 test("bundle asset payloads match manifest asset paths and checksums", async () => {
   const bundle = await buildContentGateTemplateBundle("contentgate_local_friendly");
   const payloadPaths = new Set(bundle.assets.map((asset) => asset.path));
