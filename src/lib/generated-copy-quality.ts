@@ -44,6 +44,12 @@ function hasBalancedPairs(value: string, open: string, close: string) {
   return value.split(open).length === value.split(close).length;
 }
 
+// Catches literal, unfilled merge-tag/template syntax the model sometimes
+// echoes instead of substituting a real value (e.g. "Updates from
+// {{Market Name}}"). Double-brace mustache syntax essentially never appears
+// in legitimate marketing copy, so this is safe to flag unconditionally.
+const UNRESOLVED_PLACEHOLDER_PATTERN = /\{\{[^{}]*\}\}/;
+
 export function generatedCopyQualityIssues(
   fields: Record<string, unknown>,
   fieldOrder: readonly string[]
@@ -68,6 +74,9 @@ export function generatedCopyQualityIssues(
         }
         if (!hasBalancedPairs(text, "(", ")") || !hasBalancedPairs(text, "[", "]")) {
           issues.push("has an unclosed phrase");
+        }
+        if (UNRESOLVED_PLACEHOLDER_PATTERN.test(text)) {
+          issues.push("contains an unresolved placeholder token");
         }
 
         const lastWord = terminalWord(text);
