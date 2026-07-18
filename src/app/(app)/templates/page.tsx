@@ -280,10 +280,10 @@ export default async function TemplatesPage({
             {families.length ? (
               <div className="grid gap-2">
                 {families.map((family) => (
-                  <div key={family.id} className="flex items-center gap-3 rounded-control border border-edge bg-page px-4 py-3">
+                  <div key={family.id} className="flex items-center gap-3 rounded-control border border-edge bg-page px-3.5 py-2.5">
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-[13px] font-semibold">{family.name}</p>
-                      <p className="text-[11.5px] text-ink-faint">{family.family_key}</p>
+                      <p className="font-mono text-[11.5px] text-ink-faint">{family.family_key}</p>
                     </div>
                     <StatusBadge status={family.status} variants={FAMILY_STATUS_VARIANT} />
                   </div>
@@ -303,7 +303,7 @@ export default async function TemplatesPage({
             {importRuns.length ? (
               <div className="grid gap-2">
                 {importRuns.map((run) => (
-                  <div key={run.id} className="rounded-control border border-edge bg-page px-4 py-3">
+                  <div key={run.id} className="rounded-control border border-edge bg-page px-3.5 py-2.5">
                     <div className="flex items-center gap-3">
                       <p className="flex-1 text-[13px] font-semibold capitalize">{run.source_provider}</p>
                       <StatusBadge status={run.status} variants={IMPORT_RUN_STATUS_VARIANT} />
@@ -343,9 +343,12 @@ export default async function TemplatesPage({
                   {versions.map((version) => {
                     const family = one(version.template_families);
                     return (
-                      <div key={version.id} className="flex items-center gap-3 rounded-control border border-edge bg-page px-4 py-3">
+                      <div key={version.id} className="flex items-center gap-3 rounded-control border border-edge bg-page px-3.5 py-2.5">
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-[13px] font-semibold">{family?.name ?? "Template"} · {version.version_label}</p>
+                          <p className="truncate text-[13px] font-semibold">
+                            {family?.name ?? "Template"} ·{" "}
+                            <span className="font-mono text-[12px]">{version.version_label}</span>
+                          </p>
                           <p className="text-[11.5px] text-ink-faint">{dateLabel(version.created_at)}</p>
                         </div>
                         <StatusBadge status={version.status} variants={VERSION_STATUS_VARIANT} />
@@ -375,10 +378,12 @@ export default async function TemplatesPage({
                     const version = one(variant.template_versions);
                     const family = one(version?.template_families);
                     return (
-                      <div key={variant.id} className="flex items-center gap-3 rounded-control border border-edge bg-page px-4 py-3">
+                      <div key={variant.id} className="flex items-center gap-3 rounded-control border border-edge bg-page px-3.5 py-2.5">
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-[13px] font-semibold">{family?.name ?? "Template"} · {variant.label}</p>
-                          <p className="text-[11.5px] text-ink-faint">{variant.variant_key} · {variant.width} × {variant.height}</p>
+                          <p className="font-mono text-[11.5px] text-ink-faint">
+                            {variant.variant_key} · {variant.width} × {variant.height}
+                          </p>
                         </div>
                       </div>
                     );
@@ -405,10 +410,13 @@ export default async function TemplatesPage({
                   const family = one(assignment.template_families);
                   const version = one(assignment.template_versions);
                   return (
-                    <div key={assignment.id} className="flex items-center gap-3 rounded-control border border-edge bg-page px-4 py-3">
+                    <div key={assignment.id} className="flex items-center gap-3 rounded-control border border-edge bg-page px-3.5 py-2.5">
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-[13px] font-semibold">{product?.name ?? "Product"} → {family?.name ?? "Template"}</p>
-                        <p className="text-[11.5px] text-ink-faint">{version?.version_label ?? "version"} · default {assignment.default_variant_key ?? "—"}</p>
+                        <p className="text-[11.5px] text-ink-faint">
+                          <span className="font-mono">{version?.version_label ?? "version"}</span> · default{" "}
+                          <span className="font-mono">{assignment.default_variant_key ?? "—"}</span>
+                        </p>
                       </div>
                       <StatusBadge status={assignment.status} variants={ASSIGNMENT_STATUS_VARIANT} />
                     </div>
@@ -438,7 +446,7 @@ export default async function TemplatesPage({
             {renderJobs.length ? (
               <div className="grid gap-2">
                 {renderJobs.map((job) => (
-                  <div key={job.id} className="flex items-center gap-3 rounded-control border border-edge bg-page px-4 py-3">
+                  <div key={job.id} className="flex items-center gap-3 rounded-control border border-edge bg-page px-3.5 py-2.5">
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-[13px] font-semibold">{job.contentTitle ?? "Rendered content"}</p>
                       <p className="text-[11.5px] text-ink-faint">

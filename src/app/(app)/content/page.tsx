@@ -122,33 +122,68 @@ export default async function ContentPage({
         />
       ) : (
         <Card className="gap-1 p-3">
-          {rows.map((row) => {
-            const meta = [
-              row.productName,
-              row.templateName,
-              row.targetLanguage,
-              row.audience,
-            ].filter(Boolean);
-            return (
+          {/* Desktop: 6-column grid table */}
+          <div className="hidden md:flex md:flex-col">
+            <div
+              className="grid gap-3 border-b border-edge px-3.5 pb-2"
+              style={{ gridTemplateColumns: "2.2fr 0.8fr 0.7fr 1.3fr 1fr 0.8fr" }}
+            >
+              <span className="text-label text-ink-faint">Title</span>
+              <span className="text-label text-ink-faint">Language</span>
+              <span className="text-label text-ink-faint">Size</span>
+              <span className="text-label text-ink-faint">Status</span>
+              <span className="text-label text-ink-faint">Owner</span>
+              <span className="text-label text-ink-faint">Updated</span>
+            </div>
+            {rows.map((row) => (
               <Link
                 key={row.id}
                 href={`/content/${row.id}`}
-                className="flex items-center gap-3.5 rounded-control px-3.5 py-3 transition-colors hover:bg-page"
+                className="grid items-center gap-3 rounded-control px-3.5 py-3 transition-colors hover:bg-page"
+                style={{ gridTemplateColumns: "2.2fr 0.8fr 0.7fr 1.3fr 1fr 0.8fr" }}
               >
-                <span className="flex min-w-0 flex-1 flex-col">
-                  <span className="truncate text-[13.5px] font-semibold">
-                    {row.title}
-                  </span>
+                <span className="min-w-0 truncate text-[13.5px] font-semibold">{row.title}</span>
+                <span className="truncate text-[12.5px] text-ink-muted">{row.targetLanguage}</span>
+                <span className="truncate text-[12.5px] text-ink-muted">
+                  {row.sizeKey ? sizeLabel(row.sizeKey) : "—"}
+                </span>
+                <span>
+                  <StatusPill status={row.status} />
+                </span>
+                <span className="truncate text-[12.5px] text-ink-muted">
+                  {row.creatorName ?? "—"}
+                </span>
+                <span className="truncate text-[12.5px] text-ink-faint">
+                  {formatDate(row.updatedAt ?? row.createdAt)}
+                </span>
+              </Link>
+            ))}
+          </div>
+
+          {/* Mobile: stacked cards */}
+          <div className="flex flex-col gap-1 md:hidden">
+            {rows.map((row) => (
+              <Link
+                key={row.id}
+                href={`/content/${row.id}`}
+                className="flex flex-col gap-1.5 rounded-control px-3.5 py-3 transition-colors hover:bg-page"
+              >
+                <span className="truncate text-[13.5px] font-semibold">{row.title}</span>
+                <span className="truncate text-[11.5px] text-ink-faint">
+                  {[row.productName, row.targetLanguage, row.sizeKey ? sizeLabel(row.sizeKey) : null]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </span>
+                <span className="flex items-center gap-2">
+                  <StatusPill status={row.status} />
                   <span className="text-[11.5px] text-ink-faint">
-                    {meta.join(" · ")}
-                    {meta.length > 0 ? " · " : ""}
-                    {formatDate(row.createdAt)}
+                    {row.creatorName ?? "—"} · {formatDate(row.updatedAt ?? row.createdAt)}
                   </span>
                 </span>
-                <StatusPill status={row.status} />
               </Link>
-            );
-          })}
+            ))}
+          </div>
+
           {nextCursor && (
             <Button asChild variant="ghost" className="mt-1 justify-center">
               <Link href={buildHref({ cursor: nextCursor })}>Load older content</Link>

@@ -28,6 +28,23 @@ function formatDate(iso: string) {
   });
 }
 
+type Urgency = "fresh" | "normal" | "urgent";
+
+function approvalUrgency(createdAtIso: string): { tone: Urgency; waitingLabel: string } {
+  const hours = (Date.now() - new Date(createdAtIso).getTime()) / (60 * 60 * 1000);
+  const days = hours / 24;
+  const waitingLabel = days >= 1 ? `waiting ${Math.floor(days)}d` : `waiting ${Math.max(1, Math.round(hours))}h`;
+  if (days > 2) return { tone: "urgent", waitingLabel };
+  if (hours < 6) return { tone: "fresh", waitingLabel };
+  return { tone: "normal", waitingLabel };
+}
+
+const URGENCY_BORDER: Record<Urgency, string> = {
+  fresh: "border-l-brand",
+  normal: "border-l-transparent",
+  urgent: "border-l-reject",
+};
+
 export default async function ApprovalsPage({
   searchParams,
 }: {
@@ -127,11 +144,12 @@ export default async function ApprovalsPage({
       ) : (
         <Card className="gap-1 p-3">
           {rows.map((row) => {
+            const urgency = approvalUrgency(row.created_at);
             return (
               <Link
                 key={row.id}
                 href={`/content/${row.id}`}
-                className="flex items-center gap-3.5 rounded-control px-3.5 py-3 transition-colors hover:bg-page"
+                className={`flex items-center gap-3.5 rounded-control border-l-4 px-3.5 py-3 transition-colors hover:bg-page ${URGENCY_BORDER[urgency.tone]}`}
               >
                 <span className="flex min-w-0 flex-1 flex-col">
                   <span className="truncate text-[13.5px] font-semibold">
@@ -142,6 +160,18 @@ export default async function ApprovalsPage({
                     {row.audience ? ` · ${row.audience}` : ""} · submitted by{" "}
                     {row.creatorName ?? "a teammate"} · {formatDate(row.created_at)}
                   </span>
+                </span>
+                <span className="flex flex-col items-end gap-0.5">
+                  <span
+                    className={`text-[11.5px] ${urgency.tone === "urgent" ? "font-bold text-reject" : "text-ink-faint"}`}
+                  >
+                    {urgency.waitingLabel}
+                  </span>
+                  {urgency.tone === "urgent" && (
+                    <span className="rounded-[5px] bg-reject-tint px-[6px] py-0.5 text-[9.5px] font-bold uppercase tracking-[0.05em] text-reject">
+                      Blocked on you
+                    </span>
+                  )}
                 </span>
                 <StatusPill status="in_review" />
                 <span className="text-[13px] font-semibold text-brand">

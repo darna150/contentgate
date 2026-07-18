@@ -112,14 +112,14 @@ export function Sidebar({ orgName, orgIndustry, userName, userRole, pendingCount
               className={cn(
                 "flex items-center gap-2.5 rounded-full px-3 py-2.5 text-[13.5px] font-semibold transition-colors",
                 active
-                  ? "bg-brand-tint text-brand"
-                  : "text-ink-muted hover:bg-page hover:text-ink"
+                  ? "bg-white/[0.08] text-white"
+                  : "text-sidebar-text hover:bg-white/5 hover:text-white"
               )}
             >
               <Icon className="size-[15px] shrink-0" aria-hidden />
               <span className="flex-1">{item.label}</span>
               {item.href === "/approvals" && pendingCount > 0 && (
-                <span className="rounded-full bg-brand-dark px-[7px] py-px text-[11px] font-bold text-white">
+                <span className="rounded-full bg-brand px-[7px] py-px text-[11px] font-bold text-white">
                   {pendingCount}
                 </span>
               )}
@@ -129,8 +129,8 @@ export function Sidebar({ orgName, orgIndustry, userName, userRole, pendingCount
       </div>
 
       {userRole === "admin" && (
-        <div className="flex flex-col gap-0.5">
-          <p className="px-3 pb-1 text-label text-ink-faint">Admin</p>
+        <div className="flex flex-col gap-0.5 border-t border-white/10 pt-3">
+          <p className="px-3 pb-1 text-label text-sidebar-faint">Admin</p>
           {ADMIN_NAV.map((item) => {
             const active = pathname.startsWith(item.href);
             const Icon = item.icon;
@@ -143,8 +143,8 @@ export function Sidebar({ orgName, orgIndustry, userName, userRole, pendingCount
                 className={cn(
                   "flex items-center gap-2.5 rounded-full px-3 py-2.5 text-[13.5px] font-semibold transition-colors",
                   active
-                    ? "bg-brand-tint text-brand"
-                    : "text-ink-muted hover:bg-page hover:text-ink"
+                    ? "bg-white/[0.08] text-white"
+                    : "text-sidebar-text hover:bg-white/5 hover:text-white"
                 )}
               >
                 <Icon className="size-[15px] shrink-0" aria-hidden />
@@ -158,20 +158,20 @@ export function Sidebar({ orgName, orgIndustry, userName, userRole, pendingCount
   );
 
   const userSummary = (
-    <div className="flex items-center gap-2.5 border-t border-edge px-2 pt-3">
-      <div className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full bg-brand-dark text-[11px] font-bold text-white">
+    <div className="flex items-center gap-2.5 border-t border-white/10 px-2 pt-3">
+      <div className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full bg-white/10 text-[11px] font-bold text-white">
         {initials || "?"}
       </div>
       <div className="flex min-w-0 flex-1 flex-col">
-        <span className="truncate text-[13px] font-semibold">{userName || "User"}</span>
-        <span className="text-[11px] capitalize text-ink-faint">{userRole}</span>
+        <span className="truncate text-[13px] font-semibold text-white">{userName || "User"}</span>
+        <span className="text-[11px] capitalize text-sidebar-faint">{userRole}</span>
       </div>
       <button
         type="button"
         onClick={signOut}
         title="Sign out"
         aria-label="Sign out"
-        className="flex h-7 w-7 items-center justify-center rounded-[7px] text-ink-faint transition-colors hover:bg-page hover:text-ink"
+        className="flex h-7 w-7 items-center justify-center rounded-[7px] text-sidebar-faint transition-colors hover:bg-white/10 hover:text-white"
       >
         <LogOut className="size-3.5" aria-hidden />
       </button>
@@ -179,13 +179,13 @@ export function Sidebar({ orgName, orgIndustry, userName, userRole, pendingCount
   );
 
   const workspaceCard = (
-    <div className="flex items-center gap-2.5 rounded-[10px] border border-edge bg-page px-3 py-2.5">
-      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[7px] bg-brand-dark text-[11px] font-bold text-white">
+    <div className="flex items-center gap-2.5 rounded-[10px] border border-white/10 bg-white/5 px-3 py-2.5">
+      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[7px] bg-brand text-[11px] font-bold text-white">
         {initialOf(orgName, "W")}
       </div>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-[13px] font-semibold">{orgName}</p>
-        <p className="text-[11px] text-ink-faint">Workspace</p>
+        <p className="truncate text-[13px] font-semibold text-white">{orgName}</p>
+        <p className="text-[11px] text-sidebar-faint">Workspace</p>
       </div>
     </div>
   );
@@ -228,11 +228,11 @@ export function Sidebar({ orgName, orgIndustry, userName, userRole, pendingCount
             ref={mobileNavRef}
             id="mobile-navigation"
             aria-label="Mobile navigation"
-            className="relative flex h-full w-[min(320px,88vw)] flex-col gap-4 border-r border-edge bg-surface px-3.5 py-5 shadow-elevated"
+            className="relative flex h-full w-[min(320px,88vw)] flex-col gap-4 bg-brand-dark px-3.5 py-5 shadow-elevated"
           >
             <div className="flex items-center justify-between px-2 py-1">
               <Image
-                src="/brand/contentgate/logo-primary.svg"
+                src="/brand/contentgate/logo-mono-white.svg"
                 alt="ContentGate"
                 width={140}
                 height={28}
@@ -243,7 +243,7 @@ export function Sidebar({ orgName, orgIndustry, userName, userRole, pendingCount
                 type="button"
                 onClick={closeMobile}
                 aria-label="Close navigation"
-                className="flex h-8 w-8 items-center justify-center rounded-[7px] text-ink-faint transition-colors hover:bg-page hover:text-ink"
+                className="flex h-8 w-8 items-center justify-center rounded-[7px] text-sidebar-faint transition-colors hover:bg-white/10 hover:text-white"
               >
                 <X className="size-4" aria-hidden />
               </button>
@@ -257,17 +257,17 @@ export function Sidebar({ orgName, orgIndustry, userName, userRole, pendingCount
         </div>
       )}
 
-      <aside className="sticky top-0 hidden h-screen w-[248px] shrink-0 flex-col gap-4 border-r border-edge bg-surface px-3.5 py-5 md:flex">
+      <aside className="sticky top-0 hidden h-screen w-[248px] shrink-0 flex-col gap-4 bg-brand-dark px-3.5 py-5 md:flex">
         <div className="flex flex-col gap-1 px-2 py-1">
           <Image
-            src="/brand/contentgate/logo-primary.svg"
+            src="/brand/contentgate/logo-mono-white.svg"
             alt="ContentGate"
             width={140}
             height={28}
             priority
           />
           {orgIndustry && (
-            <span className="pl-[33px] text-[10px] uppercase tracking-[0.12em] text-ink-faint">
+            <span className="pl-[33px] text-[10px] uppercase tracking-[0.12em] text-sidebar-faint">
               {orgIndustry}
             </span>
           )}

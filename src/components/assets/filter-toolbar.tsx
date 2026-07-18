@@ -10,12 +10,11 @@ import {
 import { PRODUCT_ASSET_APPROVAL_STATUSES, PRODUCT_ASSET_TYPES } from "@/lib/product-assets";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ASSET_STATUS_LABELS, ASSET_TYPE_LABELS, type ProductOption } from "./types";
+import { ASSET_STATUS_LABELS, ASSET_TYPE_LABELS } from "./types";
 import { GridIcon, ListIcon, SearchIcon, XIcon } from "./icons";
 
 type Props = {
   filters: AssetLibraryFilterState;
-  products: ProductOption[];
   resultCount: number;
 };
 
@@ -23,7 +22,7 @@ const SELECT_LABEL = "w-full min-w-0 sm:w-auto";
 const SELECT_CLASS =
   "w-full min-w-0 rounded-control border border-edge-strong bg-surface px-3 py-2 text-[12.5px] text-ink transition-colors outline-none focus:border-brand sm:w-auto";
 
-export function AssetFilterToolbar({ filters, products, resultCount }: Props) {
+export function AssetFilterToolbar({ filters, resultCount }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const [searchInput, setSearchInput] = useState(filters.q);
@@ -71,22 +70,6 @@ export function AssetFilterToolbar({ filters, products, resultCount }: Props) {
           placeholder="Search by title…"
           className="pl-8"
         />
-      </label>
-
-      <label className={SELECT_LABEL}>
-        <span className="sr-only">Filter by product</span>
-        <select
-          value={filters.product}
-          onChange={(event) => updateFilters({ product: event.target.value })}
-          className={SELECT_CLASS}
-        >
-          <option value="">All products</option>
-          {products.map((product) => (
-            <option key={product.id} value={product.id}>
-              {product.name}
-            </option>
-          ))}
-        </select>
       </label>
 
       <label className={SELECT_LABEL}>

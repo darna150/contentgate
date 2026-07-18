@@ -34,9 +34,9 @@ function isSizeKey(value: unknown): value is TemplateSizeKey {
 
 function CheckIcon() {
   return (
-    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden>
-      <circle cx="8" cy="8" r="6.5" stroke="#1E6B43" strokeWidth="1.4" />
-      <path d="M5.2 8.2l2 2 3.6-4" stroke="#1E6B43" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" className="text-approve" aria-hidden>
+      <circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeWidth="1.4" />
+      <path d="M5.2 8.2l2 2 3.6-4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

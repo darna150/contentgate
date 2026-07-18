@@ -89,11 +89,11 @@ export function AddDocumentForm({
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="flex flex-col items-center gap-1.5 rounded-[10px] border-[1.5px] border-dashed border-[#C7D0C9] bg-[#FAFBF9] px-6 py-6 transition-colors hover:border-brand"
+            className="flex flex-col items-center gap-1.5 rounded-[10px] border-[1.5px] border-dashed border-edge-strong bg-page px-6 py-6 transition-colors hover:border-brand"
           >
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden>
-              <path d="M10 13V4M6.5 7.5L10 4l3.5 3.5" stroke="#0E5F58" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-              <path d="M3.5 13.5v1.5a2 2 0 002 2h9a2 2 0 002-2v-1.5" stroke="#0E5F58" strokeWidth="1.6" strokeLinecap="round" />
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" className="text-brand" aria-hidden>
+              <path d="M10 13V4M6.5 7.5L10 4l3.5 3.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M3.5 13.5v1.5a2 2 0 002 2h9a2 2 0 002-2v-1.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
             </svg>
             <span className="text-[13.5px] font-semibold">
               {fileName ?? "Browse for a file"}

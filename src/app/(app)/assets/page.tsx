@@ -48,24 +48,34 @@ export default async function AssetsPage({
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
     return (
       <div className="mx-auto flex max-w-[1280px] flex-col gap-6 px-10 py-9">
-        <AssetLibrary assets={[]} products={[]} filters={filters} isAdmin={false} />
+        <AssetLibrary assets={[]} products={[]} collections={[]} filters={filters} isAdmin={false} />
       </div>
     );
   }
 
   const supabase = await createClient();
-  const [{ assets: rawAssets, role }, { data: productRows }] = await Promise.all([
-    listProductAssets({
-      productId: filters.product || undefined,
-      assetType: filters.type || undefined,
-      approvalStatus: filters.status || undefined,
-      tag: filters.tag || undefined,
-      search: filters.q || undefined,
-    }),
-    supabase.from("products").select("id, name, status").order("name"),
-  ]);
+  const [{ assets: rawAssets, role }, { data: productRows }, { data: allAssetProductIds }] =
+    await Promise.all([
+      listProductAssets({
+        productId: filters.product || undefined,
+        assetType: filters.type || undefined,
+        approvalStatus: filters.status || undefined,
+        tag: filters.tag || undefined,
+        search: filters.q || undefined,
+      }),
+      supabase.from("products").select("id, name, status").order("name"),
+      supabase.from("product_assets").select("product_id"),
+    ]);
 
   const products: ProductOption[] = productRows ?? [];
+  const countsByProduct = new Map<string, number>();
+  for (const row of allAssetProductIds ?? []) {
+    countsByProduct.set(row.product_id, (countsByProduct.get(row.product_id) ?? 0) + 1);
+  }
+  const collections = [
+    { id: "", label: "All assets", count: allAssetProductIds?.length ?? 0 },
+    ...products.map((p) => ({ id: p.id, label: p.name, count: countsByProduct.get(p.id) ?? 0 })),
+  ];
 
   const assets: AssetItem[] = (rawAssets as AssetRow[]).map((row) => {
     const product = one(row.products);
@@ -95,6 +105,7 @@ export default async function AssetsPage({
       <AssetLibrary
         assets={assets}
         products={products}
+        collections={collections}
         filters={filters}
         isAdmin={role === "admin"}
       />
