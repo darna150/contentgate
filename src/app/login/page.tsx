@@ -14,7 +14,7 @@ export default function LoginPage() {
       <div className="hidden md:flex w-[44%] flex-col gap-6 bg-brand-dark p-12 text-white">
         <div className="flex flex-col gap-1">
           <Image
-            src="/brand/contentgate/logo-horizontal-light.svg"
+            src="/brand/contentgate/logo-mono-white.svg"
             alt="ContentGate"
             width={180}
             height={36}

@@ -40,7 +40,7 @@ export function WorkspaceTabs({ productId, active, counts }: Props) {
     <div
       role="tablist"
       aria-label="Product workspace views"
-      className="-mx-1 flex gap-1 overflow-x-auto border-b border-edge px-1"
+      className="-mx-1 flex gap-1.5 overflow-x-auto border-b border-edge px-1 pb-3"
     >
       {WORKSPACE_VIEWS.map((view) => {
         const isActive = view === active;
@@ -53,10 +53,10 @@ export function WorkspaceTabs({ productId, active, counts }: Props) {
             aria-selected={isActive}
             scroll={false}
             className={cn(
-              "flex flex-shrink-0 items-center gap-1.5 border-b-2 px-3 py-2.5 text-[13.5px] font-semibold transition-colors",
+              "flex flex-shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[13.5px] font-semibold transition-colors",
               isActive
-                ? "border-brand text-brand"
-                : "border-transparent text-ink-muted hover:text-ink"
+                ? "bg-brand-dark text-white"
+                : "text-ink-muted hover:bg-page hover:text-ink"
             )}
           >
             {LABELS[view]}
@@ -64,7 +64,7 @@ export function WorkspaceTabs({ productId, active, counts }: Props) {
               <span
                 className={cn(
                   "rounded-full px-[7px] py-px text-[11px] font-bold",
-                  isActive ? "bg-brand-tint text-brand" : "bg-page text-ink-faint"
+                  isActive ? "bg-white/15 text-white" : "bg-page text-ink-faint"
                 )}
               >
                 {count}

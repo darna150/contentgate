@@ -108,12 +108,6 @@ export async function setClaimStatus(claimId: string, productId: string, status:
   revalidatePath(`/products/${productId}/edit`);
 }
 
-export async function deleteClaim(claimId: string, productId: string) {
-  const { supabase } = await getAdminOrgId();
-  await supabase.from("product_claims").delete().eq("id", claimId);
-  revalidatePath(`/products/${productId}/edit`);
-}
-
 export async function archiveProduct(productId: string) {
   const { supabase } = await getAdminOrgId();
   await supabase.from("products").update({ status: "archived" }).eq("id", productId);

@@ -30,7 +30,7 @@ export function GenerationLoader() {
 
   return (
     <div
-      className="absolute inset-0 z-20 flex items-center justify-center rounded-card bg-[#141613]/80 p-6 backdrop-blur-[3px]"
+      className="absolute inset-0 z-20 flex items-center justify-center rounded-card bg-ink/80 p-6 backdrop-blur-[3px]"
       role="status"
       aria-live="polite"
       aria-label="Generating preview"

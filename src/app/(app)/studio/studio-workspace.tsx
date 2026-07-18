@@ -912,26 +912,12 @@ export function StudioWorkspace({
             downloading={downloading}
             downloadDisabled={downloadDisabled}
             downloadDisabledReason={downloadDisabledReason}
+            viewToggle={
+              hasAnyGeneratedDraft && content
+                ? { showOriginal, onShowOriginalChange: setShowOriginal }
+                : undefined
+            }
           />
-
-          {hasAnyGeneratedDraft && content && (
-            <div className="flex items-center gap-1 self-start rounded-control bg-page p-1">
-              <button
-                type="button"
-                onClick={() => setShowOriginal(false)}
-                className={`rounded-[7px] px-3 py-1.5 text-[12px] font-semibold ${!showOriginal ? "bg-surface text-brand shadow-sm" : "text-ink-muted"}`}
-              >
-                Your draft
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowOriginal(true)}
-                className={`rounded-[7px] px-3 py-1.5 text-[12px] font-semibold ${showOriginal ? "bg-surface text-brand shadow-sm" : "text-ink-muted"}`}
-              >
-                Brand reference
-              </button>
-            </div>
-          )}
 
           <div className="relative">
             {busy && <GenerationLoader />}

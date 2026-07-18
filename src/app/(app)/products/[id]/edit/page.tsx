@@ -4,10 +4,13 @@ import { updateProduct, addClaim, setClaimStatus } from "../../actions";
 import { ProductAssetPanel } from "@/components/assets/product-asset-panel";
 import type { AssetItem } from "@/components/assets/types";
 import { createProductAssetPreviewUrlMap } from "@/lib/product-assets-server";
-import { ClaimDeleteButton } from "../_workspace/claim-delete-button";
 import { ArchiveProductButton } from "../_workspace/archive-product-button";
 
-const STATUS_LABELS: Record<string, string> = { approved: "Approved", inactive: "Inactive" };
+const CLAIM_STATES = [
+  { status: "approved", label: "Active" },
+  { status: "inactive", label: "Inactive" },
+  { status: "deleted", label: "Delete" },
+] as const;
 
 export default async function EditProductPage({
   params,
@@ -149,30 +152,40 @@ export default async function EditProductPage({
         ) : (
           <ul className="flex flex-col gap-1.5">
             {(claims ?? []).map((c) => {
-              const isApproved = c.status === "approved";
-              const toggleStatus = isApproved ? "inactive" : "approved";
-              const toggleAction = setClaimStatus.bind(null, c.id, id, toggleStatus);
+              const isDeleted = c.status === "deleted";
               return (
-                <li key={c.id} className="flex items-start gap-3 rounded-[10px] border border-edge bg-page px-4 py-3">
-                  <span className={`mt-0.5 text-[13px] ${isApproved ? "text-approve" : "text-ink-faint"}`}>
-                    {isApproved ? "✓" : "○"}
+                <li
+                  key={c.id}
+                  className={`flex items-start gap-3 rounded-[10px] border border-edge bg-page px-4 py-3 ${isDeleted ? "opacity-45" : ""}`}
+                >
+                  <span
+                    className={`flex-1 text-[13px] leading-snug text-ink ${isDeleted ? "line-through" : ""}`}
+                  >
+                    {c.claim_text}
                   </span>
-                  <span className="flex-1 text-[13px] leading-snug text-ink">{c.claim_text}</span>
-                  <div className="flex gap-2">
-                    <form action={toggleAction}>
-                      <button
-                        type="submit"
-                        className="text-[11.5px] font-semibold text-brand hover:underline"
-                      >
-                        {STATUS_LABELS[toggleStatus]}
-                      </button>
-                    </form>
-                    <span className="text-ink-faint">·</span>
-                    <ClaimDeleteButton
-                      claimId={c.id}
-                      productId={id}
-                      claimText={c.claim_text}
-                    />
+                  <div className="flex shrink-0 gap-1 rounded-control bg-surface p-1">
+                    {CLAIM_STATES.map((state) => {
+                      const active = c.status === state.status;
+                      const action = setClaimStatus.bind(null, c.id, id, state.status);
+                      const activeClass =
+                        state.status === "approved"
+                          ? "bg-brand-tint text-brand"
+                          : state.status === "deleted"
+                            ? "bg-reject-tint text-reject"
+                            : "bg-page text-ink-muted";
+                      return (
+                        <form key={state.status} action={action}>
+                          <button
+                            type="submit"
+                            className={`rounded-[7px] px-2.5 py-1 text-[11px] font-semibold transition-colors ${
+                              active ? activeClass : "text-ink-faint hover:text-ink"
+                            }`}
+                          >
+                            {state.label}
+                          </button>
+                        </form>
+                      );
+                    })}
                   </div>
                 </li>
               );
