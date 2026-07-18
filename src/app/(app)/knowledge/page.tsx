@@ -91,7 +91,7 @@ export default async function KnowledgePage({
                   href={`/knowledge/${doc.id}`}
                   className="-mx-2 flex items-center gap-3 rounded-control px-2 py-2.5 transition-colors hover:bg-page"
                 >
-                  <span className="flex h-8 w-8 items-center justify-center rounded-[8px] bg-[#EDF0EC] text-[9.5px] font-bold text-ink-muted">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-[8px] bg-edge text-[9.5px] font-bold text-ink-muted">
                     {doc.storagePath ? "FILE" : "TEXT"}
                   </span>
                   <span className="flex min-w-0 flex-1 flex-col">

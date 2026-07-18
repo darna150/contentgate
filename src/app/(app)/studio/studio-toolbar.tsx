@@ -26,6 +26,7 @@ export function StudioToolbar({
   downloading,
   downloadDisabled,
   downloadDisabledReason,
+  viewToggle,
 }: {
   sizes: string[];
   activeSize: string;
@@ -40,6 +41,7 @@ export function StudioToolbar({
   downloading: boolean;
   downloadDisabled: boolean;
   downloadDisabledReason?: string;
+  viewToggle?: { showOriginal: boolean; onShowOriginalChange: (showOriginal: boolean) => void };
 }) {
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-card border border-edge bg-surface p-3">
@@ -54,6 +56,24 @@ export function StudioToolbar({
           onClick={() => onSelectSize(key)}
         />
       ))}
+      {viewToggle && (
+        <div className="flex items-center gap-1 rounded-control bg-page p-1">
+          <button
+            type="button"
+            onClick={() => viewToggle.onShowOriginalChange(false)}
+            className={`rounded-[7px] px-3 py-1.5 text-[12px] font-semibold ${!viewToggle.showOriginal ? "bg-surface text-brand shadow-sm" : "text-ink-muted"}`}
+          >
+            Your draft
+          </button>
+          <button
+            type="button"
+            onClick={() => viewToggle.onShowOriginalChange(true)}
+            className={`rounded-[7px] px-3 py-1.5 text-[12px] font-semibold ${viewToggle.showOriginal ? "bg-surface text-brand shadow-sm" : "text-ink-muted"}`}
+          >
+            Brand reference
+          </button>
+        </div>
+      )}
       <div className="hidden flex-1 xl:block" />
       {statusSummary && (
         <span className="rounded-full bg-brand-tint px-2.5 py-1 text-[10.5px] font-bold uppercase text-brand">

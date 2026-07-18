@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { ParagraphMark } from "@/components/citation";
 
 type Product = { id: string; name: string };
 type Doc = { id: string; title: string; product_id: string | null };
@@ -708,7 +709,7 @@ export function NotebookClient({
               {activeSession.messages.map((msg, i) =>
                 msg.role === "user" ? (
                   <div key={i} className="flex justify-end">
-                    <div className="max-w-[72%] rounded-[14px] rounded-tr-[4px] bg-brand-dark px-4 py-3 text-[13.5px] font-medium leading-snug text-white">
+                    <div className="max-w-[72%] rounded-[14px] rounded-tr-[4px] bg-brand-tint px-4 py-3 text-[13.5px] font-medium leading-snug text-ink">
                       {msg.content}
                     </div>
                   </div>
@@ -723,30 +724,30 @@ export function NotebookClient({
                     </Card>
                     {msg.citations && msg.citations.length > 0 && (
                       <div className="flex flex-col gap-2 pl-1">
-                        <span className="text-[10.5px] font-bold uppercase tracking-[0.08em] text-ink-faint">
-                          From approved sources
-                        </span>
-                        {msg.citations.map((c, j) => (
-                          <button
-                            key={j}
-                            onClick={() => openSource(c)}
-                            className={`flex gap-3 rounded-card border px-4 py-3 text-left transition-colors hover:border-brand ${
-                              sourcePanel?.docId === c.document_id &&
-                              sourcePanel.paragraphN === (c.paragraph_n ?? null)
-                                ? "border-brand bg-brand-tint"
-                                : "border-edge bg-page"
-                            }`}
-                          >
-                            <div className="mt-[5px] h-1.5 w-1.5 shrink-0 rounded-full bg-brand" />
-                            <div className="flex min-w-0 flex-col gap-0.5">
-                              <span className="text-[11.5px] font-semibold text-brand">{c.document_title}</span>
-                              <span className="text-[12px] leading-snug text-ink-muted">&ldquo;{c.excerpt}&rdquo;</span>
-                            </div>
-                            <span className="ml-auto shrink-0 self-center text-[10.5px] font-semibold text-ink-faint">
-                              View →
-                            </span>
-                          </button>
-                        ))}
+                        <span className="text-label text-brand">From approved sources</span>
+                        <div className="flex flex-wrap gap-2">
+                          {msg.citations.map((c, j) => (
+                            <button
+                              key={j}
+                              onClick={() => openSource(c)}
+                              aria-expanded={
+                                sourcePanel?.docId === c.document_id &&
+                                sourcePanel.paragraphN === (c.paragraph_n ?? null)
+                              }
+                              className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-left transition-colors hover:border-brand ${
+                                sourcePanel?.docId === c.document_id &&
+                                sourcePanel.paragraphN === (c.paragraph_n ?? null)
+                                  ? "border-brand bg-brand-tint"
+                                  : "border-edge bg-page"
+                              }`}
+                            >
+                              {c.paragraph_n != null && (
+                                <span className="text-[11.5px] font-bold text-brand">¶{c.paragraph_n}</span>
+                              )}
+                              <span className="text-[12px] font-semibold text-ink-muted">{c.document_title}</span>
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -865,9 +866,7 @@ export function NotebookClient({
                           isCited ? "bg-approve-tint ring-1 ring-inset ring-approve/25" : "hover:bg-page"
                         }`}
                       >
-                        <span className="mt-0.5 w-5 shrink-0 text-right text-[10.5px] font-bold text-brand">
-                          ¶{p.n}
-                        </span>
+                        <ParagraphMark n={p.n} />
                         <p className="text-[12px] leading-relaxed text-ink">{p.text}</p>
                       </li>
                     );

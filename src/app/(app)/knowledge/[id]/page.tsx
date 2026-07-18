@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { DeleteDocumentButton } from "./delete-button";
 import { Badge } from "@/components/ui/badge";
+import { ParagraphMark } from "@/components/citation";
 import {
   documentIndexStatus,
   documentIndexStatusClass,
@@ -111,10 +112,8 @@ export default async function DocumentDetailPage({
         <ol className="flex flex-col gap-4">
           {paragraphs.map((p) => (
             <li key={p.n} className="flex gap-3.5">
-              <span className="mt-0.5 w-8 shrink-0 text-right text-[12px] font-bold text-brand">
-                ¶{p.n}
-              </span>
-              <p className="whitespace-pre-line text-[14px] leading-[1.7] text-ink">
+              <ParagraphMark n={p.n} id={`p-${p.n}`} />
+              <p className="whitespace-pre-line text-[15px] leading-[1.7] text-ink">
                 {p.text}
               </p>
             </li>

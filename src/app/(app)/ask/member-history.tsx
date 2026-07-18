@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { CitationList } from "@/components/citation";
 
 type Citation = { document_title: string; excerpt: string };
 type HistoryItem = {
@@ -76,29 +77,12 @@ export function MemberHistory({ items }: { items: HistoryItem[] }) {
                     {item.answer || "No answer was recorded for this question."}
                   </div>
 
-                  {item.citations.length > 0 && (
-                    <div className="flex flex-col gap-2">
-                      <span className="text-[10.5px] font-bold uppercase tracking-[0.08em] text-ink-faint">
-                        From approved sources
-                      </span>
-                      {item.citations.map((c, j) => (
-                        <div
-                          key={j}
-                          className="flex gap-3 rounded-[10px] border border-edge bg-page px-4 py-3"
-                        >
-                          <div className="mt-[5px] h-1.5 w-1.5 flex-shrink-0 rounded-full bg-brand" />
-                          <div className="flex min-w-0 flex-col gap-0.5">
-                            <span className="text-[11.5px] font-semibold text-brand">
-                              {c.document_title}
-                            </span>
-                            <span className="text-[12px] leading-snug text-ink-muted">
-                              &ldquo;{c.excerpt}&rdquo;
-                            </span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                  <CitationList
+                    citations={item.citations.map((c) => ({
+                      documentTitle: c.document_title,
+                      excerpt: c.excerpt,
+                    }))}
+                  />
                 </div>
               )}
             </li>

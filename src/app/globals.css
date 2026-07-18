@@ -1,36 +1,40 @@
 @import "tailwindcss";
 
 @theme {
-  /* ContentGate design tokens — from Enablement Hub.dc.html */
-  --color-brand-dark: #12312b;
-  --color-brand: #0e5f58;
-  --color-brand-tint: #e3efea;
-  --color-approve: #1e6b43;
-  --color-approve-tint: #e8f2ec;
-  --color-approve-border: #bfdccb;
-  --color-reject: #a03b33;
-  --color-reject-tint: #faeae8;
-  --color-reject-border: #ebc8c4;
-  --color-warn: #8a6210;
-  --color-warn-tint: #fbf3e2;
-  --color-warn-border: #f0ddb0;
-  --color-page: #f6f6f3;
+  /* ContentGate design tokens v2 — from ContentGate.dc.html (near-monochrome
+     base + one teal functional accent). Token NAMES are unchanged from v1 to
+     avoid touching every call site — only hex values move. */
+  --color-brand-dark: #0a0a0a;
+  --color-brand: #00aa9f;
+  --color-brand-tint: #e6f7f5;
+  --color-approve: #00877e;
+  --color-approve-tint: #e6f7f5;
+  --color-approve-border: #b9e9e4;
+  --color-reject: #a23b2e;
+  --color-reject-tint: #fbeeea;
+  --color-reject-border: #f0d6d1;
+  --color-warn: #9a6a1e;
+  --color-warn-tint: #fbf3e6;
+  --color-warn-border: #e8d3ae;
+  --color-page: #f5f5f7;
   --color-surface: #ffffff;
-  --color-edge: #e8eae5;
-  --color-edge-strong: #dde1db;
-  --color-ink: #18221e;
-  --color-ink-muted: #5c6862;
-  --color-ink-faint: #64706a;
-  --color-sidebar-text: #a9bfb7;
-  --color-sidebar-faint: #7e9a90;
+  --color-edge: #e5e5e5;
+  --color-edge-strong: #d4d4d4;
+  --color-ink: #0a0a0a;
+  --color-ink-muted: #737373;
+  --color-ink-faint: #a3a3a3;
+  --color-sidebar-text: #a6a6a6;
+  --color-sidebar-faint: #595959;
 
-  /* Warm accent — the "creative tool" pop color. Reserved for hero moments,
-     primary CTAs on canvas surfaces, gallery highlights, active-step
-     indicators. Never used for status semantics (see warn/approve/reject). */
-  --color-accent: #e8623a;
-  --color-accent-dark: #b8441f;
-  --color-accent-tint: #fdeee2;
-  --color-accent-border: #f4c9ae;
+  /* v1 had a second warm "accent" reserved for non-status pop moments. The
+     v2 spec is deliberately near-monochrome with exactly ONE functional
+     accent (teal) — so accent now aliases straight onto brand/teal rather
+     than introducing a second hue. Kept as separate tokens (not removed)
+     since call sites still reference --color-accent*. */
+  --color-accent: #00aa9f;
+  --color-accent-dark: #00877e;
+  --color-accent-tint: #e6f7f5;
+  --color-accent-border: #b9e9e4;
 
   /* shadcn/ui semantic aliases — mapped onto the tokens above so copied
      component source (bg-primary, bg-destructive, border-input, ...) reads
@@ -55,7 +59,8 @@
   --color-input: var(--color-edge-strong);
   --color-ring: var(--color-brand);
 
-  --font-sans: var(--font-instrument-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-inter), ui-sans-serif, -apple-system, system-ui, sans-serif;
+  --font-mono: ui-monospace, monospace;
 
   --radius-card: 12px;
   --radius-control: 9px;
@@ -96,18 +101,19 @@ body {
   .text-display {
     font-size: clamp(1.875rem, 1.6rem + 1.1vw, 2.75rem);
     line-height: 1.05;
-    letter-spacing: -0.02em;
+    letter-spacing: -0.03em;
     font-weight: 800;
   }
   .text-h1 {
     font-size: 1.75rem;
     line-height: 1.2;
-    letter-spacing: -0.01em;
+    letter-spacing: -0.03em;
     font-weight: 700;
   }
   .text-h2 {
     font-size: 0.9375rem;
     line-height: 1.3;
+    letter-spacing: -0.01em;
     font-weight: 700;
   }
   .text-body {
@@ -117,7 +123,7 @@ body {
   .text-label {
     font-size: 0.6875rem;
     line-height: 1.3;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.18em;
     text-transform: uppercase;
     font-weight: 700;
   }
