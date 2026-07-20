@@ -214,35 +214,11 @@ export async function GET(req: Request) {
         p_diagnostics: renderDiagnostics,
       });
       if (renderJobError) {
-        const admin = createAdminClient();
-        const { error: fallbackError } = await admin.from("render_jobs").insert({
-          org_id: content.org_id,
-          product_id: content.product_id,
-          generated_content_id: content.id,
-          template_version_id: content.template_version_id,
-          template_variant_id: content.template_variant_id,
-          renderer_version: content.renderer_version ?? "template-platform-v1",
-          input_sha256: inputHash,
-          output_format: format === "jpeg" ? "jpg" : format,
-          status: "completed",
-          payload: renderPayload,
-          diagnostics: {
-            ...renderDiagnostics,
-            rpc_fallback_reason: renderJobError.message,
-          },
-          output_storage_path: outputStoragePath,
-          completed_at: new Date().toISOString(),
+        await storageClient.storage.from("rendered-assets").remove([outputStoragePath]);
+        return new Response(`Could not record render job: ${renderJobError.message}`, {
+          status: 403,
+          headers: { "Cache-Control": "no-store" },
         });
-        if (fallbackError) {
-          await storageClient.storage.from("rendered-assets").remove([outputStoragePath]);
-          return new Response(
-            `Could not record render job: ${fallbackError.message}`,
-            {
-              status: 403,
-              headers: { "Cache-Control": "no-store" },
-            }
-          );
-        }
       }
     }
     return new Response(Buffer.from(converted.body), {
