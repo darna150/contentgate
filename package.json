@@ -12,7 +12,7 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "npm run test:migrations && npm run test:assets && npm run test:workspace && npm run test:knowledge && npm run test:approval && npm run test:templates && npm run test:rate-limits && npm run test:documents && npm run test:data-helpers && npm run test:ui && npm run test:template-render",
-    "test:migrations": "node scripts/check-migrations.mjs",
+    "test:migrations": "node scripts/check-migrations.mjs && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test src/lib/tenant-integrity-sql.test.ts",
     "test:assets": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test src/lib/product-assets.test.ts src/lib/render-output-storage.test.ts src/lib/server-export-formats.test.ts",
     "test:workspace": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test src/lib/product-workspace.test.ts",
     "test:knowledge": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test src/lib/knowledge-hub.test.ts src/lib/knowledge-reliability.test.ts src/lib/evidence-validation.test.ts",
