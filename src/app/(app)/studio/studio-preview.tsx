@@ -16,6 +16,45 @@ const GENERATION_MESSAGES = [
   "Polishing the preview for its close-up.",
 ] as const;
 
+function previewScale(input: {
+  availableWidth: number;
+  availableHeight: number;
+  width: number;
+  height: number;
+}) {
+  const raw = Math.min(
+    1,
+    input.availableWidth / input.width,
+    input.availableHeight / input.height
+  );
+  // Snap the displayed frame to whole CSS pixels. Fractional image sizes make
+  // raster-locked Figma exports (logos, texture, baked layout) look soft while
+  // overlaid live text remains crisp.
+  const displayedWidth = Math.max(1, Math.floor(input.width * raw));
+  return displayedWidth / input.width;
+}
+
+function highDensityPreviewSrc(src: string) {
+  const makeScaledApiUrl = (value: string) => {
+    const base =
+      typeof window === "undefined" ? "http://contentgate.local" : window.location.origin;
+    const url = new URL(value, base);
+    url.searchParams.set("scale", "2");
+    return value.startsWith("http") ? url.toString() : url.pathname + url.search + url.hash;
+  };
+
+  if (src.includes("/api/creative/")) return makeScaledApiUrl(src);
+  if (!src.startsWith("/")) return src;
+  const [pathname, query = ""] = src.split("?");
+  if (
+    /\/template-(bundles|packages)\/contentgate\//.test(pathname) &&
+    pathname.toLowerCase().endsWith(".png")
+  ) {
+    return `${pathname.replace(/\.png$/i, "@2x.png")}${query ? `?${query}` : ""}`;
+  }
+  return src;
+}
+
 export function GenerationLoader() {
   const [messageIndex, setMessageIndex] = useState(0);
 
@@ -76,15 +115,16 @@ export function ServerPreviewFrame({
   const viewportRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0.72);
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
-  const imageFailed = failedSrc === src;
+  const displaySrc = highDensityPreviewSrc(src);
+  const imageFailed = failedSrc === displaySrc;
 
   useEffect(() => {
     const viewport = viewportRef.current;
     if (!viewport) return;
     const updateScale = () => {
       const availableWidth = Math.max(1, viewport.clientWidth - 48);
-      const availableHeight = Math.max(1, Math.min(900, window.innerHeight - 220));
-      setScale(Math.min(1, availableWidth / width, availableHeight / height));
+      const availableHeight = Math.max(1, viewport.clientHeight - 48);
+      setScale(previewScale({ availableWidth, availableHeight, width, height }));
     };
     updateScale();
     const observer = new ResizeObserver(updateScale);
@@ -95,10 +135,7 @@ export function ServerPreviewFrame({
   return (
     <div
       ref={viewportRef}
-      className="relative flex w-full items-center justify-center overflow-auto rounded-card border border-edge bg-page p-4 sm:p-6"
-      style={{
-        minHeight: Math.round(Math.max(220, height * scale + 48)),
-      }}
+      className="relative flex h-full min-h-0 w-full items-center justify-center overflow-hidden bg-page p-6"
     >
       {updating && (
         <div className="absolute right-4 top-4 z-10 rounded-full bg-surface/90 px-3 py-1.5 text-[11px] font-semibold text-ink-muted shadow-sm">
@@ -128,14 +165,14 @@ export function ServerPreviewFrame({
       ) : (
         /* eslint-disable-next-line @next/next/no-img-element */
         <img
-          key={src}
-          src={src}
+          key={displaySrc}
+          src={displaySrc}
           alt="Generated template preview"
           className="block rounded-[3px] shadow-elevated"
-          onError={() => setFailedSrc(src)}
+          onError={() => setFailedSrc(displaySrc)}
           style={{
-            width: width * scale,
-            height: height * scale,
+            width: Math.round(width * scale),
+            height: Math.round(height * scale),
           }}
         />
       )}
@@ -164,8 +201,8 @@ export function MissingDraftFrame({
     if (!viewport) return;
     const updateScale = () => {
       const availableWidth = Math.max(1, viewport.clientWidth - 48);
-      const availableHeight = Math.max(1, Math.min(900, window.innerHeight - 220));
-      setScale(Math.min(1, availableWidth / width, availableHeight / height));
+      const availableHeight = Math.max(1, viewport.clientHeight - 48);
+      setScale(previewScale({ availableWidth, availableHeight, width, height }));
     };
     updateScale();
     const observer = new ResizeObserver(updateScale);
@@ -176,16 +213,13 @@ export function MissingDraftFrame({
   return (
     <div
       ref={viewportRef}
-      className="relative flex w-full items-center justify-center overflow-auto rounded-card border border-edge bg-page p-4 sm:p-6"
-      style={{
-        minHeight: Math.round(Math.max(220, height * scale + 48)),
-      }}
+      className="relative flex h-full min-h-0 w-full items-center justify-center overflow-hidden bg-page p-6"
     >
       <div
         className="flex flex-col items-center justify-center rounded-[3px] border border-dashed border-edge-strong bg-surface px-6 py-8 text-center shadow-sm"
         style={{
-          width: width * scale,
-          minHeight: Math.max(220, height * scale),
+          width: Math.round(width * scale),
+          height: Math.round(height * scale),
         }}
       >
         <div className="mb-3 flex size-11 items-center justify-center rounded-full bg-brand-tint text-[18px] font-bold text-brand">
@@ -218,8 +252,8 @@ export function LiveTemplatePreviewFrame({
   fields: Record<string, unknown>;
   /** Debounced, server-resolved {fontSize, lines} per field (see
    * checkDraftStructuredFieldsFit in content/actions.ts). Undefined until
-   * the first resolution lands — falls back to raw-text CSS wrap at the
-   * authored size for that brief window, then upgrades in place. */
+   * the first resolution lands — uses a conservative local shrink estimate
+   * for that brief window, then upgrades in place. */
   textLayoutByField?: Record<string, TemplateBundleTextLayout>;
   width: number;
   height: number;
@@ -227,11 +261,13 @@ export function LiveTemplatePreviewFrame({
 }) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0.72);
+  const renderScale = 2;
   const rendered = renderTemplateBundleVariant({
     manifest,
     variantKey,
     fields,
     textLayoutByField,
+    scale: renderScale,
   });
 
   useEffect(() => {
@@ -239,8 +275,8 @@ export function LiveTemplatePreviewFrame({
     if (!viewport) return;
     const updateScale = () => {
       const availableWidth = Math.max(1, viewport.clientWidth - 48);
-      const availableHeight = Math.max(1, Math.min(900, window.innerHeight - 220));
-      setScale(Math.min(1, availableWidth / width, availableHeight / height));
+      const availableHeight = Math.max(1, viewport.clientHeight - 48);
+      setScale(previewScale({ availableWidth, availableHeight, width, height }));
     };
     updateScale();
     const observer = new ResizeObserver(updateScale);
@@ -250,22 +286,26 @@ export function LiveTemplatePreviewFrame({
 
   if (!rendered) {
     return (
-      <ServerPreviewFrame
-        src=""
-        width={width}
-        height={height}
-        updating={updating}
-      />
+      <div className="relative flex h-full min-h-0 w-full items-center justify-center overflow-hidden bg-page p-6">
+        <div className="flex max-w-[420px] flex-col items-center gap-3 rounded-card border border-edge bg-surface px-7 py-6 text-center shadow-elevated">
+          <div className="flex size-11 items-center justify-center rounded-full bg-brand-tint text-[18px] text-brand">
+            !
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <p className="text-[14px] font-bold text-ink">Template preview unavailable</p>
+            <p className="text-[12.5px] leading-5 text-ink-muted">
+              This template size could not render locally. Switch sizes or refresh Studio.
+            </p>
+          </div>
+        </div>
+      </div>
     );
   }
 
   return (
     <div
       ref={viewportRef}
-      className="relative flex w-full items-center justify-center overflow-auto rounded-card border border-edge bg-page p-4 sm:p-6"
-      style={{
-        minHeight: Math.round(Math.max(220, height * scale + 48)),
-      }}
+      className="relative flex h-full min-h-0 w-full items-center justify-center overflow-hidden bg-page p-6"
     >
       {updating && (
         <div className="absolute right-4 top-4 z-10 rounded-full bg-surface/90 px-3 py-1.5 text-[11px] font-semibold text-ink-muted shadow-sm">
@@ -275,15 +315,15 @@ export function LiveTemplatePreviewFrame({
       <div
         className="rounded-[3px] shadow-elevated"
         style={{
-          width: width * scale,
-          height: height * scale,
+          width: Math.round(width * scale),
+          height: Math.round(height * scale),
         }}
       >
         <div
           style={{
-            width,
-            height,
-            transform: `scale(${scale})`,
+            width: rendered.width,
+            height: rendered.height,
+            transform: `scale(${scale / renderScale})`,
             transformOrigin: "top left",
           }}
         >
