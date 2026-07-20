@@ -24,6 +24,15 @@ import { publicContentGateBundleAssetPath } from "@/lib/template-platform/public
 import { cursorFromOffset, offsetFromCursor } from "@/lib/content-listing-shared";
 
 type Joined<T> = T | T[] | null;
+type ClaimSourceDocument = { id: string; title: string };
+type ProductClaimRow = {
+  id: string;
+  claim_text: string;
+  status: string;
+  source_document_id?: string | null;
+  source_paragraph_n?: number | null;
+  source_excerpt?: string | null;
+};
 
 export type ProductWorkspaceAsset = {
   id: string;
@@ -57,6 +66,10 @@ export type ProductWorkspaceClaim = {
   id: string;
   claimText: string;
   status: string;
+  sourceDocumentId: string | null;
+  sourceDocumentTitle: string | null;
+  sourceParagraphN: number | null;
+  sourceExcerpt: string | null;
 };
 
 export type ProductWorkspacePlatformTemplate = {
@@ -199,6 +212,46 @@ function assertQuery(error: { message: string } | null, label: string) {
   if (error) throw new Error(`Could not load workspace ${label}: ${error.message}`);
 }
 
+function isMissingProductClaimSourceColumn(error: { message?: string } | null) {
+  return Boolean(
+    error?.message?.includes("product_claims.source_document_id") ||
+      error?.message?.includes("product_claims.source_paragraph_n") ||
+      error?.message?.includes("product_claims.source_excerpt")
+  );
+}
+
+async function loadProductClaims(input: {
+  supabase: Awaited<ReturnType<typeof createClient>>;
+  orgId: string;
+  productId: string;
+}) {
+  const result = await input.supabase
+    .from("product_claims")
+    .select("id, claim_text, status, source_document_id, source_paragraph_n, source_excerpt")
+    .eq("org_id", input.orgId)
+    .eq("product_id", input.productId)
+    .order("created_at", { ascending: true });
+
+  if (!isMissingProductClaimSourceColumn(result.error)) return result;
+
+  const fallback = await input.supabase
+    .from("product_claims")
+    .select("id, claim_text, status")
+    .eq("org_id", input.orgId)
+    .eq("product_id", input.productId)
+    .order("created_at", { ascending: true });
+
+  return {
+    data: (fallback.data ?? []).map((claim) => ({
+      ...claim,
+      source_document_id: null,
+      source_paragraph_n: null,
+      source_excerpt: null,
+    })),
+    error: fallback.error,
+  };
+}
+
 export async function getProductWorkspace(
   productId: string,
   options: {
@@ -300,12 +353,11 @@ export async function getProductWorkspace(
         .eq("org_id", profile.org_id)
         .eq("product_id", productId)
         .order("created_at", { ascending: false }),
-      supabase
-        .from("product_claims")
-        .select("id, claim_text, status")
-        .eq("org_id", profile.org_id)
-        .eq("product_id", productId)
-        .order("created_at", { ascending: true }),
+      loadProductClaims({
+        supabase,
+        orgId: profile.org_id,
+        productId,
+      }),
       supabase
         .from("product_template_assignments")
         .select(
@@ -367,11 +419,45 @@ export async function getProductWorkspace(
     }),
     createdAt: source.created_at,
   }));
-  const claims = (claimResult.data ?? []).map((claim) => ({
-    id: claim.id,
-    claimText: claim.claim_text,
-    status: claim.status,
-  }));
+
+  const claimRows = (claimResult.data ?? []) as ProductClaimRow[];
+  const claimSourceDocumentIds = [
+    ...new Set(
+      claimRows
+        .map((claim) => claim.source_document_id)
+        .filter((id): id is string => Boolean(id))
+    ),
+  ];
+  let sourceDocumentById = new Map<string, ClaimSourceDocument>();
+  if (claimSourceDocumentIds.length > 0) {
+    const { data: claimSourceDocs, error: claimSourceError } = await supabase
+      .from("documents")
+      .select("id, title")
+      .eq("org_id", profile.org_id)
+      .in("id", claimSourceDocumentIds);
+    assertQuery(claimSourceError, "claim source documents");
+    sourceDocumentById = new Map(
+      ((claimSourceDocs ?? []) as ClaimSourceDocument[]).map((document) => [
+        document.id,
+        document,
+      ])
+    );
+  }
+
+  const claims = claimRows.map((claim) => {
+    const sourceDocument = claim.source_document_id
+      ? sourceDocumentById.get(claim.source_document_id) ?? null
+      : null;
+    return {
+      id: claim.id,
+      claimText: claim.claim_text,
+      status: claim.status,
+      sourceDocumentId: claim.source_document_id ?? null,
+      sourceDocumentTitle: sourceDocument?.title ?? null,
+      sourceParagraphN: claim.source_paragraph_n ?? null,
+      sourceExcerpt: claim.source_excerpt ?? null,
+    };
+  });
   const normalizedPlatformTemplates = ((platformTemplateResult.data ?? []) as TemplatePlatformAssignmentRow[])
     .map(normalizeTemplatePlatformAssignment)
     .filter((template): template is NonNullable<typeof template> => Boolean(template));

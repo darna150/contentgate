@@ -1,7 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
-import { MessageCircleQuestion, Menu, Pencil, Plus, Trash2, X } from "lucide-react";
+import { FileText, MessageCircleQuestion, Menu, Pencil, Plus, Trash2, UploadCloud, X } from "lucide-react";
 import {
   createSession,
   saveSession,
@@ -15,19 +16,24 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/confirm-dialog";
-import { ParagraphMark } from "@/components/citation";
+import { CitationList } from "@/components/citation";
 
 type Product = { id: string; name: string };
-type Doc = { id: string; title: string; product_id: string | null };
+type Doc = {
+  id: string;
+  title: string;
+  product_id: string | null;
+  paragraphCount: number;
+  indexStatus: "indexed" | "processing" | "failed";
+};
 type Session = {
   id: string;
-  product_id: string;
+  product_id: string | null;
   title: string;
   messages: SessionMessage[];
   updated_at: string;
   created_at: string;
 };
-type Paragraph = { n: number; text: string };
 
 const STARTERS = [
   "What claims can local teams use?",
@@ -35,6 +41,11 @@ const STARTERS = [
   "Who is ContentGate for?",
   "How should teams localize content?",
 ];
+const WORKSPACE_NOTEBOOK_ID = "workspace";
+
+function softenSavedAnswer(content: string) {
+  return content.replace(/^The approved source says:\s*/i, "");
+}
 
 function renderInlineMarkdown(text: string): ReactNode[] {
   const parts = text.split(/(\*\*[^*]+?\*\*|\[[^\]]+?\]\(https?:\/\/[^)\s]+?\))/g);
@@ -157,12 +168,13 @@ export function NotebookClient({
   docs: Doc[];
 }) {
   const initialSelection = resolveInitialKnowledgeSelection({
-    productIds: products.map((product) => product.id),
+    notebookIds: products.map((product) => product.id),
     sessions: initialSessions.map((session) => ({
       id: session.id,
-      productId: session.product_id,
+      productId: session.product_id ?? WORKSPACE_NOTEBOOK_ID,
     })),
     requestedProductId: initialProductId,
+    workspaceNotebookId: WORKSPACE_NOTEBOOK_ID,
   });
   const [sessions, setSessions] = useState<Session[]>(initialSessions);
   const [activeId, setActiveId] = useState<string | null>(
@@ -175,18 +187,6 @@ export function NotebookClient({
   const [loading, setLoading] = useState(false);
   const [errorsBySession, setErrorsBySession] = useState<Record<string, string>>({});
   const [isPending, startTransition] = useTransition();
-
-  // Source panel
-  const [sourcePanel, setSourcePanel] = useState<{
-    docTitle: string;
-    docId: string | null;
-    paragraphN: number | null;
-    excerpt: string;
-  } | null>(null);
-  const [sourceParagraphs, setSourceParagraphs] = useState<Paragraph[] | null>(null);
-  const [sourceFetching, setSourceFetching] = useState(false);
-  const citedParaRef = useRef<HTMLLIElement | null>(null);
-  const sourcePanelRef = useRef<HTMLElement>(null);
 
   // Rename state
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -204,6 +204,16 @@ export function NotebookClient({
   const activeError = activeId ? errorsBySession[activeId] ?? null : null;
   const selectedProduct =
     products.find((product) => product.id === selectedProductId) ?? null;
+  const selectedIsWorkspace = selectedProductId === WORKSPACE_NOTEBOOK_ID;
+  const activeSourceDocs = docs.filter(
+    (doc) =>
+      selectedIsWorkspace ||
+      doc.product_id === selectedProductId ||
+      doc.product_id === null
+  );
+  const indexedSourceCount = activeSourceDocs.filter(
+    (doc) => doc.indexStatus === "indexed"
+  ).length;
 
   function setSessionError(sessionId: string, message: string | null) {
     setErrorsBySession((current) => {
@@ -219,12 +229,6 @@ export function NotebookClient({
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [activeSession?.messages.length, loading]);
-
-  useEffect(() => {
-    if (sourceParagraphs && citedParaRef.current) {
-      citedParaRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
-    }
-  }, [sourceParagraphs]);
 
   useFocusTrap(sessionsOpen, sessionsPanelRef);
 
@@ -246,28 +250,6 @@ export function NotebookClient({
     };
   }, [sessionsOpen]);
 
-  // Source panel is a full-screen modal overlay only below `lg` (see the
-  // `lg:static` panel below) — only lock/trap while it's acting as one.
-  const sourcePanelIsModal = sourcePanel !== null;
-  useFocusTrap(sourcePanelIsModal, sourcePanelRef, 1024);
-
-  useEffect(() => {
-    if (!sourcePanelIsModal || window.innerWidth >= 1024) return;
-
-    const { overflow } = document.body.style;
-    document.body.style.overflow = "hidden";
-
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") setSourcePanel(null);
-    }
-
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("keydown", onKeyDown);
-      document.body.style.overflow = overflow;
-    };
-  }, [sourcePanelIsModal]);
-
   function closeSessionsDrawer() {
     setSessionsOpen(false);
     sessionsMenuButtonRef.current?.focus();
@@ -278,11 +260,12 @@ export function NotebookClient({
   async function handleNew(productId: string) {
     setSelectedProductId(productId);
     startTransition(async () => {
-      const result = await createSession(productId);
+      const dbProductId = productId === WORKSPACE_NOTEBOOK_ID ? null : productId;
+      const result = await createSession(dbProductId);
       if ("error" in result) return;
       const session: Session = {
         id: result.id,
-        product_id: productId,
+        product_id: dbProductId,
         title: "New conversation",
         messages: [],
         updated_at: new Date().toISOString(),
@@ -291,7 +274,6 @@ export function NotebookClient({
       setSessions((prev) => [session, ...prev]);
       setActiveId(result.id);
       setSessionError(result.id, null);
-      setSourcePanel(null);
       setTimeout(() => inputRef.current?.focus(), 80);
     });
   }
@@ -306,7 +288,6 @@ export function NotebookClient({
         setSelectedProductId(
           next?.product_id ?? initialProductId ?? products[0]?.id ?? null
         );
-        setSourcePanel(null);
       }
     });
   }
@@ -332,8 +313,8 @@ export function NotebookClient({
     const q = question.trim();
     if (!q || loading) return;
 
-    const productId = activeSession?.product_id;
-    if (!productId) return;
+    if (!activeSession) return;
+    const productId = activeSession.product_id;
 
     let sessionId = activeId;
 
@@ -436,38 +417,95 @@ export function NotebookClient({
     }
   }
 
-  // ── Source panel ────────────────────────────────────────────────────────────
-
-  async function openSource(citation: Citation) {
-    const docId = citation.document_id ?? docs.find((d) => d.title === citation.document_title)?.id ?? null;
-    setSourcePanel({
-      docTitle: citation.document_title,
-      docId,
-      paragraphN: citation.paragraph_n ?? null,
-      excerpt: citation.excerpt,
-    });
-    setSourceParagraphs(null);
-    citedParaRef.current = null;
-    if (!docId) return;
-    setSourceFetching(true);
-    try {
-      const res = await fetch(`/api/knowledge/source?docId=${docId}`);
-      if (!res.ok) throw new Error("failed");
-      const data = await res.json() as { paragraphs: Paragraph[] };
-      setSourceParagraphs(data.paragraphs);
-    } catch {
-      // leave panel open with error state
-    } finally {
-      setSourceFetching(false);
-    }
-  }
-
   // ── Render ──────────────────────────────────────────────────────────────────
 
   const sessionsByProduct = products.map((p) => ({
     product: p,
-    sessions: sessions.filter((s) => s.product_id === p.id),
+    sessions: sessions.filter((s) => (s.product_id ?? WORKSPACE_NOTEBOOK_ID) === p.id),
   }));
+
+  const sourceList = (
+    <aside className="hidden w-[276px] shrink-0 flex-col border-l border-edge bg-surface lg:flex">
+      <div className="border-b border-edge px-4 py-3.5">
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-[13px] font-bold text-ink">Sources</span>
+          <Button asChild variant="ghost" size="sm" className="h-7 px-2 text-[11.5px]">
+            <Link href="/knowledge/new">
+              <UploadCloud className="size-3.5" aria-hidden />
+              Upload
+            </Link>
+          </Button>
+        </div>
+        <p className="mt-1.5 text-[11.5px] leading-snug text-ink-faint">
+          Ask reads indexed source documents only. No manual claim picking.
+        </p>
+      </div>
+
+      <div className="flex flex-col gap-3 overflow-y-auto p-4">
+        <div className="rounded-[12px] border border-edge bg-page px-3 py-2.5">
+          <p className="text-[10.5px] font-bold uppercase tracking-[0.07em] text-ink-faint">
+            Active notebook
+          </p>
+          <p className="mt-1 truncate text-[13px] font-semibold text-ink">
+            {selectedProduct?.name ?? "No notebook selected"}
+          </p>
+          <p className="mt-1 text-[11.5px] text-ink-faint">
+            {indexedSourceCount} indexed · {activeSourceDocs.length} allowed
+          </p>
+        </div>
+
+        {activeSourceDocs.length === 0 ? (
+          <div className="rounded-[12px] border border-dashed border-edge bg-page/50 px-3 py-4 text-center">
+            <div className="mx-auto flex h-8 w-8 items-center justify-center rounded-full bg-brand-tint text-brand">
+              <FileText className="size-4" aria-hidden />
+            </div>
+            <p className="mt-2 text-[12.5px] font-semibold text-ink">No sources yet</p>
+            <p className="mt-1 text-[11.5px] leading-snug text-ink-faint">
+              Upload a guide, FAQ, claim sheet, or legal doc before asking.
+            </p>
+          </div>
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {activeSourceDocs.map((doc) => (
+              <li key={doc.id}>
+                <Link
+                  href={`/knowledge/${doc.id}`}
+                  className="group flex gap-2.5 rounded-[10px] border border-edge bg-page px-3 py-2.5 transition-colors hover:border-brand/35 hover:bg-brand-tint"
+                >
+                  <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] bg-surface text-ink-faint group-hover:text-brand">
+                    <FileText className="size-3.5" aria-hidden />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="line-clamp-2 text-[12.5px] font-semibold leading-snug text-ink">
+                      {doc.title}
+                    </span>
+                    <span className="mt-1 flex items-center gap-1.5 text-[11px] text-ink-faint">
+                      <span
+                        className={`h-1.5 w-1.5 rounded-full ${
+                          doc.indexStatus === "indexed"
+                            ? "bg-approve"
+                            : doc.indexStatus === "processing"
+                              ? "bg-warn"
+                              : "bg-reject"
+                        }`}
+                        aria-hidden
+                      />
+                      {doc.indexStatus === "indexed"
+                        ? `${doc.paragraphCount} citable paragraphs`
+                        : doc.indexStatus === "processing"
+                          ? "Processing"
+                          : "Needs text extraction"}
+                      {doc.product_id === null ? " · org-wide" : ""}
+                    </span>
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </aside>
+  );
 
   const sessionsList = (onNavigate?: () => void) => (
     <div className="flex-1 overflow-y-auto py-3">
@@ -495,8 +533,7 @@ export function NotebookClient({
           {ps.map((s) => {
             function selectSession() {
               setActiveId(s.id);
-              setSelectedProductId(s.product_id);
-              setSourcePanel(null);
+                  setSelectedProductId(s.product_id ?? WORKSPACE_NOTEBOOK_ID);
               onNavigate?.();
             }
             return (
@@ -593,7 +630,7 @@ export function NotebookClient({
             className="relative flex h-full w-[min(320px,88vw)] flex-col border-r border-edge bg-surface shadow-elevated"
           >
             <div className="flex items-center justify-between border-b border-edge px-4 py-3.5">
-              <span className="text-[13px] font-bold text-ink">Knowledge Hub</span>
+              <span className="text-[13px] font-bold text-ink">Ask notebook</span>
               <Button
                 ref={sessionsCloseButtonRef}
                 variant="ghost"
@@ -613,7 +650,7 @@ export function NotebookClient({
       {/* ── Sidebar (desktop, `lg` and up) ── */}
       <aside className="hidden w-[232px] shrink-0 flex-col border-r border-edge bg-surface lg:flex">
         <div className="border-b border-edge px-4 py-3.5">
-          <span className="text-[13px] font-bold text-ink">Knowledge Hub</span>
+          <span className="text-[13px] font-bold text-ink">Ask notebook</span>
         </div>
         {sessionsList()}
       </aside>
@@ -637,9 +674,9 @@ export function NotebookClient({
           <span className="text-[13.5px] font-semibold text-ink truncate">
             {activeSession
               ? activeSession.title === "New conversation"
-                ? products.find((p) => p.id === activeSession.product_id)?.name ?? "Knowledge Hub"
+                ? products.find((p) => p.id === (activeSession.product_id ?? WORKSPACE_NOTEBOOK_ID))?.name ?? "Ask notebook"
                 : activeSession.title
-              : "Knowledge Hub"}
+              : "Ask notebook"}
           </span>
           <div className="flex-1" />
           <Badge variant="brand" className="shrink-0 uppercase tracking-[0.06em]">
@@ -684,7 +721,7 @@ export function NotebookClient({
               </div>
               <div className="flex flex-col gap-1.5">
                 <p className="text-[14.5px] font-semibold text-ink">
-                  Ask anything about {products.find((p) => p.id === activeSession.product_id)?.name}
+                  Ask anything about {products.find((p) => p.id === (activeSession.product_id ?? WORKSPACE_NOTEBOOK_ID))?.name}
                 </p>
                 <p className="max-w-sm text-[13px] text-ink-muted">
                   Claims, usage, key benefits, target audience — answered from approved sources only.
@@ -720,35 +757,18 @@ export function NotebookClient({
                         msg.not_found ? "italic text-ink-muted" : "text-ink"
                       }`}
                     >
-                      <AssistantMarkdown content={msg.content} />
+                      <AssistantMarkdown content={softenSavedAnswer(msg.content)} />
                     </Card>
                     {msg.citations && msg.citations.length > 0 && (
-                      <div className="flex flex-col gap-2 pl-1">
-                        <span className="text-label text-brand">From approved sources</span>
-                        <div className="flex flex-wrap gap-2">
-                          {msg.citations.map((c, j) => (
-                            <button
-                              key={j}
-                              onClick={() => openSource(c)}
-                              aria-expanded={
-                                sourcePanel?.docId === c.document_id &&
-                                sourcePanel.paragraphN === (c.paragraph_n ?? null)
-                              }
-                              className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-left transition-colors hover:border-brand ${
-                                sourcePanel?.docId === c.document_id &&
-                                sourcePanel.paragraphN === (c.paragraph_n ?? null)
-                                  ? "border-brand bg-brand-tint"
-                                  : "border-edge bg-page"
-                              }`}
-                            >
-                              {c.paragraph_n != null && (
-                                <span className="text-[11.5px] font-bold text-brand">¶{c.paragraph_n}</span>
-                              )}
-                              <span className="text-[12px] font-semibold text-ink-muted">{c.document_title}</span>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
+                      <CitationList
+                        citations={msg.citations.map((citation) => ({
+                          documentId: citation.document_id,
+                          documentTitle: citation.document_title,
+                          excerpt: citation.excerpt,
+                          paragraphN: citation.paragraph_n,
+                        }))}
+                        label="From approved sources"
+                      />
                     )}
                   </div>
                 )
@@ -804,79 +824,7 @@ export function NotebookClient({
         )}
       </div>
 
-      {/* ── Source panel ── */}
-      {sourcePanel && (
-        <>
-          {/* Mobile backdrop — panel is a full-width overlay below `lg` */}
-          <button
-            type="button"
-            aria-label="Close source panel"
-            tabIndex={-1}
-            className="fixed inset-0 z-50 bg-ink/40 lg:hidden"
-            onClick={() => setSourcePanel(null)}
-          />
-          <aside
-            ref={sourcePanelRef}
-            aria-label="Source document"
-            className="fixed inset-0 z-50 flex flex-col bg-surface lg:static lg:inset-auto lg:z-auto lg:w-[300px] lg:shrink-0 lg:border-l lg:border-edge"
-          >
-            <div className="flex items-center gap-2 border-b border-edge px-4 py-3.5">
-              <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                <span className="truncate text-[12px] font-bold text-ink">{sourcePanel.docTitle}</span>
-                <span className="text-[10.5px] text-ink-faint">Approved source</span>
-              </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setSourcePanel(null)}
-                className="h-6 w-6 shrink-0 text-ink-faint hover:bg-transparent hover:text-ink [&_svg]:size-[14px]"
-                aria-label="Close source panel"
-              >
-                <X strokeWidth={1.8} aria-hidden />
-              </Button>
-            </div>
-
-            {/* Cited excerpt at top */}
-            <div className="border-b border-edge bg-approve-tint px-4 py-3">
-              <span className="text-[10px] font-bold uppercase tracking-[0.07em] text-approve">Cited passage</span>
-              <p className="mt-1 text-[12px] leading-relaxed text-ink-muted italic">&ldquo;{sourcePanel.excerpt}&rdquo;</p>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-3">
-              {sourceFetching && (
-                <div className="flex items-center justify-center py-12 text-[13px] text-ink-faint">
-                  Loading…
-                </div>
-              )}
-              {!sourceFetching && !sourceParagraphs && !sourcePanel.docId && (
-                <p className="py-6 text-center text-[12.5px] text-ink-faint">Source document not found.</p>
-              )}
-              {!sourceFetching && sourceParagraphs && (
-                <ol className="flex flex-col gap-1.5">
-                  {sourceParagraphs.map((p) => {
-                    const excerpt = sourcePanel.excerpt.trim().toLowerCase();
-                    const isCited = sourcePanel.paragraphN
-                      ? p.n === sourcePanel.paragraphN
-                      : excerpt.length >= 20 && p.text.toLowerCase().includes(excerpt.slice(0, 40));
-                    return (
-                      <li
-                        key={p.n}
-                        ref={isCited ? (el) => { citedParaRef.current = el; } : undefined}
-                        className={`flex gap-2.5 rounded-[8px] px-3 py-2.5 ${
-                          isCited ? "bg-approve-tint ring-1 ring-inset ring-approve/25" : "hover:bg-page"
-                        }`}
-                      >
-                        <ParagraphMark n={p.n} />
-                        <p className="text-[12px] leading-relaxed text-ink">{p.text}</p>
-                      </li>
-                    );
-                  })}
-                </ol>
-              )}
-            </div>
-          </aside>
-        </>
-      )}
+      {sourceList}
     </div>
   );
 }

@@ -74,7 +74,7 @@ export async function ActivityPanel() {
                   <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                     <span className="truncate text-[13px] font-medium text-ink">{q.question}</span>
                     <span className="text-[11.5px] text-ink-faint">
-                      {product?.name ?? "Unknown product"}
+                      {product?.name ?? "All sources"}
                       {asker?.full_name ? ` · ${asker.full_name}` : ""}
                     </span>
                   </div>
