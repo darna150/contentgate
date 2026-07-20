@@ -9,7 +9,7 @@ import {
 } from "@/lib/product-assets";
 
 export type ProductAssetFilters = {
-  productId?: string;
+  productId?: string | null;
   assetType?: ProductAssetType;
   approvalStatus?: ProductAssetApprovalStatus;
   tag?: string;
@@ -54,12 +54,16 @@ export async function listProductAssets(filters: ProductAssetFilters = {}) {
   let query = supabase
     .from("product_assets")
     .select(
-      "id, org_id, product_id, asset_type, title, description, alt_text, storage_path, original_file_name, mime_type, file_size_bytes, width_pixels, height_pixels, tags, approval_status, uploaded_by, created_at, updated_at, products!inner(id, name)"
+      "id, org_id, product_id, asset_type, title, description, alt_text, storage_path, original_file_name, mime_type, file_size_bytes, width_pixels, height_pixels, tags, approval_status, uploaded_by, created_at, updated_at, products(id, name)"
     )
     .eq("org_id", profile.org_id)
     .order("created_at", { ascending: false });
 
-  if (filters.productId) query = query.eq("product_id", filters.productId);
+  if (filters.productId === null) {
+    query = query.is("product_id", null);
+  } else if (filters.productId) {
+    query = query.eq("product_id", filters.productId);
+  }
   if (filters.assetType && isProductAssetType(filters.assetType)) {
     query = query.eq("asset_type", filters.assetType);
   }

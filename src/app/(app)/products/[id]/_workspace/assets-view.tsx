@@ -46,7 +46,7 @@ export function AssetsView({ workspace }: { workspace: ProductWorkspace }) {
             href={sections.assets.actionHref}
             className="text-[13px] font-semibold text-brand hover:underline"
           >
-            Open in Asset Library →
+            Open Assets →
           </Link>
         </div>
       )}
