@@ -1,4 +1,3 @@
-import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@/lib/supabase/server";
 import { flattenFields, revisionInstruction, type Evidence } from "@/lib/templates";
 import {
@@ -10,7 +9,10 @@ import {
   templateFieldIssues,
 } from "@/lib/template-fields";
 import { isProductLifecycleActive } from "@/lib/product-workspace";
-import { evidenceSourceIsApproved } from "@/lib/evidence-validation";
+import {
+  evidenceSourceIsApproved,
+  generatedCopyEvidenceIssues,
+} from "@/lib/evidence-validation";
 import { consumeApiRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import {
   normalizeTemplatePlatformAssignment,
@@ -32,15 +34,10 @@ import { createTemplateBundleAssetUrlMap } from "@/lib/template-platform/storage
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-const GENERATION_MODEL =
-  process.env.ANTHROPIC_GENERATION_MODEL ??
-  process.env.ANTHROPIC_MODEL ??
-  "claude-sonnet-4-6";
 const OPENAI_GENERATION_MODEL =
   process.env.OPENAI_GENERATION_MODEL ??
   process.env.OPENAI_MODEL ??
-  "gpt-5.4-nano";
-const AI_PROVIDER = (process.env.AI_PROVIDER ?? "").toLowerCase();
+  "gpt-5.6-terra";
 const PLATFORM_GENERATION_ATTEMPTS = Math.max(
   1,
   Number(process.env.PLATFORM_GENERATION_ATTEMPTS ?? "2")
@@ -110,9 +107,7 @@ type OpenAIResponse = {
 };
 
 function selectedProvider() {
-  if (AI_PROVIDER === "openai" || AI_PROVIDER === "anthropic") return AI_PROVIDER;
   if (process.env.OPENAI_API_KEY) return "openai";
-  if (process.env.ANTHROPIC_API_KEY) return "anthropic";
   return "fallback";
 }
 
@@ -248,29 +243,6 @@ function formatCampaignSource(input: {
     `SOURCE CAMPAIGN IDEA${input.sourceSizeLabel ? ` (${input.sourceSizeLabel})` : ""}:`,
     ...entries.map(([key, value]) => `${key}: ${value}`),
   ].join("\n");
-}
-
-function fallbackCopyForField(input: {
-  key: string;
-  productName: string;
-  defaultCopy: Record<string, string>;
-  approvedSource: string;
-}) {
-  const existing = input.defaultCopy[input.key]?.trim();
-  if (existing) return existing;
-
-  const normalizedKey = input.key.toLowerCase();
-  if (normalizedKey.includes("cta")) return "Get Started";
-  if (normalizedKey.includes("headline")) return `${input.productName}, ready locally`;
-  if (
-    normalizedKey.includes("detail") ||
-    normalizedKey.includes("kicker") ||
-    normalizedKey.includes("eyebrow")
-  ) {
-    return "Approved local brand content";
-  }
-  if (normalizedKey.includes("tagline")) return "On brand, every time";
-  return input.approvedSource || `Create approved local content for ${input.productName}.`;
 }
 
 export async function POST(req: Request) {
@@ -477,6 +449,15 @@ export async function POST(req: Request) {
       ...sourceEntries.map((entry) => entry.text),
       ...sourceEntries.map((entry) => `[${entry.label}] ${entry.text}`),
     ];
+    if (approvedEvidenceSources.length === 0) {
+      return Response.json(
+        {
+          error:
+            "Add an approved claim or source document before generating compliant content.",
+        },
+        { status: 409 }
+      );
+    }
     const extraInstructions = revisions
       .map(revisionInstruction)
       .filter(Boolean)
@@ -537,14 +518,6 @@ export async function POST(req: Request) {
       `For every field that makes a factual or benefit claim, add an evidence entry naming the approved claim or approved source sentence it rests on.`,
     ].join("\n");
 
-    const fieldProps: Record<string, { type: "string"; maxLength?: number }> = {};
-    for (const f of editableFields) {
-      fieldProps[f] = {
-        type: "string",
-        ...(fieldLimits[f]?.max_chars ? { maxLength: fieldLimits[f].max_chars } : {}),
-      };
-    }
-
     try {
       const rateLimit = await consumeApiRateLimit(supabase, "content.generate");
       if (!rateLimit.allowed) return rateLimitResponse(rateLimit);
@@ -554,42 +527,11 @@ export async function POST(req: Request) {
     }
 
     const provider = selectedProvider();
-    const anthropic = provider === "anthropic" && process.env.ANTHROPIC_API_KEY
-      ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-      : null;
-    const tool = {
-      name: "build_asset_content",
-      description:
-        "Return finished, compliant copy that fits the selected template size and the approved evidence behind each claim.",
-      input_schema: {
-        type: "object" as const,
-        properties: {
-          fields: {
-            type: "object" as const,
-            properties: fieldProps,
-            required: requiredFields,
-          },
-          evidence: {
-            type: "array" as const,
-            items: {
-              type: "object" as const,
-              properties: {
-                field: { type: "string" as const },
-                approved_source: { type: "string" as const },
-              },
-              required: ["field", "approved_source"],
-            },
-          },
-        },
-        required: ["fields", "evidence"],
-      },
-    };
-
     let out: { fields: Record<string, string>; evidence: Evidence[] } | null = null;
     let structured: Record<string, string> = {};
     let lastCandidateEvidence: Evidence[] = [];
     let retryReasons: string[] = [];
-    let generationMode: "ai" | "fallback" = "ai";
+    const generationMode = "ai";
 
     for (let attempt = 0; attempt < PLATFORM_GENERATION_ATTEMPTS; attempt += 1) {
       const attemptPrompt = retryReasons.length
@@ -603,35 +545,18 @@ export async function POST(req: Request) {
         : userPrompt;
 
       if (provider === "fallback") {
-        retryReasons = ["AI generation is not configured."];
-        generationMode = "fallback";
-        break;
+        return Response.json(
+          { error: "Generation is temporarily unavailable." },
+          { status: 503 }
+        );
       }
 
       try {
-        let candidate: GeneratedCopy;
-        if (provider === "openai") {
-          candidate = await generateWithOpenAI({
-            system,
-            prompt: attemptPrompt,
-            editableFields,
-          });
-        } else {
-          if (!anthropic) throw new Error("Anthropic generation is not configured.");
-          const message = await anthropic.messages.create({
-            model: GENERATION_MODEL,
-            max_tokens: 1500,
-            system,
-            tool_choice: { type: "tool", name: "build_asset_content" },
-            tools: [tool],
-            messages: [{ role: "user", content: attemptPrompt }],
-          });
-          const toolUse = message.content.find((block) => block.type === "tool_use");
-          if (!toolUse || toolUse.type !== "tool_use") {
-            return Response.json({ error: "Model returned no structured output." }, { status: 502 });
-          }
-          candidate = parseGeneratedCopy(toolUse.input);
-        }
+        const candidate = await generateWithOpenAI({
+          system,
+          prompt: attemptPrompt,
+          editableFields,
+        });
 
         lastCandidateEvidence = Array.isArray(candidate.evidence)
           ? candidate.evidence
@@ -670,12 +595,11 @@ export async function POST(req: Request) {
           break;
         }
       } catch (err) {
-        console.warn("platform generation provider unavailable; using fallback copy:", err);
-        retryReasons = [
-          err instanceof Error ? err.message : `${provider} generation failed.`,
-        ];
-        generationMode = "fallback";
-        break;
+        console.error("platform generation provider failed:", err);
+        return Response.json(
+          { error: "Generation is temporarily unavailable. Please try again." },
+          { status: 503 }
+        );
       }
     }
 
@@ -712,60 +636,6 @@ export async function POST(req: Request) {
     }
 
     if (!out) {
-      const fallbackSource =
-        approvedClaims[0] ??
-        sourceEntries[0]?.text ??
-        `Content for ${product.name} must use approved templates and source material.`;
-      const fallbackFields = Object.fromEntries(
-        editableFields.map((key) => [
-          key,
-          fallbackCopyForField({
-            key,
-            productName: product.name,
-            defaultCopy,
-            approvedSource: fallbackSource,
-          }),
-        ])
-      );
-      structured = await coerceTemplatePlatformFieldsToFit({
-        manifest: assignment.manifest,
-        variantKey: outputSizeKey,
-        fields: fallbackFields,
-        assetUrlByPath,
-      });
-      const configuredIssues = templateFieldIssues(
-        structured,
-        editableFields,
-        fieldLimits,
-        requiredFields
-      );
-      const geometryIssues = await templatePlatformFieldFitIssues({
-        manifest: assignment.manifest,
-        variantKey: outputSizeKey,
-        fields: structured,
-        assetUrlByPath,
-      });
-      const qualityIssues = generatedCopyQualityIssues(structured, editableFields);
-      retryReasons = [
-        ...editableFields.flatMap((key) =>
-          (configuredIssues[key] ?? []).map((issue) => `${key}: ${issue.message}`)
-        ),
-        ...formatTemplatePlatformFitIssues(geometryIssues),
-        ...formatGeneratedCopyQualityIssues(qualityIssues),
-      ];
-      if (!retryReasons.length) {
-        generationMode = "fallback";
-        out = {
-          fields: structured,
-          evidence: editableFields.map((field) => ({
-            field,
-            approved_source: fallbackSource,
-          })),
-        };
-      }
-    }
-
-    if (!out) {
       console.error("platform generated copy failed template fit validation:", {
         platformAssignmentId,
         outputSize: outputSizeKey,
@@ -787,6 +657,25 @@ export async function POST(req: Request) {
       approvedEvidenceSources
     );
     const rejectedEvidenceCount = rawEvidence.length - evidence.length;
+    const evidenceIssues = generatedCopyEvidenceIssues({
+      fields: structured,
+      evidence,
+      approvedSources: approvedEvidenceSources,
+    });
+    if (evidenceIssues.length) {
+      console.error("platform generated copy failed evidence validation:", {
+        platformAssignmentId,
+        outputSize: outputSizeKey,
+        reasons: evidenceIssues,
+      });
+      return Response.json(
+        {
+          error:
+            "ContentGate could not verify that every generated claim is grounded in approved sources.",
+        },
+        { status: 422 }
+      );
+    }
     const inheritedBackgroundChoice =
       asStringRecord(replaceContent?.structured_fields)[BACKGROUND_CHOICE_FIELD] ??
       asStringRecord(campaignSource?.structured_fields)[BACKGROUND_CHOICE_FIELD];
@@ -830,7 +719,7 @@ export async function POST(req: Request) {
       manually_edited_fields: [],
       compliance_state: "generated",
       ai_provider: provider,
-      ai_model: provider === "openai" ? OPENAI_GENERATION_MODEL : GENERATION_MODEL,
+      ai_model: OPENAI_GENERATION_MODEL,
       generation_mode: generationMode,
       evidence_validation: {
         accepted: evidence.length,

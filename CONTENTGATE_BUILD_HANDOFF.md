@@ -419,7 +419,7 @@ temporarily — this file is committed to a public repo.
 
 The app has been deployed on Vercel.
 
-OpenAI environment variables were being added as a cheaper AI option compared with Anthropic. Keep API keys in Vercel env vars and `.env.local`; never commit them.
+OpenAI is the only supported AI provider. Keep API keys in Vercel env vars and `.env.local`; never commit them.
 
 Supabase CLI issue encountered:
 
@@ -500,4 +500,3 @@ codex/template-background-options
 
 Do not redo completed architecture work. Inspect current branch, check PR/CI state, and proceed with browser QA / Studio UI review / merge prep.
 ```
-

@@ -8,7 +8,7 @@ Last updated: 2026-07-13
 - React 19
 - Tailwind CSS 4
 - Supabase Auth, Postgres, RLS, and Storage
-- Anthropic SDK / AI SDK
+- OpenAI Responses API
 - Vercel
 
 Do not rebuild or change stacks without a separate architecture decision. The practical path is to harden and organize the existing app.
@@ -93,7 +93,7 @@ AI copy generation must:
 - Product assets and source documents use private Storage buckets. Authenticated
   server reads issue one-hour signed URLs after organization-scoped RLS checks.
 - AI generation and Knowledge Hub calls consume atomic, per-user database rate
-  limits before invoking Anthropic.
+  limits before invoking OpenAI.
 - `/api/health` checks application-to-database connectivity without returning
   project details; scheduled GitHub Actions monitor the Production alias.
 
