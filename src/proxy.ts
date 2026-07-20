@@ -1,7 +1,9 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLIC_PATHS = ["/login", "/auth"];
+// /welcome must stay public: invitees arrive without a session and establish
+// one client-side from the invite link's tokens.
+const PUBLIC_PATHS = ["/login", "/auth", "/welcome"];
 
 export async function proxy(request: NextRequest) {
   // Not configured yet (fresh clone / preview without env) — let pages render.
