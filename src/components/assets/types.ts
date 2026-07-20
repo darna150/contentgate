@@ -5,7 +5,7 @@ import type {
 
 export type AssetItem = {
   id: string;
-  productId: string;
+  productId: string | null;
   productName: string;
   assetType: ProductAssetType;
   title: string;

@@ -78,23 +78,24 @@ export function parseProductAssetTags(value: FormDataEntryValue | null) {
 
 export function buildProductAssetStoragePath(
   orgId: string,
-  productId: string,
+  productId: string | null,
   fileName: string,
   assetId = crypto.randomUUID()
 ) {
-  return `${orgId}/${productId}/${assetId}-${sanitizeProductAssetFileName(fileName)}`;
+  return `${orgId}/${productId ?? "brand"}/${assetId}-${sanitizeProductAssetFileName(fileName)}`;
 }
 
 export function isProductAssetStoragePath(
   storagePath: string,
   orgId: string,
-  productId: string
+  productId: string | null
 ) {
   const parts = storagePath.split("/");
+  const collectionKey = productId ?? "brand";
   return (
     parts.length === 3 &&
     parts[0] === orgId &&
-    parts[1] === productId &&
+    parts[1] === collectionKey &&
     parts[2].length > 0
   );
 }
