@@ -1,6 +1,6 @@
 import type { TemplateBundleManifest } from "./manifest";
 
-export const CONTENTGATE_PUBLIC_ASSET_VERSION = "clean-figwright-2026-07-16-05";
+export const CONTENTGATE_PUBLIC_ASSET_VERSION = "vector-figwright-2026-07-19-01";
 
 type ContentGateAssetKind = "reference" | "background";
 

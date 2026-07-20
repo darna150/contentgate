@@ -46,6 +46,10 @@ function exportFormat(value: string | null): ServerExportFormat {
   return value === "jpeg" || value === "pdf" ? value : "png";
 }
 
+function exportScale(value: string | null): 1 | 2 {
+  return value === "2" || value === "2x" ? 2 : 1;
+}
+
 function safeFilename(value: string) {
   return (
     value
@@ -68,6 +72,7 @@ export async function GET(req: Request) {
   const requestedSizeParam = searchParams.get("size");
   const requestedSize = requestedSizeParam ?? "square";
   const format = exportFormat(searchParams.get("format"));
+  const scale = exportScale(searchParams.get("scale"));
   const download = searchParams.get("download") === "1";
   if (!contentId) return new Response("Missing content id", { status: 400 });
 
@@ -141,6 +146,7 @@ export async function GET(req: Request) {
       assetOrigin: new URL(req.url).origin,
       assetUrlByPath,
       textLayoutByField,
+      scale,
     });
     if (!rendered) return new Response("Template render failed", { status: 500 });
     const fonts = await loadTemplateBundleImageFonts({ manifest, assetUrlByPath });
@@ -159,12 +165,15 @@ export async function GET(req: Request) {
       size: variantKey as SizeKey,
       format,
     });
-    const filename = `${safeFilename(`${productName}-${variantKey}`)}.${converted.extension}`;
+    const filename = `${safeFilename(
+      `${productName}-${variantKey}${scale > 1 ? `-${scale}x` : ""}`
+    )}.${converted.extension}`;
     if (download) {
       const inputHash = renderInputSha256({
         contentId: content.id,
         fields,
         format,
+        scale,
         variantKey,
         revision: content.current_revision_number,
       });
@@ -199,6 +208,7 @@ export async function GET(req: Request) {
         variant_key: variantKey,
         width: rendered.width,
         height: rendered.height,
+        scale,
         surface: "creative_render",
         output_storage_path: outputStoragePath,
       };
