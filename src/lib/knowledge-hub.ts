@@ -1,16 +1,17 @@
 type KnowledgeSessionReference = {
   id: string;
-  productId: string;
+  productId: string | null;
 };
 
 export function resolveInitialKnowledgeSelection(input: {
-  productIds: readonly string[];
+  notebookIds: readonly string[];
   sessions: readonly KnowledgeSessionReference[];
   requestedProductId: string | null;
+  workspaceNotebookId: string;
 }) {
   const requestedProductIsAvailable =
     input.requestedProductId !== null &&
-    input.productIds.includes(input.requestedProductId);
+    input.notebookIds.includes(input.requestedProductId);
   const requestedProductId = requestedProductIsAvailable
     ? input.requestedProductId
     : null;
@@ -23,7 +24,6 @@ export function resolveInitialKnowledgeSelection(input: {
     selectedProductId:
       requestedProductId ??
       initialSession?.productId ??
-      input.productIds[0] ??
-      null,
+      input.workspaceNotebookId,
   };
 }

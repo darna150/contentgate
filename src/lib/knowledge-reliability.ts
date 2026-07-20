@@ -160,7 +160,7 @@ export function buildExtractiveKnowledgeAnswer(
   }
 
   return {
-    answer: `The approved source says: ${paragraph.paragraph_text}`,
+    answer: paragraph.paragraph_text,
     citations: [
       {
         document_id: paragraph.document_id,

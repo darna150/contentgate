@@ -30,17 +30,15 @@ export default async function DocumentDetailPage({
     supabase.auth.getUser(),
   ]);
   if (!doc) notFound();
+  if (!auth.user) redirect("/login");
 
   let isAdmin = false;
-  if (auth.user) {
-    const { data: me } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", auth.user.id)
-      .single();
-    isAdmin = me?.role === "admin";
-  }
-  if (!isAdmin) redirect("/ask");
+  const { data: me } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", auth.user.id)
+    .single();
+  isAdmin = me?.role === "admin";
 
   const uploader = Array.isArray(doc.profiles) ? doc.profiles[0] : doc.profiles;
   const product = Array.isArray(doc.products) ? doc.products[0] : doc.products;
@@ -64,10 +62,10 @@ export default async function DocumentDetailPage({
       <div className="flex items-end gap-4">
         <div className="flex min-w-0 flex-col gap-1.5">
           <Link
-            href="/knowledge"
+            href={isAdmin ? "/knowledge" : "/ask"}
             className="text-[13px] font-semibold text-brand hover:underline"
           >
-            ← Knowledge Hub
+            {isAdmin ? "← Source Documents" : "← Ask"}
           </Link>
           <div className="flex items-center gap-2.5">
             <h1 className="text-h1 truncate text-ink">
