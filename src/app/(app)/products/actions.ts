@@ -25,6 +25,57 @@ const SHARP_IMAGE_MIME_TYPES: Record<string, string> = {
   webp: "image/webp",
 };
 
+type SourceParagraph = { n: number; text: string };
+
+function normalizeSourceParagraphs(value: unknown): SourceParagraph[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item, index) => {
+      if (typeof item === "string") return { n: index + 1, text: item };
+      if (item && typeof item === "object") {
+        const record = item as Record<string, unknown>;
+        const n = typeof record.n === "number" ? record.n : index + 1;
+        const text = typeof record.text === "string" ? record.text : "";
+        return { n, text };
+      }
+      return { n: index + 1, text: "" };
+    })
+    .filter((paragraph) => paragraph.text.trim());
+}
+
+function isMissingProductClaimSourceColumn(error: { message?: string } | null) {
+  return Boolean(
+    error?.message?.includes("product_claims.source_document_id") ||
+      error?.message?.includes("product_claims.source_paragraph_n") ||
+      error?.message?.includes("product_claims.source_excerpt")
+  );
+}
+
+async function insertProductClaim(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  payload: {
+    org_id: string;
+    product_id: string;
+    claim_text: string;
+    status: "approved";
+    source_document_id?: string | null;
+    source_paragraph_n?: number | null;
+    source_excerpt?: string | null;
+  }
+) {
+  const { error } = await supabase.from("product_claims").insert(payload);
+  if (!isMissingProductClaimSourceColumn(error)) return error;
+
+  const fallbackPayload = {
+    org_id: payload.org_id,
+    product_id: payload.product_id,
+    claim_text: payload.claim_text,
+    status: payload.status,
+  };
+  const fallback = await supabase.from("product_claims").insert(fallbackPayload);
+  return fallback.error;
+}
+
 async function getAdminOrgId() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -93,13 +144,57 @@ export async function addClaim(productId: string, formData: FormData) {
   const { supabase, orgId } = await getAdminOrgId();
   const claimText = (formData.get("claim_text") as string)?.trim();
   if (!claimText) return;
-  await supabase.from("product_claims").insert({
+  const sourceDocumentId = cleanProductAssetText(formData.get("source_document_id"), 80);
+  const sourceParagraphRaw = cleanProductAssetText(formData.get("source_paragraph_n"), 12);
+  let sourceParagraphN: number | null = null;
+  if (sourceParagraphRaw) {
+    const parsedParagraph = Number.parseInt(sourceParagraphRaw, 10);
+    if (!Number.isInteger(parsedParagraph) || parsedParagraph <= 0) {
+      throw new Error("Choose a valid source paragraph number.");
+    }
+    sourceParagraphN = parsedParagraph;
+  }
+  if (sourceDocumentId) {
+    const { data: sourceDocument, error: sourceError } = await supabase
+      .from("documents")
+      .select("id, paragraphs")
+      .eq("id", sourceDocumentId)
+      .eq("org_id", orgId)
+      .eq("product_id", productId)
+      .maybeSingle();
+    if (sourceError) throw sourceError;
+    if (!sourceDocument) throw new Error("Choose a valid source document for this product.");
+    if (!sourceParagraphN) throw new Error("Choose a source paragraph for this claim.");
+    const sourceParagraph = normalizeSourceParagraphs(sourceDocument.paragraphs).find(
+      (paragraph) => paragraph.n === sourceParagraphN
+    );
+    if (!sourceParagraph) throw new Error("Choose a valid source paragraph for this document.");
+    const error = await insertProductClaim(supabase, {
+      org_id: orgId,
+      product_id: productId,
+      claim_text: claimText,
+      status: "approved",
+      source_document_id: sourceDocumentId,
+      source_paragraph_n: sourceParagraph.n,
+      source_excerpt: sourceParagraph.text,
+    });
+    if (error) throw error;
+    revalidatePath(`/products/${productId}/edit`);
+    revalidatePath(`/products/${productId}`);
+    return;
+  }
+  const error = await insertProductClaim(supabase, {
     org_id: orgId,
     product_id: productId,
     claim_text: claimText,
     status: "approved",
+    source_document_id: null,
+    source_paragraph_n: null,
+    source_excerpt: null,
   });
+  if (error) throw error;
   revalidatePath(`/products/${productId}/edit`);
+  revalidatePath(`/products/${productId}`);
 }
 
 export async function setClaimStatus(claimId: string, productId: string, status: string) {
@@ -117,21 +212,24 @@ export async function archiveProduct(productId: string) {
 
 export async function uploadProductAsset(productId: string, formData: FormData) {
   const { supabase, orgId, userId } = await getAdminOrgId();
+  const assetProductId = productId === "brand" ? null : productId;
   const assetType = String(formData.get("asset_type") ?? "");
   const file = formData.get("file");
   if (!isProductAssetType(assetType)) throw new Error("Choose a valid asset type.");
   if (!(file instanceof File) || file.size === 0) throw new Error("Choose an image.");
   validateProductAssetFile(file);
 
-  const { data: product, error: productError } = await supabase
-    .from("products")
-    .select("id")
-    .eq("id", productId)
-    .eq("org_id", orgId)
-    .eq("status", "active")
-    .maybeSingle();
-  if (productError) throw productError;
-  if (!product) throw new Error("Active product not found.");
+  if (assetProductId) {
+    const { data: product, error: productError } = await supabase
+      .from("products")
+      .select("id")
+      .eq("id", assetProductId)
+      .eq("org_id", orgId)
+      .eq("status", "active")
+      .maybeSingle();
+    if (productError) throw productError;
+    if (!product) throw new Error("Active product not found.");
+  }
 
   const title =
     cleanProductAssetText(formData.get("title"), 120) ??
@@ -155,7 +253,7 @@ export async function uploadProductAsset(productId: string, formData: FormData) 
   if (!detectedMimeType || detectedMimeType !== file.type) {
     throw new Error("The image contents do not match the selected file type.");
   }
-  const storagePath = buildProductAssetStoragePath(orgId, productId, file.name);
+  const storagePath = buildProductAssetStoragePath(orgId, assetProductId, file.name);
   const { error: uploadError } = await supabase.storage
     .from("product-assets")
     .upload(storagePath, fileBytes, { contentType: detectedMimeType, upsert: false });
@@ -165,7 +263,7 @@ export async function uploadProductAsset(productId: string, formData: FormData) 
     .from("product_assets")
     .insert({
       org_id: orgId,
-      product_id: productId,
+      product_id: assetProductId,
       asset_type: assetType,
       storage_path: storagePath,
       title,
@@ -194,7 +292,7 @@ export async function uploadProductAsset(productId: string, formData: FormData) 
     entity_type: "product_asset",
     entity_id: asset.id,
     detail: {
-      product_id: productId,
+      product_id: assetProductId,
       asset_type: assetType,
       title,
       file_name: file.name,
@@ -205,13 +303,15 @@ export async function uploadProductAsset(productId: string, formData: FormData) 
     },
   });
   revalidatePath("/assets");
-  revalidatePath(`/products/${productId}`);
-  revalidatePath(`/products/${productId}/edit`);
+  if (assetProductId) {
+    revalidatePath(`/products/${assetProductId}`);
+    revalidatePath(`/products/${assetProductId}/edit`);
+  }
 }
 
 export async function updateProductAssetMetadata(
   assetId: string,
-  productId: string,
+  productId: string | null,
   formData: FormData
 ) {
   const { supabase, orgId, userId } = await getAdminOrgId();
@@ -222,13 +322,17 @@ export async function updateProductAssetMetadata(
     throw new Error("Choose a valid approval status.");
   }
 
-  const { data: existing, error: readError } = await supabase
+  let readQuery = supabase
     .from("product_assets")
     .select("id, title, approval_status")
     .eq("id", assetId)
-    .eq("product_id", productId)
-    .eq("org_id", orgId)
-    .maybeSingle();
+    .eq("org_id", orgId);
+  if (productId) {
+    readQuery = readQuery.eq("product_id", productId);
+  } else {
+    readQuery = readQuery.is("product_id", null);
+  }
+  const { data: existing, error: readError } = await readQuery.maybeSingle();
   if (readError) throw readError;
   if (!existing) throw new Error("Asset not found.");
 
@@ -239,12 +343,17 @@ export async function updateProductAssetMetadata(
     tags: parseProductAssetTags(formData.get("tags")),
     approval_status: approvalStatus,
   };
-  const { error } = await supabase
+  const updateQuery = supabase
     .from("product_assets")
     .update(changes)
     .eq("id", assetId)
-    .eq("product_id", productId)
     .eq("org_id", orgId);
+  if (productId) {
+    updateQuery.eq("product_id", productId);
+  } else {
+    updateQuery.is("product_id", null);
+  }
+  const { error } = await updateQuery;
   if (error) throw error;
 
   await writeAudit({
@@ -261,19 +370,25 @@ export async function updateProductAssetMetadata(
     },
   });
   revalidatePath("/assets");
-  revalidatePath(`/products/${productId}`);
-  revalidatePath(`/products/${productId}/edit`);
+  if (productId) {
+    revalidatePath(`/products/${productId}`);
+    revalidatePath(`/products/${productId}/edit`);
+  }
 }
 
-export async function deleteProductAsset(assetId: string, productId: string) {
+export async function deleteProductAsset(assetId: string, productId: string | null) {
   const { supabase, orgId, userId } = await getAdminOrgId();
-  const { data: asset, error: readError } = await supabase
+  let readQuery = supabase
     .from("product_assets")
     .select("id, storage_path, asset_type, title")
     .eq("id", assetId)
-    .eq("product_id", productId)
-    .eq("org_id", orgId)
-    .maybeSingle();
+    .eq("org_id", orgId);
+  if (productId) {
+    readQuery = readQuery.eq("product_id", productId);
+  } else {
+    readQuery = readQuery.is("product_id", null);
+  }
+  const { data: asset, error: readError } = await readQuery.maybeSingle();
   if (readError) throw readError;
   if (!asset) return;
   if (!isProductAssetStoragePath(asset.storage_path, orgId, productId)) {
@@ -285,12 +400,17 @@ export async function deleteProductAsset(assetId: string, productId: string) {
     .remove([asset.storage_path]);
   if (storageError) throw storageError;
 
-  const { error: deleteError } = await supabase
+  let deleteQuery = supabase
     .from("product_assets")
     .delete()
     .eq("id", assetId)
-    .eq("product_id", productId)
     .eq("org_id", orgId);
+  if (productId) {
+    deleteQuery = deleteQuery.eq("product_id", productId);
+  } else {
+    deleteQuery = deleteQuery.is("product_id", null);
+  }
+  const { error: deleteError } = await deleteQuery;
   if (deleteError) throw deleteError;
   await writeAudit({
     org_id: orgId,
@@ -306,6 +426,8 @@ export async function deleteProductAsset(assetId: string, productId: string) {
     },
   });
   revalidatePath("/assets");
-  revalidatePath(`/products/${productId}`);
-  revalidatePath(`/products/${productId}/edit`);
+  if (productId) {
+    revalidatePath(`/products/${productId}`);
+    revalidatePath(`/products/${productId}/edit`);
+  }
 }

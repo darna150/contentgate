@@ -15,7 +15,7 @@ type Joined<T> = T | T[] | null;
 
 type AssetRow = {
   id: string;
-  product_id: string;
+  product_id: string | null;
   asset_type: ProductAssetType;
   title: string;
   description: string | null;
@@ -48,7 +48,16 @@ export default async function AssetsPage({
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
     return (
       <div className="mx-auto flex max-w-[1280px] flex-col gap-6 px-10 py-9">
-        <AssetLibrary assets={[]} products={[]} collections={[]} filters={filters} isAdmin={false} />
+        <AssetLibrary
+          assets={[]}
+          products={[]}
+          collections={[
+            { id: "", label: "All assets", count: 0 },
+            { id: "brand", label: "Brand", count: 0 },
+          ]}
+          filters={filters}
+          isAdmin={false}
+        />
       </div>
     );
   }
@@ -57,7 +66,7 @@ export default async function AssetsPage({
   const [{ assets: rawAssets, role }, { data: productRows }, { data: allAssetProductIds }] =
     await Promise.all([
       listProductAssets({
-        productId: filters.product || undefined,
+        productId: filters.product === "brand" ? null : filters.product || undefined,
         assetType: filters.type || undefined,
         approvalStatus: filters.status || undefined,
         tag: filters.tag || undefined,
@@ -70,10 +79,12 @@ export default async function AssetsPage({
   const products: ProductOption[] = productRows ?? [];
   const countsByProduct = new Map<string, number>();
   for (const row of allAssetProductIds ?? []) {
-    countsByProduct.set(row.product_id, (countsByProduct.get(row.product_id) ?? 0) + 1);
+    const key = row.product_id ?? "brand";
+    countsByProduct.set(key, (countsByProduct.get(key) ?? 0) + 1);
   }
   const collections = [
     { id: "", label: "All assets", count: allAssetProductIds?.length ?? 0 },
+    { id: "brand", label: "Brand", count: countsByProduct.get("brand") ?? 0 },
     ...products.map((p) => ({ id: p.id, label: p.name, count: countsByProduct.get(p.id) ?? 0 })),
   ];
 
@@ -82,7 +93,7 @@ export default async function AssetsPage({
     return {
       id: row.id,
       productId: row.product_id,
-      productName: product?.name ?? "Unknown product",
+      productName: product?.name ?? "Brand",
       assetType: row.asset_type,
       title: row.title,
       description: row.description,
