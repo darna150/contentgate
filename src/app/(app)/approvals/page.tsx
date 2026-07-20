@@ -7,6 +7,7 @@ import { StatusPill } from "@/components/status-pill";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { getApprovalPage } from "@/lib/content-listing";
+import { studioContentUrl } from "@/lib/creative";
 import { getProductWorkspace } from "@/lib/product-workspace-server";
 
 const LANGUAGES = ["English", "Filipino", "Spanish", "Portuguese", "Vietnamese", "Thai"];
@@ -148,7 +149,7 @@ export default async function ApprovalsPage({
             return (
               <Link
                 key={row.id}
-                href={`/content/${row.id}`}
+                href={studioContentUrl(row.id)}
                 className={`flex items-center gap-3.5 rounded-control border-l-4 px-3.5 py-3 transition-colors hover:bg-page ${URGENCY_BORDER[urgency.tone]}`}
               >
                 <span className="flex min-w-0 flex-1 flex-col">
@@ -174,8 +175,8 @@ export default async function ApprovalsPage({
                   )}
                 </span>
                 <StatusPill status="in_review" />
-                <span className="text-[13px] font-semibold text-brand">
-                  Review →
+                <span className="rounded-[7px] bg-ink px-3 py-1.5 text-[12.5px] font-semibold text-white">
+                  Review
                 </span>
               </Link>
             );

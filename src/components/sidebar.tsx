@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -26,8 +25,8 @@ const NAV = [
   { href: "/products", label: "Products", icon: Sparkles },
   { href: "/content", label: "Content", icon: Rows3 },
   { href: "/approvals", label: "Approvals", icon: CheckCircle2 },
-  { href: "/assets", label: "Asset Library", icon: Images },
-  { href: "/ask", label: "Knowledge Hub", icon: MessageSquareText },
+  { href: "/assets", label: "Assets", icon: Images },
+  { href: "/ask", label: "Ask", icon: MessageSquareText },
 ];
 
 // Admin-only: cross-org configuration surfaces, visually separated below.
@@ -185,21 +184,31 @@ export function Sidebar({ orgName, orgIndustry, userName, userRole, pendingCount
       </div>
       <div className="min-w-0 flex-1">
         <p className="truncate text-[13px] font-semibold text-white">{orgName}</p>
-        <p className="text-[11px] text-sidebar-faint">Workspace</p>
+        <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-sidebar-faint">
+          {userRole === "admin" ? "Admin workspace" : "Member workspace"}
+        </p>
       </div>
     </div>
+  );
+
+  const logo = (
+    <Link href="/dashboard" className="flex items-center gap-2.5" onClick={() => setMobileOpen(false)}>
+      <span className="flex h-[26px] w-[26px] items-center justify-center rounded-[7px] bg-brand text-[15px] font-extrabold leading-none text-white">
+        C
+      </span>
+      <span className="text-[18px] font-bold tracking-[-0.03em] text-white">contentgate</span>
+    </Link>
   );
 
   return (
     <>
       <header className="sticky top-0 z-40 flex h-16 w-full items-center justify-between border-b border-edge bg-surface px-4 md:hidden">
-        <Image
-          src="/brand/contentgate/logo-primary.svg"
-          alt="ContentGate"
-          width={135}
-          height={27}
-          priority
-        />
+        <Link href="/dashboard" className="flex items-center gap-2">
+          <span className="flex h-[26px] w-[26px] items-center justify-center rounded-[7px] bg-brand text-[15px] font-extrabold leading-none text-white">
+            C
+          </span>
+          <span className="text-[17px] font-bold tracking-[-0.03em] text-ink">contentgate</span>
+        </Link>
         <button
           ref={menuButtonRef}
           type="button"
@@ -231,13 +240,7 @@ export function Sidebar({ orgName, orgIndustry, userName, userRole, pendingCount
             className="relative flex h-full w-[min(320px,88vw)] flex-col gap-4 bg-brand-dark px-3.5 py-5 shadow-elevated"
           >
             <div className="flex items-center justify-between px-2 py-1">
-              <Image
-                src="/brand/contentgate/logo-mono-white.svg"
-                alt="ContentGate"
-                width={140}
-                height={28}
-                priority
-              />
+              {logo}
               <button
                 ref={closeButtonRef}
                 type="button"
@@ -259,13 +262,7 @@ export function Sidebar({ orgName, orgIndustry, userName, userRole, pendingCount
 
       <aside className="sticky top-0 hidden h-screen w-[248px] shrink-0 flex-col gap-4 bg-brand-dark px-3.5 py-5 md:flex">
         <div className="flex flex-col gap-1 px-2 py-1">
-          <Image
-            src="/brand/contentgate/logo-mono-white.svg"
-            alt="ContentGate"
-            width={140}
-            height={28}
-            priority
-          />
+          {logo}
           {orgIndustry && (
             <span className="pl-[33px] text-[10px] uppercase tracking-[0.12em] text-sidebar-faint">
               {orgIndustry}

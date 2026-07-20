@@ -7,20 +7,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   draftPreviewUrl,
   knownSizeDimensions,
   platformTemplatePreviewUrl,
   renderUrl,
   sizeLabel,
   studioContentUrl,
-  studioNewUrl,
   templatePreviewUrl,
 } from "@/lib/creative";
 import {
@@ -32,13 +24,13 @@ import {
   getTemplateBundleVariantDimensions,
   getTemplateBundleVariantLabel,
 } from "@/lib/template-platform/runtime";
+import type { TemplateBundleTextLayout } from "@/lib/template-platform/render";
 import { fieldIssues } from "@/lib/template-fields";
 import {
   checkDraftStructuredFieldsFit,
   submitForReview,
   updateStructuredFields,
 } from "../content/actions";
-import type { TemplateBundleTextLayout } from "@/lib/template-platform/render";
 import {
   GenerationLoader,
   LiveTemplatePreviewFrame,
@@ -50,7 +42,7 @@ import { StudioFields } from "./studio-fields";
 import { StudioGeneratePanel } from "./studio-generate-panel";
 import { resolveStudioMode } from "./studio-mode";
 import { StudioReviewActions } from "./studio-review-actions";
-import { StudioToolbar, type ExportFormat } from "./studio-toolbar";
+import { StudioExportBar, StudioToolbar, type ExportFormat, type ExportScale } from "./studio-toolbar";
 import { StudioVersions } from "./studio-versions";
 import type {
   StudioContent,
@@ -110,21 +102,21 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 export function StudioWorkspace({
-  templates,
   selectedProduct,
   selectedTemplate,
   initialContents,
   initialSize,
   versionsBySize,
   canReview,
+  canDownloadDraftPreviews,
 }: {
-  templates: StudioTemplate[];
   selectedProduct: StudioProduct;
   selectedTemplate: StudioTemplate;
   initialContents: StudioContent[];
   initialSize: string | null;
   versionsBySize: Record<string, StudioContent[]>;
   canReview: boolean;
+  canDownloadDraftPreviews: boolean;
 }) {
   const router = useRouter();
   const sizes = useMemo(
@@ -169,6 +161,7 @@ export function StudioWorkspace({
   const [submitting, setSubmitting] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [exportFormat, setExportFormat] = useState<ExportFormat>("png");
+  const [exportScale, setExportScale] = useState<ExportScale>("1");
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [retryUntil, setRetryUntil] = useState<number | null>(null);
@@ -186,11 +179,13 @@ export function StudioWorkspace({
     ? Math.max(0, Math.ceil((retryUntil - now) / 1000))
     : 0;
   const generationPaused = retrySecondsRemaining > 0;
-
-  const productTemplates = useMemo(
-    () => templates.filter((template) => template.product_id === selectedProduct.id),
-    [templates, selectedProduct.id]
-  );
+  const generationBlocked = generationPaused || saveState === "saving";
+  const generationPauseLabel =
+    saveState === "saving"
+      ? "Saving draft…"
+      : generationPaused
+        ? `Try again in ${formatRetryWait(retrySecondsRemaining)}`
+        : null;
 
   const mode = resolveStudioMode({
     hasContent: content !== null,
@@ -263,6 +258,11 @@ export function StudioWorkspace({
   );
   const hasIssues = activeEditableFields.some((key) => issuesByField[key].length > 0);
   const hasLayoutOverflow = overflowFields.length > 0;
+  const fitCheckSignature = useMemo(
+    () =>
+      JSON.stringify(activeEditableFields.map((key) => [key, draftFields[key] ?? ""])),
+    [activeEditableFields, draftFields]
+  );
   const dirty =
     mode === "edit" &&
     content !== null &&
@@ -307,20 +307,34 @@ export function StudioWorkspace({
       sizes,
     ]
   );
+  const [showOriginal, setShowOriginal] = useState(false);
+  const isBrandReferenceView = showOriginal || (!content && !hasAnyGeneratedDraft);
   const generatedPreviewUrl = content
     ? draftPreviewUrl(content.id, size, savedAt ?? content.id)
     : null;
-  const serverPreviewUpdating =
-    !!content && (dirty || saveState === "unsaved" || saveState === "saving");
-  const [showOriginal, setShowOriginal] = useState(false);
-  const isBrandReferenceView = showOriginal || (!content && !hasAnyGeneratedDraft);
   const previewUrl = showOriginal || !generatedPreviewUrl ? originalPreviewUrl : generatedPreviewUrl;
+  const draftPreviewDownloadAllowed =
+    !!content &&
+    !isBrandReferenceView &&
+    canDownloadDraftPreviews &&
+    !exportAllowed &&
+    !dirty &&
+    !hasIssues &&
+    !hasLayoutOverflow &&
+    saveState !== "saving" &&
+    saveState !== "unsaved";
   const downloadDisabledReason = isBrandReferenceView
     ? undefined
     : content
       ? exportAllowed
         ? undefined
-        : "Generated assets can be downloaded after approval"
+        : canDownloadDraftPreviews
+          ? dirty || saveState === "unsaved" || saveState === "saving"
+            ? "Wait for autosave before downloading the draft preview"
+            : hasIssues || hasLayoutOverflow
+              ? "Fix copy limits before downloading the draft preview"
+              : undefined
+          : "Generated assets can be downloaded after approval"
       : "Generate this size before downloading it";
   const downloadDisabled = Boolean(downloadDisabledReason);
   const versions = versionsBySize[size] ?? [];
@@ -330,15 +344,9 @@ export function StudioWorkspace({
     return window.confirm("You have unsaved copy edits. Discard them and continue?");
   }
 
-  // Debounced measured-fit check + shrink-to-fit layout resolution. Layout
-  // resolution (what drives the live preview's actual font size) must run
-  // in every mode that shows a platform-manifest draft — including when the
-  // legacy character-count hint (hasIssues) already objects, since that
-  // heuristic is stricter than the real glyph-measured shrink range and
-  // otherwise silently starves the live preview of a resolved size. The
-  // overflow advisory message is still edit-mode-only and suppressed while
-  // hasIssues already has its own message, to avoid double-reporting.
-  // save/submit/approve re-run the fit check authoritatively server-side.
+  // Debounced measured-fit check. The visible Studio editing preview renders
+  // locally so background and text edits feel instant. This server check only
+  // drives overflow/advisory state and submit readiness.
   useEffect(() => {
     let cancelled = false;
     let timer: number;
@@ -355,7 +363,10 @@ export function StudioWorkspace({
       };
     }
     const showOverflowAdvisory = mode === "edit" && !hasIssues;
-    const snapshot = { ...draftFields };
+    const snapshot = Object.fromEntries(JSON.parse(fitCheckSignature)) as Record<
+      string,
+      string
+    >;
     timer = window.setTimeout(async () => {
       const result = await checkDraftStructuredFieldsFit(content.id, snapshot);
       if (cancelled) return;
@@ -363,15 +374,22 @@ export function StudioWorkspace({
         if (showOverflowAdvisory) setOverflowFields(["layout"]);
         return;
       }
+      setTextLayoutByField(result.textLayoutByField);
       if (showOverflowAdvisory) setOverflowFields(result.overflowFields);
       else if (mode === "edit") setOverflowFields([]);
-      setTextLayoutByField(result.textLayoutByField);
-    }, 400);
+    }, 900);
     return () => {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [content, draftFields, hasIssues, mode, selectedTemplate.platformManifest, size]);
+  }, [
+    content,
+    fitCheckSignature,
+    hasIssues,
+    mode,
+    selectedTemplate.platformManifest,
+    size,
+  ]);
 
   useEffect(() => {
     if (!retryUntil) return undefined;
@@ -447,6 +465,7 @@ export function StudioWorkspace({
     setError(null);
     setCopied(false);
     setOverflowFields([]);
+    setTextLayoutByField(undefined);
     setSaveState("idle");
     setSavedAt(null);
     setShowOriginal(false);
@@ -459,23 +478,28 @@ export function StudioWorkspace({
     );
     setSaveState(nextDirty ? "unsaved" : "saved");
     setHasManualEdits(nextDirty ? true : (content?.manuallyEdited ?? false));
+    if (key !== BACKGROUND_CHOICE_FIELD) setTextLayoutByField(undefined);
     setDraftFields(nextFields);
-  }
-
-  function switchTemplate(templateId: string) {
-    if (!confirmDiscardUnsavedChanges()) return;
-    const nextTemplate = templates.find((template) => template.id === templateId);
-    router.push(
-      studioNewUrl({
-        productId: selectedProduct.id,
-        assignmentId: nextTemplate?.platformAssignmentId,
-      })
-    );
   }
 
   async function generate() {
     if (generationPaused) return;
-    if (dirty && !confirmDiscardUnsavedChanges()) return;
+    if (saveState === "saving") {
+      setError("Studio is still saving your last edit. Try again in a second.");
+      return;
+    }
+    if (dirty) {
+      if (!confirmDiscardUnsavedChanges()) return;
+      saveSequence.current += 1;
+      setDraftFields(savedFields);
+      setSavedFields(savedFields);
+      setHasManualEdits(content?.manuallyEdited ?? false);
+      setSaveState("saved");
+      setSavedAt(null);
+      setOverflowFields([]);
+      setTextLayoutByField(undefined);
+    }
+    saveSequence.current += 1;
     setBusy(true);
     setError(null);
     try {
@@ -523,6 +547,7 @@ export function StudioWorkspace({
       setSize(nextContentSize);
       setDraftFields(nextContent.structured_fields);
       setSavedFields(nextContent.structured_fields);
+      setTextLayoutByField(undefined);
       setSaveState("saved");
       setSavedAt(new Date().toISOString());
       setHasManualEdits(false);
@@ -577,9 +602,30 @@ export function StudioWorkspace({
           .toLowerCase();
         const serverPreviewUrl = new URL(originalPreviewUrl, window.location.origin);
         serverPreviewUrl.searchParams.set("format", exportFormat);
+        serverPreviewUrl.searchParams.set("scale", exportScale);
         serverPreviewUrl.searchParams.set("download", "1");
         await downloadUrl(
           serverPreviewUrl.toString(),
+          `${filename}.${exportFormat === "jpeg" ? "jpg" : exportFormat}`
+        );
+        return;
+      }
+
+      if (content && draftPreviewDownloadAllowed) {
+        const serverDraftPreviewUrl = new URL(
+          draftPreviewUrl(content.id, size, savedAt ?? content.id),
+          window.location.origin
+        );
+        serverDraftPreviewUrl.searchParams.set("format", exportFormat);
+        serverDraftPreviewUrl.searchParams.set("scale", exportScale);
+        serverDraftPreviewUrl.searchParams.set("download", "1");
+        const filename = `${selectedProduct.name}-${selectedTemplate.variant}-${size}-draft-preview${
+          exportScale === "2" ? "-2x" : ""
+        }`
+          .replace(/[^\w]+/g, "-")
+          .toLowerCase();
+        await downloadUrl(
+          serverDraftPreviewUrl.toString(),
           `${filename}.${exportFormat === "jpeg" ? "jpg" : exportFormat}`
         );
         return;
@@ -597,8 +643,11 @@ export function StudioWorkspace({
       if (!response.ok) throw new Error("Export could not be recorded.");
       const serverRenderUrl = new URL(renderUrl(content.id, size), window.location.origin);
       serverRenderUrl.searchParams.set("format", exportFormat);
+      serverRenderUrl.searchParams.set("scale", exportScale);
       serverRenderUrl.searchParams.set("download", "1");
-      const filename = `${selectedProduct.name}-${selectedTemplate.variant}-${size}`
+      const filename = `${selectedProduct.name}-${selectedTemplate.variant}-${size}${
+        exportScale === "2" ? "-2x" : ""
+      }`
         .replace(/[^\w]+/g, "-")
         .toLowerCase();
       await downloadUrl(
@@ -651,22 +700,19 @@ export function StudioWorkspace({
     setSavedAt(reviewedAt);
   }
 
+  const studioTitle = content?.title || `${selectedProduct.name} — ${selectedTemplate.variant}`;
+
   return (
-    <div className="flex flex-col gap-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex min-w-0 flex-wrap items-center gap-2 text-[13.5px]">
-          <Link href="/products" className="font-semibold text-ink-faint hover:text-brand">
-            Products
+    <div className="flex h-screen min-h-[720px] flex-col overflow-hidden bg-page">
+      <header className="flex h-[76px] shrink-0 items-center justify-between gap-4 border-b border-edge bg-surface px-10">
+        <div className="flex min-w-0 items-center gap-4">
+          <Link href="/content" className="shrink-0 text-[14px] font-semibold text-ink-muted hover:text-brand">
+            ← Content
           </Link>
-          <span className="text-ink-faint">/</span>
-          <Link
-            href={`/products/${selectedProduct.id}`}
-            className="font-semibold text-ink-muted hover:text-brand"
-          >
-            {selectedProduct.name}
-          </Link>
-          <span className="text-ink-faint">/</span>
-          <span className="font-semibold text-ink">{selectedTemplate.variant}</span>
+          <span className="h-5 w-px shrink-0 bg-edge" aria-hidden="true" />
+          <h1 className="truncate text-[18px] font-bold tracking-[-0.02em] text-ink">
+            {studioTitle}
+          </h1>
           {content && (
             <Badge
               variant={
@@ -683,24 +729,22 @@ export function StudioWorkspace({
             </Badge>
           )}
         </div>
-        {productTemplates.length > 1 && (
-          <Select value={selectedTemplate.id} onValueChange={switchTemplate}>
-            <SelectTrigger size="sm" aria-label="Switch template">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {productTemplates.map((template) => (
-                <SelectItem key={template.id} value={template.id}>
-                  {template.variant}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        {canReview && content ? (
+          <span className="shrink-0 text-[14px] font-bold text-brand">
+            {mode === "review" ? "Reviewer view" : "Preview as reviewer"}
+          </span>
+        ) : (
+          <span className="shrink-0 text-[13px] font-semibold text-ink-faint">
+            {selectedProduct.name}
+          </span>
         )}
-      </div>
+      </header>
 
-      <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
-        <div className="flex flex-col gap-5">
+      <div
+        className="grid min-h-0 flex-1 overflow-hidden"
+        style={{ gridTemplateColumns: "minmax(360px, 400px) minmax(0, 1fr)" }}
+      >
+        <aside className="flex min-h-0 flex-col gap-7 overflow-y-auto border-r border-edge bg-surface px-10 py-8">
           {mode === "create" && (
             <StudioGeneratePanel
               language={language}
@@ -709,10 +753,8 @@ export function StudioWorkspace({
               onRevisionChange={setSelectedRevision}
               onGenerate={generate}
               busy={busy}
-              generationPaused={generationPaused}
-              retryLabel={
-                generationPaused ? `Try again in ${formatRetryWait(retrySecondsRemaining)}` : null
-              }
+              generationPaused={generationBlocked}
+              retryLabel={generationPauseLabel}
               buttonLabel={
                 selectedRevision
                   ? `Generate ${activeSizeLabel} with refinement`
@@ -730,10 +772,8 @@ export function StudioWorkspace({
               onRevisionChange={setSelectedRevision}
               onGenerate={generate}
               busy={busy}
-              generationPaused={generationPaused}
-              retryLabel={
-                generationPaused ? `Try again in ${formatRetryWait(retrySecondsRemaining)}` : null
-              }
+              generationPaused={generationBlocked}
+              retryLabel={generationPauseLabel}
               buttonLabel={selectedRevision ? "Apply refinement to draft" : "Regenerate draft"}
               error={error}
             />
@@ -747,10 +787,8 @@ export function StudioWorkspace({
               onRevisionChange={setSelectedRevision}
               onGenerate={generate}
               busy={busy}
-              generationPaused={generationPaused}
-              retryLabel={
-                generationPaused ? `Try again in ${formatRetryWait(retrySecondsRemaining)}` : null
-              }
+              generationPaused={generationBlocked}
+              retryLabel={generationPauseLabel}
               buttonLabel={
                 selectedRevision
                   ? `Create new ${activeSizeLabel} draft with refinement`
@@ -766,7 +804,6 @@ export function StudioWorkspace({
 
           {content && !showOriginal && selectedTemplate.platformManifest && hasBackgroundOptions && (
             <StudioBackgroundPicker
-              manifest={selectedTemplate.platformManifest}
               options={backgroundOptions}
               value={selectedBackgroundKey}
               editable={editable}
@@ -875,9 +912,9 @@ export function StudioWorkspace({
           {versions.length > 1 && (
             <StudioVersions versions={versions} currentContentId={content?.id ?? null} size={size} />
           )}
-        </div>
+        </aside>
 
-        <div className="flex min-w-0 flex-col gap-4">
+        <section className="flex min-h-0 min-w-0 flex-col bg-page">
           <StudioToolbar
             sizes={sizes}
             activeSize={size}
@@ -899,19 +936,6 @@ export function StudioWorkspace({
               return "draft";
             }}
             onSelectSize={selectSize}
-            statusSummary={
-              isBrandReferenceView
-                ? `Brand reference · ${activeSizeLabel}`
-                : content
-                  ? `${STATUS_LABEL[content.status] ?? content.status} · ${activeSizeLabel}`
-                  : `not generated · ${activeSizeLabel}`
-            }
-            exportFormat={exportFormat}
-            onExportFormatChange={setExportFormat}
-            onDownload={download}
-            downloading={downloading}
-            downloadDisabled={downloadDisabled}
-            downloadDisabledReason={downloadDisabledReason}
             viewToggle={
               hasAnyGeneratedDraft && content
                 ? { showOriginal, onShowOriginalChange: setShowOriginal }
@@ -919,7 +943,7 @@ export function StudioWorkspace({
             }
           />
 
-          <div className="relative">
+          <div className="relative min-h-0 flex-1 overflow-hidden bg-page">
             {busy && <GenerationLoader />}
             {!content && hasAnyGeneratedDraft && !showOriginal ? (
               <MissingDraftFrame
@@ -929,7 +953,7 @@ export function StudioWorkspace({
                 busy={busy}
                 onGenerate={generate}
               />
-            ) : !showOriginal && content && selectedTemplate.platformManifest ? (
+            ) : content && !isBrandReferenceView && selectedTemplate.platformManifest ? (
               <LiveTemplatePreviewFrame
                 manifest={selectedTemplate.platformManifest}
                 variantKey={size}
@@ -937,18 +961,29 @@ export function StudioWorkspace({
                 textLayoutByField={textLayoutByField}
                 width={dims.w}
                 height={dims.h}
-                updating={serverPreviewUpdating}
+                updating={saveState === "saving"}
               />
             ) : (
               <ServerPreviewFrame
                 src={previewUrl}
                 width={dims.w}
                 height={dims.h}
-                updating={!showOriginal && serverPreviewUpdating}
+                updating={false}
               />
             )}
           </div>
-        </div>
+          <StudioExportBar
+            exportFormat={exportFormat}
+            onExportFormatChange={setExportFormat}
+            exportScale={exportScale}
+            onExportScaleChange={setExportScale}
+            onDownload={download}
+            downloading={downloading}
+            downloadDisabled={downloadDisabled}
+            downloadDisabledReason={downloadDisabledReason}
+            canDownloadDraft={draftPreviewDownloadAllowed}
+          />
+        </section>
       </div>
     </div>
   );

@@ -1,8 +1,35 @@
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { fieldLabel } from "@/lib/templates";
-import { fieldLimitText, type FieldIssue, type FieldLimits } from "@/lib/template-fields";
+import type { FieldIssue, FieldLimits } from "@/lib/template-fields";
 import { cn } from "@/lib/utils";
+
+function compactFieldLabel(key: string) {
+  if (key === "subheadline" || key === "subline" || key === "supportCopy") return "Subhead";
+  if (key === "cta") return "CTA";
+  return fieldLabel(key);
+}
+
+function fitIndicator(input: {
+  value: string;
+  limit?: FieldLimits[string];
+  required: boolean;
+  issues: FieldIssue[];
+  overflowing: boolean;
+}) {
+  const max = input.limit?.max_chars;
+  const count = input.value.length;
+  if (max) {
+    if (count > max) return `${count}/${max} · over by ${count - max}`;
+    if (input.overflowing) return `${count}/${max} · layout over`;
+    if (input.issues.length) return `${count}/${max} · needs edit`;
+    return `${count}/${max} ✓ fits`;
+  }
+  if (!input.value.trim() && input.required) return "Required";
+  if (input.overflowing) return "Layout over";
+  if (input.issues.length) return input.issues.map((issue) => issue.message).join(" · ");
+  return "✓ fits";
+}
 
 export function StudioFields({
   fields,
@@ -25,49 +52,56 @@ export function StudioFields({
 }) {
   const required = new Set(requiredFields);
   return (
-    <div className="flex flex-col gap-3 rounded-card border border-edge bg-surface p-5">
-      <span className="text-label text-ink-faint">Text fields</span>
+    <div className="flex flex-col gap-3">
+      <span className="text-label text-ink-faint">Copy</span>
       {fields.map((key) => {
         const issues = issuesByField[key] ?? [];
         const overflowing = overflowFields.includes(key);
         const hasProblem = issues.length > 0 || overflowing;
+        const value = values[key] ?? "";
+        const indicator = fitIndicator({
+          value,
+          limit: limits[key],
+          required: required.has(key),
+          issues,
+          overflowing,
+        });
+        const rows = Math.min(4, Math.max(1, limits[key]?.max_lines ?? (key === "cta" ? 1 : 2)));
         return (
           <div
             key={key}
-            className="flex flex-col gap-1.5 border-b border-edge pb-3 last:border-0 last:pb-0"
+            className="flex flex-col gap-1.5"
           >
-            <Label className="text-[11px] normal-case tracking-normal text-ink-faint">
-              {fieldLabel(key)} · {fieldLimitText(limits[key])}
-              {!required.has(key) ? " · Optional" : ""}
-            </Label>
+            <div className="flex items-center justify-between gap-3">
+              <Label className="text-[13px] font-normal text-ink-muted">
+                {compactFieldLabel(key)}
+                {!required.has(key) ? " · Optional" : ""}
+              </Label>
+              {editable && (
+                <span
+                  className={cn(
+                    "shrink-0 text-[13px] font-semibold",
+                    hasProblem ? "text-reject" : "text-brand"
+                  )}
+                >
+                  {indicator}
+                </span>
+              )}
+            </div>
             {editable ? (
               <Textarea
-                value={values[key] ?? ""}
+                value={value}
                 onChange={(event) => onChange?.(key, event.target.value)}
-                rows={Math.min(5, Math.max(1, limits[key]?.max_lines ?? 2))}
+                rows={rows}
                 className={cn(
-                  "resize-none text-[12.5px]",
+                  "min-h-0 resize-none rounded-[8px] bg-surface px-4 py-3 text-[16px] leading-snug text-ink",
                   hasProblem && "border-reject focus:border-reject"
                 )}
               />
             ) : (
-              <p className="whitespace-pre-line text-[12.5px] leading-relaxed text-ink">
-                {values[key] || "—"}
+              <p className="whitespace-pre-line rounded-[8px] border border-edge bg-page px-4 py-3 text-[14px] leading-relaxed text-ink">
+                {value || "—"}
               </p>
-            )}
-            {editable && (
-              <span
-                className={cn(
-                  "text-[10.5px] font-semibold",
-                  hasProblem ? "text-reject" : "text-approve"
-                )}
-              >
-                {issues.length
-                  ? issues.map((issue) => issue.message).join(" · ")
-                  : overflowing
-                    ? "Text does not fit this locked design"
-                    : "✓ Fits template"}
-              </span>
             )}
           </div>
         );
