@@ -28,3 +28,27 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+
+  # Two orgs, zero cross-reads, storage denial — replayed on a fresh local
+  # Supabase stack so migration history must also apply cleanly from scratch.
+  # This test never gets deleted (PLAN.md).
+  tenant-isolation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.109.1
+      - name: Start local Supabase stack (replays all migrations)
+        run: supabase start -x studio,inbucket,imgproxy,analytics,edge-runtime,functions,meta,realtime,vector
+      - name: Run tenant-isolation test
+        run: |
+          eval "$(supabase status -o env)"
+          export API_URL ANON_KEY SERVICE_ROLE_KEY DB_URL
+          node --test scripts/tenant-isolation.test.mjs
