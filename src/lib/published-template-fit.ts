@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
+import { createRequire } from "node:module";
 import { join } from "node:path";
-import * as opentype from "opentype.js";
 import type { Font, Glyph } from "opentype.js";
 
 import {
@@ -28,12 +28,12 @@ const FONT_FILE_BY_WEIGHT: Record<number, string> = {
   600: "Inter-SemiBold.ttf",
   700: "Inter-Bold.ttf",
 };
+const require = createRequire(import.meta.url);
+const { parse: parseFont } = require("opentype.js") as {
+  parse: (buffer: ArrayBuffer) => Font;
+};
 
 const fontPromises = new Map<number, Promise<Font>>();
-const parseFont =
-  opentype.parse ??
-  (opentype as typeof opentype & { default?: { parse?: typeof opentype.parse } })
-    .default?.parse;
 
 function supportedWeight(weight: number) {
   if (weight >= 650) return 700;
@@ -61,7 +61,7 @@ async function loadInterFont(weight: number): Promise<Font> {
         FONT_FILE_BY_WEIGHT[resolvedWeight]
       )
     ).then((buffer) =>
-      parseFont!(
+      parseFont(
         buffer.buffer.slice(
           buffer.byteOffset,
           buffer.byteOffset + buffer.byteLength
