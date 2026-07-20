@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { flattenFields } from "@/lib/templates";
 import { templateFieldIssues, type FieldLimits } from "@/lib/template-fields";
 import { validateTemplateContentFit } from "@/lib/template-content-fit";
+import { validateStoredContentEvidence } from "@/lib/evidence-lifecycle";
 import type { TemplateBundleManifest } from "@/lib/template-platform/manifest";
 import {
   formatTemplatePlatformFitIssues,
@@ -428,6 +429,10 @@ export async function approveContent(id: string): Promise<ActionResult> {
   if (validationError) {
     return { error: `Content no longer fits its template: ${validationError}` };
   }
+  const evidenceError = await validateStoredContentEvidence(ctx.supabase, id);
+  if (evidenceError) {
+    return { error: evidenceError };
+  }
 
   const { error } = await ctx.supabase.rpc("transition_generated_content", {
     p_content_id: id,
@@ -492,6 +497,10 @@ export async function submitForReview(id: string): Promise<ActionResult> {
   const validationError = await validateStoredTemplateFields(current, ctx.supabase);
   if (validationError) {
     return { error: `Content does not fit its template: ${validationError}` };
+  }
+  const evidenceError = await validateStoredContentEvidence(ctx.supabase, id);
+  if (evidenceError) {
+    return { error: evidenceError };
   }
 
   const { error } = await ctx.supabase.rpc("transition_generated_content", {
