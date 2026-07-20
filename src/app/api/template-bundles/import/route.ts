@@ -1,5 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
-import { importTemplateBundle } from "@/lib/template-platform/importer";
+import {
+  importTemplateBundle,
+  templateBundleStoragePrefix,
+  templateBundleStoragePrefixIsOrgScoped,
+} from "@/lib/template-platform/importer";
 import { createSupabaseTemplateBundleRepository } from "@/lib/template-platform/supabase-repository";
 import type { TemplateBundleManifest } from "@/lib/template-platform/manifest";
 
@@ -27,14 +31,6 @@ function isAssetBody(value: unknown): value is ImportAssetBody {
     ((value as ImportAssetBody).contentType == null ||
       typeof (value as ImportAssetBody).contentType === "string")
   );
-}
-
-function defaultStoragePrefix(manifest: TemplateBundleManifest) {
-  return [
-    "template-bundles",
-    manifest.family.key,
-    manifest.version.name,
-  ].join("/");
 }
 
 async function requireAdmin() {
@@ -88,13 +84,31 @@ export async function POST(req: Request) {
   }));
 
   try {
+    const storagePrefix =
+      body.storagePrefix?.replace(/^\/+|\/+$/g, "") ??
+      templateBundleStoragePrefix({
+        orgId: admin.value.orgId,
+        manifest: body.manifest,
+      });
+    if (
+      !templateBundleStoragePrefixIsOrgScoped({
+        orgId: admin.value.orgId,
+        storagePrefix,
+      })
+    ) {
+      return Response.json(
+        { error: "Template bundle storage prefix must be scoped to this organization." },
+        { status: 400 }
+      );
+    }
+
     const result = await importTemplateBundle(
       {
         manifest: body.manifest,
         assets,
         orgId: admin.value.orgId,
         createdBy: admin.value.userId,
-        storagePrefix: body.storagePrefix ?? defaultStoragePrefix(body.manifest),
+        storagePrefix,
       },
       createSupabaseTemplateBundleRepository()
     );

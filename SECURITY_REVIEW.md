@@ -34,7 +34,7 @@ Last updated: 2026-07-13
 ## Secrets And Dependencies
 
 - Browser code receives only the Supabase URL and publishable/anon key.
-- Supabase service-role and Anthropic keys are server-only and must exist only in encrypted local/Vercel environment storage.
+- Supabase service-role and OpenAI keys are server-only and must exist only in encrypted local/Vercel environment storage.
 - `.env.example` contains placeholders only; `.env*` remains ignored.
 - CI fails on high/critical production dependency advisories and runs the lockfile with `npm ci`.
 

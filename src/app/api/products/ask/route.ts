@@ -9,9 +9,21 @@ import {
   type RetrievedKnowledgeParagraph,
   type RawKnowledgeCitation,
 } from "@/lib/knowledge-reliability";
-import Anthropic from "@anthropic-ai/sdk";
 import { NextResponse } from "next/server";
 import { consumeApiRateLimit, rateLimitResponse } from "@/lib/rate-limit";
+
+const OPENAI_ASK_MODEL =
+  process.env.OPENAI_ASK_MODEL ??
+  process.env.OPENAI_MODEL ??
+  "gpt-5.6-sol";
+const OPENAI_ASK_REASONING = process.env.OPENAI_ASK_REASONING ?? "medium";
+
+type OpenAIResponse = {
+  output_text?: string;
+  output?: Array<{
+    content?: Array<{ type?: string; text?: string }>;
+  }>;
+};
 
 type DocumentParagraphRow = {
   id: string;
@@ -69,6 +81,99 @@ async function fallbackSearchApprovedKnowledge(
     fallbackParagraphRowsFromDocuments((data ?? []) as DocumentParagraphRow[]),
     12
   );
+}
+
+function openAIOutputText(response: OpenAIResponse) {
+  if (typeof response.output_text === "string") return response.output_text;
+  return (
+    response.output
+      ?.flatMap((item) => item.content ?? [])
+      .filter((content) => content.type === "output_text" && typeof content.text === "string")
+      .map((content) => content.text)
+      .join("\n") ?? ""
+  );
+}
+
+function parseKnowledgeAnswer(value: unknown): {
+  answer: string;
+  citations: RawKnowledgeCitation[];
+  not_found: boolean;
+} {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return { answer: "", citations: [], not_found: true };
+  }
+  const raw = value as { answer?: unknown; citations?: unknown; not_found?: unknown };
+  return {
+    answer: typeof raw.answer === "string" ? raw.answer : "",
+    citations: Array.isArray(raw.citations) ? (raw.citations as RawKnowledgeCitation[]) : [],
+    not_found: raw.not_found === true,
+  };
+}
+
+async function answerWithOpenAI(input: {
+  system: string;
+  question: string;
+}) {
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error("OpenAI Ask is not configured.");
+  }
+
+  const body: Record<string, unknown> = {
+    model: OPENAI_ASK_MODEL,
+    max_output_tokens: 1024,
+    input: [
+      { role: "system", content: input.system },
+      {
+        role: "user",
+        content: [
+          input.question,
+          "",
+          "Return ONLY valid JSON matching this exact shape:",
+          JSON.stringify({
+            answer: "Direct answer grounded only in the retrieved approved source paragraphs.",
+            citations: [
+              {
+                document_id: "exact document_id from a retrieved paragraph",
+                paragraph_n: 1,
+                excerpt: "exact supporting passage copied from that paragraph",
+              },
+            ],
+            not_found: false,
+          }),
+          "If the sources do not answer the question, return not_found true and an empty citations array.",
+          "Do not wrap the JSON in Markdown.",
+        ].join("\n"),
+      },
+    ],
+    text: {
+      format: {
+        type: "json_object",
+      },
+    },
+  };
+
+  if (OPENAI_ASK_REASONING !== "none") {
+    body.reasoning = { effort: OPENAI_ASK_REASONING };
+  }
+
+  const response = await fetch("https://api.openai.com/v1/responses", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => "");
+    throw new Error(`OpenAI Ask failed (${response.status}): ${errorText.slice(0, 240)}`);
+  }
+
+  const json = (await response.json()) as OpenAIResponse;
+  const text = openAIOutputText(json).trim();
+  if (!text) throw new Error("OpenAI returned no Ask text output.");
+  return parseKnowledgeAnswer(JSON.parse(text));
 }
 
 export async function POST(req: Request) {
@@ -143,8 +248,6 @@ ${approvedContext || "No matching approved source paragraphs were found."}
 
 ${product.disclaimer_text ? `MANDATORY DISCLAIMER (always applies): ${product.disclaimer_text}` : ""}`;
 
-  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
   if (evidence.length === 0) {
     return await saveAndReturnNotFound(
       supabase,
@@ -155,78 +258,25 @@ ${product.disclaimer_text ? `MANDATORY DISCLAIMER (always applies): ${product.di
     );
   }
 
-  if (!process.env.ANTHROPIC_API_KEY) {
+  if (!process.env.OPENAI_API_KEY) {
     return NextResponse.json(buildExtractiveKnowledgeAnswer(question, evidence));
   }
 
-  let response;
+  let rawResult: {
+    answer: string;
+    citations: RawKnowledgeCitation[];
+    not_found: boolean;
+  };
   try {
-    response = await anthropic.messages.create({
-      model: "claude-sonnet-4-6",
-      max_tokens: 1024,
+    rawResult = await answerWithOpenAI({
       system,
-      tools: [
-      {
-        name: "answer_question",
-        description: "Answer the user's question with supporting citations from approved sources.",
-        input_schema: {
-          type: "object" as const,
-          properties: {
-            answer: {
-              type: "string",
-              description:
-                "A clear, direct answer for a brand, content, regional, or local marketing teammate. Plain language.",
-            },
-            citations: {
-              type: "array",
-              description: "Source passages that directly support the answer.",
-              items: {
-                type: "object",
-                properties: {
-                  excerpt: {
-                    type: "string",
-                    description: "Exact passage from the source document.",
-                  },
-                  document_id: {
-                    type: "string",
-                    description: "Exact document_id from the retrieved paragraph label.",
-                  },
-                  paragraph_n: {
-                    type: "integer",
-                    description: "Exact paragraph number from the retrieved paragraph label.",
-                  },
-                },
-                required: ["document_id", "paragraph_n", "excerpt"],
-              },
-            },
-            not_found: {
-              type: "boolean",
-              description:
-                "True if the question cannot be answered from approved sources.",
-            },
-          },
-          required: ["answer", "citations", "not_found"],
-        },
-      },
-      ],
-      tool_choice: { type: "tool", name: "answer_question" },
-      messages: [{ role: "user", content: question }],
+      question,
     });
   } catch (error) {
     console.error("knowledge answer failed:", error);
     return NextResponse.json(buildExtractiveKnowledgeAnswer(question, evidence));
   }
 
-  const toolUse = response.content.find((b) => b.type === "tool_use");
-  if (!toolUse || toolUse.type !== "tool_use") {
-    return NextResponse.json({ error: "No answer generated" }, { status: 500 });
-  }
-
-  const rawResult = toolUse.input as {
-    answer: string;
-    citations: RawKnowledgeCitation[];
-    not_found: boolean;
-  };
   const citations = verifyKnowledgeCitations(rawResult.citations ?? [], evidence);
   const result = finalizeKnowledgeAnswer({
     answer: rawResult.answer,
