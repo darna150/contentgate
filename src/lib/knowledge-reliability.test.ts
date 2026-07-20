@@ -146,7 +146,7 @@ test("extractive fallback remains cited and source-bound", () => {
     ]),
     {
       answer:
-        "The approved source says: ContentGate is built for distributed organizations where local operators need approved content.",
+        "ContentGate is built for distributed organizations where local operators need approved content.",
       citations: [
         {
           document_id: "doc-b",
