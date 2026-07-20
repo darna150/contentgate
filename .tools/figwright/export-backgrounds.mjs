@@ -10,29 +10,24 @@ const projectRoot = path.resolve(__dirname, "../..");
 const figwrightMcpPath =
   process.env.FIGWRIGHT_MCP_PATH ??
   path.join(projectRoot, "node_modules/@figwright/mcp/dist/index.mjs");
-const groups = [
-  {
-    pageId: "2:2",
-    set: "set-a",
-    frames: [
-      { nodeId: "2:15", name: "square.png", textIds: ["2:45", "2:46", "2:47", "2:49", "2:50"] },
-      { nodeId: "2:52", name: "story.png", textIds: ["2:83", "2:84", "2:85", "2:87", "2:88"] },
-      { nodeId: "2:90", name: "link-ad.png", textIds: ["2:100", "2:101", "2:102", "2:104", "2:105"] },
-      { nodeId: "2:124", name: "leaderboard.png", textIds: ["2:134", "2:135", "2:137"] },
-      { nodeId: "2:138", name: "medium-rectangle.png", textIds: ["2:148", "2:149", "2:151", "2:152"] },
-    ],
-  },
-  {
-    pageId: "4:2",
-    set: "set-b",
-    frames: [
-      { nodeId: "4:16", name: "square.png", textIds: ["4:29", "4:30", "4:32", "4:33"] },
-      { nodeId: "4:35", name: "portrait.png", textIds: ["4:49", "4:50", "4:52", "4:53"] },
-      { nodeId: "4:55", name: "story.png", textIds: ["4:69", "4:70", "4:72", "4:73"] },
-      { nodeId: "4:74", name: "link-ad.png", textIds: ["4:84", "4:85", "4:87", "4:88"] },
-      { nodeId: "4:93", name: "medium-rectangle.png", textIds: ["4:103", "4:104", "4:106", "4:107"] },
-    ],
-  },
+
+const BACKGROUND_OPTIONS_PAGE_ID = "52:193";
+
+const SIZES_BY_SET = {
+  "set-a": ["square", "story", "link-ad", "leaderboard", "medium-rectangle"],
+  "set-b": ["square", "portrait", "story", "link-ad", "medium-rectangle"],
+};
+
+const OPTION_OUTPUT = {
+  "classic-cream": "backgrounds",
+  "mint-glow": "background-options/mint-glow",
+  "terracotta-edge": "background-options/terracotta-edge",
+  "sage-grid": "background-options/sage-grid",
+};
+
+const EXPORT_SCALES = [
+  { scale: 1, suffix: "" },
+  { scale: 2, suffix: "@2x" },
 ];
 
 const transport = new StdioClientTransport({
@@ -40,51 +35,75 @@ const transport = new StdioClientTransport({
   args: [figwrightMcpPath],
   stderr: "inherit",
 });
-const client = new Client({ name: "contentgate-background-export", version: "1.0.0" });
-const parse = (result) => JSON.parse(result.content.find((item) => item.type === "text").text);
-const setVisible = (nodeIds, visible) =>
-  client.callTool({
-    name: "batch",
-    arguments: {
-      ops: nodeIds.map((nodeId) => ({ tool: "set_visible", params: { nodeId, visible } })),
-    },
+const client = new Client({ name: "contentgate-vector-background-export", version: "2.0.0" });
+
+function parse(result) {
+  const text = result.content.find((item) => item.type === "text")?.text ?? "{}";
+  return JSON.parse(text);
+}
+
+async function call(name, args = {}) {
+  return parse(await client.callTool({ name, arguments: args }));
+}
+
+function fileNameFor(sizeKey, suffix) {
+  return `${sizeKey}${suffix}.png`;
+}
+
+async function exportNode(input) {
+  await mkdir(input.outDir, { recursive: true });
+  const exported = await call("save_screenshots", {
+    nodeIds: [input.nodeId],
+    outDir: input.outDir,
+    format: "PNG",
+    scale: input.scale,
   });
+  const saved = exported.saved.find((item) => item.nodeId === input.nodeId);
+  if (!saved?.path || saved.empty) {
+    throw new Error(`Export failed for ${input.nodeId} (${input.name}, scale ${input.scale})`);
+  }
+  if (saved.path !== input.destination) await rename(saved.path, input.destination);
+}
 
 await client.connect(transport);
 try {
-  for (const group of groups) {
-    await client.callTool({ name: "navigate_to_page", arguments: { pageId: group.pageId } });
-    const outDir = path.join(
-      projectRoot,
-      "public/template-packages/contentgate",
-      group.set,
-      "backgrounds",
-    );
-    await mkdir(outDir, { recursive: true });
-    const textIds = group.frames.flatMap((frame) => frame.textIds);
-    await setVisible(textIds, false);
-    try {
-      const exported = parse(
-        await client.callTool({
-          name: "save_screenshots",
-          arguments: {
-            nodeIds: group.frames.map((frame) => frame.nodeId),
+  await client.callTool({ name: "navigate_to_page", arguments: { pageId: BACKGROUND_OPTIONS_PAGE_ID } });
+
+  const exports = [];
+  for (const [setKey, sizeKeys] of Object.entries(SIZES_BY_SET)) {
+    for (const sizeKey of sizeKeys) {
+      for (const [optionKey, outputFolder] of Object.entries(OPTION_OUTPUT)) {
+        const nodeName = `BG_OPTION/${setKey}/${sizeKey}/${optionKey}`;
+        const search = await call("search_nodes", { name: nodeName, type: "FRAME" });
+        const node = search.nodes?.find((item) => item.name === nodeName && item.visible !== false);
+        if (!node?.id) throw new Error(`Could not find active vector source frame: ${nodeName}`);
+
+        const outDir = path.join(
+          projectRoot,
+          "public",
+          "template-packages",
+          "contentgate",
+          setKey,
+          outputFolder
+        );
+        for (const { scale, suffix } of EXPORT_SCALES) {
+          exports.push({
+            nodeId: node.id,
+            name: nodeName,
             outDir,
-            format: "PNG",
-            scale: 1,
-          },
-        }),
-      );
-      for (const frame of group.frames) {
-        const saved = exported.saved.find((item) => item.nodeId === frame.nodeId);
-        if (!saved?.path || saved.empty) throw new Error(`Export failed for ${frame.nodeId}`);
-        const destination = path.join(outDir, frame.name);
-        if (saved.path !== destination) await rename(saved.path, destination);
+            destination: path.join(outDir, fileNameFor(sizeKey, suffix)),
+            scale,
+          });
+        }
       }
-    } finally {
-      await setVisible(textIds, true);
     }
   }
+
+  for (const item of exports) {
+    await exportNode(item);
+    console.log(`Exported ${item.name} @${item.scale}x -> ${path.relative(projectRoot, item.destination)}`);
+  }
+
   await client.callTool({ name: "navigate_to_page", arguments: { pageId: "2:2" } });
 } finally {
   await client.close();

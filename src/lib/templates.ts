@@ -29,12 +29,12 @@ export const REVISION_OPTIONS: { key: string; label: string; instruction: string
   { key: "shorter", label: "Shorter", instruction: "Make the copy noticeably shorter and tighter." },
   { key: "longer", label: "Longer", instruction: "Expand the copy with a little more supporting detail (still only from approved sources)." },
   { key: "strategic", label: "More strategic", instruction: "Frame the copy for brand leaders and decision-makers while staying grounded in approved sources." },
-  { key: "educational", label: "More educational", instruction: "Make it more educational and awareness-focused, less promotional." },
-  { key: "professional", label: "More professional", instruction: "Make the tone more formal and professional." },
-  { key: "conversational", label: "More conversational", instruction: "Make the tone warmer and more conversational." },
-  { key: "local_team", label: "More local-team focused", instruction: "Frame the message for branch, franchise, dealer, or field teams that need easy localized content." },
-  { key: "brand_control", label: "More brand-control focused", instruction: "Lead with brand governance, locked templates, approvals, and consistency across markets." },
-  { key: "benefit", label: "More benefit-focused", instruction: "Lead harder with the customer benefit, grounded in approved claims." },
+  { key: "playful", label: "More playful", instruction: "Make the copy lighter and more playful without inventing facts or leaving the approved source material." },
+  { key: "urgent", label: "More urgent", instruction: "Create a stronger sense of timeliness and action while staying grounded in approved sources." },
+  { key: "simpler", label: "Simpler", instruction: "Simplify the language and make the message easier to understand at a glance." },
+  { key: "brand_voice", label: "On-brand voice", instruction: "Tighten the copy so it feels more aligned with the approved brand voice and governance rules." },
+  { key: "proof_point", label: "Add proof point", instruction: "Add or foreground one concrete proof point, but only if it is present in the approved source material." },
+  { key: "benefit", label: "Lead with benefit", instruction: "Lead harder with the customer benefit, grounded in approved claims." },
 ];
 
 export function revisionInstruction(key: string): string | null {

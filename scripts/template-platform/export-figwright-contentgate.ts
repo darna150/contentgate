@@ -135,7 +135,10 @@ function walk(node: FigmaNode): FigmaNode[] {
 
 function editableNodes(frame: FigmaNode) {
   return walk(frame).filter(
-    (node) => node.visible !== false && node.name.startsWith("EDITABLE_")
+    (node) =>
+      node.visible !== false &&
+      node.type === "TEXT" &&
+      node.name.startsWith("EDITABLE_")
   );
 }
 

@@ -152,7 +152,7 @@ test("ContentGate figwright bundles use versioned public assets for browser and 
   assert.ok(browserRendered);
   assert.match(
     renderToStaticMarkup(browserRendered.element),
-    /\/template-bundles\/contentgate-local-friendly\/figwright-v1\/variants\/leaderboard\/background\.png\?v=clean-figwright-/
+    /\/template-bundles\/contentgate-local-friendly\/figwright-v1\/variants\/leaderboard\/background\.png\?v=vector-figwright-/
   );
 
   const exportRendered = renderTemplateBundleVariant({
@@ -164,8 +164,45 @@ test("ContentGate figwright bundles use versioned public assets for browser and 
   assert.ok(exportRendered);
   assert.match(
     renderToStaticMarkup(exportRendered.element),
-    /https:\/\/contentgate\.example\/template-bundles\/contentgate-local-friendly\/figwright-v1\/variants\/leaderboard\/background\.png\?v=clean-figwright-/
+    /https:\/\/contentgate\.example\/template-bundles\/contentgate-local-friendly\/figwright-v1\/variants\/leaderboard\/background\.png\?v=vector-figwright-/
   );
+});
+
+test("ContentGate figwright bundles render true 2x exports with high-density assets", async () => {
+  const bundle = await buildContentGateTemplateBundle("contentgate_local_friendly");
+  const manifest = {
+    ...bundle.manifest,
+    version: {
+      ...bundle.manifest.version,
+      name: "figwright-v1",
+    },
+    assets: bundle.manifest.assets.map((asset) =>
+      asset.path.includes("template-packages/contentgate/set-a/backgrounds/medium-rectangle.png")
+        ? {
+            ...asset,
+            path: "variants/medium_rectangle/background.png",
+          }
+        : asset
+    ),
+  };
+
+  const rendered = renderTemplateBundleVariant({
+    manifest,
+    variantKey: "medium_rectangle",
+    fields: { headline: "Crisp QA export" },
+    assetOrigin: "https://contentgate.example",
+    scale: 2,
+  });
+
+  assert.ok(rendered);
+  assert.equal(rendered.width, 600);
+  assert.equal(rendered.height, 500);
+  const html = renderToStaticMarkup(rendered.element);
+  assert.match(
+    html,
+    /https:\/\/contentgate\.example\/template-bundles\/contentgate-local-friendly\/figwright-v1\/variants\/medium_rectangle\/background@2x\.png\?v=vector-figwright-/
+  );
+  assert.match(html, /font-size:\d+(?:\.\d+)?px/);
 });
 
 test("ContentGate figwright bundles also support legacy public package asset paths", async () => {
@@ -192,7 +229,7 @@ test("ContentGate figwright bundles also support legacy public package asset pat
   const html = renderToStaticMarkup(rendered.element);
   assert.match(
     html,
-    /\/template-bundles\/contentgate-local-friendly\/figwright-v1\/variants\/leaderboard\/background\.png\?v=clean-figwright-/
+    /\/template-bundles\/contentgate-local-friendly\/figwright-v1\/variants\/leaderboard\/background\.png\?v=vector-figwright-/
   );
   assert.doesNotMatch(html, /storage\.example\.test/);
 });
