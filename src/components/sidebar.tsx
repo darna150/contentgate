@@ -13,6 +13,7 @@ import {
   LogOut,
   MessageSquareText,
   Rows3,
+  Settings,
   Sparkles,
   X,
 } from "lucide-react";
@@ -33,6 +34,7 @@ const NAV = [
 const ADMIN_NAV = [
   { href: "/knowledge", label: "Source Documents", icon: FileStack },
   { href: "/templates", label: "Template Ops", icon: LayoutTemplate },
+  { href: "/settings", label: "Settings", icon: Settings },
 ];
 
 type Props = {
