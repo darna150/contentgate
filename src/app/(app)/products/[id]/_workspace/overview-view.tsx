@@ -1,4 +1,5 @@
 import { DashboardSummaryPanel, type AttentionItem } from "@/components/dashboard-summary-panel";
+import { studioContentUrl } from "@/lib/creative";
 import type { ProductWorkspace } from "@/lib/product-workspace-server";
 
 function formatDate(iso: string) {
@@ -80,11 +81,9 @@ export function OverviewView({ workspace }: { workspace: ProductWorkspace }) {
   const recent = content.slice(0, 5);
 
   const stats = [
-    { label: "Active templates", value: counts.activeTemplates },
-    { label: "Content", value: counts.content },
-    { label: "In review", value: counts.inReview },
-    { label: "Approved knowledge", value: counts.approvedSources + counts.approvedClaims },
-    { label: "Assets", value: counts.assets },
+    { label: "Templates", value: counts.activeTemplates, caption: "Active locked layouts" },
+    { label: "Content", value: counts.content, caption: "Generated drafts" },
+    { label: "In review", value: counts.inReview, caption: "Awaiting sign-off" },
   ];
 
   const activity = recent.map((item) => ({
@@ -92,7 +91,7 @@ export function OverviewView({ workspace }: { workspace: ProductWorkspace }) {
     title: item.title,
     meta: [item.templateVariant, item.targetLanguage, formatDate(item.updatedAt)].filter(Boolean).join(" · "),
     status: item.status,
-    href: `/content/${item.id}`,
+    href: studioContentUrl(item.id),
   }));
 
   return (

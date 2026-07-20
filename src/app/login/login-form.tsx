@@ -30,27 +30,6 @@ export function LoginForm() {
     router.refresh();
   }
 
-  async function sendMagicLink() {
-    if (!email) {
-      setStatus({ kind: "error", message: "Enter your work email first." });
-      return;
-    }
-    setStatus({ kind: "busy" });
-    const supabase = createClient();
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
-        shouldCreateUser: false,
-      },
-    });
-    if (error) {
-      setStatus({ kind: "error", message: error.message });
-      return;
-    }
-    setStatus({ kind: "sent" });
-  }
-
   const busy = status.kind === "busy";
 
   return (
@@ -90,10 +69,7 @@ export function LoginForm() {
       </div>
 
       <Button type="submit" size="lg" disabled={busy} className="mt-1">
-        {busy ? "Signing in…" : "Sign in"}
-      </Button>
-      <Button type="button" variant="outline" size="lg" onClick={sendMagicLink} disabled={busy}>
-        Email me a magic link
+        {busy ? "Entering…" : "Enter workspace"}
       </Button>
 
       {status.kind === "sent" && (

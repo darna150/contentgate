@@ -79,6 +79,9 @@ export type StudioState = {
   // Static per-viewer flag (role-based, not content-specific) that the
   // review-mode UI uses to decide whether to show approve/reject actions.
   canReview: boolean;
+  // Admin-only QA escape hatch: official exports remain approval-gated, but
+  // admins may download watermarked/labelled draft-preview files for internal QA.
+  canDownloadDraftPreviews: boolean;
   // Every generation for this product+template, bucketed by size and sorted
   // newest-first — the version rail's data source. Built from the same
   // selectedContentRows query already run below (no extra round trip).
@@ -396,6 +399,7 @@ export async function loadStudioState(input: {
   ]);
 
   const canReview = canReviewContent((profile?.role as ContentRole) ?? "member");
+  const canDownloadDraftPreviews = profile?.role === "admin";
   const products = (productRows ?? []) as StudioProduct[];
   const templates = platformAssignmentsToTemplates(assignmentRows);
   const requestedProductId = requestedContentContext?.product.id ?? input.productId;
@@ -480,6 +484,7 @@ export async function loadStudioState(input: {
     initialSize,
     organizationName: organization?.name ?? "Current workspace",
     canReview,
+    canDownloadDraftPreviews,
     versionsBySize: Object.fromEntries(versionsBySize),
   };
 }

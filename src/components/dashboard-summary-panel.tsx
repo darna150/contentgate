@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusPill } from "@/components/status-pill";
 
@@ -16,6 +15,7 @@ export type AttentionItem = {
 export type SummaryStat = {
   label: string;
   value: number;
+  caption?: string;
   href?: string;
 };
 
@@ -56,15 +56,15 @@ export function DashboardSummaryPanel({
 }) {
   return (
     <div className="flex flex-col gap-5">
-      <div className={`flex flex-col gap-2 rounded-card border-l-4 border-y border-r p-5 ${TONE_STYLES[attention.tone]}`}>
-        <p className="text-[15px] font-bold text-ink">{attention.title}</p>
-        <p className="text-[13px] leading-relaxed text-ink-muted">{attention.body}</p>
+      <div className={`flex flex-col gap-3 rounded-r-card border-l-4 border-y border-r p-5 sm:flex-row sm:items-center sm:justify-between ${TONE_STYLES[attention.tone]}`}>
+        <div className="min-w-0">
+          <p className="text-[15px] font-bold text-ink">{attention.title}</p>
+          <p className="text-[13px] leading-relaxed text-ink-muted">{attention.body}</p>
+        </div>
         {attention.actionHref && attention.actionLabel && (
-          <div>
-            <Button asChild size="sm">
-              <Link href={attention.actionHref}>{attention.actionLabel}</Link>
-            </Button>
-          </div>
+          <Link href={attention.actionHref} className="shrink-0 text-[13px] font-bold text-brand hover:underline">
+            {attention.actionLabel} →
+          </Link>
         )}
       </div>
 
@@ -82,20 +82,22 @@ export function DashboardSummaryPanel({
               href={stat.href}
               className="flex flex-col gap-1 rounded-card border border-edge bg-surface p-4 transition-colors hover:border-brand"
             >
-              <span className={`text-[34px] font-bold ${stat.label === "In review" ? "text-brand" : "text-ink"}`}>
+              <span className="text-label text-ink-faint">{stat.label}</span>
+              <span className={`text-[34px] font-bold leading-none ${stat.label === "In review" ? "text-brand" : "text-ink"}`}>
                 {stat.value}
               </span>
-              <span className="text-label text-ink-faint">{stat.label}</span>
+              {stat.caption && <span className="text-[12px] text-ink-faint">{stat.caption}</span>}
             </Link>
           ) : (
             <div
               key={stat.label}
               className="flex flex-col gap-1 rounded-card border border-edge bg-surface p-4"
             >
-              <span className={`text-[34px] font-bold ${stat.label === "In review" ? "text-brand" : "text-ink"}`}>
+              <span className="text-label text-ink-faint">{stat.label}</span>
+              <span className={`text-[34px] font-bold leading-none ${stat.label === "In review" ? "text-brand" : "text-ink"}`}>
                 {stat.value}
               </span>
-              <span className="text-label text-ink-faint">{stat.label}</span>
+              {stat.caption && <span className="text-[12px] text-ink-faint">{stat.caption}</span>}
             </div>
           )
         )}

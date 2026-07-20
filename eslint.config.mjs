@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    "playwright-report/**",
+    "test-results/**",
     // Vendored Figwright development-plugin bundles are prebuilt/minified.
     ".tools/figwright/plugin/dist/**",
   ]),
