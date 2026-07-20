@@ -28,7 +28,7 @@ async function signIn(page: Page) {
   await page.goto("/login");
   await page.getByLabel("Work email").fill(E2E_EMAIL!);
   await page.getByLabel("Password").fill(E2E_PASSWORD!);
-  await page.getByRole("button", { name: /^Sign in$/ }).click();
+  await page.getByRole("button", { name: /^(Sign in|Enter workspace)$/ }).click();
   await page.waitForFunction(
     () => !window.location.pathname.startsWith("/login"),
     undefined,
@@ -121,7 +121,7 @@ test.describe("Knowledge Hub live QA", () => {
     await expect(
       page
         .locator("main")
-        .getByText(/approved source says|distributed organizations|brand-content management platform/i)
+        .getByText(/distributed organizations|brand-content management platform/i)
         .first()
     ).toBeVisible();
     await expect(page.getByText(/Something went wrong/i)).toHaveCount(0);

@@ -47,12 +47,12 @@ const SURFACES: Surface[] = [
   {
     name: "Product assets",
     path: `/products/${CONTENTGATE_PRODUCT_ID}?view=assets`,
-    expectedText: /Asset Library|Assets|No assets/i,
+    expectedText: /Assets|No assets/i,
   },
   { name: "Content library", path: "/content", expectedText: /Content/i },
   { name: "Approvals", path: "/approvals", expectedText: /Approval Queue/i },
-  { name: "Asset Library", path: "/assets", expectedText: /Asset Library/i },
-  { name: "Ask / Knowledge Hub", path: "/ask", expectedText: /Knowledge Hub/i },
+  { name: "Assets", path: "/assets", expectedText: /Assets/i },
+  { name: "Ask notebook", path: "/ask", expectedText: /Ask notebook|All sources/i },
   { name: "Source Documents", path: "/knowledge", expectedText: /Source documents/i },
   { name: "Template Ops", path: "/templates", expectedText: /Template Ops/i },
 ];
@@ -87,7 +87,7 @@ async function signIn(page: Page) {
   await page.goto("/login");
   await page.getByLabel("Work email").fill(E2E_EMAIL!);
   await page.getByLabel("Password").fill(E2E_PASSWORD!);
-  await page.getByRole("button", { name: /^Sign in$/ }).click();
+  await page.getByRole("button", { name: /^(Sign in|Enter workspace)$/ }).click();
   await page.waitForFunction(
     () => !window.location.pathname.startsWith("/login"),
     undefined,
