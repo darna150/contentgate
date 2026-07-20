@@ -198,8 +198,15 @@ export async function addClaim(productId: string, formData: FormData) {
 }
 
 export async function setClaimStatus(claimId: string, productId: string, status: string) {
+  if (status !== "approved" && status !== "inactive") {
+    throw new Error(`Unsupported claim status: ${status}`);
+  }
   const { supabase } = await getAdminOrgId();
-  await supabase.from("product_claims").update({ status }).eq("id", claimId);
+  const { error } = await supabase
+    .from("product_claims")
+    .update({ status })
+    .eq("id", claimId);
+  if (error) throw new Error(`Could not update claim status: ${error.message}`);
   revalidatePath(`/products/${productId}/edit`);
 }
 

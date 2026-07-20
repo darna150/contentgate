@@ -1,14 +1,15 @@
 name: Live E2E QA
 
+# Manual-only: the previous nightly schedule ran against production and wrote
+# generation/approval records into the live tenant's immutable history. Live
+# E2E must now name its target explicitly — point it at a Vercel Preview
+# deployment or a dedicated QA environment, never production.
 on:
   workflow_dispatch:
     inputs:
       base_url:
-        description: "ContentGate URL to test"
-        required: false
-        default: "https://contentgate-delta.vercel.app"
-  schedule:
-    - cron: "41 2 * * *"
+        description: "ContentGate URL to test (use a Preview deployment or QA environment, not production)"
+        required: true
 
 permissions:
   contents: read
@@ -18,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      CONTENTGATE_E2E_BASE_URL: ${{ github.event.inputs.base_url || 'https://contentgate-delta.vercel.app' }}
+      CONTENTGATE_E2E_BASE_URL: ${{ github.event.inputs.base_url }}
       CONTENTGATE_E2E_EMAIL: ${{ secrets.CONTENTGATE_E2E_EMAIL }}
       CONTENTGATE_E2E_PASSWORD: ${{ secrets.CONTENTGATE_E2E_PASSWORD }}
       CONTENTGATE_E2E_ASSIGNMENT_ID: ${{ secrets.CONTENTGATE_E2E_ASSIGNMENT_ID }}
@@ -30,6 +31,14 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps chromium
+      - name: Refuse to run against production
+        run: |
+          case "$CONTENTGATE_E2E_BASE_URL" in
+            https://contentgate-delta.vercel.app*)
+              echo "Live E2E may not target production." >&2
+              exit 1
+              ;;
+          esac
       - name: Require live QA credentials
         run: |
           test -n "$CONTENTGATE_E2E_EMAIL"
