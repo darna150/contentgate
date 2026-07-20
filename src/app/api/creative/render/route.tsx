@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { ImageResponse } from "next/og";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { validateStoredContentEvidence } from "@/lib/evidence-lifecycle";
 import { SIZES, type SizeKey } from "@/lib/creative";
 import { AssetLayout } from "@/lib/creative-layout";
 import {
@@ -169,6 +170,16 @@ export async function GET(req: Request) {
       `${productName}-${variantKey}${scale > 1 ? `-${scale}x` : ""}`
     )}.${converted.extension}`;
     if (download) {
+      const evidenceError = await validateStoredContentEvidence(
+        supabase,
+        content.id
+      );
+      if (evidenceError) {
+        return new Response(evidenceError, {
+          status: 403,
+          headers: { "Cache-Control": "no-store" },
+        });
+      }
       const inputHash = renderInputSha256({
         contentId: content.id,
         fields,
