@@ -26,6 +26,23 @@ test("generated copy quality rejects visibly truncated thoughts", () => {
   assert.match(formatGeneratedCopyQualityIssues(issues).join("\n"), /broken hyphenated word|dangling dash/);
 });
 
+test("generated copy quality rejects unresolved placeholder tokens", () => {
+  const issues = generatedCopyQualityIssues(
+    {
+      headline: "Updates from {{Market Name}}",
+      subheadline: "Use approved templates to create ready-to-use local content.",
+      cta: "Create local posts",
+    },
+    ["headline", "subheadline", "cta"]
+  );
+
+  assert.deepEqual(Object.keys(issues), ["headline"]);
+  assert.match(
+    formatGeneratedCopyQualityIssues(issues).join("\n"),
+    /unresolved placeholder token/
+  );
+});
+
 test("generated copy quality allows concise ad fragments and CTAs", () => {
   const issues = generatedCopyQualityIssues(
     {
