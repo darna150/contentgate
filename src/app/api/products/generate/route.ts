@@ -302,7 +302,7 @@ export async function POST(req: Request) {
     const { data: assignmentRow } = await supabase
       .from("product_template_assignments")
       .select(
-        "id, product_id, status, default_variant_key, generation_profile, default_payload, template_families(id, family_key, name), template_versions(id, version_label, status, manifest)"
+        "id, product_id, status, default_variant_key, generation_profile, default_payload, template_families!product_template_assignments_template_family_id_fkey(id, family_key, name), template_versions!product_template_assignments_template_version_id_fkey(id, version_label, status, manifest)"
       )
       .eq("id", platformAssignmentId)
       .eq("org_id", profile.org_id)
@@ -377,7 +377,7 @@ export async function POST(req: Request) {
       const { data: sourceContent } = await supabase
         .from("generated_content")
         .select(
-          "id, template_variant_id, structured_fields, prompt_context, template_variants(variant_key, label)"
+          "id, template_variant_id, structured_fields, prompt_context, template_variants!generated_content_template_variant_id_fkey(variant_key, label)"
         )
         .eq("id", sourceContentId)
         .eq("org_id", profile.org_id)

@@ -136,7 +136,7 @@ type GeneratedContentRow = {
 };
 
 const CONTENT_SELECT =
-  "id, title, status, rejection_note, structured_fields, prompt_context, created_by, product_id, product_template_id, template_version_id, template_variant_id, template_variants(variant_key, label), updated_at";
+  "id, title, status, rejection_note, structured_fields, prompt_context, created_by, product_id, product_template_id, template_version_id, template_variant_id, template_variants!generated_content_template_variant_id_fkey(variant_key, label), updated_at";
 
 const ACTIVE_CONTENT_STATUSES = ["draft", "rejected", "in_review", "approved"];
 
@@ -253,7 +253,7 @@ async function listActiveAssignments() {
   const { data } = await supabase
     .from("product_template_assignments")
     .select(
-      "id, product_id, template_version_id, status, default_variant_key, default_payload, template_families(family_key, name), template_versions(id, version_label, status, manifest)"
+      "id, product_id, template_version_id, status, default_variant_key, default_payload, template_families!product_template_assignments_template_family_id_fkey(family_key, name), template_versions!product_template_assignments_template_version_id_fkey(id, version_label, status, manifest)"
     )
     .eq("status", "active");
   return (data ?? []) as PlatformAssignmentRow[];
@@ -266,7 +266,7 @@ async function findAssignmentForContent(content: GeneratedContentRow) {
   let query = supabase
     .from("product_template_assignments")
     .select(
-      "id, product_id, template_version_id, status, default_variant_key, default_payload, template_families(family_key, name), template_versions(id, version_label, status, manifest)"
+      "id, product_id, template_version_id, status, default_variant_key, default_payload, template_families!product_template_assignments_template_family_id_fkey(family_key, name), template_versions!product_template_assignments_template_version_id_fkey(id, version_label, status, manifest)"
     )
     .eq("status", "active")
     .limit(1);
@@ -294,7 +294,7 @@ export async function getStudioContent(
   } = await supabase.auth.getUser();
   const { data } = await supabase
     .from("generated_content")
-    .select(`${CONTENT_SELECT}, products(id, name, disclaimer_text)`)
+    .select(`${CONTENT_SELECT}, products!generated_content_product_id_fkey(id, name, disclaimer_text)`)
     .eq("id", contentId)
     .maybeSingle();
 

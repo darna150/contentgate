@@ -206,7 +206,9 @@ export default async function TemplatesPage({
     getTemplateVersionsPage({ cursor: cursors.versionCursor, pageSize: 10 }),
     supabase
       .from("template_variants")
-      .select("id, variant_key, label, width, height, template_versions(version_label, template_families(name))")
+      .select(
+        "id, variant_key, label, width, height, template_versions!template_variants_template_version_id_fkey(version_label, template_families!template_versions_family_id_fkey(name))"
+      )
       .order("variant_key"),
     getProductTemplateAssignmentsPage({ cursor: cursors.assignmentCursor, pageSize: 20 }),
     getTemplateImportRunsPage({ cursor: cursors.importCursor, pageSize: 8 }),

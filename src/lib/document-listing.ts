@@ -21,7 +21,7 @@ export type DocumentPageResult = {
 };
 
 export const DOCUMENT_LIST_SELECT =
-  "id, title, storage_path, content_text, created_at, paragraphs, products(name)";
+  "id, title, storage_path, content_text, created_at, paragraphs, products!documents_product_id_fkey(name)";
 
 export async function getDocumentPage({
   cursor,

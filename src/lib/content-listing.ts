@@ -27,9 +27,9 @@ export type ContentPageResult = {
 };
 
 export const CONTENT_LIST_SELECT =
-  "id, title, status, target_language, audience, created_at, updated_at, products(name), templates(name), product_templates(variant), template_versions(version_label, template_families(name)), template_variants(label, variant_key), creator:profiles!generated_content_created_by_fkey(full_name)";
+  "id, title, status, target_language, audience, created_at, updated_at, products!generated_content_product_id_fkey(name), templates(name), product_templates!generated_content_product_template_id_fkey(variant), template_versions!generated_content_template_version_id_fkey(version_label, template_families!template_versions_family_id_fkey(name)), template_variants!generated_content_template_variant_id_fkey(label, variant_key), creator:profiles!generated_content_created_by_fkey(full_name)";
 const CONTENT_LIST_SELECT_WITH_REQUIRED_VARIANT =
-  "id, title, status, target_language, audience, created_at, updated_at, products(name), templates(name), product_templates(variant), template_versions(version_label, template_families(name)), template_variants!inner(label, variant_key), creator:profiles!generated_content_created_by_fkey(full_name)";
+  "id, title, status, target_language, audience, created_at, updated_at, products!generated_content_product_id_fkey(name), templates(name), product_templates!generated_content_product_template_id_fkey(variant), template_versions!generated_content_template_version_id_fkey(version_label, template_families!template_versions_family_id_fkey(name)), template_variants!generated_content_template_variant_id_fkey!inner(label, variant_key), creator:profiles!generated_content_created_by_fkey(full_name)";
 
 export async function getContentPage({
   cursor,
