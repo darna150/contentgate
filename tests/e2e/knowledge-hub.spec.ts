@@ -137,4 +137,50 @@ test.describe("Knowledge Hub live QA", () => {
       `Browser/network issues: ${JSON.stringify(issues, null, 2)}`
     ).toEqual([]);
   });
+
+  test("no-evidence path returns a safe message without crashing", async ({
+    page,
+  }, testInfo) => {
+    const issues: BrowserIssue[] = [];
+
+    page.on("pageerror", (error) => {
+      issues.push({ kind: "pageerror", message: error.message });
+    });
+    page.on("response", (response) => {
+      if (response.status() >= 500) {
+        issues.push({
+          kind: "http",
+          message: `${response.status()} ${response.request().method()} ${response.url()}`,
+        });
+      }
+    });
+
+    await signIn(page);
+    await page.goto("/ask");
+
+    const input = page.getByPlaceholder(/Ask a question/i);
+    await expect(input).toBeVisible({ timeout: 30_000 });
+
+    // Question that should not match any approved source paragraph
+    await input.fill(
+      "What is the molecular weight of polyethylene glycol 3350 in milligrams per litre?"
+    );
+    await page.getByRole("button", { name: /^Ask$/ }).click();
+
+    // Must get a safe "not found" message — not a 500 or an error boundary
+    await expect(
+      page.getByText(/could not verify|no matching|not found/i).first()
+    ).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByText(/Something went wrong/i)).toHaveCount(0);
+
+    await testInfo.attach("knowledge-hub-no-evidence.png", {
+      contentType: "image/png",
+      body: await page.screenshot({ fullPage: true }),
+    });
+
+    expect(
+      issues,
+      `Errors on no-evidence path: ${JSON.stringify(issues, null, 2)}`
+    ).toEqual([]);
+  });
 });
