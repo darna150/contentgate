@@ -188,9 +188,13 @@ test.describe("ContentGate full app surface QA", () => {
 
     for (const surface of SURFACES) {
       await page.goto(surface.path);
-      await expect(page.getByText(surface.expectedText).first(), surface.name).toBeVisible({
-        timeout: 30_000,
-      });
+      // Scope to <main> so nav/sidebar copies of the same text (which may be
+      // visibility:hidden on certain breakpoints) don't shadow the visible
+      // heading and cause a false failure.
+      await expect(
+        page.locator("main, [role='main']").getByText(surface.expectedText).first(),
+        surface.name
+      ).toBeVisible({ timeout: 30_000 });
       await assertNoBrokenImages(page, surface.name);
       await testInfo.attach(
         `surface-${surface.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.png`,
