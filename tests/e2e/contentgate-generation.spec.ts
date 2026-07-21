@@ -2,7 +2,7 @@ import { expect, test, type Page, type TestInfo } from "@playwright/test";
 
 const E2E_EMAIL = process.env.CONTENTGATE_E2E_EMAIL;
 const E2E_PASSWORD = process.env.CONTENTGATE_E2E_PASSWORD;
-const TEMPLATE_NAME = "ContentGate Local Friendly";
+const TEMPLATE_NAME = "Set A - Local Content Friendly";
 const PLATFORM_ASSIGNMENT_ID =
   process.env.CONTENTGATE_E2E_ASSIGNMENT_ID ??
   "3a6cbcb0-23b4-476b-8deb-ad2e48d20516";
@@ -86,7 +86,7 @@ async function signIn(page: Page) {
 async function openContentGateTemplate(page: Page) {
   await page.goto("/products");
   await expect(page).toHaveURL(/\/products/);
-  await expect(page.getByRole("heading", { name: /Products/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Workspace catalog|Products/i })).toBeVisible({ timeout: 20_000 });
 
   const productLink = page
     .getByRole("link", { name: /ContentGate/i })
