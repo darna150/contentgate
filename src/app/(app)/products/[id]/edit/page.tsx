@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { updateProduct, setClaimStatus } from "../../actions";
@@ -122,9 +123,9 @@ export default async function EditProductPage({
   return (
     <div className="mx-auto flex max-w-[720px] flex-col gap-6 px-4 py-9 sm:px-10">
       <div className="flex flex-col gap-1.5">
-        <a href="/products" className="text-[13px] font-semibold text-brand hover:underline">
+        <Link href="/products" className="text-[13px] font-semibold text-brand hover:underline">
           ← Products
-        </a>
+        </Link>
         <h1 className="text-h1 text-ink">Edit {product.name}</h1>
       </div>
 
