@@ -1,30 +1,12 @@
-const STOP_WORDS = new Set([
-  "a",
-  "an",
-  "and",
-  "are",
-  "as",
-  "at",
-  "be",
-  "by",
-  "can",
-  "for",
-  "from",
-  "in",
-  "into",
-  "is",
-  "it",
-  "of",
-  "on",
-  "or",
-  "so",
-  "that",
-  "the",
-  "their",
-  "this",
-  "to",
-  "with",
-]);
+import { ACTION_FIELD_PATTERN } from "./generated-copy-quality.ts";
+
+// Grounding is verified by proving the model's cited quote is a real, verbatim
+// span of an approved source — not by lexically comparing the (possibly
+// reworded or translated) generated field against the source. That older
+// token-overlap check produced false rejections whenever a refinement reworded
+// the copy ("More strategic", "Simpler") or generated a non-English variant,
+// and it starved short approved claims. Verbatim containment is
+// language-agnostic, rewording-proof, and re-verifiable at approval time.
 
 function normalize(value: string) {
   return value
@@ -34,72 +16,69 @@ function normalize(value: string) {
     .trim();
 }
 
+// Language-agnostic: whitespace words of length >= 2, no stop-word list (a
+// stop-word list would be English-only and re-break localized grounding).
 function substantiveTokens(value: string) {
   return normalize(value)
     .split(" ")
-    .filter((token) => token.length > 2 && !STOP_WORDS.has(token));
+    .filter((token) => token.length >= 2);
 }
 
-function tokenOverlapRatio(a: string[], b: string[]) {
-  if (!a.length || !b.length) return 0;
-  const bSet = new Set(b);
-  const overlap = new Set(a.filter((token) => bSet.has(token))).size;
-  return overlap / Math.min(new Set(a).size, new Set(b).size);
+// A quote grounds a field when it is a verbatim span of some approved source
+// AND it is substantial: either it covers most of that source (a short claim
+// quoted whole) or it carries at least four words (a real sentence fragment,
+// not a generic 1-2 word snippet that could match almost anything). Returns the
+// original approved source string that backed the quote, or null.
+export function findGroundingSource(
+  quote: string,
+  approvedSources: readonly string[]
+): string | null {
+  const needle = normalize(quote);
+  if (!needle) return null;
+  const needleTokenCount = substantiveTokens(quote).length;
+  if (needleTokenCount < 2) return null;
+
+  for (const approved of approvedSources) {
+    const haystack = normalize(approved);
+    if (!haystack || !haystack.includes(needle)) continue;
+    const coverage = needle.length / haystack.length;
+    if (coverage >= 0.6 || needleTokenCount >= 4) return approved;
+  }
+  return null;
 }
 
-function isLowRiskCommandField(field: string) {
-  const normalized = normalize(field);
-  return normalized.includes("cta") || normalized.includes("call action");
-}
-
-function fieldValueIsSupportedBySource(fieldValue: string, source: string) {
-  const fieldTokens = substantiveTokens(fieldValue);
-  if (fieldTokens.length < 3) return true;
-
-  const sourceTokens = substantiveTokens(source);
-  if (sourceTokens.length < 4) return false;
-
-  const ratio = tokenOverlapRatio(fieldTokens, sourceTokens);
-  return ratio >= 0.45 || normalize(source).includes(normalize(fieldValue));
-}
-
-export function evidenceSourceIsApproved(
-  source: string,
+export function evidenceQuoteIsApproved(
+  quote: string,
   approvedSources: readonly string[]
 ) {
-  const needle = normalize(source);
-  const needleTokens = substantiveTokens(source);
-  if (!needle || needleTokens.length < 4) return false;
-
-  return approvedSources.some((approved) => {
-    const haystack = normalize(approved);
-    const haystackTokens = substantiveTokens(approved);
-    if (!haystack || haystackTokens.length < 4) return false;
-
-    const shorterTokenCount = Math.min(needleTokens.length, haystackTokens.length);
-    const longerTokenCount = Math.max(needleTokens.length, haystackTokens.length);
-    const lengthRatio = shorterTokenCount / longerTokenCount;
-
-    if (
-      shorterTokenCount >= 6 &&
-      lengthRatio >= 0.45 &&
-      (haystack.includes(needle) || needle.includes(haystack))
-    ) {
-      return true;
-    }
-
-    return (
-      shorterTokenCount >= 8 &&
-      lengthRatio >= 0.55 &&
-      tokenOverlapRatio(needleTokens, haystackTokens) >= 0.8
-    );
-  });
+  return findGroundingSource(quote, approvedSources) !== null;
 }
 
 export type GeneratedFieldEvidence = {
   field: string;
+  // The fuller approved source text the quote came from. Kept for display and
+  // backward compatibility with citations stored before `excerpt` existed.
   approved_source: string;
+  // The verbatim quote the model pulled from an approved source. Preferred for
+  // verification when present; falls back to `approved_source` for old rows.
+  excerpt?: string;
+  // Prompt-local source id (e.g. "C2", "P1") the model referenced. Not used for
+  // verification and not persisted; retained so callers can pass model output
+  // through without stripping it.
+  source_id?: string;
 };
+
+// The span we verify: the verbatim excerpt when the model supplied one, else
+// the whole approved_source (legacy citations that predate excerpts).
+export function citationQuote(citation: GeneratedFieldEvidence): string {
+  const excerpt =
+    typeof citation.excerpt === "string" ? citation.excerpt.trim() : "";
+  return excerpt || citation.approved_source;
+}
+
+function isLowRiskCommandField(field: string) {
+  return ACTION_FIELD_PATTERN.test(field);
+}
 
 export function generatedCopyEvidenceIssues(input: {
   fields: Record<string, string>;
@@ -122,13 +101,13 @@ export function generatedCopyEvidenceIssues(input: {
       continue;
     }
 
-    const supported = fieldEvidence.some(
-      (item) =>
-        evidenceSourceIsApproved(item.approved_source, input.approvedSources) &&
-        fieldValueIsSupportedBySource(trimmed, item.approved_source)
+    const grounded = fieldEvidence.some((item) =>
+      evidenceQuoteIsApproved(citationQuote(item), input.approvedSources)
     );
-    if (!supported) {
-      issues.push(`${field}: generated copy is not supported by its approved evidence.`);
+    if (!grounded) {
+      issues.push(
+        `${field}: cited quote was not found verbatim in an approved source.`
+      );
     }
   }
 

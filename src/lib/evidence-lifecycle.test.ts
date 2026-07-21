@@ -39,14 +39,21 @@ test("supported copy with matching citation passes", () => {
   assert.deepEqual(issues, []);
 });
 
-test("unsupported manual edit is rejected", () => {
+test("content whose citation is no longer backed by approved sources is rejected", () => {
+  // Source drift: the claim/paragraph the citation quoted was later un-approved
+  // or edited, so the stored excerpt is no longer verbatim in the corpus.
   const issues = contentEvidenceIssues({
     fields: {
-      headline:
-        "FleaShield Duo cures heartworm disease and guarantees lifetime immunity",
+      headline: "FleaShield Duo protects dogs against fleas and ticks",
     },
-    citations: [{ field: "headline", approved_source: claim }],
-    approvedSources,
+    citations: [
+      {
+        field: "headline",
+        approved_source: claim,
+        excerpt: "protects dogs against fleas and ticks",
+      },
+    ],
+    approvedSources: ["An unrelated approved claim about packaging and storage."],
   });
   assert.equal(issues.length, 1);
   assert.match(issues[0], /headline/);
@@ -140,18 +147,25 @@ test("lifecycle validator passes supported platform content", async () => {
   assert.equal(await validateStoredContentEvidence(supabase, "content-1"), null);
 });
 
-test("lifecycle validator rejects drifted platform content", async () => {
+test("lifecycle validator rejects content after its source is un-approved", async () => {
+  // The citation quoted the original claim, but that claim is no longer among
+  // the product's approved sources, so the stored excerpt cannot be verified.
   const supabase = stubSupabase({
     content: {
       product_id: "prod-1",
       template_version_id: "ver-1",
       structured_fields: {
-        headline:
-          "FleaShield Duo cures heartworm disease and guarantees lifetime immunity",
+        headline: "FleaShield Duo protects dogs against fleas and ticks",
       },
-      citations: [{ field: "headline", approved_source: claim }],
+      citations: [
+        {
+          field: "headline",
+          approved_source: claim,
+          excerpt: "protects dogs against fleas and ticks",
+        },
+      ],
     },
-    claims: [{ claim_text: claim }],
+    claims: [{ claim_text: "A completely different approved claim about storage." }],
     docs: [],
   });
   const error = await validateStoredContentEvidence(supabase, "content-1");

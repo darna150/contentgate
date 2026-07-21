@@ -1,4 +1,7 @@
-const ACTION_FIELD_PATTERN = /\b(cta|call[_ -]?to[_ -]?action|button|action)\b/i;
+// Fields that carry a command/label rather than a factual claim. Shared with
+// evidence grounding so a field named `button`/`action` isn't held to a
+// different standard by the two checks.
+export const ACTION_FIELD_PATTERN = /\b(cta|call[_ -]?to[_ -]?action|button|action)\b/i;
 
 const DANGLING_END_WORDS = new Set([
   "a",

@@ -1,26 +1,23 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  evidenceSourceIsApproved,
+  evidenceQuoteIsApproved,
   generatedCopyEvidenceIssues,
 } from "./evidence-validation.ts";
 
 const approved = [
   "ContentGate helps distributed brands create localized marketing content from approved templates, assets, and product knowledge.",
   "Brand administrators can lock layout, typography, colors, logo use, brand controls, and approval requirements so local teams cannot accidentally break the design system.",
-  "Local users can edit approved fields such as headline, supporting copy, location detail, call to action, date, offer, market language, and image selection.",
+  "Vets recommend it",
 ];
 
-test("accepts exact approved source sentences", () => {
-  assert.equal(
-    evidenceSourceIsApproved(approved[0], approved),
-    true
-  );
+test("accepts an exact approved source quoted whole", () => {
+  assert.equal(evidenceQuoteIsApproved(approved[0], approved), true);
 });
 
-test("accepts substantial excerpts from approved source sentences", () => {
+test("accepts a substantial verbatim excerpt of an approved source", () => {
   assert.equal(
-    evidenceSourceIsApproved(
+    evidenceQuoteIsApproved(
       "distributed brands create localized marketing content from approved templates",
       approved
     ),
@@ -28,50 +25,111 @@ test("accepts substantial excerpts from approved source sentences", () => {
   );
 });
 
-test("rejects tiny fragments that used to validate broad claims", () => {
-  assert.equal(evidenceSourceIsApproved("approved templates", approved), false);
-  assert.equal(evidenceSourceIsApproved("local users", approved), false);
+test("accepts a short approved claim quoted in full", () => {
+  // Short claims (<6 tokens) used to be unusable for grounding; now a claim
+  // quoted whole is grounded regardless of length.
+  assert.equal(evidenceQuoteIsApproved("Vets recommend it", approved), true);
 });
 
-test("rejects unsupported paraphrases with only partial token overlap", () => {
-  assert.equal(
-    evidenceSourceIsApproved(
-      "ContentGate guarantees sales growth for every local team using automated campaigns",
-      approved
-    ),
-    false
-  );
+test("rejects tiny fragments of a longer source", () => {
+  assert.equal(evidenceQuoteIsApproved("approved templates", approved), false);
+  assert.equal(evidenceQuoteIsApproved("brand controls", approved), false);
 });
 
-test("accepts near-exact source text despite punctuation and casing drift", () => {
+test("accepts verbatim excerpts despite casing and punctuation drift", () => {
   assert.equal(
-    evidenceSourceIsApproved(
-      "brand administrators lock layout typography colors logo use brand controls and approval requirements",
+    evidenceQuoteIsApproved(
+      "Distributed Brands Create Localized Marketing Content",
       approved
     ),
     true
   );
 });
 
-test("generated copy evidence rejects unsupported field copy", () => {
+test("rejects a paraphrase that is not present verbatim", () => {
+  assert.equal(
+    evidenceQuoteIsApproved(
+      "ContentGate guarantees sales growth for every local team",
+      approved
+    ),
+    false
+  );
+});
+
+test("grounds reworded copy when a valid verbatim excerpt is cited", () => {
+  // The exact regression: a "More strategic" refinement rewords the field, but
+  // the model cites a real verbatim excerpt. This must pass.
   assert.deepEqual(
     generatedCopyEvidenceIssues({
       fields: {
-        headline: "Automated campaigns guarantee sales growth",
+        headline: "Lead every market with governed, on-brand local content",
+      },
+      evidence: [
+        {
+          field: "headline",
+          source_id: "P1",
+          approved_source: approved[0],
+          excerpt:
+            "create localized marketing content from approved templates",
+        },
+      ],
+      approvedSources: approved,
+    }),
+    []
+  );
+});
+
+test("grounds non-English copy against an English approved excerpt", () => {
+  // Localized output shares no English tokens with the source; verbatim
+  // excerpt containment does not depend on a language-specific stop list.
+  assert.deepEqual(
+    generatedCopyEvidenceIssues({
+      fields: {
+        headline: "Lokalisadong nilalaman mula sa mga aprubadong template",
       },
       evidence: [
         {
           field: "headline",
           approved_source: approved[0],
+          excerpt:
+            "create localized marketing content from approved templates",
         },
       ],
       approvedSources: approved,
     }),
-    ["headline: generated copy is not supported by its approved evidence."]
+    []
   );
 });
 
-test("generated copy evidence accepts supported non-cta fields", () => {
+test("rejects a field whose cited excerpt is not verbatim in any source", () => {
+  assert.deepEqual(
+    generatedCopyEvidenceIssues({
+      fields: { headline: "Guaranteed sales growth" },
+      evidence: [
+        {
+          field: "headline",
+          approved_source: "",
+          excerpt: "guaranteed sales growth for every team",
+        },
+      ],
+      approvedSources: approved,
+    }),
+    ["headline: cited quote was not found verbatim in an approved source."]
+  );
+});
+
+test("flags a factual field with no evidence at all", () => {
+  assert.deepEqual(
+    generatedCopyEvidenceIssues({
+      fields: { headline: "Create localized marketing content" },
+      evidence: [],
+      approvedSources: approved,
+    }),
+    ["headline: missing approved evidence."]
+  );
+});
+
+test("exempts CTA/command fields from grounding", () => {
   assert.deepEqual(
     generatedCopyEvidenceIssues({
       fields: {
@@ -82,6 +140,8 @@ test("generated copy evidence accepts supported non-cta fields", () => {
         {
           field: "headline",
           approved_source: approved[0],
+          excerpt:
+            "create localized marketing content from approved templates",
         },
       ],
       approvedSources: approved,
@@ -90,7 +150,20 @@ test("generated copy evidence accepts supported non-cta fields", () => {
   );
 });
 
-test("generated copy evidence requires approved sources", () => {
+test("verifies legacy citations that carry only approved_source", () => {
+  // Rows generated before `excerpt` existed cite the whole source; those must
+  // still verify at approval time.
+  assert.deepEqual(
+    generatedCopyEvidenceIssues({
+      fields: { headline: "Lock layout, typography, and brand controls" },
+      evidence: [{ field: "headline", approved_source: approved[1] }],
+      approvedSources: approved,
+    }),
+    []
+  );
+});
+
+test("requires approved sources to exist", () => {
   assert.deepEqual(
     generatedCopyEvidenceIssues({
       fields: { headline: "Create localized marketing content" },
