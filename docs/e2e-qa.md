@@ -10,21 +10,27 @@ front of a client:
 - submit → reject-with-note visibility
 - Knowledge Hub Ask on mobile, including composer clipping and approved-source answers
 
-## Run against production
+## Run against a Vercel preview
 
-Use a disposable QA account that belongs to the demo organization.
+Use a disposable QA account that belongs to the demo organization. **Never run
+against `contentgate-delta.vercel.app` (production)** — the `live-e2e.yml`
+workflow hard-blocks that URL and the test suite will refuse to run against it.
+Instead target a PR preview or a dedicated staging deployment.
 
 ```sh
-CONTENTGATE_E2E_BASE_URL="https://contentgate-delta.vercel.app" \
+CONTENTGATE_E2E_BASE_URL="https://contentgate-<pr-id>-debbies-projects-a8de6bb4.vercel.app" \
 CONTENTGATE_E2E_EMAIL="qa-user@example.com" \
 CONTENTGATE_E2E_PASSWORD="..." \
 npm run test:e2e
 ```
 
+The CI E2E gate (`.github/workflows/ci.yml`) discovers the Vercel preview URL
+automatically via `vercel-action` and runs the suite against it on every PR.
+
 For a visible browser:
 
 ```sh
-CONTENTGATE_E2E_BASE_URL="https://contentgate-delta.vercel.app" \
+CONTENTGATE_E2E_BASE_URL="..." \
 CONTENTGATE_E2E_EMAIL="qa-user@example.com" \
 CONTENTGATE_E2E_PASSWORD="..." \
 npm run test:e2e -- --headed
