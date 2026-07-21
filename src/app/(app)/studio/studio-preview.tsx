@@ -317,6 +317,7 @@ export function LiveTemplatePreviewFrame({
         style={{
           width: Math.round(width * scale),
           height: Math.round(height * scale),
+          overflow: "hidden",
         }}
       >
         <div
