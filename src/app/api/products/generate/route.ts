@@ -679,17 +679,20 @@ export async function POST(req: Request) {
       }
     }
 
+    let coercedTruncatedFields: string[] = [];
     // Fit-only coercion fallback: shrink/trim to satisfy the geometry gate.
     // Only attempt when grounding already passed — coercion cannot fix an
     // ungrounded claim, and it only removes words, so the verified citations
-    // from the last attempt still hold. Re-verify to stay honest.
+    // from the last attempt still hold.
     if (!out && !groundingIssues.length && Object.values(structured).some(Boolean)) {
-      structured = await coerceTemplatePlatformFieldsToFit({
+      const coerceResult = await coerceTemplatePlatformFieldsToFit({
         manifest: assignment.manifest,
         variantKey: outputSizeKey,
         fields: structured,
         assetUrlByPath,
       });
+      structured = coerceResult.fields;
+      coercedTruncatedFields = coerceResult.truncatedFields;
       const configuredIssues = templateFieldIssues(
         structured,
         editableFields,
@@ -858,6 +861,7 @@ export async function POST(req: Request) {
       evidence,
       title,
       platform: true,
+      truncatedFields: coercedTruncatedFields,
     });
   }
 

@@ -24,6 +24,7 @@ import {
   getTemplateBundleVariantDimensions,
   getTemplateBundleVariantLabel,
 } from "@/lib/template-platform/runtime";
+import { fieldLabel } from "@/lib/templates";
 import type { TemplateBundleTextLayout } from "@/lib/template-platform/render";
 import { fieldIssues } from "@/lib/template-fields";
 import {
@@ -171,6 +172,7 @@ export function StudioWorkspace({
   >("idle");
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [overflowFields, setOverflowFields] = useState<string[]>([]);
+  const [truncatedFields, setTruncatedFields] = useState<string[]>([]);
   const [textLayoutByField, setTextLayoutByField] = useState<
     Record<string, TemplateBundleTextLayout> | undefined
   >(undefined);
@@ -257,6 +259,10 @@ export function StudioWorkspace({
     [activeEditableFields, activeFieldLimits, draftFields, requiredFieldSet]
   );
   const hasIssues = activeEditableFields.some((key) => issuesByField[key].length > 0);
+  const truncationWarning =
+    truncatedFields.length > 0
+      ? `Some copy was shortened to fit the template (${truncatedFields.map(fieldLabel).join(", ")}). Review the draft and regenerate if the meaning changed.`
+      : null;
   const hasLayoutOverflow = overflowFields.length > 0;
   const fitCheckSignature = useMemo(
     () =>
@@ -377,7 +383,7 @@ export function StudioWorkspace({
       setTextLayoutByField(result.textLayoutByField);
       if (showOverflowAdvisory) setOverflowFields(result.overflowFields);
       else if (mode === "edit") setOverflowFields([]);
-    }, 900);
+    }, 400);
     return () => {
       cancelled = true;
       window.clearTimeout(timer);
@@ -502,6 +508,7 @@ export function StudioWorkspace({
     saveSequence.current += 1;
     setBusy(true);
     setError(null);
+    setTruncatedFields([]);
     try {
       const response = await fetch("/api/products/generate", {
         method: "POST",
@@ -552,6 +559,9 @@ export function StudioWorkspace({
       setSavedAt(new Date().toISOString());
       setHasManualEdits(false);
       setSelectedRevision(null);
+      setTruncatedFields(
+        Array.isArray(result.truncatedFields) ? (result.truncatedFields as string[]) : []
+      );
       setShowOriginal(false);
       router.replace(studioContentUrl(nextContent.id, nextContentSize), { scroll: false });
     } catch {
@@ -761,6 +771,7 @@ export function StudioWorkspace({
                   : `Generate ${activeSizeLabel} draft`
               }
               error={error}
+              warning={truncationWarning}
             />
           )}
 
@@ -776,6 +787,7 @@ export function StudioWorkspace({
               retryLabel={generationPauseLabel}
               buttonLabel={selectedRevision ? "Apply refinement to draft" : "Regenerate draft"}
               error={error}
+              warning={truncationWarning}
             />
           )}
 
@@ -795,6 +807,7 @@ export function StudioWorkspace({
                   : `Create new ${activeSizeLabel} draft`
               }
               error={error}
+              warning={truncationWarning}
             />
           )}
 
