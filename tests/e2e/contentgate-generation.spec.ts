@@ -94,7 +94,7 @@ async function openContentGateTemplate(page: Page) {
     .first();
   await expect(productLink).toBeVisible();
   await productLink.click();
-  await page.waitForURL(/\/products\//);
+  await page.waitForURL(/\/products\//, { timeout: 45_000 });
 
   const templatesLink = page.getByRole("link", { name: /Templates/i });
   if (await templatesLink.isVisible()) {
@@ -251,7 +251,10 @@ function readPngDimensions(bytes: number[]) {
 }
 
 test.describe("ContentGate live generation QA", () => {
-  test.describe.configure({ mode: "serial" });
+  // Serial so each test can reuse state from the previous; 5-minute per-test
+  // budget accommodates OpenAI generation latency plus SSR cold starts on a
+  // Vercel preview deployment.
+  test.describe.configure({ mode: "serial", timeout: 300_000 });
 
   test("generates a sharp draft preview and updates it after text edits", async ({
     page,

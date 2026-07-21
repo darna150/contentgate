@@ -32,6 +32,7 @@ export function StudioGeneratePanel({
   retryLabel,
   buttonLabel,
   error,
+  warning,
 }: {
   language: string;
   onLanguageChange: (value: string) => void;
@@ -43,6 +44,7 @@ export function StudioGeneratePanel({
   retryLabel: string | null;
   buttonLabel: string;
   error: string | null;
+  warning?: string | null;
 }) {
   return (
     <div className="flex flex-col gap-5">
@@ -112,6 +114,11 @@ export function StudioGeneratePanel({
         {generationPaused ? retryLabel : busy ? "Generating preview…" : buttonLabel}
       </Button>
       {error && <p className="text-[12.5px] text-reject">{error}</p>}
+      {!error && warning && (
+        <p className="rounded-[6px] bg-amber-50 px-3 py-2.5 text-[12px] leading-relaxed text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
+          {warning}
+        </p>
+      )}
     </div>
   );
 }
