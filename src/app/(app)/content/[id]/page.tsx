@@ -62,7 +62,7 @@ export default async function ContentDetailPage({
   const { data: content } = await supabase
     .from("generated_content")
     .select(
-      "id, title, body, status, target_language, audience, source_document_ids, rejection_note, created_at, updated_at, approved_at, created_by, product_id, product_template_id, template_version_id, template_variant_id, structured_fields, prompt_context, citations, current_revision_number, approved_revision_number, products(name), product_templates(layout_key, variant, category, editable_fields, field_limits, template_definition), template_versions(id, version_label, manifest), template_variants(id, variant_key, label), creator:profiles!generated_content_created_by_fkey(full_name), approver:profiles!generated_content_approved_by_fkey(full_name)"
+      "id, title, body, status, target_language, audience, source_document_ids, rejection_note, created_at, updated_at, approved_at, created_by, product_id, product_template_id, template_version_id, template_variant_id, structured_fields, prompt_context, citations, current_revision_number, approved_revision_number, products!generated_content_product_id_fkey(name), product_templates!generated_content_product_template_id_fkey(layout_key, variant, category, editable_fields, field_limits, template_definition), template_versions!generated_content_template_version_id_fkey(id, version_label, manifest), template_variants!generated_content_template_variant_id_fkey(id, variant_key, label), creator:profiles!generated_content_created_by_fkey(full_name), approver:profiles!generated_content_approved_by_fkey(full_name)"
     )
     .eq("id", id)
     .single();

@@ -102,7 +102,7 @@ export async function GET(req: Request) {
     const { data: assignmentRow } = await supabase
       .from("product_template_assignments")
       .select(
-        "id, default_payload, template_families(name), template_versions(manifest)"
+        "id, default_payload, template_families!product_template_assignments_template_family_id_fkey(name), template_versions!product_template_assignments_template_version_id_fkey(manifest)"
       )
       .eq("id", platformAssignmentId)
       .eq("org_id", profile.org_id)
@@ -173,7 +173,9 @@ export async function GET(req: Request) {
 
   const { data: tpl } = await supabase
     .from("product_templates")
-    .select("id, variant, category, layout_key, editable_fields, default_copy, template_definition, status, product_id, products(name, disclaimer_text)")
+    .select(
+      "id, variant, category, layout_key, editable_fields, default_copy, template_definition, status, product_id, products!product_templates_product_id_fkey(name, disclaimer_text)"
+    )
     .eq("id", templateId)
     .single();
   if (!tpl) return new Response("Not found", { status: 404 });

@@ -305,7 +305,7 @@ export async function getProductWorkspace(
     .from("generated_content")
     .select(
       needsContentRows
-        ? "id, title, status, target_language, audience, product_template_id, template_version_id, template_variant_id, created_by, rejection_note, created_at, updated_at, product_templates(variant, category), template_versions(version_label, template_families(name)), template_variants(label, variant_key), creator:profiles!generated_content_created_by_fkey(full_name)"
+        ? "id, title, status, target_language, audience, product_template_id, template_version_id, template_variant_id, created_by, rejection_note, created_at, updated_at, product_templates!generated_content_product_template_id_fkey(variant, category), template_versions!generated_content_template_version_id_fkey(version_label, template_families!template_versions_family_id_fkey(name)), template_variants!generated_content_template_variant_id_fkey(label, variant_key), creator:profiles!generated_content_created_by_fkey(full_name)"
         : "id, status"
     )
     .eq("org_id", profile.org_id)
@@ -361,7 +361,7 @@ export async function getProductWorkspace(
       supabase
         .from("product_template_assignments")
         .select(
-          "id, product_id, status, default_variant_key, generation_profile, default_payload, template_families(id, family_key, name), template_versions(id, version_label, status, manifest)"
+          "id, product_id, status, default_variant_key, generation_profile, default_payload, template_families!product_template_assignments_template_family_id_fkey(id, family_key, name), template_versions!product_template_assignments_template_version_id_fkey(id, version_label, status, manifest)"
         )
         .eq("org_id", profile.org_id)
         .eq("product_id", productId)

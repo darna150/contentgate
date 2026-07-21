@@ -86,7 +86,7 @@ export async function GET(req: Request) {
   const { data: content } = await supabase
     .from("generated_content")
     .select(
-      "id, org_id, product_id, status, current_revision_number, approved_revision_number, structured_fields, template_version_id, template_variant_id, renderer_version, products(name, disclaimer_text), product_templates(layout_key, category, template_definition, status), template_versions(manifest), template_variants(variant_key)"
+      "id, org_id, product_id, status, current_revision_number, approved_revision_number, structured_fields, template_version_id, template_variant_id, renderer_version, products!generated_content_product_id_fkey(name, disclaimer_text), product_templates!generated_content_product_template_id_fkey(layout_key, category, template_definition, status), template_versions!generated_content_template_version_id_fkey(manifest), template_variants!generated_content_template_variant_id_fkey(variant_key)"
     )
     .eq("id", contentId)
     .single();

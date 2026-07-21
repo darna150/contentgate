@@ -27,7 +27,9 @@ export async function ActivityPanel() {
 
   const { data: recent } = await supabase
     .from("knowledge_queries")
-    .select("id, question, not_found, created_at, products(name), profiles(full_name)")
+    .select(
+      "id, question, not_found, created_at, products!knowledge_queries_product_id_fkey(name), profiles!knowledge_queries_user_id_fkey(full_name)"
+    )
     .order("created_at", { ascending: false })
     .limit(8);
 

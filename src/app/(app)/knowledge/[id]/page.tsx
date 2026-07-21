@@ -23,7 +23,7 @@ export default async function DocumentDetailPage({
     supabase
       .from("documents")
       .select(
-        "id, title, file_type, storage_path, content_text, paragraphs, created_at, uploaded_by, products(name), profiles(full_name)"
+        "id, title, file_type, storage_path, content_text, paragraphs, created_at, uploaded_by, products!documents_product_id_fkey(name), profiles!documents_uploaded_by_fkey(full_name)"
       )
       .eq("id", id)
       .single(),

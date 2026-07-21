@@ -54,7 +54,7 @@ export async function listProductAssets(filters: ProductAssetFilters = {}) {
   let query = supabase
     .from("product_assets")
     .select(
-      "id, org_id, product_id, asset_type, title, description, alt_text, storage_path, original_file_name, mime_type, file_size_bytes, width_pixels, height_pixels, tags, approval_status, uploaded_by, created_at, updated_at, products(id, name)"
+      "id, org_id, product_id, asset_type, title, description, alt_text, storage_path, original_file_name, mime_type, file_size_bytes, width_pixels, height_pixels, tags, approval_status, uploaded_by, created_at, updated_at, products!product_assets_product_id_fkey(id, name)"
     )
     .eq("org_id", profile.org_id)
     .order("created_at", { ascending: false });
