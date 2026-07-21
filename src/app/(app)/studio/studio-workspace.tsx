@@ -741,7 +741,7 @@ export function StudioWorkspace({
         </div>
         {canReview && content ? (
           <span className="shrink-0 text-[14px] font-bold text-brand">
-            {mode === "review" ? "Reviewer view" : "Preview as reviewer"}
+            {mode === "review" ? "Exit reviewer view" : "Preview as reviewer"}
           </span>
         ) : (
           <span className="shrink-0 text-[13px] font-semibold text-ink-faint">

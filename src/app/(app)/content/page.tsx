@@ -88,8 +88,8 @@ export default async function ContentPage({
   return (
     <div className="mx-auto flex max-w-[1280px] flex-col gap-6 px-4 py-9 sm:px-10">
       <PageHeader
-        title="Content"
-        description="Everything generated, from draft to approved. Only approved content can be exported."
+        eyebrow="Content"
+        title="Workspace ledger"
         actions={
           <Button asChild>
             <Link href="/products">Generate content</Link>
