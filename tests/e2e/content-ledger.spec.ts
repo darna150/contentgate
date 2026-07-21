@@ -83,7 +83,9 @@ test.describe("Content ledger QA", () => {
 
     await signIn(page);
     await page.goto("/content");
-    await expect(page.getByText(/Content/i).first()).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole("heading", { name: /^Content$/i })).toBeVisible({
+      timeout: 30_000,
+    });
 
     await testInfo.attach("content-ledger-initial.png", {
       contentType: "image/png",

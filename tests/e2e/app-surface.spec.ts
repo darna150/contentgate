@@ -188,11 +188,14 @@ test.describe("ContentGate full app surface QA", () => {
 
     for (const surface of SURFACES) {
       await page.goto(surface.path);
-      // Scope to <main> so nav/sidebar copies of the same text (which may be
-      // visibility:hidden on certain breakpoints) don't shadow the visible
-      // heading and cause a false failure.
+      // Intersect with :visible so that sidebar/nav copies of the same text
+      // that are CSS-hidden (visibility:hidden) on the current page don't
+      // shadow the visible heading and cause a false failure. Dashboard's
+      // "Dashboard" label lives in the nav and is genuinely visible there, so
+      // this still matches it; product names hidden in collapsed sidebars are
+      // correctly skipped.
       await expect(
-        page.locator("main, [role='main']").getByText(surface.expectedText).first(),
+        page.getByText(surface.expectedText).and(page.locator(":visible")).first(),
         surface.name
       ).toBeVisible({ timeout: 30_000 });
       await assertNoBrokenImages(page, surface.name);
