@@ -133,6 +133,73 @@ test("ranks fallback evidence by meaningful query overlap", () => {
   assert.equal(ranked[0]?.document_id, "doc-b");
 });
 
+// Retrieval-quality fixture set: (question → expected top paragraph).
+// These benchmark rankKnowledgeEvidence's client-side fallback ranking.
+// Note: the function uses exact token matching (no stemming), so test corpus
+// terms must appear verbatim in both questions and paragraphs.
+const RETRIEVAL_CORPUS = [
+  {
+    document_id: "doc-duration",
+    document_title: "Protection Duration Guide",
+    paragraph_n: 1,
+    paragraph_text:
+      "This product provides full monthly protection — one treatment covers protection for a full month duration.",
+  },
+  {
+    document_id: "doc-eligibility",
+    document_title: "Eligibility Requirements",
+    paragraph_n: 1,
+    paragraph_text:
+      "Eligibility requires minimum weight above four pounds and minimum age above eight weeks.",
+  },
+  {
+    document_id: "doc-admin",
+    document_title: "ContentGate Admin Controls",
+    paragraph_n: 1,
+    paragraph_text:
+      "Administrators control layout permissions by locking typography and color settings.",
+  },
+  {
+    document_id: "doc-localize",
+    document_title: "Localization Overview",
+    paragraph_n: 1,
+    paragraph_text:
+      "ContentGate generates localized content from approved templates, claims, and source documents.",
+  },
+];
+
+test("fixture: protection duration question ranks the duration paragraph first", () => {
+  const ranked = rankKnowledgeEvidence(
+    "What is the protection duration for one monthly treatment?",
+    RETRIEVAL_CORPUS
+  );
+  // "protection", "duration", "monthly" all appear in doc-duration p1 only
+  assert.equal(ranked[0]?.document_id, "doc-duration");
+});
+
+test("fixture: eligibility requirements question ranks the eligibility paragraph first", () => {
+  const ranked = rankKnowledgeEvidence(
+    "What eligibility minimum weight age requirements apply?",
+    RETRIEVAL_CORPUS
+  );
+  // "eligibility", "minimum", "weight", "age" all appear in doc-eligibility p1
+  assert.equal(ranked[0]?.document_id, "doc-eligibility");
+});
+
+test("fixture: admin locking question ranks the admin paragraph first", () => {
+  const ranked = rankKnowledgeEvidence(
+    "How administrators control locking typography permissions?",
+    RETRIEVAL_CORPUS
+  );
+  // "administrators", "locking", "typography" appear in doc-admin p1
+  assert.equal(ranked[0]?.document_id, "doc-admin");
+});
+
+test("fixture: empty question returns no evidence", () => {
+  const ranked = rankKnowledgeEvidence("", RETRIEVAL_CORPUS);
+  assert.deepEqual(ranked, []);
+});
+
 test("extractive fallback remains cited and source-bound", () => {
   assert.deepEqual(
     buildExtractiveKnowledgeAnswer("Who is ContentGate for?", [
