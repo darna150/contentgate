@@ -7,7 +7,6 @@ const PLATFORM_ASSIGNMENT_ID =
   process.env.CONTENTGATE_E2E_ASSIGNMENT_ID ??
   "3a6cbcb0-23b4-476b-8deb-ad2e48d20516";
 const OUTPUT_SIZE = "leaderboard";
-const OUTPUT_SIZE_LABEL = "Leaderboard";
 const LIVE_EDIT_TEXT = `QA Live ${Date.now().toString().slice(-5)}`;
 const BASE_URL = process.env.CONTENTGATE_E2E_BASE_URL ?? "";
 
@@ -164,9 +163,7 @@ async function generateLeaderboardDraft(page: Page) {
       (result?.json.outputSize as string | undefined) ?? OUTPUT_SIZE
     }`
   );
-  await expect(page.getByText(new RegExp(`DRAFT\\s*·\\s*${OUTPUT_SIZE_LABEL}`, "i"))).toBeVisible({
-    timeout: 60_000,
-  });
+  await assertStatusBadge(page, "Draft", 60_000);
 
   return result?.json.contentId as string;
 }
@@ -210,6 +207,12 @@ async function assertPreviewIsAvailable(page: Page) {
   await expect(page.locator("[data-template-platform-bundle]").first()).toBeVisible({
     timeout: 60_000,
   });
+}
+
+async function assertStatusBadge(page: Page, label: string, timeout = 30_000) {
+  await expect(
+    page.locator('[data-slot="badge"]').filter({ hasText: label })
+  ).toBeVisible({ timeout });
 }
 
 async function findFieldTextarea(page: Page, labelPattern: RegExp) {
@@ -332,9 +335,7 @@ test.describe("ContentGate live generation QA", () => {
     await attachScreenshot(page, testInfo, "03-missing-size-draft");
 
     await page.getByRole("button", { name: /Leaderboard\s+728×90/i }).click();
-    await expect(page.getByText(new RegExp(`DRAFT\\s*·\\s*${OUTPUT_SIZE_LABEL}`, "i"))).toBeVisible({
-      timeout: 20_000,
-    });
+    await assertStatusBadge(page, "Draft", 20_000);
     await assertPreviewIsAvailable(page);
 
     const editableField = await findEditableTextArea(page);
@@ -402,15 +403,11 @@ test.describe("ContentGate live generation QA", () => {
     const contentId = await generateLeaderboardDraft(page);
 
     await page.getByRole("button", { name: /Submit for review/i }).click();
-    await expect(page.getByText(new RegExp(`IN REVIEW\\s*·\\s*${OUTPUT_SIZE_LABEL}`, "i"))).toBeVisible({
-      timeout: 30_000,
-    });
+    await assertStatusBadge(page, "In review", 30_000);
     await expect(page.getByText(/Awaiting your review/i)).toBeVisible();
 
     await page.getByRole("button", { name: /^Approve$/i }).click();
-    await expect(page.getByText(new RegExp(`APPROVED\\s*·\\s*${OUTPUT_SIZE_LABEL}`, "i"))).toBeVisible({
-      timeout: 30_000,
-    });
+    await assertStatusBadge(page, "Approved", 30_000);
     await expect(page.getByText(/Approved snapshot/i)).toBeVisible();
 
     const exportResult = await page.evaluate(
@@ -497,17 +494,13 @@ test.describe("ContentGate live generation QA", () => {
     await generateLeaderboardDraft(page);
 
     await page.getByRole("button", { name: /Submit for review/i }).click();
-    await expect(page.getByText(new RegExp(`IN REVIEW\\s*·\\s*${OUTPUT_SIZE_LABEL}`, "i"))).toBeVisible({
-      timeout: 30_000,
-    });
+    await assertStatusBadge(page, "In review", 30_000);
 
     await page.getByRole("button", { name: /^Reject$/i }).click();
     await page.getByPlaceholder(/What needs to change/i).fill(rejectionNote);
     await page.getByRole("button", { name: /Reject with note/i }).click();
 
-    await expect(page.getByText(new RegExp(`REJECTED\\s*·\\s*${OUTPUT_SIZE_LABEL}`, "i"))).toBeVisible({
-      timeout: 30_000,
-    });
+    await assertStatusBadge(page, "Rejected", 30_000);
     await expect(page.getByText("Changes requested")).toBeVisible();
     await expect(page.getByText(rejectionNote)).toBeVisible();
     await attachScreenshot(page, testInfo, "rejection-note-visible");
@@ -566,9 +559,7 @@ test.describe("ContentGate live generation QA", () => {
       await expect(page.getByText(/could not verify|grounding required/i)).toHaveCount(0, {
         timeout: 120_000,
       });
-      await expect(
-        page.getByText(new RegExp(`DRAFT\\s*·\\s*${OUTPUT_SIZE_LABEL}`, "i"))
-      ).toBeVisible({ timeout: 120_000 });
+      await assertStatusBadge(page, "Draft", 120_000);
       await assertPreviewIsAvailable(page);
 
       await testInfo.attach(`refine-${label.toLowerCase().replace(/\s+/g, "-")}.png`, {
