@@ -966,7 +966,10 @@ export function StudioWorkspace({
                 busy={busy}
                 onGenerate={generate}
               />
-            ) : content && !isBrandReferenceView && selectedTemplate.platformManifest ? (
+            ) : content && !isBrandReferenceView && selectedTemplate.platformManifest && dirty ? (
+              // Live JSX render only while the user has unsaved edits — gives
+              // instant keystroke feedback. Uses browser fonts so metrics
+              // diverge slightly from Satori; acceptable for a draft-in-progress.
               <LiveTemplatePreviewFrame
                 manifest={selectedTemplate.platformManifest}
                 variantKey={size}
@@ -977,11 +980,13 @@ export function StudioWorkspace({
                 updating={saveState === "saving"}
               />
             ) : (
+              // Pixel-accurate server render when viewing (not actively editing):
+              // right after generation, after save, or when dirty=false.
               <ServerPreviewFrame
                 src={previewUrl}
                 width={dims.w}
                 height={dims.h}
-                updating={false}
+                updating={saveState === "saving"}
               />
             )}
           </div>
