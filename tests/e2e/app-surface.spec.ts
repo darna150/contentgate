@@ -27,7 +27,7 @@ const SURFACES: Surface[] = [
   {
     name: "Product templates",
     path: `/products/${CONTENTGATE_PRODUCT_ID}?view=templates`,
-    expectedText: /ContentGate Local Friendly/i,
+    expectedText: /Set A - Local Content Friendly|ContentGate Local Friendly/i,
   },
   {
     name: "Product content",
@@ -50,7 +50,7 @@ const SURFACES: Surface[] = [
     expectedText: /Assets|No assets/i,
   },
   { name: "Content library", path: "/content", expectedText: /Content/i },
-  { name: "Approvals", path: "/approvals", expectedText: /Approval Queue/i },
+  { name: "Approvals", path: "/approvals", expectedText: /Approval Queue|In review|The queue is clear/i },
   { name: "Assets", path: "/assets", expectedText: /Assets/i },
   { name: "Ask notebook", path: "/ask", expectedText: /Ask notebook|All sources/i },
   { name: "Source Documents", path: "/knowledge", expectedText: /Source documents/i },

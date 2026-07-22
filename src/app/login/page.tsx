@@ -16,7 +16,7 @@ export default function LoginPage() {
             Locked templates. Approved claims. Nothing ships without a sign-off.
           </h1>
           <p className="max-w-sm text-[15px] leading-relaxed text-sidebar-text">
-            Generate localized content from governed source knowledge and route every export through approval.
+            Distributed teams generate localized marketing assets from designer-made templates — every export backed by an approval trail.
           </p>
         </div>
 
@@ -32,10 +32,8 @@ export default function LoginPage() {
             <span className="text-[18px] font-bold tracking-[-0.03em] text-ink">contentgate</span>
           </div>
           <div className="flex flex-col gap-2">
-            <h2 className="text-h1 text-ink">Sign in</h2>
-            <p className="text-body text-ink-muted">
-              Welcome back. Use your company credentials.
-            </p>
+            <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-ink-faint">Sign in</p>
+            <h2 className="text-h1 text-ink">Welcome back.</h2>
           </div>
           <LoginForm />
         </div>

@@ -61,9 +61,12 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "server-only": "^0.0.1",
-    "sharp": "0.34.5",
+    "sharp": "^0.35.3",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.6.0"
+  },
+  "overrides": {
+    "sharp": "^0.35.3"
   },
   "devDependencies": {
     "@figwright/mcp": "^0.3.0",

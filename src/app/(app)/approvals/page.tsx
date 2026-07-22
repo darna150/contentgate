@@ -3,7 +3,6 @@ import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { FilterChips } from "@/components/filter-chips";
-import { StatusPill } from "@/components/status-pill";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { getApprovalPage } from "@/lib/content-listing";
@@ -11,6 +10,15 @@ import { studioContentUrl } from "@/lib/creative";
 import { getProductWorkspace } from "@/lib/product-workspace-server";
 
 const LANGUAGES = ["English", "Filipino", "Spanish", "Portuguese", "Vietnamese", "Thai"];
+
+const LANG_CODE: Record<string, string> = {
+  English: "EN",
+  Filipino: "FIL",
+  Spanish: "ES",
+  Portuguese: "PT",
+  Vietnamese: "VI",
+  Thai: "TH",
+};
 
 type QueueRow = {
   id: string;
@@ -42,7 +50,7 @@ function approvalUrgency(createdAtIso: string): { tone: Urgency; waitingLabel: s
 
 const URGENCY_BORDER: Record<Urgency, string> = {
   fresh: "border-l-brand",
-  normal: "border-l-transparent",
+  normal: "border-l-brand",
   urgent: "border-l-reject",
 };
 
@@ -117,12 +125,8 @@ export default async function ApprovalsPage({
           </Link>
         )}
         <PageHeader
-          title="Approval Queue"
-          description={
-            productName
-              ? `Content for ${productName} waiting for review.`
-              : "Content waiting for review. Only approved content can be exported."
-          }
+          eyebrow="Approvals"
+          title={productName ? `In review — ${productName}` : "In review, workspace-wide"}
         />
       </div>
 
@@ -130,7 +134,7 @@ export default async function ApprovalsPage({
         <FilterChips
           options={[
             { label: "All languages", value: "all" },
-            ...LANGUAGES.map((l) => ({ label: l, value: l })),
+            ...LANGUAGES.map((l) => ({ label: LANG_CODE[l] ?? l, value: l })),
           ]}
           activeValue={activeLanguage}
           getHref={(value) => buildHref({ language: value })}
@@ -164,7 +168,7 @@ export default async function ApprovalsPage({
                 </span>
                 <span className="flex flex-col items-end gap-0.5">
                   <span
-                    className={`text-[11.5px] ${urgency.tone === "urgent" ? "font-bold text-reject" : "text-ink-faint"}`}
+                    className={`text-[11.5px] font-semibold ${urgency.tone === "urgent" ? "text-reject" : "text-brand"}`}
                   >
                     {urgency.waitingLabel}
                   </span>
@@ -174,7 +178,6 @@ export default async function ApprovalsPage({
                     </span>
                   )}
                 </span>
-                <StatusPill status="in_review" />
                 <span className="rounded-[7px] bg-ink px-3 py-1.5 text-[12.5px] font-semibold text-white">
                   Review
                 </span>

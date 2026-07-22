@@ -259,7 +259,7 @@ function groundingRepairInstruction(issues: string[]): string {
     fields.length
       ? `Fix these fields: ${fields.join(", ")}.`
       : ``,
-    `For each, add an evidence entry with the source id (e.g. C1 or P2) and an "excerpt" copied WORD-FOR-WORD from that approved source. Do not assert anything that is not directly supported by an approved claim or source sentence.`,
+    `For each, add an evidence entry with the source id (e.g. C1 or P2) and an "excerpt" that is a verbatim phrase of at least 4 words copied exactly from that approved source (no paraphrase). Do not assert anything that is not directly supported by an approved claim or source sentence.`,
   ]
     .filter(Boolean)
     .join("\n");
@@ -573,7 +573,7 @@ export async function POST(req: Request) {
       `The existing template copy below is a length and tone reference only. Do not repeat unsupported facts from it:`,
       editableFields.map((key) => `${key}: ${defaultCopy[key] ?? ""}`).join("\n"),
       ``,
-      `EVIDENCE: for every field that makes a factual or benefit claim, add an evidence entry with { field, source_id, excerpt } where source_id is the id (e.g. C2 or P1) of the approved item it rests on and excerpt is a short phrase copied WORD-FOR-WORD from that item. The excerpt must appear exactly, verbatim, in the cited approved item. You may reword the field copy freely, but the excerpt proves the claim is grounded. Command/label fields (CTA, button) do not need evidence.`,
+      `EVIDENCE: for every field that makes a factual or benefit claim, add an evidence entry with { field, source_id, excerpt } where source_id is the id (e.g. C2 or P1) of the approved item it rests on and excerpt is a verbatim phrase of at least 4 words copied EXACTLY from that item (no paraphrase, no ellipsis). The excerpt must appear exactly, verbatim, in the cited approved item — longer is better. You may reword the field copy freely, but the excerpt proves the claim is grounded. Command/label fields (CTA, button) do not need evidence.`,
     ].join("\n");
 
     try {
