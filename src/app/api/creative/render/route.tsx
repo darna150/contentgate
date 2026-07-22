@@ -170,7 +170,12 @@ async function renderContent(req: Request) {
       fonts: fonts.length ? fonts : await loadContentGateFonts(),
       headers: cacheHeaders,
     });
-    if (format === "png" && !download) return image;
+    if (format === "png" && !download) {
+      return new Response(await image.arrayBuffer(), {
+        status: 200,
+        headers: { "Content-Type": "image/png", ...cacheHeaders },
+      });
+    }
 
     const converted = await convertServerRenderedPng({
       png: await image.arrayBuffer(),
