@@ -32,6 +32,19 @@ function safeFilename(value: string) {
 }
 
 export async function GET(req: Request) {
+  try {
+    return await draftPreview(req);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[draft-preview] unhandled exception:", message, err);
+    return new Response(`Draft preview error: ${message}`, {
+      status: 500,
+      headers: { "Cache-Control": "no-store" },
+    });
+  }
+}
+
+async function draftPreview(req: Request) {
   const { searchParams } = new URL(req.url);
   const contentId = searchParams.get("content");
   const requestedSizeParam = searchParams.get("size");
@@ -125,7 +138,12 @@ export async function GET(req: Request) {
       "Cache-Control": "no-store",
     },
   });
-  if (format === "png" && !download) return image;
+  if (format === "png" && !download) {
+    return new Response(await image.arrayBuffer(), {
+      status: 200,
+      headers: { "Content-Type": "image/png", "Cache-Control": "no-store" },
+    });
+  }
 
   const converted = await convertServerRenderedPng({
     png: await image.arrayBuffer(),

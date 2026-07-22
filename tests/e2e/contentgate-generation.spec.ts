@@ -203,11 +203,15 @@ async function getPreviewMetrics(page: Page) {
 }
 
 async function assertPreviewIsAvailable(page: Page) {
+  // "Preview unavailable" must never be visible — it means the server render
+  // failed AND the fallback to the live JSX preview also failed.
   await expect(page.getByText("Preview unavailable")).toHaveCount(0);
-  await expect(page.getByAltText("Generated template preview")).toHaveCount(0);
-  await expect(page.locator("[data-template-platform-bundle]").first()).toBeVisible({
-    timeout: 60_000,
-  });
+  // Accept either the pixel-accurate server render (img) or the live JSX
+  // preview (data-template-platform-bundle) — the Studio shows one or the
+  // other depending on dirty state and server preview availability.
+  const livePreview = page.locator("[data-template-platform-bundle]").first();
+  const serverPreview = page.getByAltText("Generated template preview");
+  await expect(livePreview.or(serverPreview)).toBeVisible({ timeout: 60_000 });
 }
 
 async function assertStatusBadge(page: Page, label: string, timeout = 30_000) {
