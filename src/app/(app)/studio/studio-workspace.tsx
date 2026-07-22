@@ -314,11 +314,14 @@ export function StudioWorkspace({
     ]
   );
   const [showOriginal, setShowOriginal] = useState(false);
+  const [serverPreviewFailed, setServerPreviewFailed] = useState(false);
   const isBrandReferenceView = showOriginal || (!content && !hasAnyGeneratedDraft);
   const generatedPreviewUrl = content
     ? draftPreviewUrl(content.id, size, savedAt ?? content.id)
     : null;
   const previewUrl = showOriginal || !generatedPreviewUrl ? originalPreviewUrl : generatedPreviewUrl;
+  // Reset fallback state whenever the URL we're trying to load changes.
+  useEffect(() => { setServerPreviewFailed(false); }, [previewUrl]);
   const draftPreviewDownloadAllowed =
     !!content &&
     !isBrandReferenceView &&
@@ -741,7 +744,7 @@ export function StudioWorkspace({
         </div>
         {canReview && content ? (
           <span className="shrink-0 text-[14px] font-bold text-brand">
-            {mode === "review" ? "Reviewer view" : "Preview as reviewer"}
+            {mode === "review" ? "Exit reviewer view" : "Preview as reviewer"}
           </span>
         ) : (
           <span className="shrink-0 text-[13px] font-semibold text-ink-faint">
@@ -966,7 +969,9 @@ export function StudioWorkspace({
                 busy={busy}
                 onGenerate={generate}
               />
-            ) : content && !isBrandReferenceView && selectedTemplate.platformManifest ? (
+            ) : content && !isBrandReferenceView && selectedTemplate.platformManifest && (dirty || serverPreviewFailed) ? (
+              // Live JSX render while the user has unsaved edits, or as a
+              // fallback if the server preview failed to load.
               <LiveTemplatePreviewFrame
                 manifest={selectedTemplate.platformManifest}
                 variantKey={size}
@@ -977,11 +982,13 @@ export function StudioWorkspace({
                 updating={saveState === "saving"}
               />
             ) : (
+              // Pixel-accurate server render when viewing (not actively editing).
               <ServerPreviewFrame
                 src={previewUrl}
                 width={dims.w}
                 height={dims.h}
-                updating={false}
+                updating={saveState === "saving"}
+                onError={() => setServerPreviewFailed(true)}
               />
             )}
           </div>

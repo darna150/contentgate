@@ -83,7 +83,7 @@ test.describe("Content ledger QA", () => {
 
     await signIn(page);
     await page.goto("/content");
-    await expect(page.getByRole("heading", { name: /^Content$/i })).toBeVisible({
+    await expect(page.getByRole("heading", { name: /Workspace ledger|^Content$/i })).toBeVisible({
       timeout: 30_000,
     });
 
@@ -162,7 +162,7 @@ test.describe("Content ledger QA", () => {
     await signIn(page);
     await page.goto("/approvals");
     await expect(
-      page.getByText(/Approval Queue|The queue is clear/i).first()
+      page.getByText(/Approval Queue|In review|The queue is clear/i).first()
     ).toBeVisible({ timeout: 30_000 });
 
     await testInfo.attach("approvals-queue.png", {

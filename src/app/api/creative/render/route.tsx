@@ -68,6 +68,19 @@ function renderInputSha256(value: unknown) {
 
 // Renders an org-visible piece of content into its product's locked layout.
 export async function GET(req: Request) {
+  try {
+    return await renderContent(req);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[render] unhandled exception:", message, err);
+    return new Response(`Render error: ${message}`, {
+      status: 500,
+      headers: { "Cache-Control": "no-store" },
+    });
+  }
+}
+
+async function renderContent(req: Request) {
   const { searchParams } = new URL(req.url);
   const contentId = searchParams.get("content");
   const requestedSizeParam = searchParams.get("size");
@@ -157,7 +170,12 @@ export async function GET(req: Request) {
       fonts: fonts.length ? fonts : await loadContentGateFonts(),
       headers: cacheHeaders,
     });
-    if (format === "png" && !download) return image;
+    if (format === "png" && !download) {
+      return new Response(await image.arrayBuffer(), {
+        status: 200,
+        headers: { "Content-Type": "image/png", ...cacheHeaders },
+      });
+    }
 
     const converted = await convertServerRenderedPng({
       png: await image.arrayBuffer(),

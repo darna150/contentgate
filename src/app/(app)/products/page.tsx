@@ -14,7 +14,7 @@ type ProductRow = {
 
 export default async function ProductsPage() {
   let products: ProductRow[] = [];
-  let counts: Record<string, { claims: number; templates: number }> = {};
+  let counts: Record<string, { templates: number; content: number }> = {};
   let isAdmin = false;
 
   if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
@@ -32,25 +32,28 @@ export default async function ProductsPage() {
 
     if (products.length) {
       const ids = products.map((p) => p.id);
-      const [{ data: claims }, { data: tpls }] = await Promise.all([
-        supabase.from("product_claims").select("product_id").in("product_id", ids),
+      const [{ data: tpls }, { data: contentItems }] = await Promise.all([
         supabase
           .from("product_template_assignments")
           .select("product_id")
           .in("product_id", ids)
           .eq("status", "active"),
+        supabase
+          .from("generated_content")
+          .select("product_id")
+          .in("product_id", ids),
       ]);
-      counts = Object.fromEntries(products.map((p) => [p.id, { claims: 0, templates: 0 }]));
-      for (const c of claims ?? []) counts[c.product_id].claims++;
+      counts = Object.fromEntries(products.map((p) => [p.id, { templates: 0, content: 0 }]));
       for (const t of tpls ?? []) counts[t.product_id].templates++;
+      for (const c of contentItems ?? []) counts[c.product_id].content++;
     }
   }
 
   return (
     <div className="mx-auto flex max-w-[1280px] flex-col gap-6 px-4 py-9 sm:px-10">
       <PageHeader
-        title="Products"
-        description="Everything starts with a product. Pick one to create compliant content from its approved knowledge."
+        eyebrow="Products"
+        title="Workspace catalog"
         actions={
           isAdmin ? (
             <Button asChild>
@@ -90,8 +93,8 @@ export default async function ProductsPage() {
                 <p className="text-[13px] italic text-ink-faint">No description yet.</p>
               )}
               <div className="mt-auto flex gap-4 border-t border-edge pt-3 text-[12px] text-ink-faint">
-                <span>{counts[p.id]?.claims ?? 0} approved claims</span>
                 <span>{counts[p.id]?.templates ?? 0} templates</span>
+                <span>{counts[p.id]?.content ?? 0} content</span>
               </div>
             </Link>
           ))}

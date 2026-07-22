@@ -106,11 +106,14 @@ export function ServerPreviewFrame({
   width,
   height,
   updating,
+  onError,
 }: {
   src: string;
   width: number;
   height: number;
   updating: boolean;
+  /** Called once when the preview image fails to load. */
+  onError?: () => void;
 }) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0.72);
@@ -169,7 +172,7 @@ export function ServerPreviewFrame({
           src={displaySrc}
           alt="Generated template preview"
           className="block rounded-[3px] shadow-elevated"
-          onError={() => setFailedSrc(displaySrc)}
+          onError={() => { setFailedSrc(displaySrc); onError?.(); }}
           style={{
             width: Math.round(width * scale),
             height: Math.round(height * scale),

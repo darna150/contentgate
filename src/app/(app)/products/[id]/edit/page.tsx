@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { updateProduct, setClaimStatus } from "../../actions";
@@ -122,10 +123,10 @@ export default async function EditProductPage({
   return (
     <div className="mx-auto flex max-w-[720px] flex-col gap-6 px-4 py-9 sm:px-10">
       <div className="flex flex-col gap-1.5">
-        <a href={`/products/${id}`} className="text-[13px] font-semibold text-brand hover:underline">
-          ← {product.name}
-        </a>
-        <h1 className="text-h1 text-ink">Edit product</h1>
+        <Link href="/products" className="text-[13px] font-semibold text-brand hover:underline">
+          ← Products
+        </Link>
+        <h1 className="text-h1 text-ink">Edit {product.name}</h1>
       </div>
 
       {/* Product details */}
@@ -182,8 +183,8 @@ export default async function EditProductPage({
 
       {/* Claims */}
       <div className="flex flex-col gap-4 rounded-card border border-edge bg-surface p-[22px]">
-        <div className="flex items-center gap-2">
-          <h2 className="text-[15px] font-bold">Approved claims</h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-[11px] font-bold uppercase tracking-[0.08em] text-ink-faint">Approved claims</h2>
           <span className="rounded-[5px] bg-approve-tint px-[7px] py-0.5 text-[10px] font-bold uppercase tracking-[0.06em] text-approve">
             {(claims ?? []).filter((c) => c.status === "approved").length} active
           </span>

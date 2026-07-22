@@ -1,5 +1,65 @@
 @import "tailwindcss";
 
+/* Pin "ContentGate Sans" and "Inter" to the same Inter TTF files the Satori
+   server renderer loads from public/fonts/, so the live JSX preview in Studio
+   uses identical font metrics and text wraps match the server-rendered image. */
+@font-face {
+  font-family: "ContentGate Sans";
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+  src: url("/fonts/Inter-Regular.ttf") format("truetype");
+}
+@font-face {
+  font-family: "ContentGate Sans";
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+  src: url("/fonts/Inter-Medium.ttf") format("truetype");
+}
+@font-face {
+  font-family: "ContentGate Sans";
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+  src: url("/fonts/Inter-SemiBold.ttf") format("truetype");
+}
+@font-face {
+  font-family: "ContentGate Sans";
+  font-weight: 700 800;
+  font-style: normal;
+  font-display: swap;
+  src: url("/fonts/Inter-Bold.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Inter";
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+  src: url("/fonts/Inter-Regular.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Inter";
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+  src: url("/fonts/Inter-Medium.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Inter";
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+  src: url("/fonts/Inter-SemiBold.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Inter";
+  font-weight: 700 800;
+  font-style: normal;
+  font-display: swap;
+  src: url("/fonts/Inter-Bold.ttf") format("truetype");
+}
+
 @theme {
   /* ContentGate design tokens v2 — from ContentGate.dc.html (near-monochrome
      base + one teal functional accent). Token NAMES are unchanged from v1 to
