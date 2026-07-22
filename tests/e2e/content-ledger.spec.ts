@@ -83,7 +83,7 @@ test.describe("Content ledger QA", () => {
 
     await signIn(page);
     await page.goto("/content");
-    await expect(page.getByRole("heading", { name: /^Content$/i })).toBeVisible({
+    await expect(page.getByRole("heading", { name: /Workspace ledger|^Content$/i })).toBeVisible({
       timeout: 30_000,
     });
 
