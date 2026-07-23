@@ -1,8 +1,10 @@
+import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { PreviewImage } from "@/components/preview-image";
-import { SizeChip, type SizeChipStatus } from "@/components/size-chip";
+import type { SizeChipStatus } from "@/components/size-chip";
+import { studioNewUrl } from "@/lib/creative";
 import type { ProductWorkspace, ProductWorkspacePlatformTemplate } from "@/lib/product-workspace-server";
-import { GenerateVariant } from "../generate-variant";
 import { SectionEmpty } from "./empty-state";
 
 function imageSrc(path: string) {
@@ -34,13 +36,16 @@ function TemplateCard({
   template,
   canGenerate,
   sizeStatus,
+  productId,
 }: {
   template: ProductWorkspacePlatformTemplate;
   canGenerate: boolean;
   sizeStatus: Record<string, SizeChipStatus>;
+  productId: string;
 }) {
   const previewPath = template.referenceAssetBySize[template.defaultVariantKey] ?? "";
   const dims = template.variantMetaBySize[template.defaultVariantKey];
+  const totalDrafts = Object.values(sizeStatus).filter((status) => status !== "empty").length;
 
   return (
     <div className="flex flex-col gap-3 rounded-card border border-edge bg-surface p-3 transition-colors hover:border-brand/40">
@@ -61,37 +66,33 @@ function TemplateCard({
           {template.familyName}
         </span>
         <Badge variant="approve" className="shrink-0">
-          Locked design
+          Agency campaign
         </Badge>
       </div>
 
-      <div className="flex flex-wrap gap-1.5 px-0.5">
-        {template.supportedSizes.map((size) => (
-          <SizeChip
-            key={size}
-            label={template.variantMetaBySize[size]?.label ?? size}
-            dims={
-              template.variantMetaBySize[size]
-                ? {
-                    w: template.variantMetaBySize[size].width,
-                    h: template.variantMetaBySize[size].height,
-                  }
-                : undefined
-            }
-            status={sizeStatus[size] ?? "empty"}
-          />
-        ))}
+      <p className="px-0.5 text-[12.5px] leading-5 text-ink-muted">
+        Realistic background scenes, grounded Aerform product assets, and
+        format-specific layouts for finished client materials.
+      </p>
+
+      <div className="flex items-center justify-between rounded-[8px] border border-edge bg-page px-3 py-2 text-[12px] text-ink-muted">
+        <span>{template.supportedSizes.length} output formats</span>
+        <span>{totalDrafts} generated</span>
       </div>
 
       {canGenerate && (
         <div className="px-0.5">
-          <GenerateVariant
-            platformAssignmentId={template.assignmentId}
-            variant={template.familyName}
-            sizes={template.supportedSizes}
-            initialSize={template.defaultVariantKey}
-            compact
-          />
+          <Button asChild className="w-full">
+            <Link
+              href={studioNewUrl({
+                productId,
+                assignmentId: template.assignmentId,
+                size: template.defaultVariantKey,
+              })}
+            >
+              Open in Studio
+            </Link>
+          </Button>
         </div>
       )}
     </div>
@@ -123,9 +124,9 @@ export function TemplatesView({ workspace }: { workspace: ProductWorkspace }) {
         </p>
       ) : (
         <p className="text-[13px] text-ink-muted">
-          Pick a format, then generate copy inside locked, on-brand artwork. Only
-          the text fields change &mdash; layout and imagery stay compliant by
-          construction.
+          Pick a finished Aerform campaign format, then generate copy inside
+          Studio. Background, product, shadows, print detail, and layout stay
+          compliant by construction.
           {!canGenerate &&
             " Generation is unavailable until an active template is configured."}
         </p>
@@ -138,6 +139,7 @@ export function TemplatesView({ workspace }: { workspace: ProductWorkspace }) {
             template={template}
             canGenerate={canGenerate}
             sizeStatus={sizeStatusByTemplate[template.versionId] ?? {}}
+            productId={product.id}
           />
         ))}
       </div>

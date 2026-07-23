@@ -12,6 +12,7 @@ import {
   type TemplateBundleAsset,
   type TemplateBundleField,
   type TemplateBundleFont,
+  type TemplateBundleImageSlot,
   type TemplateBundleManifest,
   type TemplateBundleTextSlot,
   type TemplateBundleVariant,
@@ -24,6 +25,11 @@ import {
 } from "../template-contract";
 
 const CONTENTGATE_FIGMA_FILE_KEY = "IpOSq5oAG87yAGBtpYqQvG";
+const AERFORM_FIGWRIGHT_BUNDLE_ROOT = join(
+  process.cwd(),
+  ".template-bundles/figwright-contentgate/aerform-air01-v1/bundle"
+);
+const AERFORM_FIGWRIGHT_MANIFEST = join(AERFORM_FIGWRIGHT_BUNDLE_ROOT, "manifest.json");
 
 const INTER_FONT_FILES: Array<{
   key: string;
@@ -43,30 +49,34 @@ const FIELD_LABELS: Record<string, string> = {
   local_detail: "Local detail",
   proof_note: "Proof note",
   subheadline: "Subheadline",
+  product_specs: "Product specs",
 };
+
+const PRODUCT_VARIANT_FIELD = "__productVariantKey";
+const FIGWRIGHT_PRODUCT_MODEL_FIELD = "product_model";
 
 const BACKGROUND_OPTIONS = [
   {
     key: "classic-cream",
-    label: "Classic cream",
+    label: "Warm editorial studio",
   },
   {
     key: "mint-glow",
-    label: "Mint glow",
+    label: "Transit concourse",
   },
   {
     key: "terracotta-edge",
-    label: "Terracotta edge",
+    label: "Dark threshold",
   },
   {
     key: "sage-grid",
-    label: "Sage grid",
+    label: "Coastal overlook",
   },
 ] as const;
 
 const LAYOUT_FAMILY_KEYS: Record<string, string> = {
-  contentgate_local_friendly: "contentgate-local-friendly",
-  contentgate_local_premium: "contentgate-local-premium",
+  contentgate_local_friendly: "aerform-air01-campaign",
+  contentgate_local_premium: "aerform-air01-campaign",
 };
 
 type PublishedFrame = NonNullable<PublishedTemplatePackage["frames"][TemplateSizeKey]>;
@@ -126,6 +136,8 @@ function backgroundOptionPath(baseBackgroundPath: string, optionKey: string) {
 function variantChannel(size: TemplateSizeKey): TemplateBundleVariant["channel"] {
   return size === "leaderboard" || size === "medium_rectangle" || size === "link_ad"
     ? "display_ad"
+    : size === "us_letter" || size === "poster" || size === "rack_card" || size === "a4"
+      ? "document"
     : "social";
 }
 
@@ -157,14 +169,63 @@ function fieldsFromFrames(frames: PublishedFrame[]): TemplateBundleField[] {
   const fieldKeys = [
     ...new Set(frames.flatMap((frame) => frame.textSlots.map((slot) => slot.field))),
   ];
-  return fieldKeys.map((key) => ({
-    key,
-    label: FIELD_LABELS[key] ?? key,
-    type: "text",
-    source: "ai",
-    required: key === "headline" || key === "cta",
-    localizable: true,
-  }));
+  return [
+    ...fieldKeys.map((key) => ({
+      key,
+      label: FIELD_LABELS[key] ?? key,
+      type: "text" as const,
+      source: "ai" as const,
+      required: key === "headline" || key === "cta",
+      localizable: true,
+    })),
+    {
+      key: PRODUCT_VARIANT_FIELD,
+      label: "Product variant",
+      type: "asset_choice" as const,
+      source: "user" as const,
+      required: false,
+      options: ["charcoal", "stone", "ivory", "charcoal-expanded"],
+      defaultValue: "charcoal",
+    },
+  ];
+}
+
+function productSlotForSize(size: TemplateSizeKey): TemplateBundleImageSlot {
+  const dims = TEMPLATE_OUTPUT_SIZES[size];
+  const make = (x: number, y: number, width: number, height: number): TemplateBundleImageSlot => ({
+    key: "product-variant-slot",
+    field: PRODUCT_VARIANT_FIELD,
+    kind: "image",
+    x,
+    y,
+    width,
+    height,
+    fit: "contain",
+    focalPoint: { x: 0.5, y: 0.9 },
+  });
+
+  switch (size) {
+    case "leaderboard":
+      return make(dims.w * 0.08, dims.h * 0.08, dims.w * 0.13, dims.h * 0.84);
+    case "medium_rectangle":
+      return make(dims.w * 0.53, dims.h * 0.34, dims.w * 0.34, dims.h * 0.5);
+    case "link_ad":
+      return make(dims.w * 0.08, dims.h * 0.16, dims.w * 0.24, dims.h * 0.7);
+    case "story":
+      return make(dims.w * 0.28, dims.h * 0.58, dims.w * 0.46, dims.h * 0.33);
+    case "portrait":
+      return make(dims.w * 0.45, dims.h * 0.55, dims.w * 0.34, dims.h * 0.34);
+    case "square":
+      return make(dims.w * 0.46, dims.h * 0.5, dims.w * 0.34, dims.h * 0.38);
+    case "us_letter":
+      return make(dims.w * 0.52, dims.h * 0.11, dims.w * 0.36, dims.h * 0.35);
+    case "poster":
+      return make(dims.w * 0.52, dims.h * 0.14, dims.w * 0.36, dims.h * 0.34);
+    case "rack_card":
+      return make(dims.w * 0.44, dims.h * 0.2, dims.w * 0.42, dims.h * 0.32);
+    default:
+      return make(dims.w * 0.5, dims.h * 0.52, dims.w * 0.34, dims.h * 0.34);
+  }
 }
 
 async function readBundleAsset(input: {
@@ -234,6 +295,84 @@ async function buildFontAssets(): Promise<{
   };
 }
 
+async function fileExists(path: string) {
+  try {
+    await readFile(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function normalizeAerformFigwrightManifest(
+  manifest: TemplateBundleManifest
+): TemplateBundleManifest {
+  const hasProductVariantField = manifest.fields.some(
+    (field) => field.key === PRODUCT_VARIANT_FIELD
+  );
+  const normalizedFields = manifest.fields
+    .filter((field) => field.key !== FIGWRIGHT_PRODUCT_MODEL_FIELD)
+    .map((field) => ({
+      ...field,
+      label: FIELD_LABELS[field.key] ?? field.label,
+      required: field.key === "cta" ? true : field.required,
+    }));
+
+  return {
+    ...manifest,
+    family: {
+      ...manifest.family,
+      key: "aerform-air01-campaign",
+      name: "Aerform Air 01 Campaign System",
+      description:
+        "Agency-level Aerform campaign templates exported from the Figma Social, Print, and Digital Ads pages.",
+    },
+    fields: [
+      ...normalizedFields,
+      ...(hasProductVariantField
+        ? []
+        : [
+            {
+              key: PRODUCT_VARIANT_FIELD,
+              label: "Product variant",
+              type: "asset_choice" as const,
+              source: "user" as const,
+              required: false,
+              options: ["charcoal", "stone", "ivory", "charcoal-expanded"],
+              defaultValue: "charcoal",
+            },
+          ]),
+    ],
+    variants: manifest.variants.map((variant) => ({
+      ...variant,
+      slots: variant.slots.map((slot) =>
+        slot.kind === "image" && slot.field === FIGWRIGHT_PRODUCT_MODEL_FIELD
+          ? { ...slot, field: PRODUCT_VARIANT_FIELD }
+          : slot
+      ),
+    })),
+  };
+}
+
+async function buildAerformFigwrightTemplateBundle(): Promise<ContentGateTemplateBundle | null> {
+  if (!(await fileExists(AERFORM_FIGWRIGHT_MANIFEST))) return null;
+  const rawManifest = JSON.parse(
+    await readFile(AERFORM_FIGWRIGHT_MANIFEST, "utf8")
+  ) as TemplateBundleManifest;
+  const manifest = normalizeAerformFigwrightManifest(rawManifest);
+  const assets = await Promise.all(
+    manifest.assets.map(async (asset) => {
+      const data = await readFile(join(AERFORM_FIGWRIGHT_BUNDLE_ROOT, asset.path));
+      return {
+        path: asset.path,
+        data,
+        contentType: asset.mimeType ?? contentTypeForPath(asset.path),
+      };
+    })
+  );
+  return { manifest, assets };
+}
+
 async function buildVariantAssets(input: {
   packageKey: string;
   size: TemplateSizeKey;
@@ -289,7 +428,7 @@ async function buildVariantAssets(input: {
     backgroundOptions: [
       {
         key: "classic-cream",
-        label: "Classic cream",
+        label: "Warm editorial studio",
         asset: background.asset.key,
       },
       ...alternateBackgrounds.map((entry) => ({
@@ -304,6 +443,9 @@ async function buildVariantAssets(input: {
 export async function buildContentGateTemplateBundle(
   layoutKey: "contentgate_local_friendly" | "contentgate_local_premium"
 ): Promise<ContentGateTemplateBundle> {
+  const figwrightBundle = await buildAerformFigwrightTemplateBundle();
+  if (figwrightBundle) return figwrightBundle;
+
   const pkg = resolvePublishedTemplatePackage(layoutKey);
   if (!pkg) throw new Error(`Unknown ContentGate package ${layoutKey}.`);
   const contract = getTemplateLayoutContract(layoutKey);
@@ -334,7 +476,7 @@ export async function buildContentGateTemplateBundle(
       referenceAsset: variantAssets.referenceKey,
       backgroundAsset: variantAssets.backgroundKey,
       backgroundOptions: variantAssets.backgroundOptions,
-      slots: frame.textSlots.map(toTextSlot),
+      slots: [productSlotForSize(size), ...frame.textSlots.map(toTextSlot)],
     };
   });
 

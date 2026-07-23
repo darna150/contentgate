@@ -26,6 +26,10 @@ function timeAgo(iso: string): string {
   return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
+function softenSavedAnswer(content: string) {
+  return content.replace(/^The approved source says:\s*/i, "");
+}
+
 // A member's own question history. Click a question to expand the saved
 // answer + citations inline — no second API call, free to browse.
 export function MemberHistory({ items }: { items: HistoryItem[] }) {
@@ -74,7 +78,9 @@ export function MemberHistory({ items }: { items: HistoryItem[] }) {
                       item.not_found ? "italic text-ink-muted" : "text-ink"
                     }`}
                   >
-                    {item.answer || "No answer was recorded for this question."}
+                    {item.answer
+                      ? softenSavedAnswer(item.answer)
+                      : "No answer was recorded for this question."}
                   </div>
 
                   <CitationList

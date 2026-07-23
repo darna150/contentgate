@@ -53,6 +53,10 @@ function exportFormat(value: string | null): ServerExportFormat {
   return value === "jpeg" || value === "pdf" ? value : "png";
 }
 
+function exportScale(value: string | null): 1 | 2 {
+  return value === "2" || value === "2x" ? 2 : 1;
+}
+
 function safeFilename(value: string) {
   return (
     value
@@ -69,6 +73,7 @@ export async function GET(req: Request) {
   const assignmentIdParam = searchParams.get("assignment");
   const requestedSize = searchParams.get("size") ?? "square";
   const format = exportFormat(searchParams.get("format"));
+  const scale = exportScale(searchParams.get("scale"));
   const download = searchParams.get("download") === "1";
   if (!templateId && !assignmentIdParam) {
     return new Response("Missing template or assignment id", { status: 400 });
@@ -97,7 +102,7 @@ export async function GET(req: Request) {
     const { data: assignmentRow } = await supabase
       .from("product_template_assignments")
       .select(
-        "id, default_payload, template_families(name), template_versions(manifest)"
+        "id, default_payload, template_families!product_template_assignments_template_family_id_fkey(name), template_versions!product_template_assignments_template_version_id_fkey(manifest)"
       )
       .eq("id", platformAssignmentId)
       .eq("org_id", profile.org_id)
@@ -129,6 +134,7 @@ export async function GET(req: Request) {
       assetOrigin: new URL(req.url).origin,
       assetUrlByPath,
       original: true,
+      scale,
     });
     if (!rendered) return new Response("Template render failed.", { status: 500 });
     const fonts = await loadTemplateBundleImageFonts({ manifest, assetUrlByPath });
@@ -147,7 +153,11 @@ export async function GET(req: Request) {
       size: requestedSize as SizeKey,
       format,
     });
-    const filename = `${safeFilename(`${family?.name ?? manifest.family.name}-${requestedSize}-original`)}.${converted.extension}`;
+    const filename = `${safeFilename(
+      `${family?.name ?? manifest.family.name}-${requestedSize}-original${
+        scale > 1 ? `-${scale}x` : ""
+      }`
+    )}.${converted.extension}`;
     return new Response(Buffer.from(converted.body), {
       headers: {
         "Content-Type": converted.contentType,

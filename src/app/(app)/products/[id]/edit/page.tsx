@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { updateProduct, addClaim, setClaimStatus } from "../../actions";
+import { updateProduct, setClaimStatus } from "../../actions";
+import { CitationList } from "@/components/citation";
 import { ProductAssetPanel } from "@/components/assets/product-asset-panel";
 import type { AssetItem } from "@/components/assets/types";
 import { createProductAssetPreviewUrlMap } from "@/lib/product-assets-server";
@@ -11,6 +12,56 @@ const CLAIM_STATES = [
   { status: "inactive", label: "Inactive" },
   { status: "deleted", label: "Delete" },
 ] as const;
+
+type EditProductClaim = {
+  id: string;
+  claim_text: string;
+  status: string;
+  source_document_id?: string | null;
+  source_paragraph_n?: number | null;
+  source_excerpt?: string | null;
+  documents?: { id: string; title: string } | { id: string; title: string }[] | null;
+};
+
+function isMissingProductClaimSourceColumn(error: { message?: string } | null) {
+  return Boolean(
+    error?.message?.includes("product_claims.source_document_id") ||
+      error?.message?.includes("product_claims.source_paragraph_n") ||
+      error?.message?.includes("product_claims.source_excerpt") ||
+      error?.message?.includes("relationship") ||
+      error?.message?.includes("foreign key")
+  );
+}
+
+async function loadEditProductClaims(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  productId: string
+) {
+  const result = await supabase
+    .from("product_claims")
+    .select("id, claim_text, status, source_document_id, source_paragraph_n, source_excerpt, documents(id, title)")
+    .eq("product_id", productId)
+    .order("created_at", { ascending: true });
+
+  if (!isMissingProductClaimSourceColumn(result.error)) return result;
+
+  const fallback = await supabase
+    .from("product_claims")
+    .select("id, claim_text, status")
+    .eq("product_id", productId)
+    .order("created_at", { ascending: true });
+
+  return {
+    data: (fallback.data ?? []).map((claim) => ({
+      ...claim,
+      source_document_id: null,
+      source_paragraph_n: null,
+      source_excerpt: null,
+      documents: null,
+    })),
+    error: fallback.error,
+  };
+}
 
 export default async function EditProductPage({
   params,
@@ -32,11 +83,7 @@ export default async function EditProductPage({
   if (!product) notFound();
 
   const [{ data: claims }, { data: assets }] = await Promise.all([
-    supabase
-      .from("product_claims")
-      .select("id, claim_text, status")
-      .eq("product_id", id)
-      .order("created_at", { ascending: true }),
+    loadEditProductClaims(supabase, id),
     supabase
       .from("product_assets")
       .select(
@@ -47,7 +94,6 @@ export default async function EditProductPage({
   ]);
 
   const updateThisProduct = updateProduct.bind(null, id);
-  const addClaimToProduct = addClaim.bind(null, id);
   const assetPreviewUrls = await createProductAssetPreviewUrlMap(
     supabase,
     (assets ?? []).map((asset) => asset.storage_path)
@@ -143,26 +189,47 @@ export default async function EditProductPage({
           </span>
         </div>
         <p className="text-[12.5px] text-ink-muted">
-          Only approved claims are used in content generation. Set a claim to
-          Inactive to stop it being used without deleting it.
+          Claims are grounded in uploaded source documents. Ask and generation scan those documents
+          for source-bound answers instead of asking admins to maintain claims by hand.
         </p>
 
         {(claims ?? []).length === 0 ? (
           <p className="text-[13px] text-ink-faint">No claims yet — add one below.</p>
         ) : (
           <ul className="flex flex-col gap-1.5">
-            {(claims ?? []).map((c) => {
+            {((claims ?? []) as EditProductClaim[]).map((c) => {
               const isDeleted = c.status === "deleted";
+              const sourceDocument = Array.isArray(c.documents) ? c.documents[0] : c.documents;
               return (
                 <li
                   key={c.id}
                   className={`flex items-start gap-3 rounded-[10px] border border-edge bg-page px-4 py-3 ${isDeleted ? "opacity-45" : ""}`}
                 >
-                  <span
-                    className={`flex-1 text-[13px] leading-snug text-ink ${isDeleted ? "line-through" : ""}`}
-                  >
-                    {c.claim_text}
-                  </span>
+                  <div className="flex min-w-0 flex-1 flex-col gap-2">
+                    <span
+                      className={`text-[13px] leading-snug text-ink ${isDeleted ? "line-through" : ""}`}
+                    >
+                      {c.claim_text}
+                    </span>
+                    {sourceDocument && c.source_excerpt && (
+                      <CitationList
+                        citations={[
+                          {
+                            documentId: sourceDocument.id,
+                            documentTitle: sourceDocument.title,
+                            paragraphN: c.source_paragraph_n,
+                            excerpt: c.source_excerpt,
+                          },
+                        ]}
+                        label="Source"
+                      />
+                    )}
+                    {!sourceDocument && (
+                      <span className="text-[11.5px] text-ink-faint">
+                        Source paragraph not attached yet.
+                      </span>
+                    )}
+                  </div>
                   <div className="flex shrink-0 gap-1 rounded-control bg-surface p-1">
                     {CLAIM_STATES.map((state) => {
                       const active = c.status === state.status;
@@ -193,21 +260,10 @@ export default async function EditProductPage({
           </ul>
         )}
 
-        {/* Add claim */}
-        <form action={addClaimToProduct} className="flex gap-2 border-t border-edge pt-4">
-          <input
-            name="claim_text"
-            required
-            placeholder="Enter an approved marketing claim…"
-            className="flex-1 rounded-control border border-edge bg-page px-3.5 py-2.5 text-[13.5px] placeholder:text-ink-faint focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
-          />
-          <button
-            type="submit"
-            className="whitespace-nowrap rounded-control bg-brand px-4 py-2.5 text-[13.5px] font-semibold text-white transition-opacity hover:opacity-90"
-          >
-            + Add claim
-          </button>
-        </form>
+        <div className="rounded-[10px] border border-dashed border-edge-strong bg-page px-4 py-3 text-[12.5px] text-ink-muted">
+          To add or improve knowledge, upload source documents from Source Documents. The AI will
+          scan numbered paragraphs and cite them in Ask, Studio, and review flows.
+        </div>
       </div>
 
       <ProductAssetPanel

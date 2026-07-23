@@ -1,4 +1,4 @@
-import * as opentype from "opentype.js";
+import { createRequire } from "node:module";
 import type { Font, Glyph } from "opentype.js";
 
 import type { TemplateBundleManifest, TemplateBundleTextSlot } from "./manifest.ts";
@@ -28,10 +28,10 @@ export type TemplatePlatformFontSource = {
 };
 
 const fontPromises = new Map<string, Promise<Font>>();
-const parseFont =
-  opentype.parse ??
-  (opentype as typeof opentype & { default?: { parse?: typeof opentype.parse } })
-    .default?.parse;
+const require = createRequire(import.meta.url);
+const { parse: parseFont } = require("opentype.js") as {
+  parse: (buffer: ArrayBuffer) => Font;
+};
 
 async function loadTemplateFont(
   manifest: TemplateBundleManifest,
@@ -57,7 +57,7 @@ async function loadTemplateFont(
       if (!data) {
         throw new Error(`Font asset for "${font.key}" could not be loaded.`);
       }
-      return parseFont!(data);
+      return parseFont(data);
     })();
     // A failed load (missing asset, transient network error on the signed
     // URL fetch) must not poison this cache key forever — evict on
@@ -341,6 +341,7 @@ export async function coerceTemplatePlatformFieldsToFit(
     if (slot.maxChars && value.length > slot.maxChars) {
       value = value.slice(0, slot.maxChars).trim();
     }
+    value = value.replace(/[,;:]\s*$/, ".");
 
     for (let attempt = 0; attempt < 120; attempt += 1) {
       const layout = await resolveTemplatePlatformTextSlotLayout(input.manifest, value, slot, fontSource);
@@ -357,7 +358,7 @@ export async function coerceTemplatePlatformFieldsToFit(
       if (!value) break;
     }
 
-    coerced[slot.field] = value;
+    coerced[slot.field] = value.replace(/[,;:]\s*$/, ".");
   }
 
   return coerced;

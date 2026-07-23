@@ -15,7 +15,7 @@ export type SessionMessage =
   | { role: "assistant"; content: string; citations: Citation[]; not_found: boolean };
 
 export async function createSession(
-  productId: string
+  productId: string | null
 ): Promise<{ id: string } | { error: string }> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -28,14 +28,16 @@ export async function createSession(
     .single();
   if (!profile) return { error: "No profile" };
 
-  const { data: product } = await supabase
-    .from("products")
-    .select("id")
-    .eq("id", productId)
-    .eq("org_id", profile.org_id)
-    .eq("status", "active")
-    .maybeSingle();
-  if (!product) return { error: "Product is unavailable" };
+  if (productId) {
+    const { data: product } = await supabase
+      .from("products")
+      .select("id")
+      .eq("id", productId)
+      .eq("org_id", profile.org_id)
+      .eq("status", "active")
+      .maybeSingle();
+    if (!product) return { error: "Product is unavailable" };
+  }
 
   const { data, error } = await supabase
     .from("notebook_sessions")

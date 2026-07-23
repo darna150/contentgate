@@ -7,13 +7,37 @@ import { resolveTemplateBundleRuntimeVariant } from "@/lib/template-platform/run
 import { createTemplateBundleAssetUrlMap } from "@/lib/template-platform/storage-urls";
 import { loadTemplateBundleImageFonts } from "@/lib/template-platform/server-fonts";
 import { loadContentGateFonts } from "@/lib/contentgate-fonts";
+import {
+  convertServerRenderedPng,
+  type ServerExportFormat,
+} from "@/lib/server-export-formats";
 
 export const runtime = "nodejs";
+
+function exportFormat(value: string | null): ServerExportFormat {
+  return value === "jpeg" || value === "pdf" ? value : "png";
+}
+
+function exportScale(value: string | null): 1 | 2 {
+  return value === "2" || value === "2x" ? 2 : 1;
+}
+
+function safeFilename(value: string) {
+  return (
+    value
+      .replace(/[^\w\d-]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .toLowerCase() || "draft-preview"
+  );
+}
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const contentId = searchParams.get("content");
   const requestedSizeParam = searchParams.get("size");
+  const format = exportFormat(searchParams.get("format"));
+  const scale = exportScale(searchParams.get("scale"));
+  const download = searchParams.get("download") === "1";
   if (!contentId) return new Response("Missing content id", { status: 400 });
 
   const supabase = await createClient();
@@ -22,10 +46,24 @@ export async function GET(req: Request) {
   } = await supabase.auth.getUser();
   if (!user) return new Response("Unauthorized", { status: 401 });
 
+  if (download) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+    if (profile?.role !== "admin") {
+      return new Response("Draft preview downloads are available to admins only.", {
+        status: 403,
+        headers: { "Cache-Control": "no-store" },
+      });
+    }
+  }
+
   const { data: content } = await supabase
     .from("generated_content")
     .select(
-      "id, structured_fields, template_versions(manifest), template_variants(variant_key)"
+      "id, title, structured_fields, template_versions(manifest), template_variants(variant_key), products!generated_content_product_id_fkey(name)"
     )
     .eq("id", contentId)
     .single();
@@ -74,15 +112,40 @@ export async function GET(req: Request) {
     assetOrigin: new URL(req.url).origin,
     assetUrlByPath,
     textLayoutByField,
+    scale,
   });
   if (!rendered) return new Response("Template render failed.", { status: 500 });
 
   const fonts = await loadTemplateBundleImageFonts({ manifest, assetUrlByPath });
-  return new ImageResponse(rendered.element, {
+  const image = new ImageResponse(rendered.element, {
     width: rendered.width,
     height: rendered.height,
     fonts: fonts.length ? fonts : await loadContentGateFonts(),
     headers: {
+      "Cache-Control": "no-store",
+    },
+  });
+  if (format === "png" && !download) return image;
+
+  const converted = await convertServerRenderedPng({
+    png: await image.arrayBuffer(),
+    width: rendered.width,
+    height: rendered.height,
+    size: variantKey,
+    format,
+  });
+  const product = Array.isArray(content.products) ? content.products[0] : content.products;
+  const filename = `${safeFilename(
+    `${product?.name ?? content.title}-${variantKey}-draft-preview${
+      scale > 1 ? `-${scale}x` : ""
+    }`
+  )}.${converted.extension}`;
+  return new Response(Buffer.from(converted.body), {
+    headers: {
+      "Content-Type": converted.contentType,
+      "Content-Disposition": download
+        ? `attachment; filename="${filename}"`
+        : `inline; filename="${filename}"`,
       "Cache-Control": "no-store",
     },
   });

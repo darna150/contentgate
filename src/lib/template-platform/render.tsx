@@ -1,6 +1,10 @@
 import React from "react";
 
-import type { TemplateBundleManifest, TemplateBundleTextSlot } from "./manifest";
+import type {
+  TemplateBundleImageSlot,
+  TemplateBundleManifest,
+  TemplateBundleTextSlot,
+} from "./manifest";
 import {
   templateBundleFontStack,
   templateBundleFontStyle,
@@ -24,14 +28,14 @@ function cleanText(value: unknown) {
     .trim();
 }
 
-function descenderPadding(slot: TemplateBundleTextSlot, fontSize: number) {
+function descenderPadding(slot: TemplateBundleTextSlot, fontSize: number, scale = 1) {
   // Figma text boxes can export very tight line-height values (< 1).
   // Browser/Satori rendering can then clip glyph descenders ("g", "y",
   // "p", "q") when the slot clips overflow. Preserve the Figma line
   // height, but use any spare vertical room as a small internal descender
   // buffer so glyph bottoms are not cut off.
   const lineBoxHeight = fontSize * slot.lineHeight * slot.maxLines;
-  return Math.max(0, Math.min(fontSize * 0.12, slot.height - lineBoxHeight));
+  return Math.max(0, Math.min(fontSize * 0.12, scaledNumber(slot.height, scale) - lineBoxHeight));
 }
 
 /**
@@ -46,15 +50,38 @@ export type TemplateBundleTextLayout = {
   lines: string[];
 };
 
+function scaledNumber(value: number, scale: number) {
+  return Math.round(value * scale * 1000) / 1000;
+}
+
+function fallbackFontSizeForUnresolvedText(
+  slot: TemplateBundleTextSlot,
+  text: string,
+  scale: number
+) {
+  const maxSize = slot.fontSize;
+  const minSize = slot.fit === "shrink_to_fit" && slot.minFontSize ? slot.minFontSize : maxSize;
+  const lineCapacity = Math.max(1, (slot.lineChars ?? slot.maxChars ?? 18) * slot.maxLines);
+  const meaningfulLength = Math.max(1, text.replace(/\s+/g, " ").trim().length);
+  if (meaningfulLength <= lineCapacity) return scaledNumber(maxSize, scale);
+  const ratio = lineCapacity / meaningfulLength;
+  const estimatedSize = Math.max(minSize, maxSize * Math.sqrt(ratio));
+  return scaledNumber(estimatedSize, scale);
+}
+
 function renderTextSlot(
   manifest: TemplateBundleManifest,
   slot: TemplateBundleTextSlot,
   fields: Record<string, unknown>,
-  layoutByField?: Record<string, TemplateBundleTextLayout>
+  layoutByField?: Record<string, TemplateBundleTextLayout>,
+  scale = 1,
+  colorOverride?: string
 ) {
   const resolved = layoutByField?.[slot.field];
-  const fontSize = resolved?.fontSize ?? slot.fontSize;
   const content = resolved ? resolved.lines.join("\n") : cleanText(fields[slot.field]);
+  const fontSize = resolved
+    ? scaledNumber(resolved.fontSize, scale)
+    : fallbackFontSizeForUnresolvedText(slot, content, scale);
   const horizontalAlign =
     slot.align === "center" ? "center" : slot.align === "right" ? "flex-end" : "flex-start";
 
@@ -66,12 +93,12 @@ function renderTextSlot(
       data-template-font-size={fontSize}
       style={{
         position: "absolute",
-        left: slot.x,
-        top: slot.y,
-        width: slot.width,
-        height: slot.height,
+        left: scaledNumber(slot.x, scale),
+        top: scaledNumber(slot.y, scale),
+        width: scaledNumber(slot.width, scale),
+        height: scaledNumber(slot.height, scale),
         overflow: "hidden",
-        color: slot.color,
+        color: colorOverride ?? slot.color,
         display: "flex",
         flexDirection: "column",
         fontFamily: templateBundleFontStack(manifest, slot),
@@ -79,7 +106,7 @@ function renderTextSlot(
         fontWeight: templateBundleFontWeight(manifest, slot),
         fontStyle: templateBundleFontStyle(manifest, slot),
         lineHeight: slot.lineHeight,
-        letterSpacing: slot.letterSpacing ?? 0,
+        letterSpacing: scaledNumber(slot.letterSpacing ?? 0, scale),
         textAlign: slot.align ?? "left",
         whiteSpace: "pre-wrap",
         alignItems: horizontalAlign,
@@ -94,17 +121,17 @@ function renderTextSlot(
       <span
         data-template-content
         style={{
-          display: "block",
+          display: resolved ? "block" : "-webkit-box",
           maxWidth: "100%",
           minWidth: 0,
           flexShrink: 0,
           maxHeight: "100%",
-          paddingBottom: descenderPadding(slot, fontSize),
+          paddingBottom: descenderPadding(slot, fontSize, scale),
           overflow: "hidden",
           textAlign: slot.align ?? "left",
-          whiteSpace: "pre-wrap",
+          whiteSpace: resolved ? "pre-wrap" : "normal",
           wordBreak: "normal",
-          overflowWrap: "normal",
+          overflowWrap: resolved ? "normal" : "break-word",
           WebkitBoxOrient: "vertical",
           WebkitLineClamp: resolved ? resolved.lines.length : slot.maxLines,
         }}
@@ -115,22 +142,107 @@ function renderTextSlot(
   );
 }
 
+const PRODUCT_VARIANT_FIELD = "__productVariantKey";
+
+const PRODUCT_VARIANT_ASSETS: Record<string, string> = {
+  charcoal: "/template-packages/contentgate/products/charcoal.png",
+  stone: "/template-packages/contentgate/products/stone.png",
+  ivory: "/template-packages/contentgate/products/ivory.png",
+  "charcoal-expanded": "/template-packages/contentgate/products/charcoal-expanded.png",
+};
+
+const DARK_BACKGROUND_KEYS = new Set(["terracotta-edge", "night-threshold", "dark-performance"]);
+
+function selectedProductAsset(fields: Record<string, unknown>, assetOrigin?: string) {
+  const key =
+    typeof fields[PRODUCT_VARIANT_FIELD] === "string"
+      ? String(fields[PRODUCT_VARIANT_FIELD])
+      : "charcoal";
+  const assetPath = PRODUCT_VARIANT_ASSETS[key] ?? PRODUCT_VARIANT_ASSETS.charcoal;
+  return assetOrigin ? new URL(assetPath, assetOrigin).toString() : assetPath;
+}
+
+function renderImageSlot(
+  slot: TemplateBundleImageSlot,
+  fields: Record<string, unknown>,
+  scale = 1,
+  assetOrigin?: string
+) {
+  const src =
+    slot.field === PRODUCT_VARIANT_FIELD
+      ? selectedProductAsset(fields, assetOrigin)
+      : cleanText(fields[slot.field]);
+  if (!src) return null;
+  const shadowWidth = scaledNumber(slot.width * 0.68, scale);
+  const shadowHeight = scaledNumber(Math.max(10, slot.height * 0.085), scale);
+  const shadowLeft = scaledNumber(slot.x + slot.width * 0.16, scale);
+  const shadowTop = scaledNumber(slot.y + slot.height * 0.87, scale);
+  return (
+    <React.Fragment key={slot.key}>
+      <div
+        aria-hidden="true"
+        style={{
+          position: "absolute",
+          left: shadowLeft,
+          top: shadowTop,
+          width: shadowWidth,
+          height: shadowHeight,
+          borderRadius: "50%",
+          background: "rgba(0,0,0,.34)",
+          filter: `blur(${scaledNumber(Math.max(4, slot.width * 0.035), scale)}px)`,
+          transform: "translateY(12%)",
+        }}
+      />
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={src}
+        alt=""
+        data-template-field={slot.field}
+        style={{
+          position: "absolute",
+          left: scaledNumber(slot.x, scale),
+          top: scaledNumber(slot.y, scale),
+          width: scaledNumber(slot.width, scale),
+          height: scaledNumber(slot.height, scale),
+          display: "block",
+          objectFit: slot.fit,
+          transform: slot.rotation ? `rotate(${slot.rotation}deg)` : undefined,
+        }}
+      />
+    </React.Fragment>
+  );
+}
+
 function resolveImageSource(
   manifest: TemplateBundleManifest,
   path: string,
   assetUrlByPath?: Record<string, string>,
   assetOrigin?: string
 ) {
+  const signedUrl = assetUrlByPath?.[path];
+  if (signedUrl && manifest.version.name !== "figwright-v1") return signedUrl;
   const publicPath = publicContentGateBundleAssetPath(manifest, path);
   if (publicPath) {
     return assetOrigin ? new URL(publicPath, assetOrigin).toString() : publicPath;
   }
-  const signedUrl = assetUrlByPath?.[path];
   if (signedUrl) return signedUrl;
   if (path.startsWith("http://") || path.startsWith("https://") || path.startsWith("/")) {
     return path;
   }
   return `/${path}`;
+}
+
+function highDensityImageSource(src: string) {
+  if (src.startsWith("http://") || src.startsWith("https://")) {
+    const url = new URL(src);
+    if (!url.pathname.toLowerCase().endsWith(".png")) return null;
+    url.pathname = url.pathname.replace(/\.png$/i, "@2x.png");
+    return url.toString();
+  }
+  if (!src.startsWith("/")) return null;
+  const [pathname, query = ""] = src.split("?");
+  if (!pathname.toLowerCase().endsWith(".png")) return null;
+  return `${pathname.replace(/\.png$/i, "@2x.png")}${query ? `?${query}` : ""}`;
 }
 
 export function renderTemplateBundleVariant(input: {
@@ -144,11 +256,16 @@ export function renderTemplateBundleVariant(input: {
    * callers that haven't resolved layout (or slots with fit: "fixed") fall
    * back to raw-text CSS wrap/clamp at the authored fontSize. */
   textLayoutByField?: Record<string, TemplateBundleTextLayout>;
+  scale?: 1 | 2;
 }): TemplateBundleRenderResult | null {
+  const scale = input.scale ?? 1;
   const selectedBackgroundKey =
     typeof input.fields[BACKGROUND_CHOICE_FIELD] === "string"
       ? String(input.fields[BACKGROUND_CHOICE_FIELD])
       : undefined;
+  const textColorOverride = selectedBackgroundKey && DARK_BACKGROUND_KEYS.has(selectedBackgroundKey)
+    ? "#F7F2E8"
+    : undefined;
   const runtime = resolveTemplateBundleRuntimeVariant(
     input.manifest,
     input.variantKey,
@@ -158,30 +275,36 @@ export function renderTemplateBundleVariant(input: {
   const imagePath = input.original
     ? runtime.referenceAssetPath
     : runtime.backgroundAssetPath;
+  const imageSrc = resolveImageSource(
+    input.manifest,
+    imagePath,
+    input.assetUrlByPath,
+    input.assetOrigin
+  );
+  const imageSrc2x = highDensityImageSource(imageSrc);
+  const displayImageSrc = scale > 1 && imageSrc2x ? imageSrc2x : imageSrc;
+  const width = runtime.variant.width * scale;
+  const height = runtime.variant.height * scale;
 
   return {
-    width: runtime.variant.width,
-    height: runtime.variant.height,
+    width,
+    height,
     element: (
       <div
         data-template-platform-bundle={input.manifest.family.key}
         style={{
           position: "relative",
           display: "flex",
-          width: runtime.variant.width,
-          height: runtime.variant.height,
+          width,
+          height,
           overflow: "hidden",
           background: "#fff",
         }}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={resolveImageSource(
-            input.manifest,
-            imagePath,
-            input.assetUrlByPath,
-            input.assetOrigin
-          )}
+          src={displayImageSrc}
+          srcSet={scale === 1 && imageSrc2x ? `${imageSrc} 1x, ${imageSrc2x} 2x` : undefined}
           alt=""
           style={{
             position: "absolute",
@@ -193,11 +316,18 @@ export function renderTemplateBundleVariant(input: {
           }}
         />
         {!input.original &&
-          runtime.variant.slots
-            .filter((slot): slot is TemplateBundleTextSlot => slot.kind === "text")
-            .map((slot) =>
-              renderTextSlot(input.manifest, slot, input.fields, input.textLayoutByField)
-            )}
+          runtime.variant.slots.map((slot) =>
+            slot.kind === "image"
+              ? renderImageSlot(slot, input.fields, scale, input.assetOrigin)
+              : renderTextSlot(
+                  input.manifest,
+                  slot,
+                  input.fields,
+                  input.textLayoutByField,
+                  scale,
+                  textColorOverride
+                )
+          )}
       </div>
     ),
   };

@@ -74,6 +74,33 @@ function bytesSha256(data: Uint8Array) {
   return createHash("sha256").update(data).digest("hex");
 }
 
+function safeStorageSegment(value: string) {
+  return value.replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "") || "bundle";
+}
+
+export function templateBundleStoragePrefix(input: {
+  orgId: string;
+  manifest: TemplateBundleManifest;
+}) {
+  return [
+    input.orgId,
+    "template-bundles",
+    safeStorageSegment(input.manifest.family.key),
+    safeStorageSegment(input.manifest.version.name),
+  ].join("/");
+}
+
+export function templateBundleStoragePrefixIsOrgScoped(input: {
+  orgId: string;
+  storagePrefix: string;
+}) {
+  const normalized = input.storagePrefix.replace(/^\/+|\/+$/g, "");
+  return (
+    normalized === input.orgId ||
+    normalized.startsWith(`${input.orgId}/`)
+  );
+}
+
 function assetSourceByPath(sources: readonly TemplateBundleAssetSource[]) {
   return new Map(sources.map((source) => [source.path, source]));
 }

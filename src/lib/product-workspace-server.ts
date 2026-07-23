@@ -20,10 +20,24 @@ import {
   normalizeTemplatePlatformAssignment,
   type TemplatePlatformAssignmentRow,
 } from "@/lib/template-platform/assignments";
+import { buildContentGateTemplateBundle } from "@/lib/template-platform/contentgate-bundle";
 import { publicContentGateBundleAssetPath } from "@/lib/template-platform/public-contentgate-assets";
 import { cursorFromOffset, offsetFromCursor } from "@/lib/content-listing-shared";
+import {
+  aerformDemoProductDescription,
+  aerformDemoProductName,
+} from "@/lib/aerform-demo-display";
 
 type Joined<T> = T | T[] | null;
+type ClaimSourceDocument = { id: string; title: string };
+type ProductClaimRow = {
+  id: string;
+  claim_text: string;
+  status: string;
+  source_document_id?: string | null;
+  source_paragraph_n?: number | null;
+  source_excerpt?: string | null;
+};
 
 export type ProductWorkspaceAsset = {
   id: string;
@@ -57,6 +71,10 @@ export type ProductWorkspaceClaim = {
   id: string;
   claimText: string;
   status: string;
+  sourceDocumentId: string | null;
+  sourceDocumentTitle: string | null;
+  sourceParagraphN: number | null;
+  sourceExcerpt: string | null;
 };
 
 export type ProductWorkspacePlatformTemplate = {
@@ -141,6 +159,35 @@ type ProductWorkspaceView =
   | "content"
   | "approvals";
 
+type NormalizedPlatformTemplate = NonNullable<
+  ReturnType<typeof normalizeTemplatePlatformAssignment>
+>;
+
+async function aerformTemplateOverride(template: NormalizedPlatformTemplate) {
+  if (
+    template.familyKey !== "contentgate-local-friendly" &&
+    template.familyKey !== "contentgate-local-premium"
+  ) {
+    return template;
+  }
+  const layoutKey =
+    template.familyKey === "contentgate-local-premium"
+      ? "contentgate_local_premium"
+      : "contentgate_local_friendly";
+  const bundle = await buildContentGateTemplateBundle(layoutKey);
+  const supportedSizes = bundle.manifest.variants.map((variant) => variant.key);
+  return {
+    ...template,
+    familyKey: bundle.manifest.family.key,
+    familyName: bundle.manifest.family.name,
+    supportedSizes,
+    defaultVariantKey: supportedSizes.includes(template.defaultVariantKey)
+      ? template.defaultVariantKey
+      : supportedSizes[0],
+    manifest: bundle.manifest,
+  };
+}
+
 type AssetRow = {
   id: string;
   asset_type: ProductAssetType;
@@ -199,6 +246,46 @@ function assertQuery(error: { message: string } | null, label: string) {
   if (error) throw new Error(`Could not load workspace ${label}: ${error.message}`);
 }
 
+function isMissingProductClaimSourceColumn(error: { message?: string } | null) {
+  return Boolean(
+    error?.message?.includes("product_claims.source_document_id") ||
+      error?.message?.includes("product_claims.source_paragraph_n") ||
+      error?.message?.includes("product_claims.source_excerpt")
+  );
+}
+
+async function loadProductClaims(input: {
+  supabase: Awaited<ReturnType<typeof createClient>>;
+  orgId: string;
+  productId: string;
+}) {
+  const result = await input.supabase
+    .from("product_claims")
+    .select("id, claim_text, status, source_document_id, source_paragraph_n, source_excerpt")
+    .eq("org_id", input.orgId)
+    .eq("product_id", input.productId)
+    .order("created_at", { ascending: true });
+
+  if (!isMissingProductClaimSourceColumn(result.error)) return result;
+
+  const fallback = await input.supabase
+    .from("product_claims")
+    .select("id, claim_text, status")
+    .eq("org_id", input.orgId)
+    .eq("product_id", input.productId)
+    .order("created_at", { ascending: true });
+
+  return {
+    data: (fallback.data ?? []).map((claim) => ({
+      ...claim,
+      source_document_id: null,
+      source_paragraph_n: null,
+      source_excerpt: null,
+    })),
+    error: fallback.error,
+  };
+}
+
 export async function getProductWorkspace(
   productId: string,
   options: {
@@ -252,7 +339,7 @@ export async function getProductWorkspace(
     .from("generated_content")
     .select(
       needsContentRows
-        ? "id, title, status, target_language, audience, product_template_id, template_version_id, template_variant_id, created_by, rejection_note, created_at, updated_at, product_templates(variant, category), template_versions(version_label, template_families(name)), template_variants(label, variant_key), creator:profiles!generated_content_created_by_fkey(full_name)"
+        ? "id, title, status, target_language, audience, product_template_id, template_version_id, template_variant_id, created_by, rejection_note, created_at, updated_at, product_templates!generated_content_product_template_id_fkey(variant, category), template_versions!generated_content_template_version_id_fkey(version_label, template_families!template_versions_family_id_fkey(name)), template_variants!generated_content_template_variant_id_fkey(label, variant_key), creator:profiles!generated_content_created_by_fkey(full_name)"
         : "id, status"
     )
     .eq("org_id", profile.org_id)
@@ -300,16 +387,15 @@ export async function getProductWorkspace(
         .eq("org_id", profile.org_id)
         .eq("product_id", productId)
         .order("created_at", { ascending: false }),
-      supabase
-        .from("product_claims")
-        .select("id, claim_text, status")
-        .eq("org_id", profile.org_id)
-        .eq("product_id", productId)
-        .order("created_at", { ascending: true }),
+      loadProductClaims({
+        supabase,
+        orgId: profile.org_id,
+        productId,
+      }),
       supabase
         .from("product_template_assignments")
         .select(
-          "id, product_id, status, default_variant_key, generation_profile, default_payload, template_families(id, family_key, name), template_versions(id, version_label, status, manifest)"
+          "id, product_id, status, default_variant_key, generation_profile, default_payload, template_families!product_template_assignments_template_family_id_fkey(id, family_key, name), template_versions!product_template_assignments_template_version_id_fkey(id, version_label, status, manifest)"
         )
         .eq("org_id", profile.org_id)
         .eq("product_id", productId)
@@ -367,14 +453,51 @@ export async function getProductWorkspace(
     }),
     createdAt: source.created_at,
   }));
-  const claims = (claimResult.data ?? []).map((claim) => ({
-    id: claim.id,
-    claimText: claim.claim_text,
-    status: claim.status,
-  }));
-  const normalizedPlatformTemplates = ((platformTemplateResult.data ?? []) as TemplatePlatformAssignmentRow[])
-    .map(normalizeTemplatePlatformAssignment)
-    .filter((template): template is NonNullable<typeof template> => Boolean(template));
+
+  const claimRows = (claimResult.data ?? []) as ProductClaimRow[];
+  const claimSourceDocumentIds = [
+    ...new Set(
+      claimRows
+        .map((claim) => claim.source_document_id)
+        .filter((id): id is string => Boolean(id))
+    ),
+  ];
+  let sourceDocumentById = new Map<string, ClaimSourceDocument>();
+  if (claimSourceDocumentIds.length > 0) {
+    const { data: claimSourceDocs, error: claimSourceError } = await supabase
+      .from("documents")
+      .select("id, title")
+      .eq("org_id", profile.org_id)
+      .in("id", claimSourceDocumentIds);
+    assertQuery(claimSourceError, "claim source documents");
+    sourceDocumentById = new Map(
+      ((claimSourceDocs ?? []) as ClaimSourceDocument[]).map((document) => [
+        document.id,
+        document,
+      ])
+    );
+  }
+
+  const claims = claimRows.map((claim) => {
+    const sourceDocument = claim.source_document_id
+      ? sourceDocumentById.get(claim.source_document_id) ?? null
+      : null;
+    return {
+      id: claim.id,
+      claimText: claim.claim_text,
+      status: claim.status,
+      sourceDocumentId: claim.source_document_id ?? null,
+      sourceDocumentTitle: sourceDocument?.title ?? null,
+      sourceParagraphN: claim.source_paragraph_n ?? null,
+      sourceExcerpt: claim.source_excerpt ?? null,
+    };
+  });
+  const normalizedPlatformTemplates = await Promise.all(
+    ((platformTemplateResult.data ?? []) as TemplatePlatformAssignmentRow[])
+      .map(normalizeTemplatePlatformAssignment)
+      .filter((template): template is NormalizedPlatformTemplate => Boolean(template))
+      .map(aerformTemplateOverride)
+  );
   const platformTemplates = normalizedPlatformTemplates.map((template) => {
       const fieldsBySize = Object.fromEntries(
         template.supportedSizes.map((size) => {
@@ -517,8 +640,8 @@ export async function getProductWorkspace(
     product: {
       id: product.id,
       orgId: product.org_id,
-      name: product.name,
-      description: product.description,
+      name: aerformDemoProductName(product.name),
+      description: aerformDemoProductDescription(product.description),
       disclaimerText: product.disclaimer_text,
       status: product.status,
       createdAt: product.created_at,

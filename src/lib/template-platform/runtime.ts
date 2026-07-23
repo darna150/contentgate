@@ -80,7 +80,9 @@ export function getTemplateBundleVariantFields(
   const variant = getTemplateBundleVariant(manifest, variantKey);
   if (!variant) return [];
   const visibleFields = new Set(variant.slots.map((slot) => slot.field));
-  return manifest.fields.filter((field) => visibleFields.has(field.key));
+  return manifest.fields.filter(
+    (field) => visibleFields.has(field.key) && field.type === "text"
+  );
 }
 
 export function getTemplateBundleVariantFieldLimits(

@@ -16,43 +16,53 @@ test("resolves ContentGate Set A size-specific fields and limits", async () => {
   const bundle = await buildContentGateTemplateBundle("contentgate_local_friendly");
 
   assert.deepEqual(getTemplateBundleSupportedSizes(bundle.manifest), [
+    "portrait",
     "square",
     "story",
+    "linkedin_square",
     "link_ad",
-    "leaderboard",
     "medium_rectangle",
+    "leaderboard",
+    "us_letter",
+    "poster",
+    "rack_card",
   ]);
   assert.deepEqual(
     getTemplateBundleVariantFields(bundle.manifest, "leaderboard").map((field) => field.key),
     ["headline", "subheadline", "cta"]
   );
   assert.deepEqual(getTemplateBundleVariantFieldLimits(bundle.manifest, "leaderboard"), {
-    headline: { max_chars: 31, max_words: undefined, max_lines: 1 },
-    subheadline: { max_chars: 78, max_words: undefined, max_lines: 1 },
-    cta: { max_chars: 18, max_words: undefined, max_lines: 1 },
+    headline: { max_chars: 56, max_words: undefined, max_lines: 2 },
+    subheadline: { max_chars: 96, max_words: undefined, max_lines: 2 },
+    cta: { max_chars: 24, max_words: undefined, max_lines: 1 },
   });
 });
 
-test("resolves ContentGate Set B without exposing unsupported leaderboard", async () => {
+test("resolves ContentGate Set B with the full Aerform package", async () => {
   const bundle = await buildContentGateTemplateBundle("contentgate_local_premium");
 
   assert.deepEqual(getTemplateBundleSupportedSizes(bundle.manifest), [
-    "square",
     "portrait",
+    "square",
     "story",
+    "linkedin_square",
     "link_ad",
     "medium_rectangle",
+    "leaderboard",
+    "us_letter",
+    "poster",
+    "rack_card",
   ]);
-  assert.equal(resolveTemplateBundleRuntimeVariant(bundle.manifest, "leaderboard"), null);
+  assert.ok(resolveTemplateBundleRuntimeVariant(bundle.manifest, "leaderboard"));
 
   const story = resolveTemplateBundleRuntimeVariant(bundle.manifest, "story");
   assert.ok(story);
   assert.equal(
     story.backgroundAssetPath,
-    "template-packages/contentgate/set-b/backgrounds/story.png"
+    "variants/story/background.png"
   );
-  assert.equal(story.fieldLimits.headline.max_chars, 64);
-  assert.equal(story.fieldLimits.headline.max_lines, 3);
+  assert.equal(story.fieldLimits.headline.max_chars, 56);
+  assert.equal(story.fieldLimits.headline.max_lines, 2);
 });
 
 test("exposes arbitrary manifest variant keys instead of filtering through the legacy size enum", () => {

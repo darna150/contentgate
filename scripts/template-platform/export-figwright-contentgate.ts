@@ -13,7 +13,10 @@ import {
 } from "../../src/lib/template-platform/figma-publisher.ts";
 import { getPublishedTemplateFrameTextSlots } from "../../src/lib/published-template-package.tsx";
 import type { TemplateBundleVariant } from "../../src/lib/template-platform/manifest.ts";
-import type { TemplateSizeKey } from "../../src/lib/template-contract.ts";
+import {
+  TEMPLATE_OUTPUT_SIZES,
+  type TemplateSizeKey,
+} from "../../src/lib/template-contract.ts";
 import { writeFigmaPublisherBundle } from "./write-figma-publisher-bundle.ts";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -22,7 +25,7 @@ const figwrightMcpPath =
   process.env.FIGWRIGHT_MCP_PATH ??
   join(projectRoot, "node_modules/@figwright/mcp/dist/index.mjs");
 
-const CONTENTGATE_FIGMA_FILE_KEY = "IpOSq5oAG87yAGBtpYqQvG";
+const CONTENTGATE_FIGMA_FILE_KEY = "ContentGate-Adaptive-Campaign-Template-System";
 const outputRoot = resolve(
   process.env.FIGWRIGHT_CONTENTGATE_OUT ?? join(projectRoot, ".template-bundles/figwright-contentgate")
 );
@@ -59,6 +62,11 @@ type ContentGateFrameTarget = {
   label: string;
   channel: TemplateBundleVariant["channel"];
   nodeId: string;
+  backgroundNodes: Array<{
+    key: string;
+    label: string;
+    nodeId: string;
+  }>;
 };
 
 type ContentGateBundleTarget = {
@@ -74,38 +82,135 @@ type ContentGateBundleTarget = {
 const targets: ContentGateBundleTarget[] = [
   {
     layoutKey: "contentgate_local_friendly",
-    folder: "local-friendly-v1",
-    pageId: "2:2",
+    folder: "aerform-air01-v1",
+    pageId: "5:7",
     family: {
-      key: "contentgate-local-friendly",
-      name: "ContentGate Local Friendly",
+      key: "aerform-air01-campaign",
+      name: "Aerform Air 01 Campaign System",
     },
     versionName: "figwright-v1",
-    sourceVersion: "figwright-set-a",
+    sourceVersion: "aerform-air01-figwright-v1",
     frames: [
-      { key: "square", label: "Square", channel: "social", nodeId: "2:15" },
-      { key: "story", label: "Story", channel: "social", nodeId: "2:52" },
-      { key: "link_ad", label: "Link Ad", channel: "display_ad", nodeId: "2:90" },
-      { key: "leaderboard", label: "Leaderboard", channel: "display_ad", nodeId: "2:124" },
-      { key: "medium_rectangle", label: "Medium Rectangle", channel: "display_ad", nodeId: "2:138" },
-    ],
-  },
-  {
-    layoutKey: "contentgate_local_premium",
-    folder: "local-premium-v1",
-    pageId: "4:2",
-    family: {
-      key: "contentgate-local-premium",
-      name: "ContentGate Local Premium",
-    },
-    versionName: "figwright-v1",
-    sourceVersion: "figwright-set-b",
-    frames: [
-      { key: "square", label: "Square", channel: "social", nodeId: "4:16" },
-      { key: "portrait", label: "Portrait Feed", channel: "social", nodeId: "4:35" },
-      { key: "story", label: "Story", channel: "social", nodeId: "4:55" },
-      { key: "link_ad", label: "Link Ad", channel: "display_ad", nodeId: "4:74" },
-      { key: "medium_rectangle", label: "Medium Rectangle", channel: "display_ad", nodeId: "4:93" },
+      {
+        key: "portrait",
+        label: "IG Portrait",
+        channel: "social",
+        nodeId: "6:53",
+        backgroundNodes: [
+          { key: "classic-cream", label: "Warm editorial studio", nodeId: "6:53" },
+          { key: "mint-glow", label: "Transit concourse", nodeId: "6:67" },
+          { key: "terracotta-edge", label: "Dark threshold", nodeId: "6:81" },
+          { key: "sage-grid", label: "Coastal overlook", nodeId: "6:95" },
+        ],
+      },
+      {
+        key: "square",
+        label: "IG Square",
+        channel: "social",
+        nodeId: "6:127",
+        backgroundNodes: [
+          { key: "classic-cream", label: "Warm editorial studio", nodeId: "6:127" },
+          { key: "mint-glow", label: "Transit concourse", nodeId: "6:141" },
+          { key: "terracotta-edge", label: "Dark threshold", nodeId: "6:155" },
+          { key: "sage-grid", label: "Coastal overlook", nodeId: "6:169" },
+        ],
+      },
+      {
+        key: "story",
+        label: "IG Story",
+        channel: "social",
+        nodeId: "6:201",
+        backgroundNodes: [
+          { key: "classic-cream", label: "Warm editorial studio", nodeId: "6:201" },
+          { key: "mint-glow", label: "Transit concourse", nodeId: "6:215" },
+          { key: "terracotta-edge", label: "Dark threshold", nodeId: "6:229" },
+          { key: "sage-grid", label: "Coastal overlook", nodeId: "6:243" },
+        ],
+      },
+      {
+        key: "linkedin_square",
+        label: "LinkedIn Square",
+        channel: "social",
+        nodeId: "6:275",
+        backgroundNodes: [
+          { key: "classic-cream", label: "Warm editorial studio", nodeId: "6:275" },
+          { key: "mint-glow", label: "Transit concourse", nodeId: "6:289" },
+          { key: "terracotta-edge", label: "Dark threshold", nodeId: "6:303" },
+          { key: "sage-grid", label: "Coastal overlook", nodeId: "6:317" },
+        ],
+      },
+      {
+        key: "link_ad",
+        label: "FB Landscape",
+        channel: "social",
+        nodeId: "6:349",
+        backgroundNodes: [
+          { key: "classic-cream", label: "Warm editorial studio", nodeId: "6:349" },
+          { key: "mint-glow", label: "Transit concourse", nodeId: "6:363" },
+          { key: "terracotta-edge", label: "Dark threshold", nodeId: "6:377" },
+          { key: "sage-grid", label: "Coastal overlook", nodeId: "6:391" },
+        ],
+      },
+      {
+        key: "medium_rectangle",
+        label: "Medium Rectangle",
+        channel: "display_ad",
+        nodeId: "6:645",
+        backgroundNodes: [
+          { key: "classic-cream", label: "Warm editorial studio", nodeId: "6:645" },
+          { key: "mint-glow", label: "Transit concourse", nodeId: "6:659" },
+          { key: "terracotta-edge", label: "Dark threshold", nodeId: "6:673" },
+          { key: "sage-grid", label: "Coastal overlook", nodeId: "6:687" },
+        ],
+      },
+      {
+        key: "leaderboard",
+        label: "Leaderboard",
+        channel: "display_ad",
+        nodeId: "6:719",
+        backgroundNodes: [
+          { key: "classic-cream", label: "Warm editorial studio", nodeId: "6:719" },
+          { key: "mint-glow", label: "Transit concourse", nodeId: "6:733" },
+          { key: "terracotta-edge", label: "Dark threshold", nodeId: "6:747" },
+          { key: "sage-grid", label: "Coastal overlook", nodeId: "6:761" },
+        ],
+      },
+      {
+        key: "us_letter",
+        label: "US Letter",
+        channel: "document",
+        nodeId: "6:423",
+        backgroundNodes: [
+          { key: "classic-cream", label: "Warm editorial studio", nodeId: "6:423" },
+          { key: "mint-glow", label: "Transit concourse", nodeId: "6:437" },
+          { key: "terracotta-edge", label: "Dark threshold", nodeId: "6:451" },
+          { key: "sage-grid", label: "Coastal overlook", nodeId: "6:465" },
+        ],
+      },
+      {
+        key: "poster",
+        label: "Poster",
+        channel: "document",
+        nodeId: "6:497",
+        backgroundNodes: [
+          { key: "classic-cream", label: "Warm editorial studio", nodeId: "6:497" },
+          { key: "mint-glow", label: "Transit concourse", nodeId: "6:511" },
+          { key: "terracotta-edge", label: "Dark threshold", nodeId: "6:525" },
+          { key: "sage-grid", label: "Coastal overlook", nodeId: "6:539" },
+        ],
+      },
+      {
+        key: "rack_card",
+        label: "Rack Card",
+        channel: "document",
+        nodeId: "6:571",
+        backgroundNodes: [
+          { key: "classic-cream", label: "Warm editorial studio", nodeId: "6:571" },
+          { key: "mint-glow", label: "Transit concourse", nodeId: "6:585" },
+          { key: "terracotta-edge", label: "Dark threshold", nodeId: "6:599" },
+          { key: "sage-grid", label: "Coastal overlook", nodeId: "6:613" },
+        ],
+      },
     ],
   },
 ];
@@ -134,12 +239,16 @@ function walk(node: FigmaNode): FigmaNode[] {
 }
 
 function editableNodes(frame: FigmaNode) {
-  return walk(frame).filter(
-    (node) => node.visible !== false && node.name.startsWith("EDITABLE_")
-  );
+  return walk(frame).filter((node) => {
+    if (node.visible === false) return false;
+    if (/\[cg(?::|\s)[^\]]+\]/i.test(node.name)) return true;
+    return node.type === "TEXT" && node.name.startsWith("EDITABLE_");
+  });
 }
 
 function fieldKeyFromLayerName(name: string) {
+  const annotated = name.match(/\[cg(?::|\s)[^\]]*field=("[^"]+"|'[^']+'|[^;\s\]]+)/i)?.[1];
+  if (annotated) return annotated.replace(/^["']|["']$/g, "");
   const raw = name.replace(/^EDITABLE_/, "");
   if (raw === "visual_label") return "local_detail";
   return raw;
@@ -207,6 +316,13 @@ function verticalAlign(node: FigmaNode): FigmaPublisherLayer["verticalAlign"] {
   return "top";
 }
 
+function annotatedNumber(name: string, key: string) {
+  const match = name.match(new RegExp(`${key}=("[^"]+"|'[^']+'|[^;\\s\\]]+)`, "i"))?.[1];
+  if (!match) return undefined;
+  const value = Number(match.replace(/^["']|["']$/g, ""));
+  return Number.isFinite(value) ? value : undefined;
+}
+
 function annotationFor(input: {
   layoutKey: ContentGateBundleTarget["layoutKey"];
   variantKey: TemplateSizeKey;
@@ -236,11 +352,28 @@ function toPublisherLayer(input: {
   variantKey: TemplateSizeKey;
   node: FigmaNode;
 }): FigmaPublisherLayer | null {
-  if (input.node.type !== "TEXT") return null;
-  const annotation = annotationFor(input);
+  const annotatedName = /\[cg(?::|\s)[^\]]+\]/i.test(input.node.name)
+    ? input.node.name
+    : null;
+  if (input.node.type !== "TEXT" && !annotatedName) return null;
+  const annotation = annotatedName
+    ? { field: fieldKeyFromLayerName(input.node.name), text: "" }
+    : annotationFor(input);
+  if (input.node.type !== "TEXT") {
+    return {
+      id: input.node.id,
+      name: input.node.name,
+      kind: "image",
+      x: input.node.x,
+      y: input.node.y,
+      width: input.node.width,
+      height: input.node.height,
+      rotation: input.node.rotation,
+    };
+  }
   return {
     id: input.node.id,
-    name: `${input.node.name} ${annotation.text}`,
+    name: annotatedName ?? `${input.node.name} ${annotation.text}`,
     kind: "text",
     x: input.node.x,
     y: input.node.y,
@@ -248,7 +381,7 @@ function toPublisherLayer(input: {
     height: input.node.height,
     rotation: input.node.rotation,
     text: input.node.characters,
-    fontFamily: input.node.fontName?.family ?? "Inter",
+    fontFamily: "Inter",
     fontStyle: "normal",
     fontWeight: fontWeight(input.node.fontName?.style),
     fontSize: input.node.fontSize,
@@ -300,13 +433,14 @@ async function exportFrameImage(input: {
   nodeId: string;
   outDir: string;
   destinationName: string;
+  scale: number;
 }) {
   await mkdir(input.outDir, { recursive: true });
   const exported = (await callTool(input.client, "save_screenshots", {
     nodeIds: [input.nodeId],
     outDir: input.outDir,
     format: "PNG",
-    scale: exportScale,
+    scale: input.scale,
   })) as { saved: Array<{ nodeId: string; path?: string; empty?: boolean }> };
   const saved = exported.saved.find((item) => item.nodeId === input.nodeId);
   if (!saved?.path || saved.empty) throw new Error(`Export failed for ${input.nodeId}`);
@@ -338,12 +472,15 @@ async function exportTarget(client: Client, target: ContentGateBundleTarget) {
     const editable = editableNodes(frame);
     const editableIds = editable.map((node) => node.id);
     const variantSourceDirectory = join(sourceDirectory, "variants", frameTarget.key);
+    const targetDimensions = TEMPLATE_OUTPUT_SIZES[frameTarget.key];
+    const frameExportScale = targetDimensions.w / frame.width;
 
     const referenceSourcePath = await exportFrameImage({
       client,
       nodeId: frameTarget.nodeId,
       outDir: variantSourceDirectory,
       destinationName: "reference.png",
+      scale: frameExportScale,
     });
 
     await setVisible(client, editableIds, false);
@@ -354,6 +491,7 @@ async function exportTarget(client: Client, target: ContentGateBundleTarget) {
         nodeId: frameTarget.nodeId,
         outDir: variantSourceDirectory,
         destinationName: "background.png",
+        scale: frameExportScale,
       });
     } finally {
       await setVisible(client, editableIds, true);
@@ -361,21 +499,58 @@ async function exportTarget(client: Client, target: ContentGateBundleTarget) {
 
     const referencePath = relativeBundleAssetPath("variants", frameTarget.key, "reference.png");
     const backgroundPath = relativeBundleAssetPath("variants", frameTarget.key, "background.png");
+    const backgroundOptions: NonNullable<FigmaPublisherInput["frames"][number]["backgroundOptions"]> = [];
+    for (const option of frameTarget.backgroundNodes) {
+      const optionFrame = option.nodeId === frameTarget.nodeId ? frame : await getFrame(client, option.nodeId);
+      const optionEditableIds = editableNodes(optionFrame).map((node) => node.id);
+      const optionScale = targetDimensions.w / optionFrame.width;
+      await setVisible(client, optionEditableIds, false);
+      let optionSourcePath: string;
+      try {
+        optionSourcePath = await exportFrameImage({
+          client,
+          nodeId: option.nodeId,
+          outDir: variantSourceDirectory,
+          destinationName: `background-${option.key}.png`,
+          scale: optionScale,
+        });
+      } finally {
+        await setVisible(client, optionEditableIds, true);
+      }
+      const optionPath = relativeBundleAssetPath(
+        "variants",
+        frameTarget.key,
+        `background-${option.key}.png`
+      );
+      assets.push({
+        path: optionPath,
+        sourcePath: optionSourcePath,
+        sha256: await sha256File(optionSourcePath),
+        width: targetDimensions.w,
+        height: targetDimensions.h,
+        mimeType: "image/png",
+      });
+      backgroundOptions.push({
+        key: option.key,
+        label: option.label,
+        assetPath: optionPath,
+      });
+    }
     assets.push(
       {
         path: referencePath,
         sourcePath: referenceSourcePath,
         sha256: await sha256File(referenceSourcePath),
-        width: frame.width * exportScale,
-        height: frame.height * exportScale,
+        width: targetDimensions.w,
+        height: targetDimensions.h,
         mimeType: "image/png",
       },
       {
         path: backgroundPath,
         sourcePath: backgroundSourcePath,
         sha256: await sha256File(backgroundSourcePath),
-        width: frame.width * exportScale,
-        height: frame.height * exportScale,
+        width: targetDimensions.w,
+        height: targetDimensions.h,
         mimeType: "image/png",
       }
     );
@@ -384,22 +559,54 @@ async function exportTarget(client: Client, target: ContentGateBundleTarget) {
       label: frameTarget.label,
       channel: frameTarget.channel,
       nodeId: frameTarget.nodeId,
-      width: frame.width,
-      height: frame.height,
+      width: targetDimensions.w,
+      height: targetDimensions.h,
       referenceAssetPath: referencePath,
       backgroundAssetPath: backgroundPath,
+      backgroundOptions,
       layers: editable.flatMap((node) => {
         const layer = toPublisherLayer({
           layoutKey: target.layoutKey,
           variantKey: frameTarget.key,
           node,
         });
-        return layer ? [layer] : [];
+        if (!layer) return [];
+        const scaledFontSize = layer.fontSize ? layer.fontSize * frameExportScale : undefined;
+        const rawScaledX = layer.x * frameExportScale;
+        const rawScaledY = layer.y * frameExportScale;
+        const scaledX = Math.min(Math.max(0, rawScaledX), targetDimensions.w - 1);
+        const scaledY = Math.min(Math.max(0, rawScaledY), targetDimensions.h - 1);
+        const scaledWidth = Math.min(
+          layer.width * frameExportScale,
+          Math.max(1, targetDimensions.w - scaledX)
+        );
+        const maxLines = annotatedNumber(layer.name, "maxLines") ?? 1;
+        const minimumTextHeight =
+          layer.kind === "text" && scaledFontSize
+            ? scaledFontSize * (layer.lineHeight ?? 1.1) * maxLines * 1.14
+            : 0;
+        const scaledHeight = Math.min(
+          Math.max(layer.height * frameExportScale, minimumTextHeight),
+          Math.max(1, targetDimensions.h - scaledY)
+        );
+        return [
+          {
+            ...layer,
+            x: scaledX,
+            y: scaledY,
+            width: scaledWidth,
+            height: scaledHeight,
+            fontSize: scaledFontSize,
+            letterSpacing: layer.letterSpacing
+              ? layer.letterSpacing * frameExportScale
+              : undefined,
+          },
+        ];
       }),
     });
 
     console.log(
-      `Exported ${target.family.key}/${frameTarget.key}: ${editable.length} editable layer(s), ${exportScale}x PNGs`
+      `Exported ${target.family.key}/${frameTarget.key}: ${editable.length} editable layer(s), ${frameExportScale.toFixed(4)}x PNGs`
     );
   }
 

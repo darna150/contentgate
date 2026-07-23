@@ -39,7 +39,7 @@ export function AddDocumentForm({
       setFileNote("Text extracted — review and edit it below before saving.");
     } else {
       setFileNote(
-        "The original file will be attached for reference, but its text can't be auto-extracted yet — paste the document text below."
+        "The file will be attached and its text will be extracted when you save. Paste text below only if you want to review or correct it first."
       );
     }
   }

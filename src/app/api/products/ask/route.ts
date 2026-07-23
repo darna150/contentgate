@@ -9,9 +9,21 @@ import {
   type RetrievedKnowledgeParagraph,
   type RawKnowledgeCitation,
 } from "@/lib/knowledge-reliability";
-import Anthropic from "@anthropic-ai/sdk";
 import { NextResponse } from "next/server";
 import { consumeApiRateLimit, rateLimitResponse } from "@/lib/rate-limit";
+
+const OPENAI_ASK_MODEL =
+  process.env.OPENAI_ASK_MODEL ??
+  process.env.OPENAI_MODEL ??
+  "gpt-5.6-sol";
+const OPENAI_ASK_REASONING = process.env.OPENAI_ASK_REASONING ?? "medium";
+
+type OpenAIResponse = {
+  output_text?: string;
+  output?: Array<{
+    content?: Array<{ type?: string; text?: string }>;
+  }>;
+};
 
 type DocumentParagraphRow = {
   id: string;
@@ -50,25 +62,161 @@ function fallbackParagraphRowsFromDocuments(
 
 async function fallbackSearchApprovedKnowledge(
   supabase: Awaited<ReturnType<typeof createClient>>,
-  productId: string,
+  productId: string | null,
   question: string
 ) {
-  const { data, error } = await supabase
+  let query = supabase
     .from("documents")
     .select("id, title, paragraphs")
-    .eq("product_id", productId)
     .order("updated_at", { ascending: false })
     .limit(20);
+  if (productId) {
+    query = query.or(`product_id.eq.${productId},product_id.is.null`);
+  }
+  const { data, error } = await query;
   if (error) {
     console.error("knowledge fallback retrieval failed:", error);
     return [];
   }
 
-  return rankKnowledgeEvidence(
+  const normalized = fallbackParagraphRowsFromDocuments((data ?? []) as DocumentParagraphRow[]);
+  const ranked = rankKnowledgeEvidence(
     question,
-    fallbackParagraphRowsFromDocuments((data ?? []) as DocumentParagraphRow[]),
+    normalized,
     12
   );
+  return ranked.length > 0 ? ranked : normalized.slice(0, 12);
+}
+
+function openAIOutputText(response: OpenAIResponse) {
+  if (typeof response.output_text === "string") return response.output_text;
+  return (
+    response.output
+      ?.flatMap((item) => item.content ?? [])
+      .filter((content) => content.type === "output_text" && typeof content.text === "string")
+      .map((content) => content.text)
+      .join("\n") ?? ""
+  );
+}
+
+function parseKnowledgeAnswer(value: unknown): {
+  answer: string;
+  citations: RawKnowledgeCitation[];
+  not_found: boolean;
+} {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return { answer: "", citations: [], not_found: true };
+  }
+  const raw = value as { answer?: unknown; citations?: unknown; not_found?: unknown };
+  return {
+    answer: typeof raw.answer === "string" ? raw.answer : "",
+    citations: Array.isArray(raw.citations) ? (raw.citations as RawKnowledgeCitation[]) : [],
+    not_found: raw.not_found === true,
+  };
+}
+
+async function answerWithOpenAI(input: {
+  system: string;
+  question: string;
+}) {
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error("OpenAI Ask is not configured.");
+  }
+
+  const body: Record<string, unknown> = {
+    model: OPENAI_ASK_MODEL,
+    max_output_tokens: 1400,
+    input: [
+      {
+        role: "system",
+        content: input.system,
+      },
+      {
+        role: "user",
+        content: [
+          input.question,
+          "",
+          "Return ONLY valid JSON matching this exact shape:",
+          JSON.stringify({
+            answer: "Direct answer grounded only in the retrieved approved source paragraphs.",
+            citations: [
+              {
+                document_id: "exact document_id from a retrieved paragraph",
+                paragraph_n: 1,
+                excerpt: "exact supporting passage copied from that paragraph",
+              },
+            ],
+            not_found: false,
+          }),
+          "If the sources do not answer the question, return not_found true and an empty citations array.",
+          "Do not wrap the JSON in Markdown.",
+        ].join("\n"),
+      },
+    ],
+    text: {
+      format: {
+        type: "json_object",
+      },
+    },
+  };
+
+  if (OPENAI_ASK_REASONING !== "none") {
+    body.reasoning = { effort: OPENAI_ASK_REASONING };
+  }
+
+  const response = await fetch("https://api.openai.com/v1/responses", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => "");
+    throw new Error(`OpenAI Ask failed (${response.status}): ${errorText.slice(0, 240)}`);
+  }
+
+  const json = (await response.json()) as OpenAIResponse;
+  const text = openAIOutputText(json).trim();
+  if (!text) throw new Error("OpenAI returned no Ask text output.");
+  return parseKnowledgeAnswer(JSON.parse(text));
+}
+
+async function logKnowledgeQuery(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  input: {
+    userId: string;
+    productId: string | null;
+    question: string;
+    answer: string;
+    notFound: boolean;
+    citations: unknown[];
+  }
+) {
+  try {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("org_id")
+      .eq("id", input.userId)
+      .single();
+    if (profile?.org_id) {
+      const { error: logError } = await supabase.from("knowledge_queries").insert({
+        org_id: profile.org_id,
+        product_id: input.productId,
+        user_id: input.userId,
+        question: input.question,
+        not_found: input.notFound,
+        citation_count: input.citations.length,
+        answer: input.answer,
+        citations: input.citations,
+      });
+      if (logError) console.warn("knowledge query audit log failed:", logError);
+    }
+  } catch (logError) {
+    console.warn("knowledge query audit log failed:", logError);
+  }
 }
 
 export async function POST(req: Request) {
@@ -94,22 +242,33 @@ export async function POST(req: Request) {
   }
 
   const productId =
-    typeof payload.productId === "string" ? payload.productId : "";
+    typeof payload.productId === "string"
+      ? payload.productId
+      : payload.productId === null
+        ? null
+        : undefined;
   const question =
     typeof payload.question === "string" ? payload.question.trim() : "";
-  if (!productId || !question) {
+  if (productId === undefined || !question) {
     return NextResponse.json({ error: "Missing productId or question" }, { status: 400 });
   }
   if (question.length > 500) {
     return NextResponse.json({ error: "Question is too long" }, { status: 400 });
   }
 
-  const { data: product } = await supabase
-    .from("products")
-    .select("id, name, description, disclaimer_text")
-    .eq("id", productId)
-    .eq("status", "active")
-    .single();
+  const product = productId
+    ? (await supabase
+        .from("products")
+        .select("id, name, description, disclaimer_text")
+        .eq("id", productId)
+        .eq("status", "active")
+        .single()).data
+    : {
+        id: null,
+        name: "All sources",
+        description: null,
+        disclaimer_text: null,
+      };
   if (!product) return NextResponse.json({ error: "Product not found" }, { status: 404 });
 
   const { data: retrievalRows, error: retrievalError } = await supabase.rpc(
@@ -123,6 +282,8 @@ export async function POST(req: Request) {
   let evidence = normalizeRetrievedParagraphs(retrievalRows ?? []);
   if (retrievalError) {
     console.error("knowledge retrieval failed:", retrievalError);
+    evidence = await fallbackSearchApprovedKnowledge(supabase, productId, question);
+  } else if (evidence.length === 0) {
     evidence = await fallbackSearchApprovedKnowledge(supabase, productId, question);
   }
 
@@ -143,8 +304,6 @@ ${approvedContext || "No matching approved source paragraphs were found."}
 
 ${product.disclaimer_text ? `MANDATORY DISCLAIMER (always applies): ${product.disclaimer_text}` : ""}`;
 
-  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
   if (evidence.length === 0) {
     return await saveAndReturnNotFound(
       supabase,
@@ -155,78 +314,19 @@ ${product.disclaimer_text ? `MANDATORY DISCLAIMER (always applies): ${product.di
     );
   }
 
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return NextResponse.json(buildExtractiveKnowledgeAnswer(question, evidence));
-  }
-
-  let response;
-  try {
-    response = await anthropic.messages.create({
-      model: "claude-sonnet-4-6",
-      max_tokens: 1024,
-      system,
-      tools: [
-      {
-        name: "answer_question",
-        description: "Answer the user's question with supporting citations from approved sources.",
-        input_schema: {
-          type: "object" as const,
-          properties: {
-            answer: {
-              type: "string",
-              description:
-                "A clear, direct answer for a brand, content, regional, or local marketing teammate. Plain language.",
-            },
-            citations: {
-              type: "array",
-              description: "Source passages that directly support the answer.",
-              items: {
-                type: "object",
-                properties: {
-                  excerpt: {
-                    type: "string",
-                    description: "Exact passage from the source document.",
-                  },
-                  document_id: {
-                    type: "string",
-                    description: "Exact document_id from the retrieved paragraph label.",
-                  },
-                  paragraph_n: {
-                    type: "integer",
-                    description: "Exact paragraph number from the retrieved paragraph label.",
-                  },
-                },
-                required: ["document_id", "paragraph_n", "excerpt"],
-              },
-            },
-            not_found: {
-              type: "boolean",
-              description:
-                "True if the question cannot be answered from approved sources.",
-            },
-          },
-          required: ["answer", "citations", "not_found"],
-        },
-      },
-      ],
-      tool_choice: { type: "tool", name: "answer_question" },
-      messages: [{ role: "user", content: question }],
-    });
-  } catch (error) {
-    console.error("knowledge answer failed:", error);
-    return NextResponse.json(buildExtractiveKnowledgeAnswer(question, evidence));
-  }
-
-  const toolUse = response.content.find((b) => b.type === "tool_use");
-  if (!toolUse || toolUse.type !== "tool_use") {
-    return NextResponse.json({ error: "No answer generated" }, { status: 500 });
-  }
-
-  const rawResult = toolUse.input as {
+  let rawResult: {
     answer: string;
     citations: RawKnowledgeCitation[];
     not_found: boolean;
   };
+  try {
+    rawResult = process.env.OPENAI_API_KEY
+      ? await answerWithOpenAI({ system, question })
+      : buildExtractiveKnowledgeAnswer(question, evidence);
+  } catch (error) {
+    console.error("knowledge answer failed:", error);
+    rawResult = buildExtractiveKnowledgeAnswer(question, evidence);
+  }
   const citations = verifyKnowledgeCitations(rawResult.citations ?? [], evidence);
   const result = finalizeKnowledgeAnswer({
     answer: rawResult.answer,
@@ -234,30 +334,14 @@ ${product.disclaimer_text ? `MANDATORY DISCLAIMER (always applies): ${product.di
     citations,
   });
 
-  // Log the query for usage analytics + audit trail. Best-effort: a logging
-  // failure must never block the answer the user came for.
-  try {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("org_id")
-      .eq("id", user.id)
-      .single();
-    if (profile?.org_id) {
-      const { error: logError } = await supabase.from("knowledge_queries").insert({
-        org_id: profile.org_id,
-        product_id: productId,
-        user_id: user.id,
-        question,
-        not_found: result.not_found ?? false,
-        citation_count: result.citations?.length ?? 0,
-        answer: result.answer ?? "",
-        citations: result.citations ?? [],
-      });
-      if (logError) console.warn("knowledge query audit log failed:", logError);
-    }
-  } catch (logError) {
-    console.warn("knowledge query audit log failed:", logError);
-  }
+  await logKnowledgeQuery(supabase, {
+    userId: user.id,
+    productId,
+    question,
+    notFound: result.not_found ?? false,
+    answer: result.answer ?? "",
+    citations: result.citations ?? [],
+  });
 
   return NextResponse.json(result);
 }
@@ -265,31 +349,17 @@ ${product.disclaimer_text ? `MANDATORY DISCLAIMER (always applies): ${product.di
 async function saveAndReturnNotFound(
   supabase: Awaited<ReturnType<typeof createClient>>,
   userId: string,
-  productId: string,
+  productId: string | null,
   question: string,
   answer: string
 ) {
-  try {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("org_id")
-      .eq("id", userId)
-      .single();
-    if (profile?.org_id) {
-      const { error: logError } = await supabase.from("knowledge_queries").insert({
-        org_id: profile.org_id,
-        product_id: productId,
-        user_id: userId,
-        question,
-        not_found: true,
-        citation_count: 0,
-        answer,
-        citations: [],
-      });
-      if (logError) console.warn("knowledge query audit log failed:", logError);
-    }
-  } catch (logError) {
-    console.warn("knowledge query audit log failed:", logError);
-  }
+  await logKnowledgeQuery(supabase, {
+    userId,
+    productId,
+    question,
+    answer,
+    notFound: true,
+    citations: [],
+  });
   return NextResponse.json({ answer, citations: [], not_found: true });
 }

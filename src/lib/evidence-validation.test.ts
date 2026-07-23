@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { evidenceSourceIsApproved } from "./evidence-validation.ts";
+import {
+  evidenceSourceIsApproved,
+  generatedCopyEvidenceIssues,
+} from "./evidence-validation.ts";
 
 const approved = [
   "ContentGate helps distributed brands create localized marketing content from approved templates, assets, and product knowledge.",
@@ -47,5 +50,53 @@ test("accepts near-exact source text despite punctuation and casing drift", () =
       approved
     ),
     true
+  );
+});
+
+test("generated copy evidence rejects unsupported field copy", () => {
+  assert.deepEqual(
+    generatedCopyEvidenceIssues({
+      fields: {
+        headline: "Automated campaigns guarantee sales growth",
+      },
+      evidence: [
+        {
+          field: "headline",
+          approved_source: approved[0],
+        },
+      ],
+      approvedSources: approved,
+    }),
+    ["headline: generated copy is not supported by its approved evidence."]
+  );
+});
+
+test("generated copy evidence accepts supported non-cta fields", () => {
+  assert.deepEqual(
+    generatedCopyEvidenceIssues({
+      fields: {
+        headline: "Create localized marketing content from approved templates",
+        cta: "Get started",
+      },
+      evidence: [
+        {
+          field: "headline",
+          approved_source: approved[0],
+        },
+      ],
+      approvedSources: approved,
+    }),
+    []
+  );
+});
+
+test("generated copy evidence requires approved sources", () => {
+  assert.deepEqual(
+    generatedCopyEvidenceIssues({
+      fields: { headline: "Create localized marketing content" },
+      evidence: [],
+      approvedSources: [],
+    }),
+    ["No approved claims or source text are available for generation."]
   );
 });

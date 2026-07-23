@@ -5,6 +5,8 @@ import test from "node:test";
 import {
   importTemplateBundle,
   TEMPLATE_BUNDLE_STORAGE_BUCKET,
+  templateBundleStoragePrefix,
+  templateBundleStoragePrefixIsOrgScoped,
   type FailedTemplateImportRunInsert,
   type TemplateBundleAssetSource,
   type TemplateBundleImportRepository,
@@ -199,5 +201,41 @@ test("records a failed import when manifest validation fails", async () => {
   assert.equal(
     repo.failed[0].report.issues.some((issue) => issue.path === "variants"),
     true
+  );
+});
+
+test("builds org-scoped template bundle storage prefixes", () => {
+  const { manifest } = manifestWithRealAssetHashes();
+
+  assert.equal(
+    templateBundleStoragePrefix({
+      orgId: baseRequest.orgId,
+      manifest,
+    }),
+    `${baseRequest.orgId}/template-bundles/contentgate-local-friendly/v1`
+  );
+});
+
+test("rejects template bundle storage prefixes outside the current org", () => {
+  assert.equal(
+    templateBundleStoragePrefixIsOrgScoped({
+      orgId: baseRequest.orgId,
+      storagePrefix: `${baseRequest.orgId}/template-bundles/family/v1`,
+    }),
+    true
+  );
+  assert.equal(
+    templateBundleStoragePrefixIsOrgScoped({
+      orgId: baseRequest.orgId,
+      storagePrefix: "template-bundles/family/v1",
+    }),
+    false
+  );
+  assert.equal(
+    templateBundleStoragePrefixIsOrgScoped({
+      orgId: baseRequest.orgId,
+      storagePrefix: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/template-bundles/family/v1",
+    }),
+    false
   );
 });

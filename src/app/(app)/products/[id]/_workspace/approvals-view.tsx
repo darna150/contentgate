@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { StatusPill } from "@/components/status-pill";
+import { studioContentUrl } from "@/lib/creative";
 import type { ProductWorkspace } from "@/lib/product-workspace-server";
 import { SectionEmpty } from "./empty-state";
 
@@ -55,7 +56,7 @@ export function ApprovalsView({ workspace }: { workspace: ProductWorkspace }) {
           return (
             <Link
               key={item.id}
-              href={`/content/${item.id}`}
+              href={studioContentUrl(item.id)}
               className="flex items-center gap-3.5 rounded-control px-3.5 py-3 transition-colors hover:bg-page"
             >
               <span className="flex min-w-0 flex-1 flex-col">

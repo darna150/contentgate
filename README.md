@@ -32,9 +32,9 @@ Copy `.env.example` → `.env.local` and fill in:
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase → Project Settings → API |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | same page |
 | `SUPABASE_SERVICE_ROLE_KEY` | same page (keep server-only) |
-| `ANTHROPIC_API_KEY` | platform.claude.com → API Keys (needed Day 3+) |
+| `OPENAI_API_KEY` | OpenAI Platform → API Keys (keep server-only) |
 
-Then add the same four in Vercel → Project → Settings → Environment Variables
+Then add the same variables in Vercel → Project → Settings → Environment Variables
 and redeploy.
 
 Until the env vars are set, the app runs in **preview fallback mode**: pages

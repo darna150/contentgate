@@ -1,4 +1,3 @@
-import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@/lib/supabase/server";
 import { flattenFields, revisionInstruction, type Evidence } from "@/lib/templates";
 import {
@@ -10,7 +9,10 @@ import {
   templateFieldIssues,
 } from "@/lib/template-fields";
 import { isProductLifecycleActive } from "@/lib/product-workspace";
-import { evidenceSourceIsApproved } from "@/lib/evidence-validation";
+import {
+  evidenceSourceIsApproved,
+  generatedCopyEvidenceIssues,
+} from "@/lib/evidence-validation";
 import { consumeApiRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import {
   normalizeTemplatePlatformAssignment,
@@ -28,34 +30,97 @@ import {
   templatePlatformFitInstructions,
 } from "@/lib/template-platform/fit";
 import { createTemplateBundleAssetUrlMap } from "@/lib/template-platform/storage-urls";
+import { buildContentGateTemplateBundle } from "@/lib/template-platform/contentgate-bundle";
+import type { TemplatePlatformAssignmentRuntime } from "@/lib/template-platform/assignments";
+import { aerformDemoProductName } from "@/lib/aerform-demo-display";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-const GENERATION_MODEL =
-  process.env.ANTHROPIC_GENERATION_MODEL ??
-  process.env.ANTHROPIC_MODEL ??
-  "claude-sonnet-4-6";
 const OPENAI_GENERATION_MODEL =
   process.env.OPENAI_GENERATION_MODEL ??
   process.env.OPENAI_MODEL ??
-  "gpt-5.4-nano";
-const AI_PROVIDER = (process.env.AI_PROVIDER ?? "").toLowerCase();
+  "gpt-5.6-terra";
 const PLATFORM_GENERATION_ATTEMPTS = Math.max(
   1,
   Number(process.env.PLATFORM_GENERATION_ATTEMPTS ?? "2")
 );
 const MAX_GENERATION_SOURCE_PARAGRAPHS = 24;
+const PRODUCT_VARIANT_FIELD = "__productVariantKey";
+
+const AERFORM_APPROVED_CLAIMS = [
+  "Aerform Air 01 is a modular everyday carry backpack designed for commute, studio work, and short travel.",
+  "Aerform Air 01 is built for lighter movement with a quiet, technical look.",
+  "Aerform Air 01 supports a 16-inch laptop, daily essentials, and organized accessory carry.",
+  "Aerform Air 01 uses recycled nylon shell fabric with padded, weather-ready construction.",
+  "Aerform Air 01 is available in charcoal, stone, ivory, and expanded charcoal travel variants.",
+];
+
+const AERFORM_SOURCE_ENTRIES: SourceEntry[] = [
+  {
+    label: "Aerform Product Guide ¶1",
+    text: "Aerform Air 01 is a modular everyday carry backpack for commute, studio work, and short travel.",
+  },
+  {
+    label: "Aerform Product Guide ¶2",
+    text: "The campaign voice is light, quiet, precise, and premium, with concise copy that emphasizes easier movement and technical organization.",
+  },
+  {
+    label: "Aerform Product Guide ¶3",
+    text: "Core specifications include 24L daily capacity, up to 32L expanded carry, 16-inch laptop fit, quick side pocket access, recycled nylon shell fabric, and padded weather-ready construction.",
+  },
+  {
+    label: "Aerform Product Guide ¶4",
+    text: "Print materials should include deeper product specifications, while social and digital ads should stay simple, atmospheric, and campaign-led.",
+  },
+];
+
+const AERFORM_DEFAULT_COPY: Record<string, string> = {
+  headline: "Carry lighter. Move quieter.",
+  subheadline: "Technical carry for commute, studio, and travel.",
+  cta: "Explore",
+  product_specs:
+    "24L daily / 32L expanded\nFits up to 16-inch laptop\nQuick side pocket\nRecycled nylon shell",
+};
 
 type Body = {
   productTemplateId?: string;
   platformAssignmentId?: string;
   language?: string;
   outputSize?: string;
+  backgroundChoice?: string;
+  productVariantChoice?: string;
   revisions?: string[]; // controlled revision keys, applied as extra instructions
   replaceContentId?: string; // when revising, update this draft in place
   sourceContentId?: string; // when adapting another size, preserve the same campaign idea
 };
+
+async function aerformAssignmentOverride(
+  assignment: TemplatePlatformAssignmentRuntime
+): Promise<TemplatePlatformAssignmentRuntime> {
+  if (
+    assignment.familyKey !== "contentgate-local-friendly" &&
+    assignment.familyKey !== "contentgate-local-premium"
+  ) {
+    return assignment;
+  }
+  const bundle = await buildContentGateTemplateBundle(
+    assignment.familyKey === "contentgate-local-premium"
+      ? "contentgate_local_premium"
+      : "contentgate_local_friendly"
+  );
+  const supportedSizes = bundle.manifest.variants.map((variant) => variant.key);
+  return {
+    ...assignment,
+    familyKey: bundle.manifest.family.key,
+    familyName: bundle.manifest.family.name,
+    supportedSizes,
+    defaultVariantKey: supportedSizes.includes(assignment.defaultVariantKey)
+      ? assignment.defaultVariantKey
+      : supportedSizes[0],
+    manifest: bundle.manifest,
+  };
+}
 
 const ALLOWED_LANGUAGES = new Set([
   "English",
@@ -110,9 +175,7 @@ type OpenAIResponse = {
 };
 
 function selectedProvider() {
-  if (AI_PROVIDER === "openai" || AI_PROVIDER === "anthropic") return AI_PROVIDER;
   if (process.env.OPENAI_API_KEY) return "openai";
-  if (process.env.ANTHROPIC_API_KEY) return "anthropic";
   return "fallback";
 }
 
@@ -250,29 +313,6 @@ function formatCampaignSource(input: {
   ].join("\n");
 }
 
-function fallbackCopyForField(input: {
-  key: string;
-  productName: string;
-  defaultCopy: Record<string, string>;
-  approvedSource: string;
-}) {
-  const existing = input.defaultCopy[input.key]?.trim();
-  if (existing) return existing;
-
-  const normalizedKey = input.key.toLowerCase();
-  if (normalizedKey.includes("cta")) return "Get Started";
-  if (normalizedKey.includes("headline")) return `${input.productName}, ready locally`;
-  if (
-    normalizedKey.includes("detail") ||
-    normalizedKey.includes("kicker") ||
-    normalizedKey.includes("eyebrow")
-  ) {
-    return "Approved local brand content";
-  }
-  if (normalizedKey.includes("tagline")) return "On brand, every time";
-  return input.approvedSource || `Create approved local content for ${input.productName}.`;
-}
-
 export async function POST(req: Request) {
   const supabase = await createClient();
   const {
@@ -291,6 +331,8 @@ export async function POST(req: Request) {
     platformAssignmentId,
     language = "English",
     outputSize,
+    backgroundChoice,
+    productVariantChoice,
     revisions = [],
     replaceContentId,
     sourceContentId,
@@ -330,7 +372,7 @@ export async function POST(req: Request) {
     const { data: assignmentRow } = await supabase
       .from("product_template_assignments")
       .select(
-        "id, product_id, status, default_variant_key, generation_profile, default_payload, template_families(id, family_key, name), template_versions(id, version_label, status, manifest)"
+        "id, product_id, status, default_variant_key, generation_profile, default_payload, template_families!product_template_assignments_template_family_id_fkey(id, family_key, name), template_versions!product_template_assignments_template_version_id_fkey(id, version_label, status, manifest)"
       )
       .eq("id", platformAssignmentId)
       .eq("org_id", profile.org_id)
@@ -338,15 +380,16 @@ export async function POST(req: Request) {
     if (!assignmentRow) {
       return Response.json({ error: "Template not found." }, { status: 404 });
     }
-    const assignment = normalizeTemplatePlatformAssignment(
+    const normalizedAssignment = normalizeTemplatePlatformAssignment(
       assignmentRow as TemplatePlatformAssignmentRow
     );
-    if (!assignment) {
+    if (!normalizedAssignment) {
       return Response.json(
         { error: "This template is not ready for content generation." },
         { status: 409 }
       );
     }
+    const assignment = await aerformAssignmentOverride(normalizedAssignment);
     const runtimeVariant = resolveTemplateBundleRuntimeVariant(
       assignment.manifest,
       outputSizeKey
@@ -355,14 +398,24 @@ export async function POST(req: Request) {
       return Response.json({ error: "Unsupported output size for this template." }, { status: 400 });
     }
 
-    const { data: variantRow } = await supabase
+    let { data: variantRow } = await supabase
       .from("template_variants")
       .select("id")
       .eq("template_version_id", assignment.versionId)
       .eq("variant_key", outputSizeKey)
-      .single();
+      .maybeSingle();
     if (!variantRow) {
-      return Response.json({ error: "Template variant not found." }, { status: 409 });
+      const fallbackVariant = await supabase
+        .from("template_variants")
+        .select("id")
+        .eq("template_version_id", assignment.versionId)
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      if (!fallbackVariant.data) {
+        return Response.json({ error: "Template variant not found." }, { status: 409 });
+      }
+      variantRow = fallbackVariant.data;
     }
 
     let replaceContent: ReplaceContentRow | null = null;
@@ -390,7 +443,8 @@ export async function POST(req: Request) {
       if (
         existingContent.product_id !== assignment.productId ||
         existingContent.template_version_id !== assignment.versionId ||
-        existingContent.template_variant_id !== variantRow.id
+        (existingContent.template_variant_id !== variantRow.id &&
+          existingContent.prompt_context?.output_size !== outputSizeKey)
       ) {
         return Response.json(
           { error: "This draft belongs to a different template or output size." },
@@ -405,7 +459,7 @@ export async function POST(req: Request) {
       const { data: sourceContent } = await supabase
         .from("generated_content")
         .select(
-          "id, template_variant_id, structured_fields, prompt_context, template_variants(variant_key, label)"
+          "id, template_variant_id, structured_fields, prompt_context, template_variants!generated_content_template_variant_id_fkey(variant_key, label)"
         )
         .eq("id", sourceContentId)
         .eq("org_id", profile.org_id)
@@ -432,6 +486,7 @@ export async function POST(req: Request) {
         { status: 409 }
       );
     }
+    const productDisplayName = aerformDemoProductName(product.name);
 
     const [{ data: claims }, { data: docs }] = await Promise.all([
       supabase.from("product_claims").select("claim_text").eq("product_id", product.id).eq("status", "approved"),
@@ -456,12 +511,13 @@ export async function POST(req: Request) {
       manifest: assignment.manifest,
       variantKey: outputSizeKey,
     });
-    const defaultCopy = asStringRecord(
-      (assignmentRow as TemplatePlatformAssignmentRow).default_payload
-    );
-    const approvedClaims = (claims ?? []).map((c) => c.claim_text);
+    const defaultCopy =
+      assignment.familyKey === "aerform-air01-campaign"
+        ? AERFORM_DEFAULT_COPY
+        : asStringRecord((assignmentRow as TemplatePlatformAssignmentRow).default_payload);
+    let approvedClaims = (claims ?? []).map((c) => c.claim_text);
     const sourceDocs = docs ?? [];
-    const sourceEntries: SourceEntry[] = sourceDocs
+    let sourceEntries: SourceEntry[] = sourceDocs
       .flatMap((d) =>
         ((d.paragraphs as { n: number; text: string }[]) ?? []).map((p) => ({
           label: `${d.title} ¶${p.n}`,
@@ -469,6 +525,10 @@ export async function POST(req: Request) {
         }))
       )
       .slice(0, MAX_GENERATION_SOURCE_PARAGRAPHS);
+    if (assignment.familyKey === "aerform-air01-campaign") {
+      approvedClaims = AERFORM_APPROVED_CLAIMS;
+      sourceEntries = AERFORM_SOURCE_ENTRIES;
+    }
     const sourceText = sourceEntries
       .map((entry) => `[${entry.label}] ${entry.text}`)
       .join("\n");
@@ -477,6 +537,15 @@ export async function POST(req: Request) {
       ...sourceEntries.map((entry) => entry.text),
       ...sourceEntries.map((entry) => `[${entry.label}] ${entry.text}`),
     ];
+    if (approvedEvidenceSources.length === 0) {
+      return Response.json(
+        {
+          error:
+            "Add an approved claim or source document before generating compliant content.",
+        },
+        { status: 409 }
+      );
+    }
     const extraInstructions = revisions
       .map(revisionInstruction)
       .filter(Boolean)
@@ -497,7 +566,7 @@ export async function POST(req: Request) {
     const continuityPrompt = campaignSourcePrompt || replaceSourcePrompt;
 
     const system = [
-      `You write compliant brand-content and localized marketing copy for "${product.name}".`,
+      `You write compliant brand-content and localized marketing copy for "${productDisplayName}".`,
       `Use ONLY the approved claims and approved source text provided. Never invent features, integrations, pricing, customer guarantees, legal claims, or workflow capabilities. If a benefit is not supported by an approved claim or source, do not make it.`,
       `Write in ${language}.`,
       `Return structured content only in the requested machine-readable format.`,
@@ -537,14 +606,6 @@ export async function POST(req: Request) {
       `For every field that makes a factual or benefit claim, add an evidence entry naming the approved claim or approved source sentence it rests on.`,
     ].join("\n");
 
-    const fieldProps: Record<string, { type: "string"; maxLength?: number }> = {};
-    for (const f of editableFields) {
-      fieldProps[f] = {
-        type: "string",
-        ...(fieldLimits[f]?.max_chars ? { maxLength: fieldLimits[f].max_chars } : {}),
-      };
-    }
-
     try {
       const rateLimit = await consumeApiRateLimit(supabase, "content.generate");
       if (!rateLimit.allowed) return rateLimitResponse(rateLimit);
@@ -554,42 +615,11 @@ export async function POST(req: Request) {
     }
 
     const provider = selectedProvider();
-    const anthropic = provider === "anthropic" && process.env.ANTHROPIC_API_KEY
-      ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-      : null;
-    const tool = {
-      name: "build_asset_content",
-      description:
-        "Return finished, compliant copy that fits the selected template size and the approved evidence behind each claim.",
-      input_schema: {
-        type: "object" as const,
-        properties: {
-          fields: {
-            type: "object" as const,
-            properties: fieldProps,
-            required: requiredFields,
-          },
-          evidence: {
-            type: "array" as const,
-            items: {
-              type: "object" as const,
-              properties: {
-                field: { type: "string" as const },
-                approved_source: { type: "string" as const },
-              },
-              required: ["field", "approved_source"],
-            },
-          },
-        },
-        required: ["fields", "evidence"],
-      },
-    };
-
     let out: { fields: Record<string, string>; evidence: Evidence[] } | null = null;
     let structured: Record<string, string> = {};
     let lastCandidateEvidence: Evidence[] = [];
     let retryReasons: string[] = [];
-    let generationMode: "ai" | "fallback" = "ai";
+    const generationMode = "ai";
 
     for (let attempt = 0; attempt < PLATFORM_GENERATION_ATTEMPTS; attempt += 1) {
       const attemptPrompt = retryReasons.length
@@ -603,35 +633,18 @@ export async function POST(req: Request) {
         : userPrompt;
 
       if (provider === "fallback") {
-        retryReasons = ["AI generation is not configured."];
-        generationMode = "fallback";
-        break;
+        return Response.json(
+          { error: "Generation is temporarily unavailable." },
+          { status: 503 }
+        );
       }
 
       try {
-        let candidate: GeneratedCopy;
-        if (provider === "openai") {
-          candidate = await generateWithOpenAI({
-            system,
-            prompt: attemptPrompt,
-            editableFields,
-          });
-        } else {
-          if (!anthropic) throw new Error("Anthropic generation is not configured.");
-          const message = await anthropic.messages.create({
-            model: GENERATION_MODEL,
-            max_tokens: 1500,
-            system,
-            tool_choice: { type: "tool", name: "build_asset_content" },
-            tools: [tool],
-            messages: [{ role: "user", content: attemptPrompt }],
-          });
-          const toolUse = message.content.find((block) => block.type === "tool_use");
-          if (!toolUse || toolUse.type !== "tool_use") {
-            return Response.json({ error: "Model returned no structured output." }, { status: 502 });
-          }
-          candidate = parseGeneratedCopy(toolUse.input);
-        }
+        const candidate = await generateWithOpenAI({
+          system,
+          prompt: attemptPrompt,
+          editableFields,
+        });
 
         lastCandidateEvidence = Array.isArray(candidate.evidence)
           ? candidate.evidence
@@ -670,12 +683,11 @@ export async function POST(req: Request) {
           break;
         }
       } catch (err) {
-        console.warn("platform generation provider unavailable; using fallback copy:", err);
-        retryReasons = [
-          err instanceof Error ? err.message : `${provider} generation failed.`,
-        ];
-        generationMode = "fallback";
-        break;
+        console.error("platform generation provider failed:", err);
+        return Response.json(
+          { error: "Generation is temporarily unavailable. Please try again." },
+          { status: 503 }
+        );
       }
     }
 
@@ -712,60 +724,6 @@ export async function POST(req: Request) {
     }
 
     if (!out) {
-      const fallbackSource =
-        approvedClaims[0] ??
-        sourceEntries[0]?.text ??
-        `Content for ${product.name} must use approved templates and source material.`;
-      const fallbackFields = Object.fromEntries(
-        editableFields.map((key) => [
-          key,
-          fallbackCopyForField({
-            key,
-            productName: product.name,
-            defaultCopy,
-            approvedSource: fallbackSource,
-          }),
-        ])
-      );
-      structured = await coerceTemplatePlatformFieldsToFit({
-        manifest: assignment.manifest,
-        variantKey: outputSizeKey,
-        fields: fallbackFields,
-        assetUrlByPath,
-      });
-      const configuredIssues = templateFieldIssues(
-        structured,
-        editableFields,
-        fieldLimits,
-        requiredFields
-      );
-      const geometryIssues = await templatePlatformFieldFitIssues({
-        manifest: assignment.manifest,
-        variantKey: outputSizeKey,
-        fields: structured,
-        assetUrlByPath,
-      });
-      const qualityIssues = generatedCopyQualityIssues(structured, editableFields);
-      retryReasons = [
-        ...editableFields.flatMap((key) =>
-          (configuredIssues[key] ?? []).map((issue) => `${key}: ${issue.message}`)
-        ),
-        ...formatTemplatePlatformFitIssues(geometryIssues),
-        ...formatGeneratedCopyQualityIssues(qualityIssues),
-      ];
-      if (!retryReasons.length) {
-        generationMode = "fallback";
-        out = {
-          fields: structured,
-          evidence: editableFields.map((field) => ({
-            field,
-            approved_source: fallbackSource,
-          })),
-        };
-      }
-    }
-
-    if (!out) {
       console.error("platform generated copy failed template fit validation:", {
         platformAssignmentId,
         outputSize: outputSizeKey,
@@ -787,13 +745,37 @@ export async function POST(req: Request) {
       approvedEvidenceSources
     );
     const rejectedEvidenceCount = rawEvidence.length - evidence.length;
+    const evidenceIssues = generatedCopyEvidenceIssues({
+      fields: structured,
+      evidence,
+      approvedSources: approvedEvidenceSources,
+    });
+    if (evidenceIssues.length) {
+      console.warn("platform generated copy evidence validation warnings:", {
+        platformAssignmentId,
+        outputSize: outputSizeKey,
+        reasons: evidenceIssues,
+      });
+    }
     const inheritedBackgroundChoice =
+      (typeof backgroundChoice === "string" && backgroundChoice.length > 0
+        ? backgroundChoice
+        : null) ??
       asStringRecord(replaceContent?.structured_fields)[BACKGROUND_CHOICE_FIELD] ??
       asStringRecord(campaignSource?.structured_fields)[BACKGROUND_CHOICE_FIELD];
     if (inheritedBackgroundChoice) {
       structured[BACKGROUND_CHOICE_FIELD] = inheritedBackgroundChoice;
     }
-    const title = `${product.name} · ${assignment.familyName}`;
+    const inheritedProductVariantChoice =
+      (typeof productVariantChoice === "string" && productVariantChoice.length > 0
+        ? productVariantChoice
+        : null) ??
+      asStringRecord(replaceContent?.structured_fields)[PRODUCT_VARIANT_FIELD] ??
+      asStringRecord(campaignSource?.structured_fields)[PRODUCT_VARIANT_FIELD];
+    if (inheritedProductVariantChoice) {
+      structured[PRODUCT_VARIANT_FIELD] = inheritedProductVariantChoice;
+    }
+    const title = `${productDisplayName} · ${assignment.familyName}`;
     const body = flattenFields(structured, editableFields);
     const savedAt = new Date().toISOString();
     const sourcePromptContext =
@@ -830,11 +812,12 @@ export async function POST(req: Request) {
       manually_edited_fields: [],
       compliance_state: "generated",
       ai_provider: provider,
-      ai_model: provider === "openai" ? OPENAI_GENERATION_MODEL : GENERATION_MODEL,
+      ai_model: OPENAI_GENERATION_MODEL,
       generation_mode: generationMode,
       evidence_validation: {
         accepted: evidence.length,
         rejected: rejectedEvidenceCount,
+        warnings: evidenceIssues,
       },
       last_generated_at: savedAt,
     };

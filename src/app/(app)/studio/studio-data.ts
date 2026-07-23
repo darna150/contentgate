@@ -8,7 +8,9 @@ import {
 } from "@/lib/content-governance";
 import { createClient } from "@/lib/supabase/server";
 import type { TemplateBundleManifest } from "@/lib/template-platform/manifest";
+import { buildContentGateTemplateBundle } from "@/lib/template-platform/contentgate-bundle";
 import { publicContentGateBundleVariantAssetPath } from "@/lib/template-platform/public-contentgate-assets";
+import { aerformDemoProductName } from "@/lib/aerform-demo-display";
 import {
   getTemplateBundleSupportedSizes,
   getTemplateBundleVariantDimensions,
@@ -79,6 +81,9 @@ export type StudioState = {
   // Static per-viewer flag (role-based, not content-specific) that the
   // review-mode UI uses to decide whether to show approve/reject actions.
   canReview: boolean;
+  // Admin-only QA escape hatch: official exports remain approval-gated, but
+  // admins may download watermarked/labelled draft-preview files for internal QA.
+  canDownloadDraftPreviews: boolean;
   // Every generation for this product+template, bucketed by size and sorted
   // newest-first — the version rail's data source. Built from the same
   // selectedContentRows query already run below (no extra round trip).
@@ -133,9 +138,17 @@ type GeneratedContentRow = {
 };
 
 const CONTENT_SELECT =
-  "id, title, status, rejection_note, structured_fields, prompt_context, created_by, product_id, product_template_id, template_version_id, template_variant_id, template_variants(variant_key, label), updated_at";
+  "id, title, status, rejection_note, structured_fields, prompt_context, created_by, product_id, product_template_id, template_version_id, template_variant_id, template_variants!generated_content_template_variant_id_fkey(variant_key, label), updated_at";
 
 const ACTIVE_CONTENT_STATUSES = ["draft", "rejected", "in_review", "approved"];
+
+const AERFORM_DEFAULT_COPY: Record<string, string> = {
+  headline: "Carry lighter. Move quieter.",
+  subheadline: "Technical carry for commute, studio, and travel.",
+  cta: "Explore",
+  product_specs:
+    "24L daily / 32L expanded\nFits up to 16-inch laptop\nQuick side pocket\nRecycled nylon shell",
+};
 
 function one<T>(value: T | T[] | null | undefined): T | null {
   if (Array.isArray(value)) return value[0] ?? null;
@@ -155,10 +168,11 @@ function promptAssignmentId(row: Pick<GeneratedContentRow, "prompt_context">) {
 function contentOutputSize(
   row: Pick<GeneratedContentRow, "prompt_context" | "template_variants">
 ) {
+  const outputSize = row.prompt_context?.output_size;
+  if (typeof outputSize === "string") return outputSize;
   const variant = one(row.template_variants);
   if (typeof variant?.variant_key === "string") return variant.variant_key;
-  const outputSize = row.prompt_context?.output_size;
-  return typeof outputSize === "string" ? outputSize : null;
+  return null;
 }
 
 function contentWasManuallyEdited(row: Pick<GeneratedContentRow, "prompt_context">) {
@@ -197,34 +211,65 @@ function toStudioContent(row: GeneratedContentRow, userId?: string): StudioConte
   };
 }
 
-function platformAssignmentsToTemplates(rows: PlatformAssignmentRow[]): StudioTemplate[] {
-  return rows.flatMap((row) => {
+async function aerformManifestOverride(input: {
+  familyKey: string;
+  familyName: string;
+  manifest: TemplateBundleManifest;
+}) {
+  if (
+    input.familyKey !== "contentgate-local-friendly" &&
+    input.familyKey !== "contentgate-local-premium"
+  ) {
+    return input;
+  }
+  const bundle = await buildContentGateTemplateBundle(
+    input.familyKey === "contentgate-local-premium"
+      ? "contentgate_local_premium"
+      : "contentgate_local_friendly"
+  );
+  return {
+    familyKey: bundle.manifest.family.key,
+    familyName: bundle.manifest.family.name,
+    manifest: bundle.manifest,
+  };
+}
+
+async function platformAssignmentsToTemplates(rows: PlatformAssignmentRow[]): Promise<StudioTemplate[]> {
+  const templates = await Promise.all(rows.map(async (row) => {
     if (row.status !== "active") return [];
     const family = one(row.template_families);
     const version = one(row.template_versions);
     if (!family || !version || version.status !== "published") return [];
-    const supportedSizes = getTemplateBundleSupportedSizes(version.manifest);
+    const override = await aerformManifestOverride({
+      familyKey: family.family_key,
+      familyName: family.name,
+      manifest: version.manifest,
+    });
+    const supportedSizes = getTemplateBundleSupportedSizes(override.manifest);
     const defaultVariantKey = row.default_variant_key ?? supportedSizes[0];
     if (!defaultVariantKey) return [];
-    const runtime = resolveTemplateBundleRuntimeVariant(version.manifest, defaultVariantKey);
+    const runtime = resolveTemplateBundleRuntimeVariant(override.manifest, defaultVariantKey);
     if (!runtime) return [];
     const referenceAssetBySize = Object.fromEntries(
       supportedSizes.map((size) => [
         size,
-        publicContentGateBundleVariantAssetPath(version.manifest, size, "reference") ?? "",
+        publicContentGateBundleVariantAssetPath(override.manifest, size, "reference") ?? "",
       ])
     );
-    const defaultCopy = row.default_payload ?? {};
+    const defaultCopy =
+      override.familyKey === "aerform-air01-campaign"
+        ? AERFORM_DEFAULT_COPY
+        : row.default_payload ?? {};
     return [
       {
         id: row.id,
         product_id: row.product_id,
         category: "social",
-        variant: family.name,
-        layout_key: `template-platform:${family.family_key}`,
+        variant: override.familyName,
+        layout_key: `template-platform:${override.familyKey}`,
         platformAssignmentId: row.id,
         templateVersionId: version.id,
-        platformManifest: version.manifest,
+        platformManifest: override.manifest,
         referenceAssetBySize,
         editable_fields: runtime.fields.map((field) => field.key),
         required_fields: runtime.fields
@@ -242,7 +287,8 @@ function platformAssignmentsToTemplates(rows: PlatformAssignmentRow[]): StudioTe
         },
       },
     ];
-  });
+  }));
+  return templates.flat();
 }
 
 async function listActiveAssignments() {
@@ -250,7 +296,7 @@ async function listActiveAssignments() {
   const { data } = await supabase
     .from("product_template_assignments")
     .select(
-      "id, product_id, template_version_id, status, default_variant_key, default_payload, template_families(family_key, name), template_versions(id, version_label, status, manifest)"
+      "id, product_id, template_version_id, status, default_variant_key, default_payload, template_families!product_template_assignments_template_family_id_fkey(family_key, name), template_versions!product_template_assignments_template_version_id_fkey(id, version_label, status, manifest)"
     )
     .eq("status", "active");
   return (data ?? []) as PlatformAssignmentRow[];
@@ -263,7 +309,7 @@ async function findAssignmentForContent(content: GeneratedContentRow) {
   let query = supabase
     .from("product_template_assignments")
     .select(
-      "id, product_id, template_version_id, status, default_variant_key, default_payload, template_families(family_key, name), template_versions(id, version_label, status, manifest)"
+      "id, product_id, template_version_id, status, default_variant_key, default_payload, template_families!product_template_assignments_template_family_id_fkey(family_key, name), template_versions!product_template_assignments_template_version_id_fkey(id, version_label, status, manifest)"
     )
     .eq("status", "active")
     .limit(1);
@@ -289,19 +335,22 @@ export async function getStudioContent(
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("generated_content")
-    .select(`${CONTENT_SELECT}, products(id, name, disclaimer_text)`)
+    .select(
+      `${CONTENT_SELECT}, products!generated_content_product_id_fkey(id, name, disclaimer_text)`
+    )
     .eq("id", contentId)
     .maybeSingle();
 
+  if (error) throw new Error(`Could not load Studio content: ${error.message}`);
   if (!data) return null;
   const row = data as GeneratedContentRow;
   const product = one(row.products);
   if (!product) return null;
   const assignmentRow = await findAssignmentForContent(row);
   if (!assignmentRow) return null;
-  const [assignment] = platformAssignmentsToTemplates([assignmentRow]);
+  const [assignment] = await platformAssignmentsToTemplates([assignmentRow]);
   if (!assignment?.platformManifest) return null;
   const variantKey = contentOutputSize(row) ?? defaultVariantKey(assignment.platformManifest);
   const dims = variantDimensions(assignment.platformManifest, variantKey);
@@ -396,8 +445,12 @@ export async function loadStudioState(input: {
   ]);
 
   const canReview = canReviewContent((profile?.role as ContentRole) ?? "member");
-  const products = (productRows ?? []) as StudioProduct[];
-  const templates = platformAssignmentsToTemplates(assignmentRows);
+  const canDownloadDraftPreviews = profile?.role === "admin";
+  const products = ((productRows ?? []) as StudioProduct[]).map((product) => ({
+    ...product,
+    name: aerformDemoProductName(product.name),
+  }));
+  const templates = await platformAssignmentsToTemplates(assignmentRows);
   const requestedProductId = requestedContentContext?.product.id ?? input.productId;
   const requestedAssignmentId =
     requestedContentContext?.assignment.id ?? normalizePlatformAssignmentId(input.assignmentId);
@@ -480,6 +533,7 @@ export async function loadStudioState(input: {
     initialSize,
     organizationName: organization?.name ?? "Current workspace",
     canReview,
+    canDownloadDraftPreviews,
     versionsBySize: Object.fromEntries(versionsBySize),
   };
 }

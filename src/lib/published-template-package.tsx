@@ -772,9 +772,204 @@ function premiumPackage(): PublishedTemplatePackage {
   };
 }
 
+function aerformTextSlots(size: TemplateSizeKey): PublishedTextSlot[] {
+  const dims = TEMPLATE_OUTPUT_SIZES[size];
+  const lightInk = "#0A0A0A";
+  const muted = "#4B4842";
+  const print = size === "us_letter" || size === "poster" || size === "rack_card";
+  const compact = size === "leaderboard" || size === "medium_rectangle";
+
+  const headline =
+    size === "leaderboard"
+      ? { x: 178, y: 18, w: 250, h: 26, fontSize: 19, maxChars: 34, maxLines: 1 }
+      : size === "medium_rectangle"
+        ? { x: 24, y: 62, w: 154, h: 58, fontSize: 25, maxChars: 38, maxLines: 2 }
+        : size === "link_ad"
+          ? { x: 648, y: 110, w: 410, h: 92, fontSize: 38, maxChars: 56, maxLines: 2 }
+          : print
+            ? {
+                x: dims.w * 0.08,
+                y: dims.h * 0.13,
+                w: dims.w * 0.42,
+                h: dims.h * 0.18,
+                fontSize: size === "rack_card" ? 30 : size === "poster" ? 56 : 48,
+                maxChars: 64,
+                maxLines: 3,
+              }
+            : {
+                x: dims.w * 0.08,
+                y: dims.h * 0.17,
+                w: dims.w * 0.55,
+                h: dims.h * 0.16,
+                fontSize: size === "story" ? 82 : size === "portrait" ? 74 : 70,
+                maxChars: 56,
+                maxLines: 2,
+              };
+
+  const subheadline =
+    size === "leaderboard"
+      ? { x: 178, y: 46, w: 300, h: 16, fontSize: 9, maxChars: 78, maxLines: 1 }
+      : size === "medium_rectangle"
+        ? { x: 24, y: 128, w: 156, h: 34, fontSize: 10, maxChars: 64, maxLines: 2 }
+        : size === "link_ad"
+          ? { x: 648, y: 228, w: 360, h: 46, fontSize: 16, maxChars: 100, maxLines: 2 }
+          : print
+            ? {
+                x: dims.w * 0.08,
+                y: dims.h * 0.34,
+                w: dims.w * 0.36,
+                h: dims.h * 0.06,
+                fontSize: size === "rack_card" ? 11 : size === "poster" ? 18 : 16,
+                maxChars: 110,
+                maxLines: 2,
+              }
+            : {
+                x: dims.w * 0.08,
+                y: dims.h * (size === "story" ? 0.33 : 0.39),
+                w: dims.w * 0.44,
+                h: dims.h * 0.07,
+                fontSize: size === "story" ? 31 : size === "portrait" ? 27 : 25,
+                maxChars: 96,
+                maxLines: 2,
+              };
+
+  const cta =
+    size === "leaderboard"
+      ? { x: 504, y: 28, w: 96, h: 20, fontSize: 11, maxChars: 18, maxLines: 1 }
+      : size === "medium_rectangle"
+        ? { x: 24, y: 194, w: 86, h: 20, fontSize: 10, maxChars: 18, maxLines: 1 }
+        : print
+          ? {
+              x: dims.w * 0.65,
+              y: dims.h * 0.82,
+              w: dims.w * 0.22,
+              h: dims.h * 0.03,
+              fontSize: size === "rack_card" ? 9 : 14,
+              maxChars: 24,
+              maxLines: 1,
+            }
+          : {
+              x: dims.w * 0.08,
+              y: dims.h * (size === "story" ? 0.54 : 0.72),
+              w: dims.w * 0.18,
+              h: dims.h * 0.035,
+              fontSize: compact ? 10 : 18,
+              maxChars: 24,
+              maxLines: 1,
+            };
+
+  const slots: PublishedTextSlot[] = [
+    {
+      field: "headline",
+      ...headline,
+      lineHeight: size === "leaderboard" ? 1.05 : 0.94,
+      weight: 400,
+      color: lightInk,
+      lineChars: size === "leaderboard" ? 34 : 20,
+      family: "Inter",
+      fallback: print ? "Built for lighter movement." : "Carry lighter. Move quieter.",
+    },
+    {
+      field: "subheadline",
+      ...subheadline,
+      lineHeight: 1.18,
+      weight: 400,
+      color: muted,
+      lineChars: size === "leaderboard" ? 48 : 34,
+      family: "Inter",
+      fallback: "Technical carry for commute, studio, and travel.",
+    },
+    {
+      field: "cta",
+      ...cta,
+      lineHeight: 1.05,
+      weight: 600,
+      color: lightInk,
+      family: "Inter",
+      fallback: print ? "Explore Air 01" : "Explore",
+    },
+  ];
+
+  if (print) {
+    slots.push({
+      field: "product_specs",
+      x: dims.w * 0.08,
+      y: dims.h * 0.48,
+      w: dims.w * 0.45,
+      h: dims.h * 0.2,
+      fontSize: size === "rack_card" ? 6.5 : size === "poster" ? 12 : 10.5,
+      lineHeight: 1.28,
+      weight: 500,
+      color: lightInk,
+      maxChars: size === "rack_card" ? 150 : 240,
+      maxLines: size === "rack_card" ? 7 : 8,
+      lineChars: size === "rack_card" ? 28 : 42,
+      family: "Inter",
+      fallback:
+        "PRODUCT SPECIFICATIONS\nCapacity 24L daily / 32L expanded\nLaptop fit Fits up to 16-inch laptop\nAccess Quick side pocket\nMaterials Recycled nylon shell",
+    });
+    slots.push({
+      field: "proof_note",
+      x: dims.w * 0.12,
+      y: dims.h * 0.79,
+      w: dims.w * 0.46,
+      h: dims.h * 0.04,
+      fontSize: size === "rack_card" ? 7 : 12,
+      lineHeight: 1.15,
+      weight: 400,
+      color: muted,
+      maxChars: 120,
+      maxLines: 2,
+      lineChars: 56,
+      family: "Inter",
+      fallback: "Recycled technical fabric with structured support and weather-ready finishing.",
+    });
+  }
+
+  return slots;
+}
+
+function aerformFrame(
+  size: TemplateSizeKey,
+  fileName: string,
+  set: "set-a" | "set-b"
+): PublishedFrame {
+  return frame(
+    size,
+    "#F5F5F7",
+    [],
+    aerformTextSlots(size),
+    [],
+    {
+      referenceImage: `/template-packages/contentgate/${set}/${fileName}.png`,
+      generatedImage: `/template-packages/contentgate/${set}/backgrounds/${fileName}.png`,
+    }
+  );
+}
+
+function aerformPackage(set: "set-a" | "set-b"): PublishedTemplatePackage {
+  return {
+    packageVersion: 1,
+    packageKey: `aerform-air01-campaign-${set}-v1`,
+    publicName: "Aerform Air 01 Campaign System",
+    frames: {
+      portrait: aerformFrame("portrait", "portrait", set),
+      square: aerformFrame("square", "square", set),
+      story: aerformFrame("story", "story", set),
+      linkedin_square: aerformFrame("linkedin_square", "linkedin-square", set),
+      link_ad: aerformFrame("link_ad", "link-ad", set),
+      leaderboard: aerformFrame("leaderboard", "leaderboard", set),
+      medium_rectangle: aerformFrame("medium_rectangle", "medium-rectangle", set),
+      us_letter: aerformFrame("us_letter", "us-letter", set),
+      poster: aerformFrame("poster", "poster", set),
+      rack_card: aerformFrame("rack_card", "rack-card", set),
+    },
+  };
+}
+
 const PACKAGE_REGISTRY: Record<string, PublishedTemplatePackage> = {
-  contentgate_local_friendly: friendlyPackage(),
-  contentgate_local_premium: premiumPackage(),
+  contentgate_local_friendly: aerformPackage("set-a"),
+  contentgate_local_premium: aerformPackage("set-b"),
 };
 
 function isPackage(value: unknown): value is PublishedTemplatePackage {

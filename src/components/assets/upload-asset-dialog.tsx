@@ -85,7 +85,7 @@ export function UploadAssetDialog({
       return;
     }
     const formData = new FormData(event.currentTarget);
-    const productId = fixedProductId || String(formData.get("product_id") ?? "");
+    const productId = fixedProductId ?? String(formData.get("product_id") ?? "");
     if (!productId) {
       setError("Choose a product.");
       return;
@@ -118,8 +118,9 @@ export function UploadAssetDialog({
               </span>
               <select name="product_id" required defaultValue="" className={FIELD_INPUT}>
                 <option value="" disabled>
-                  Choose a product…
+                  Choose a collection…
                 </option>
+                <option value="brand">Brand</option>
                 {products.map((product) => (
                   <option key={product.id} value={product.id}>
                     {product.name}

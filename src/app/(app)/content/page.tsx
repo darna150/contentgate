@@ -6,7 +6,7 @@ import { FilterChips } from "@/components/filter-chips";
 import { ContentFilterSelects } from "./content-filter-selects";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { sizeLabel } from "@/lib/creative";
+import { sizeLabel, studioContentUrl } from "@/lib/creative";
 import {
   getContentPage,
   type FlattenedContentRow,
@@ -138,7 +138,7 @@ export default async function ContentPage({
             {rows.map((row) => (
               <Link
                 key={row.id}
-                href={`/content/${row.id}`}
+                href={studioContentUrl(row.id, row.sizeKey ?? undefined)}
                 className="grid items-center gap-3 rounded-control px-3.5 py-3 transition-colors hover:bg-page"
                 style={{ gridTemplateColumns: "2.2fr 0.8fr 0.7fr 1.3fr 1fr 0.8fr" }}
               >
@@ -165,7 +165,7 @@ export default async function ContentPage({
             {rows.map((row) => (
               <Link
                 key={row.id}
-                href={`/content/${row.id}`}
+                href={studioContentUrl(row.id, row.sizeKey ?? undefined)}
                 className="flex flex-col gap-1.5 rounded-control px-3.5 py-3 transition-colors hover:bg-page"
               >
                 <span className="truncate text-[13.5px] font-semibold">{row.title}</span>

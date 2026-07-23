@@ -47,6 +47,22 @@ function tokenOverlapRatio(a: string[], b: string[]) {
   return overlap / Math.min(new Set(a).size, new Set(b).size);
 }
 
+function isLowRiskCommandField(field: string) {
+  const normalized = normalize(field);
+  return normalized.includes("cta") || normalized.includes("call action");
+}
+
+function fieldValueIsSupportedBySource(fieldValue: string, source: string) {
+  const fieldTokens = substantiveTokens(fieldValue);
+  if (fieldTokens.length < 3) return true;
+
+  const sourceTokens = substantiveTokens(source);
+  if (sourceTokens.length < 4) return false;
+
+  const ratio = tokenOverlapRatio(fieldTokens, sourceTokens);
+  return ratio >= 0.45 || normalize(source).includes(normalize(fieldValue));
+}
+
 export function evidenceSourceIsApproved(
   source: string,
   approvedSources: readonly string[]
@@ -78,4 +94,43 @@ export function evidenceSourceIsApproved(
       tokenOverlapRatio(needleTokens, haystackTokens) >= 0.8
     );
   });
+}
+
+export type GeneratedFieldEvidence = {
+  field: string;
+  approved_source: string;
+};
+
+export function generatedCopyEvidenceIssues(input: {
+  fields: Record<string, string>;
+  evidence: readonly GeneratedFieldEvidence[];
+  approvedSources: readonly string[];
+}) {
+  const issues: string[] = [];
+
+  if (input.approvedSources.length === 0) {
+    return ["No approved claims or source text are available for generation."];
+  }
+
+  for (const [field, value] of Object.entries(input.fields)) {
+    const trimmed = value.trim();
+    if (!trimmed || isLowRiskCommandField(field)) continue;
+
+    const fieldEvidence = input.evidence.filter((item) => item.field === field);
+    if (!fieldEvidence.length) {
+      issues.push(`${field}: missing approved evidence.`);
+      continue;
+    }
+
+    const supported = fieldEvidence.some(
+      (item) =>
+        evidenceSourceIsApproved(item.approved_source, input.approvedSources) &&
+        fieldValueIsSupportedBySource(trimmed, item.approved_source)
+    );
+    if (!supported) {
+      issues.push(`${field}: generated copy is not supported by its approved evidence.`);
+    }
+  }
+
+  return issues;
 }

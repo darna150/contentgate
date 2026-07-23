@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { CitationList } from "@/components/citation";
 import type { ProductWorkspace } from "@/lib/product-workspace-server";
 import { SectionEmpty } from "./empty-state";
 
@@ -27,7 +28,7 @@ export function KnowledgeView({ workspace }: { workspace: ProductWorkspace }) {
           href={`/ask?product=${product.id}`}
           className="text-[13px] font-semibold text-brand hover:underline"
         >
-          Open Knowledge Hub →
+          Open Ask →
         </Link>
       </div>
 
@@ -93,7 +94,22 @@ export function KnowledgeView({ workspace }: { workspace: ProductWorkspace }) {
                   className="flex gap-2 text-[13px] leading-snug text-ink-muted"
                 >
                   <span className="mt-0.5 flex-shrink-0 text-approve">✓</span>
-                  <span>{claim.claimText}</span>
+                  <span className="flex min-w-0 flex-1 flex-col gap-1.5">
+                    <span>{claim.claimText}</span>
+                    {claim.sourceDocumentTitle && claim.sourceExcerpt && (
+                      <CitationList
+                        citations={[
+                          {
+                            documentId: claim.sourceDocumentId,
+                            documentTitle: claim.sourceDocumentTitle,
+                            paragraphN: claim.sourceParagraphN,
+                            excerpt: claim.sourceExcerpt,
+                          },
+                        ]}
+                        label="Source"
+                      />
+                    )}
+                  </span>
                 </li>
               ))}
             </ul>

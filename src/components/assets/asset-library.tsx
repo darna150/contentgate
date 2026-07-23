@@ -62,18 +62,12 @@ export function AssetLibrary({ assets, products, collections, filters, isAdmin }
   return (
     <div className="flex flex-col gap-5">
       <PageHeader
-        title="Asset Library"
+        title="Assets"
         description="Governed logos, packshots, backgrounds, and images across your products."
         actions={
           isAdmin ? (
             <Button
-              onClick={() => uploadProducts.length > 0 && setDialog({ type: "upload" })}
-              disabled={uploadProducts.length === 0}
-              title={
-                uploadProducts.length === 0
-                  ? "Create an active product before uploading"
-                  : undefined
-              }
+              onClick={() => setDialog({ type: "upload" })}
             >
               <UploadIcon className="h-4 w-4" /> Upload asset
             </Button>

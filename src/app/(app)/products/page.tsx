@@ -4,6 +4,10 @@ import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
 import { ProductStatusBadge } from "./[id]/_workspace/product-status-badge";
 import { createClient } from "@/lib/supabase/server";
+import {
+  aerformDemoProductDescription,
+  aerformDemoProductName,
+} from "@/lib/aerform-demo-display";
 
 type ProductRow = {
   id: string;
@@ -28,7 +32,11 @@ export default async function ProductsPage() {
       .from("products")
       .select("id, name, description, status")
       .order("created_at", { ascending: true });
-    products = data ?? [];
+    products = (data ?? []).map((product) => ({
+      ...product,
+      name: aerformDemoProductName(product.name),
+      description: aerformDemoProductDescription(product.description),
+    }));
 
     if (products.length) {
       const ids = products.map((p) => p.id);

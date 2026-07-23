@@ -75,7 +75,7 @@ async function signIn(page: Page) {
   await page.goto("/login");
   await page.getByLabel("Work email").fill(E2E_EMAIL!);
   await page.getByLabel("Password").fill(E2E_PASSWORD!);
-  await page.getByRole("button", { name: /^Sign in$/ }).click();
+  await page.getByRole("button", { name: /^(Sign in|Enter workspace)$/ }).click();
   await page.waitForFunction(
     () => !window.location.pathname.startsWith("/login"),
     undefined,

@@ -24,6 +24,8 @@ import {
   type ContentStatus,
 } from "@/lib/content-governance";
 
+const PRODUCT_VARIANT_FIELD = "__productVariantKey";
+
 type FitStorageClient = Awaited<ReturnType<typeof createClient>>;
 
 type ActionResult =
@@ -220,6 +222,9 @@ export async function updateStructuredFields(
   );
   if (!template && typeof fields[BACKGROUND_CHOICE_FIELD] === "string") {
     cleaned[BACKGROUND_CHOICE_FIELD] = fields[BACKGROUND_CHOICE_FIELD];
+  }
+  if (!template && typeof fields[PRODUCT_VARIANT_FIELD] === "string") {
+    cleaned[PRODUCT_VARIANT_FIELD] = fields[PRODUCT_VARIANT_FIELD];
   }
   const promptContext =
     content?.prompt_context && typeof content.prompt_context === "object"
