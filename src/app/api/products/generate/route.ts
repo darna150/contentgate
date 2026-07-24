@@ -11,8 +11,14 @@ import {
 import { isProductLifecycleActive } from "@/lib/product-workspace";
 import {
   evidenceSourceIsApproved,
-  generatedCopyEvidenceIssues,
 } from "@/lib/evidence-validation";
+import {
+  aiEditableTemplateFields,
+  composeStructuredFieldsForGeneration,
+  evidenceGateForGeneratedFields,
+  localeIsAllowedForGeneration,
+  requiredEvidenceFieldKeys,
+} from "@/lib/generation-evidence";
 import { consumeApiRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import {
   normalizeTemplatePlatformAssignment,
@@ -84,7 +90,7 @@ type Body = {
   sourceContentId?: string; // when adapting another size, preserve the same campaign idea
 };
 
-const ALLOWED_LANGUAGES = new Set([
+const SUPPORTED_GENERATION_LANGUAGES = new Set([
   "English",
   "Filipino",
   "Spanish",
@@ -308,7 +314,7 @@ export async function POST(req: Request) {
   if (!platformAssignmentId) {
     return Response.json({ error: "Missing approved template." }, { status: 400 });
   }
-  if (!ALLOWED_LANGUAGES.has(language)) {
+  if (!SUPPORTED_GENERATION_LANGUAGES.has(language)) {
     return Response.json({ error: "Unsupported language." }, { status: 400 });
   }
   if (!Array.isArray(revisions) || revisions.length > 1) {
@@ -334,7 +340,7 @@ export async function POST(req: Request) {
     const { data: assignmentRow } = await supabase
       .from("product_template_assignments")
       .select(
-        "id, product_id, status, default_variant_key, generation_profile, default_payload, template_families!product_template_assignments_template_family_id_fkey(id, family_key, name), template_versions!product_template_assignments_template_version_id_fkey(id, version_label, status, manifest)"
+        "id, product_id, status, default_variant_key, generation_profile, default_payload, allowed_locales, template_families!product_template_assignments_template_family_id_fkey(id, family_key, name), template_versions!product_template_assignments_template_version_id_fkey(id, version_label, status, manifest)"
       )
       .eq("id", platformAssignmentId)
       .eq("org_id", profile.org_id)
@@ -358,6 +364,22 @@ export async function POST(req: Request) {
     );
     if (!runtimeVariant) {
       return Response.json({ error: "Unsupported output size for this template." }, { status: 400 });
+    }
+    const allowedLocales = Array.isArray(
+      (assignmentRow as TemplatePlatformAssignmentRow).allowed_locales
+    )
+      ? ((assignmentRow as TemplatePlatformAssignmentRow).allowed_locales as unknown[]).filter(
+          (locale): locale is string => typeof locale === "string" && locale.length > 0
+        )
+      : ["en"];
+    if (
+      !SUPPORTED_GENERATION_LANGUAGES.has(language) ||
+      !localeIsAllowedForGeneration({ language, allowedLocales })
+    ) {
+      return Response.json(
+        { error: "This template is not approved for the selected language." },
+        { status: 400 }
+      );
     }
 
     let { data: variantRow } = await supabase
@@ -440,6 +462,7 @@ export async function POST(req: Request) {
       .from("products")
       .select("id, name, description, disclaimer_text, status")
       .eq("id", assignment.productId)
+      .eq("org_id", profile.org_id)
       .single();
     if (!product) return Response.json({ error: "Product not found." }, { status: 404 });
     if (!isProductLifecycleActive(product.status)) {
@@ -455,12 +478,22 @@ export async function POST(req: Request) {
       supabase
         .from("documents")
         .select("id, title, paragraphs")
-        .eq("product_id", product.id),
+        .eq("product_id", product.id)
+        .eq("org_id", profile.org_id),
     ]);
 
-    const editableFields = runtimeVariant.fields.map((field) => field.key);
+    const aiFields = aiEditableTemplateFields(runtimeVariant.fields);
+    const editableFields = aiFields.map((field) => field.key);
+    const allRuntimeFieldKeys = runtimeVariant.fields.map((field) => field.key);
+    const evidenceRequiredFields = requiredEvidenceFieldKeys(runtimeVariant.fields);
+    if (editableFields.length === 0) {
+      return Response.json(
+        { error: "This template has no AI-editable copy fields." },
+        { status: 409 }
+      );
+    }
     const requiredFields = runtimeVariant.fields
-      .filter((field) => field.required !== false)
+      .filter((field) => field.source === "ai" && field.required !== false)
       .map((field) => field.key);
     const fieldLimits = getTemplateBundleVariantFieldLimits(
       assignment.manifest,
@@ -476,6 +509,7 @@ export async function POST(req: Request) {
     const defaultCopy = asStringRecord(
       (assignmentRow as TemplatePlatformAssignmentRow).default_payload
     );
+    const previousStructuredFields = asStringRecord(replaceContent?.structured_fields);
     let approvedClaims = (claims ?? []).map((c) => c.claim_text);
     const sourceDocs = docs ?? [];
     let sourceEntries: SourceEntry[] = sourceDocs
@@ -552,7 +586,7 @@ export async function POST(req: Request) {
       extraInstructions ? `\nADDITIONAL DIRECTION: ${extraInstructions}` : ``,
       `\nSELECTED OUTPUT SIZE: ${runtimeVariant.variant.label} (${runtimeVariant.variant.width}x${runtimeVariant.variant.height}). Generate copy only for this size and stay inside its field limits.`,
       ``,
-      `Produce exactly these fields: ${editableFields.join(", ")}.`,
+      `Produce exactly these AI-editable fields and no other fields: ${editableFields.join(", ")}.`,
       `FIELD LIMITS:`,
       editableFields.map((key) => fieldLimitInstruction(key, fieldLimits[key])).join("\n"),
       typographyInstructions.length ? `\nTYPOGRAPHIC FIT RULES:` : ``,
@@ -577,6 +611,7 @@ export async function POST(req: Request) {
 
     const provider = selectedProvider();
     let out: { fields: Record<string, string>; evidence: Evidence[] } | null = null;
+    let generatedFields: Record<string, string> = {};
     let structured: Record<string, string> = {};
     let lastCandidateEvidence: Evidence[] = [];
     let retryReasons: string[] = [];
@@ -610,7 +645,7 @@ export async function POST(req: Request) {
         lastCandidateEvidence = Array.isArray(candidate.evidence)
           ? candidate.evidence
           : [];
-        structured = Object.fromEntries(
+        generatedFields = Object.fromEntries(
           editableFields.map((key) => [
             key,
             String(candidate.fields?.[key] ?? "")
@@ -618,8 +653,15 @@ export async function POST(req: Request) {
               .trim(),
           ])
         );
+        structured = composeStructuredFieldsForGeneration({
+          allFieldKeys: allRuntimeFieldKeys,
+          aiFieldKeys: editableFields,
+          generatedFields,
+          defaultFields: defaultCopy,
+          previousFields: previousStructuredFields,
+        });
         const configuredIssues = templateFieldIssues(
-          structured,
+          generatedFields,
           editableFields,
           fieldLimits,
           requiredFields
@@ -653,11 +695,18 @@ export async function POST(req: Request) {
     }
 
     if (!out && Object.values(structured).some(Boolean)) {
-      structured = await coerceTemplatePlatformFieldsToFit({
+      generatedFields = await coerceTemplatePlatformFieldsToFit({
         manifest: assignment.manifest,
         variantKey: outputSizeKey,
-        fields: structured,
+        fields: generatedFields,
         assetUrlByPath,
+      });
+      structured = composeStructuredFieldsForGeneration({
+        allFieldKeys: allRuntimeFieldKeys,
+        aiFieldKeys: editableFields,
+        generatedFields,
+        defaultFields: defaultCopy,
+        previousFields: previousStructuredFields,
       });
       const configuredIssues = templateFieldIssues(
         structured,
@@ -680,7 +729,7 @@ export async function POST(req: Request) {
         ...formatGeneratedCopyQualityIssues(qualityIssues),
       ];
       if (!retryReasons.length) {
-        out = { fields: structured, evidence: lastCandidateEvidence };
+        out = { fields: generatedFields, evidence: lastCandidateEvidence };
       }
     }
 
@@ -706,17 +755,26 @@ export async function POST(req: Request) {
       approvedEvidenceSources
     );
     const rejectedEvidenceCount = rawEvidence.length - evidence.length;
-    const evidenceIssues = generatedCopyEvidenceIssues({
-      fields: structured,
+    const evidenceGate = evidenceGateForGeneratedFields({
+      fields: generatedFields,
+      requiredEvidenceFields: evidenceRequiredFields,
       evidence,
       approvedSources: approvedEvidenceSources,
     });
-    if (evidenceIssues.length) {
-      console.warn("platform generated copy evidence validation warnings:", {
+    if (!evidenceGate.ok) {
+      console.warn("platform generated copy failed evidence validation:", {
         platformAssignmentId,
         outputSize: outputSizeKey,
-        reasons: evidenceIssues,
+        reasons: evidenceGate.issues,
       });
+      return Response.json(
+        {
+          error:
+            "ContentGate could not verify the generated copy against approved evidence. Please add stronger approved sources or try a shorter generation.",
+          issues: evidenceGate.issues,
+        },
+        { status: 422 }
+      );
     }
     const inheritedBackgroundChoice =
       (typeof backgroundChoice === "string" && backgroundChoice.length > 0
@@ -769,7 +827,7 @@ export async function POST(req: Request) {
         ? campaignSourceFields(campaignSource ?? replaceContent)
         : structured,
       field_limits: fieldLimits,
-      generated_fields: structured,
+      generated_fields: generatedFields,
       manually_edited_fields: [],
       compliance_state: "generated",
       ai_provider: provider,
@@ -778,7 +836,9 @@ export async function POST(req: Request) {
       evidence_validation: {
         accepted: evidence.length,
         rejected: rejectedEvidenceCount,
-        warnings: evidenceIssues,
+        warnings: evidenceGate.warnings,
+        required_fields: evidenceRequiredFields,
+        enforcement: "fail_closed",
       },
       last_generated_at: savedAt,
     };
