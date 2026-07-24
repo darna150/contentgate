@@ -280,6 +280,15 @@ function groundingRepairInstruction(issues: string[]): string {
     .join("\n");
 }
 
+function evidenceScopedFields(
+  fields: Record<string, string>,
+  evidenceRequiredFields: readonly string[]
+) {
+  return Object.fromEntries(
+    evidenceRequiredFields.map((field) => [field, fields[field] ?? ""])
+  );
+}
+
 function asStringRecord(value: unknown): Record<string, string> {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
   return Object.fromEntries(
@@ -737,7 +746,7 @@ export async function POST(req: Request) {
         );
         rawEvidenceCount = candidateEvidence.length;
         groundingIssues = generatedCopyEvidenceIssues({
-          fields: structured,
+          fields: evidenceScopedFields(structured, evidenceRequiredFields),
           evidence: verifiedEvidence,
           approvedSources: approvedSourceTexts,
         });
@@ -790,7 +799,7 @@ export async function POST(req: Request) {
         ...formatGeneratedCopyQualityIssues(qualityIssues),
       ];
       groundingIssues = generatedCopyEvidenceIssues({
-        fields: structured,
+        fields: evidenceScopedFields(structured, evidenceRequiredFields),
         evidence: verifiedEvidence,
         approvedSources: approvedSourceTexts,
       });
