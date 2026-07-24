@@ -36,9 +36,25 @@ export async function GET() {
         }`
       );
     }
+    const { data: templateBucket, error: templateBucketError } =
+      await admin.storage.getBucket("template-bundles");
+    if (templateBucketError || !templateBucket) {
+      throw new Error(
+        `Supabase template-bundles bucket unavailable: ${
+          templateBucketError?.message ?? "not found"
+        }`
+      );
+    }
 
     return NextResponse.json(
-      { status: "ok", checks: { supabase: "ok", renderedAssetsBucket: "ok" } },
+      {
+        status: "ok",
+        checks: {
+          supabase: "ok",
+          renderedAssetsBucket: "ok",
+          templateBundlesBucket: "ok",
+        },
+      },
       { headers: { "Cache-Control": "no-store" } }
     );
   } catch (error) {

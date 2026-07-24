@@ -38,6 +38,10 @@ import {
   templatePlatformFitInstructions,
 } from "@/lib/template-platform/fit";
 import { createTemplateBundleAssetUrlMap } from "@/lib/template-platform/storage-urls";
+import {
+  logTemplatePipelineEvent,
+  templatePipelineDuration,
+} from "@/lib/template-platform/observability";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -51,32 +55,6 @@ const PLATFORM_GENERATION_ATTEMPTS = Math.max(
   Number(process.env.PLATFORM_GENERATION_ATTEMPTS ?? "2")
 );
 const MAX_GENERATION_SOURCE_PARAGRAPHS = 24;
-const AERFORM_APPROVED_CLAIMS = [
-  "Aerform Air 01 is a modular everyday carry backpack designed for commute, studio work, and short travel.",
-  "Aerform Air 01 is built for lighter movement with a quiet, technical look.",
-  "Aerform Air 01 supports a 16-inch laptop, daily essentials, and organized accessory carry.",
-  "Aerform Air 01 uses recycled nylon shell fabric with padded, weather-ready construction.",
-  "Aerform Air 01 is available in charcoal, stone, ivory, and expanded charcoal travel variants.",
-];
-
-const AERFORM_SOURCE_ENTRIES: SourceEntry[] = [
-  {
-    label: "Aerform Product Guide ¶1",
-    text: "Aerform Air 01 is a modular everyday carry backpack for commute, studio work, and short travel.",
-  },
-  {
-    label: "Aerform Product Guide ¶2",
-    text: "The campaign voice is light, quiet, precise, and premium, with concise copy that emphasizes easier movement and technical organization.",
-  },
-  {
-    label: "Aerform Product Guide ¶3",
-    text: "Core specifications include 24L daily capacity, up to 32L expanded carry, 16-inch laptop fit, quick side pocket access, recycled nylon shell fabric, and padded weather-ready construction.",
-  },
-  {
-    label: "Aerform Product Guide ¶4",
-    text: "Print materials should include deeper product specifications, while social and digital ads should stay simple, atmospheric, and campaign-led.",
-  },
-];
 
 type Body = {
   productTemplateId?: string;
@@ -283,6 +261,7 @@ function formatCampaignSource(input: {
 }
 
 export async function POST(req: Request) {
+  const startedAt = Date.now();
   const supabase = await createClient();
   const {
     data: { user },
@@ -520,9 +499,9 @@ export async function POST(req: Request) {
       (assignmentRow as TemplatePlatformAssignmentRow).default_payload
     );
     const previousStructuredFields = asStringRecord(replaceContent?.structured_fields);
-    let approvedClaims = (claims ?? []).map((c) => c.claim_text);
+    const approvedClaims = (claims ?? []).map((c) => c.claim_text);
     const sourceDocs = docs ?? [];
-    let sourceEntries: SourceEntry[] = sourceDocs
+    const sourceEntries: SourceEntry[] = sourceDocs
       .flatMap((d) =>
         ((d.paragraphs as { n: number; text: string }[]) ?? []).map((p) => ({
           label: `${d.title} ¶${p.n}`,
@@ -530,10 +509,6 @@ export async function POST(req: Request) {
         }))
       )
       .slice(0, MAX_GENERATION_SOURCE_PARAGRAPHS);
-    if (assignment.familyKey === "aerform-air01-campaign") {
-      approvedClaims = AERFORM_APPROVED_CLAIMS;
-      sourceEntries = AERFORM_SOURCE_ENTRIES;
-    }
     const sourceText = sourceEntries
       .map((entry) => `[${entry.label}] ${entry.text}`)
       .join("\n");
@@ -897,6 +872,19 @@ export async function POST(req: Request) {
     if (writeError || !row) {
       return Response.json({ error: `Could not save draft: ${writeError?.message}` }, { status: 500 });
     }
+    logTemplatePipelineEvent({
+      event: "template.generate",
+      ok: true,
+      orgId: profile.org_id,
+      userId: user.id,
+      productId: product.id,
+      platformAssignmentId: assignment.assignmentId,
+      familyKey: assignment.familyKey,
+      versionName: assignment.versionLabel,
+      variantKey: outputSizeKey,
+      templateVersionId: assignment.versionId,
+      durationMs: templatePipelineDuration(startedAt),
+    });
 
     return Response.json({
       contentId: row.id,

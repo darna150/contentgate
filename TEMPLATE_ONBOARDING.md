@@ -64,6 +64,10 @@ approved DAM assets, approvals, and exports.
 
 - Do not add a new product-specific renderer for normal client refreshes.
 - Do not hardcode client names, product asset paths, or picker values in Studio.
+- Do not add product-template generation paths for new work; `productTemplateId`
+  generation is retired and remains read-only for historical content only.
+- Do not add demo evidence fallbacks. New clients must have approved claims or
+  product documents before generation can run.
 - Use manifest `assetBinding` to describe what Studio may offer from the mini-DAM.
 - Studio may display only approved `product_assets` rows matching organization,
   product/brand scope, media kind, asset type, category, and tags.
@@ -86,6 +90,18 @@ npm run build
 
 For release branches, also run `npm test`. The TSX render suite may need the
 normal local permission to create its IPC pipe.
+
+## Phase 8 Observability
+
+Template preflight, import, publish, and generation emit structured
+`template_pipeline_event` logs with family/version/variant identifiers, issue
+counts, asset counts, DAM-bound field counts, duration, and success/failure
+status. Use those logs to spot slow imports, failing client bundles, missing
+DAM setup, or generation attempts before client evidence is ready.
+
+`/api/health` checks Supabase plus both `rendered-assets` and `template-bundles`
+storage buckets because the platform path depends on both output delivery and
+private template bundle reads.
 
 ## Activation Rule
 

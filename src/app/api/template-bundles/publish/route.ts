@@ -1,5 +1,9 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import {
+  logTemplatePipelineEvent,
+  templatePipelineDuration,
+} from "@/lib/template-platform/observability";
 import { decideTemplateVersionPublish } from "@/lib/template-platform/publishing";
 
 export const runtime = "nodejs";
@@ -34,6 +38,7 @@ async function requireAdmin() {
 }
 
 export async function POST(req: Request) {
+  const startedAt = Date.now();
   if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
     return Response.json({ error: "Template publishing is not configured." }, { status: 503 });
   }
@@ -78,9 +83,28 @@ export async function POST(req: Request) {
     }
   );
   if (publishError) {
+    logTemplatePipelineEvent({
+      event: "template.publish",
+      ok: false,
+      orgId: admin.value.orgId,
+      userId: admin.value.userId,
+      templateVersionId: version.id,
+      templateFamilyId: version.family_id,
+      durationMs: templatePipelineDuration(startedAt),
+      reason: "rpc_failed",
+    });
     return Response.json({ error: "Failed to publish template version." }, { status: 500 });
   }
   const published = Array.isArray(publishedRows) ? publishedRows[0] : publishedRows;
+  logTemplatePipelineEvent({
+    event: "template.publish",
+    ok: true,
+    orgId: admin.value.orgId,
+    userId: admin.value.userId,
+    templateVersionId: published?.template_version_id ?? version.id,
+    templateFamilyId: published?.template_family_id ?? version.family_id,
+    durationMs: templatePipelineDuration(startedAt),
+  });
 
   return Response.json({
     templateVersionId: published?.template_version_id ?? version.id,

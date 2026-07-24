@@ -6,6 +6,10 @@ import {
 } from "@/lib/template-platform/importer";
 import { createSupabaseTemplateBundleRepository } from "@/lib/template-platform/supabase-repository";
 import type { TemplateBundleManifest } from "@/lib/template-platform/manifest";
+import {
+  logTemplatePipelineEvent,
+  templatePipelineDuration,
+} from "@/lib/template-platform/observability";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -59,6 +63,7 @@ async function requireAdmin() {
 }
 
 export async function POST(req: Request) {
+  const startedAt = Date.now();
   if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
     return Response.json({ error: "Template import is not configured." }, { status: 503 });
   }
@@ -114,8 +119,35 @@ export async function POST(req: Request) {
     );
 
     if (!result.ok) {
+      logTemplatePipelineEvent({
+        event: "template.import",
+        ok: false,
+        orgId: admin.value.orgId,
+        userId: admin.value.userId,
+        familyKey: body.manifest.family?.key,
+        versionName: body.manifest.version?.name,
+        issueCount: result.issues.length,
+        assetCount: body.assets.length,
+        durationMs: templatePipelineDuration(startedAt),
+        reason: "validation_failed",
+      });
       return Response.json({ error: "Template bundle failed validation.", issues: result.issues }, { status: 400 });
     }
+    logTemplatePipelineEvent({
+      event: "template.import",
+      ok: true,
+      orgId: admin.value.orgId,
+      userId: admin.value.userId,
+      familyKey: body.manifest.family?.key,
+      versionName: body.manifest.version?.name,
+      templateFamilyId: result.value.rows.family.id,
+      templateVersionId: result.value.rows.version.id,
+      assetCount: body.assets.length,
+      damBoundFieldCount: body.manifest.fields?.filter(
+        (field) => field.assetBinding?.source === "product_assets"
+      ).length,
+      durationMs: templatePipelineDuration(startedAt),
+    });
 
     return Response.json({
       templateFamilyId: result.value.rows.family.id,
@@ -130,6 +162,16 @@ export async function POST(req: Request) {
     });
   } catch (error) {
     console.error("template bundle import failed:", error);
+    logTemplatePipelineEvent({
+      event: "template.import",
+      ok: false,
+      orgId: "value" in admin ? admin.value.orgId : null,
+      userId: "value" in admin ? admin.value.userId : null,
+      familyKey: body?.manifest?.family?.key,
+      versionName: body?.manifest?.version?.name,
+      durationMs: templatePipelineDuration(startedAt),
+      reason: "exception",
+    });
     return Response.json({ error: "Template bundle import failed." }, { status: 500 });
   }
 }
