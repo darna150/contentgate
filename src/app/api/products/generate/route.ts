@@ -26,6 +26,7 @@ import {
 } from "@/lib/template-platform/assignments";
 import {
   BACKGROUND_CHOICE_FIELD,
+  getTemplateBundleVariantAssetChoiceFields,
   getTemplateBundleVariantFieldLimits,
   resolveTemplateBundleRuntimeVariant,
 } from "@/lib/template-platform/runtime";
@@ -484,7 +485,15 @@ export async function POST(req: Request) {
 
     const aiFields = aiEditableTemplateFields(runtimeVariant.fields);
     const editableFields = aiFields.map((field) => field.key);
-    const allRuntimeFieldKeys = runtimeVariant.fields.map((field) => field.key);
+    const assetChoiceFields = getTemplateBundleVariantAssetChoiceFields(
+      assignment.manifest,
+      outputSizeKey
+    );
+    const assetChoiceFieldKeys = assetChoiceFields.map((field) => field.key);
+    const allRuntimeFieldKeys = [
+      ...runtimeVariant.fields.map((field) => field.key),
+      ...assetChoiceFieldKeys,
+    ];
     const evidenceRequiredFields = requiredEvidenceFieldKeys(runtimeVariant.fields);
     if (editableFields.length === 0) {
       return Response.json(
@@ -785,14 +794,22 @@ export async function POST(req: Request) {
     if (inheritedBackgroundChoice) {
       structured[BACKGROUND_CHOICE_FIELD] = inheritedBackgroundChoice;
     }
-    const inheritedProductVariantChoice =
-      (typeof productVariantChoice === "string" && productVariantChoice.length > 0
-        ? productVariantChoice
-        : null) ??
-      asStringRecord(replaceContent?.structured_fields)[PRODUCT_VARIANT_FIELD] ??
-      asStringRecord(campaignSource?.structured_fields)[PRODUCT_VARIANT_FIELD];
-    if (inheritedProductVariantChoice) {
-      structured[PRODUCT_VARIANT_FIELD] = inheritedProductVariantChoice;
+    for (const field of assetChoiceFields) {
+      const requestedValue =
+        field.key === PRODUCT_VARIANT_FIELD &&
+        typeof productVariantChoice === "string" &&
+        productVariantChoice.length > 0
+          ? productVariantChoice
+          : null;
+      const inheritedValue =
+        requestedValue ??
+        asStringRecord(replaceContent?.structured_fields)[field.key] ??
+        asStringRecord(campaignSource?.structured_fields)[field.key] ??
+        defaultCopy[field.key] ??
+        (typeof field.defaultValue === "string" ? field.defaultValue : null) ??
+        field.options?.[0] ??
+        null;
+      if (inheritedValue) structured[field.key] = inheritedValue;
     }
     const title = `${productDisplayName} · ${assignment.familyName}`;
     const body = flattenFields(structured, editableFields);

@@ -18,6 +18,7 @@ import {
 import { studioEditableTemplateFields } from "@/lib/generation-evidence";
 import {
   BACKGROUND_CHOICE_FIELD,
+  getTemplateBundleVariantAssetChoiceFields,
   getTemplateBundleVariantBackgroundOptions,
   getTemplateBundleVariantFieldLimits,
   getTemplateBundleVariantFields,
@@ -85,33 +86,33 @@ function retryAfterSecondsFromPayload(payload: unknown) {
 
 const PRODUCT_VARIANT_FIELD = "__productVariantKey";
 
-const AERFORM_PRODUCT_OPTIONS = [
-  { key: "charcoal", label: "Charcoal pack", swatch: "bg-[#1F2326]" },
-  { key: "stone", label: "Stone pack", swatch: "bg-[#B7AA98]" },
-  { key: "ivory", label: "Ivory pack", swatch: "bg-[#EFE7DA]" },
-  { key: "charcoal-expanded", label: "Charcoal travel", swatch: "bg-[#111315]" },
-] as const;
-
-function StudioProductVariantPicker({
+function StudioAssetChoicePicker({
+  fieldKey,
+  label,
+  options,
   value,
   editable,
   onChange,
 }: {
+  fieldKey: string;
+  label: string;
+  options: Array<{ key: string; label: string; previewUrl?: string }>;
   value: string;
   editable: boolean;
   onChange: (value: string) => void;
 }) {
+  if (!options.length) return null;
   return (
     <div className="flex flex-col gap-4 border-t border-edge pt-6">
       <div>
-        <span className="text-label text-ink-faint">Product variant</span>
+        <span className="text-label text-ink-faint">{label}</span>
         <p className="mt-2 text-[14px] leading-6 text-ink-muted">
-          Swap the foreground pack while the layout, scale, shadow, and copy
-          remain controlled by the template.
+          Select an approved asset for this locked image slot. Layout, scale,
+          crop, and export rules remain controlled by the template.
         </p>
       </div>
       <div className="grid grid-cols-2 gap-2">
-        {AERFORM_PRODUCT_OPTIONS.map((option) => {
+        {options.map((option) => {
           const selected = value === option.key;
           return (
             <button
@@ -119,18 +120,29 @@ function StudioProductVariantPicker({
               type="button"
               disabled={!editable}
               onClick={() => editable && onChange(option.key)}
+              aria-label={`${label}: ${option.label}`}
               className={`flex items-center gap-3 rounded-[10px] border px-3 py-2 text-left text-[13px] font-bold transition ${
                 selected
                   ? "border-brand bg-brand/5 text-brand"
                   : "border-edge bg-surface text-ink-muted"
               } ${editable && !selected ? "hover:border-brand/50" : ""}`}
             >
-              <span className={`size-5 rounded-full ring-1 ring-black/10 ${option.swatch}`} />
+              {option.previewUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={option.previewUrl}
+                  alt=""
+                  className="size-8 rounded-[7px] object-cover ring-1 ring-black/10"
+                />
+              ) : (
+                <span className="size-5 rounded-full bg-brand-tint ring-1 ring-black/10" />
+              )}
               {option.label}
             </button>
           );
         })}
       </div>
+      <input type="hidden" name={fieldKey} value={value} readOnly />
     </div>
   );
 }
@@ -231,7 +243,7 @@ export function StudioWorkspace({
   const [selectedProductVariantOverride, setSelectedProductVariantOverride] = useState(
     initialContent?.structured_fields?.[PRODUCT_VARIANT_FIELD] ??
       selectedTemplate.default_copy[PRODUCT_VARIANT_FIELD] ??
-      AERFORM_PRODUCT_OPTIONS[0].key
+      ""
   );
   const [busy, setBusy] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -300,6 +312,13 @@ export function StudioWorkspace({
     () => activeVariantFields.map((field) => field.key),
     [activeVariantFields]
   );
+  const activeAssetChoiceFields = useMemo(
+    () =>
+      selectedTemplate.platformManifest
+        ? getTemplateBundleVariantAssetChoiceFields(selectedTemplate.platformManifest, size)
+        : [],
+    [selectedTemplate.platformManifest, size]
+  );
   const backgroundOptions = useMemo(
     () =>
       selectedTemplate.platformManifest
@@ -316,8 +335,10 @@ export function StudioWorkspace({
   const selectedProductVariantKey =
     selectedProductVariantOverride ||
     draftFields[PRODUCT_VARIANT_FIELD] ||
-    AERFORM_PRODUCT_OPTIONS[0].key;
-  const previewFields = useMemo(
+    selectedTemplate.assetChoiceOptionsByField?.[PRODUCT_VARIANT_FIELD]?.[0]?.key ||
+    selectedTemplate.default_copy[PRODUCT_VARIANT_FIELD] ||
+    "";
+  const previewFields: Record<string, string> = useMemo(
     () => ({
       ...draftFields,
       [BACKGROUND_CHOICE_FIELD]: selectedBackgroundKey,
@@ -328,9 +349,9 @@ export function StudioWorkspace({
   const persistedFieldKeys = useMemo(
     () =>
       hasBackgroundOptions
-        ? [...activeEditableFields, BACKGROUND_CHOICE_FIELD, PRODUCT_VARIANT_FIELD]
-        : [...activeEditableFields, PRODUCT_VARIANT_FIELD],
-    [activeEditableFields, hasBackgroundOptions]
+        ? [...activeEditableFields, ...activeAssetChoiceFields.map((field) => field.key), BACKGROUND_CHOICE_FIELD]
+        : [...activeEditableFields, ...activeAssetChoiceFields.map((field) => field.key)],
+    [activeAssetChoiceFields, activeEditableFields, hasBackgroundOptions]
   );
   const activeRequiredFields = useMemo(
     () =>
@@ -475,7 +496,7 @@ export function StudioWorkspace({
     setSavedFields(nextFields);
     setSelectedBackgroundOverride(String(nextFields[BACKGROUND_CHOICE_FIELD] ?? ""));
     setSelectedProductVariantOverride(
-      String(nextFields[PRODUCT_VARIANT_FIELD] ?? AERFORM_PRODUCT_OPTIONS[0].key)
+      String(nextFields[PRODUCT_VARIANT_FIELD] ?? "")
     );
     setHasManualEdits(nextContent?.manuallyEdited ?? false);
     setSelectedRevision(null);
@@ -622,7 +643,7 @@ export function StudioWorkspace({
     setSavedFields(nextFields);
     setSelectedBackgroundOverride(String(nextFields[BACKGROUND_CHOICE_FIELD] ?? ""));
     setSelectedProductVariantOverride(
-      String(nextFields[PRODUCT_VARIANT_FIELD] ?? AERFORM_PRODUCT_OPTIONS[0].key)
+      String(nextFields[PRODUCT_VARIANT_FIELD] ?? "")
     );
     setHasManualEdits(nextContent?.manuallyEdited ?? false);
     setError(null);
@@ -967,13 +988,19 @@ export function StudioWorkspace({
             <StudioReviewActions contentId={content.id} onReviewed={markReviewed} />
           )}
 
-          {!showOriginal && selectedTemplate.platformManifest && hasBackgroundOptions && (
-            <StudioProductVariantPicker
-              value={selectedProductVariantKey}
-              editable={editable}
-              onChange={(value) => updateField(PRODUCT_VARIANT_FIELD, value)}
-            />
-          )}
+          {!showOriginal &&
+            selectedTemplate.platformManifest &&
+            activeAssetChoiceFields.map((field) => (
+              <StudioAssetChoicePicker
+                key={field.key}
+                fieldKey={field.key}
+                label={field.label}
+                options={selectedTemplate.assetChoiceOptionsByField?.[field.key] ?? []}
+                value={String(previewFields[field.key] ?? "")}
+                editable={editable}
+                onChange={(value) => updateField(field.key, value)}
+              />
+            ))}
 
           {!showOriginal && selectedTemplate.platformManifest && hasBackgroundOptions && (
             <StudioBackgroundPicker
@@ -1195,6 +1222,7 @@ export function StudioWorkspace({
                 variantKey={size}
                 fields={previewFields}
                 assetUrlByPath={selectedTemplate.platformAssetUrlByPath}
+                damAssetUrlById={selectedTemplate.damAssetUrlById}
                 textLayoutByField={textLayoutByField}
                 width={dims.w}
                 height={dims.h}

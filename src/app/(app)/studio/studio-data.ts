@@ -6,9 +6,17 @@ import {
   type ContentRole,
   type ContentStatus,
 } from "@/lib/content-governance";
+import { createProductAssetPreviewUrlMap } from "@/lib/product-assets-server";
 import { createClient } from "@/lib/supabase/server";
+import {
+  buildTemplateAssetChoiceOptions,
+  fieldHasDamBinding,
+  type TemplateAssetChoiceOption,
+  type TemplateDamAssetRow,
+} from "@/lib/template-platform/dam-bindings";
 import type { TemplateBundleManifest } from "@/lib/template-platform/manifest";
 import {
+  getTemplateBundleVariantAssetChoiceFields,
   getTemplateBundleSupportedSizes,
   getTemplateBundleVariantDimensions,
   getTemplateBundleVariantLabel,
@@ -46,6 +54,8 @@ export type StudioTemplate = {
   platformAssignmentId?: string;
   templateVersionId?: string;
   platformAssetUrlByPath?: Record<string, string>;
+  assetChoiceOptionsByField?: Record<string, TemplateAssetChoiceOption[]>;
+  damAssetUrlById?: Record<string, string>;
   platformManifest?: TemplateBundleManifest;
   referenceAssetBySize?: Record<string, string>;
   editable_fields: string[];
@@ -133,6 +143,10 @@ type GeneratedContentRow = {
     | null;
   products?: StudioProduct | StudioProduct[] | null;
   updated_at?: string | null;
+};
+
+type ProductAssetBindingRow = TemplateDamAssetRow & {
+  approval_status: string;
 };
 
 const CONTENT_SELECT =
@@ -261,6 +275,63 @@ async function listActiveAssignments() {
     )
     .eq("status", "active");
   return (data ?? []) as PlatformAssignmentRow[];
+}
+
+async function resolveTemplateDamOptions(input: {
+  supabase: Awaited<ReturnType<typeof createClient>>;
+  productId: string;
+  manifest: TemplateBundleManifest;
+}) {
+  const fieldsByKey = new Map(
+    input.manifest.variants.flatMap((variant) =>
+      getTemplateBundleVariantAssetChoiceFields(input.manifest, variant.key).map(
+        (field) => [field.key, field] as const
+      )
+    )
+  );
+  const fields = [...fieldsByKey.values()];
+  if (!fields.length) {
+    return {
+      assetChoiceOptionsByField: {},
+      damAssetUrlById: {},
+    };
+  }
+
+  const needsDam = fields.some(fieldHasDamBinding);
+  const { data } = needsDam
+    ? await input.supabase
+        .from("product_assets")
+        .select(
+          "id, product_id, asset_type, title, storage_path, mime_type, media_kind, category, tags, approval_status"
+        )
+        .or(`product_id.eq.${input.productId},product_id.is.null`)
+        .eq("approval_status", "approved")
+    : { data: [] };
+  const assets = (data ?? []) as ProductAssetBindingRow[];
+  const previewUrls = await createProductAssetPreviewUrlMap(
+    input.supabase,
+    assets.map((asset) => asset.storage_path)
+  );
+
+  return {
+    assetChoiceOptionsByField: Object.fromEntries(
+      fields.map((field) => [
+        field.key,
+        buildTemplateAssetChoiceOptions({
+          field,
+          productId: input.productId,
+          assets,
+          previewUrlByStoragePath: previewUrls,
+        }),
+      ])
+    ),
+    damAssetUrlById: Object.fromEntries(
+      assets.flatMap((asset) => {
+        const url = previewUrls.get(asset.storage_path);
+        return url ? [[asset.id, url] as const] : [];
+      })
+    ),
+  };
 }
 
 async function findAssignmentForContent(content: GeneratedContentRow) {
@@ -430,6 +501,11 @@ export async function loadStudioState(input: {
           selectedTemplate.platformManifest,
         ])
       ),
+      ...(await resolveTemplateDamOptions({
+        supabase,
+        productId: selectedTemplate.product_id,
+        manifest: selectedTemplate.platformManifest,
+      })),
     };
   }
 

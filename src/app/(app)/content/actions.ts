@@ -17,6 +17,7 @@ import {
   BACKGROUND_CHOICE_FIELD,
   getTemplateBundleVariantFieldLimits,
   getTemplateBundleVariantFields,
+  getTemplateBundleVariantPersistedFields,
 } from "@/lib/template-platform/runtime";
 import { createTemplateBundleAssetUrlMap } from "@/lib/template-platform/storage-urls";
 import {
@@ -224,7 +225,7 @@ export async function updateStructuredFields(
 
   const platformFields =
     !template && version?.manifest && variant?.variant_key
-      ? getTemplateBundleVariantFields(
+      ? getTemplateBundleVariantPersistedFields(
           version.manifest as TemplateBundleManifest,
           variant.variant_key
         )
@@ -378,7 +379,7 @@ export async function checkDraftStructuredFieldsFit(
     : content.template_variants;
 
   if (!template && version?.manifest && variant?.variant_key) {
-    const platformFields = getTemplateBundleVariantFields(version.manifest, variant.variant_key);
+    const platformFields = getTemplateBundleVariantPersistedFields(version.manifest, variant.variant_key);
     const editableFields = studioEditableTemplateFields(platformFields);
     const order = editableFields.map((field) => field.key);
     const fullOrder = platformFields.map((field) => field.key);

@@ -7,6 +7,12 @@ import {
   type ProductAssetApprovalStatus,
   type ProductAssetType,
 } from "@/lib/product-assets";
+import type { TemplateBundleManifest } from "@/lib/template-platform/manifest";
+import {
+  assetMatchesTemplateBinding,
+  fieldHasDamBinding,
+  type TemplateDamAssetRow,
+} from "@/lib/template-platform/dam-bindings";
 
 export type ProductAssetFilters = {
   productId?: string | null;
@@ -21,7 +27,7 @@ const PRODUCT_ASSET_URL_TTL_SECONDS = 60 * 60;
 export async function createProductAssetPreviewUrlMap(
   supabase: Awaited<ReturnType<typeof createClient>>,
   storagePaths: string[]
-) {
+): Promise<Map<string, string>> {
   const paths = Array.from(new Set(storagePaths.filter(Boolean)));
   if (paths.length === 0) return new Map<string, string>();
 
@@ -30,10 +36,56 @@ export async function createProductAssetPreviewUrlMap(
     .createSignedUrls(paths, PRODUCT_ASSET_URL_TTL_SECONDS);
   if (error) throw new Error(`Could not sign product asset URLs: ${error.message}`);
 
-  return new Map(
-    (data ?? [])
-      .filter((item) => item.signedUrl)
-      .map((item) => [item.path, item.signedUrl] as const)
+  const urls = new Map<string, string>();
+  for (const item of data ?? []) {
+    if (typeof item.path === "string" && typeof item.signedUrl === "string") {
+      urls.set(item.path, item.signedUrl);
+    }
+  }
+  return urls;
+}
+
+export async function createTemplateDamAssetUrlMap(input: {
+  supabase: Awaited<ReturnType<typeof createClient>>;
+  orgId: string;
+  productId: string;
+  manifest: TemplateBundleManifest;
+  fields: Record<string, unknown>;
+}) {
+  const boundFields = input.manifest.fields.filter(fieldHasDamBinding);
+  const selectedIds = boundFields
+    .map((field) => input.fields[field.key])
+    .filter((value): value is string => typeof value === "string" && value.length > 0);
+  if (!selectedIds.length) return {};
+
+  const { data, error } = await input.supabase
+    .from("product_assets")
+    .select("id, product_id, asset_type, title, storage_path, mime_type, media_kind, category, tags")
+    .eq("org_id", input.orgId)
+    .eq("approval_status", "approved")
+    .in("id", selectedIds);
+  if (error) throw new Error(`Could not load template DAM assets: ${error.message}`);
+  const assets = (data ?? []) as TemplateDamAssetRow[];
+  const matchingAssets = assets.filter((asset) =>
+    boundFields.some(
+      (field) =>
+        input.fields[field.key] === asset.id &&
+        assetMatchesTemplateBinding({
+          asset,
+          field,
+          productId: input.productId,
+        })
+    )
+  );
+  const previewUrls = await createProductAssetPreviewUrlMap(
+    input.supabase,
+    matchingAssets.map((asset) => asset.storage_path)
+  );
+  return Object.fromEntries(
+    matchingAssets.flatMap((asset) => {
+      const url = previewUrls.get(asset.storage_path);
+      return url ? [[asset.id, url] as const] : [];
+    })
   );
 }
 

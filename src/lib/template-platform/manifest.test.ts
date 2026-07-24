@@ -95,3 +95,27 @@ test("validates background option keys and asset references", () => {
     true
   );
 });
+
+test("validates DAM asset binding metadata on manifest fields", () => {
+  const invalid: TemplateBundleManifest = {
+    ...validManifest,
+    fields: validManifest.fields.map((field) =>
+      field.key === "hero_image"
+        ? {
+            ...field,
+            assetBinding: {
+              source: "product_assets",
+              scope: "not-a-scope",
+              mediaKind: "audio",
+              tags: ["packshot", ""],
+            } as never,
+          }
+        : field
+    ),
+  };
+
+  const issues = validateTemplateBundleManifest(invalid);
+  assert.equal(issues.some((issue) => issue.path.endsWith(".scope")), true);
+  assert.equal(issues.some((issue) => issue.path.endsWith(".mediaKind")), true);
+  assert.equal(issues.some((issue) => issue.path.endsWith(".tags")), true);
+});

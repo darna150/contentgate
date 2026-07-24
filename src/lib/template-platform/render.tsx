@@ -5,6 +5,7 @@ import type {
   TemplateBundleManifest,
   TemplateBundleTextSlot,
 } from "./manifest";
+import { selectedTemplateAssetUrl } from "./dam-bindings";
 import {
   templateBundleFontStack,
   templateBundleFontStyle,
@@ -190,13 +191,20 @@ function renderImageSlot(
   manifest: TemplateBundleManifest,
   fields: Record<string, unknown>,
   assetUrlByPath?: Record<string, string>,
+  damAssetUrlById?: Record<string, string>,
   scale = 1,
   assetOrigin?: string
 ) {
+  const damSrc = selectedTemplateAssetUrl({
+    field: manifest.fields.find((field) => field.key === slot.field),
+    selectedValue: fields[slot.field],
+    damAssetUrlById,
+  });
   const src =
-    slot.field === PRODUCT_VARIANT_FIELD
+    damSrc ??
+    (slot.field === PRODUCT_VARIANT_FIELD
       ? selectedProductAsset(manifest, fields, assetUrlByPath, assetOrigin)
-      : cleanText(fields[slot.field]);
+      : cleanText(fields[slot.field]));
   if (!src) return null;
   const shadowWidth = scaledNumber(slot.width * 0.68, scale);
   const shadowHeight = scaledNumber(Math.max(10, slot.height * 0.085), scale);
@@ -277,6 +285,7 @@ export function renderTemplateBundleVariant(input: {
   variantKey: string;
   fields: Record<string, unknown>;
   assetUrlByPath?: Record<string, string>;
+  damAssetUrlById?: Record<string, string>;
   assetOrigin?: string;
   original?: boolean;
   /** Pre-resolved {fontSize, lines} per field, from fit.ts. Optional so
@@ -350,6 +359,7 @@ export function renderTemplateBundleVariant(input: {
                   input.manifest,
                   input.fields,
                   input.assetUrlByPath,
+                  input.damAssetUrlById,
                   scale,
                   input.assetOrigin
                 )

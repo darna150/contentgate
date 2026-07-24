@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { ImageResponse } from "next/og";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createTemplateDamAssetUrlMap } from "@/lib/product-assets-server";
 import { SIZES, type SizeKey } from "@/lib/creative";
 import { AssetLayout } from "@/lib/creative-layout";
 import {
@@ -133,6 +134,13 @@ export async function GET(req: Request) {
     const assetUrlByPath = Object.fromEntries(
       await createTemplateBundleAssetUrlMap(supabase, content.org_id, [manifest])
     );
+    const damAssetUrlById = await createTemplateDamAssetUrlMap({
+      supabase,
+      orgId: content.org_id,
+      productId: content.product_id,
+      manifest,
+      fields,
+    });
     const textLayoutByField = await resolveTemplatePlatformVariantLayout({
       manifest,
       variantKey,
@@ -145,6 +153,7 @@ export async function GET(req: Request) {
       fields,
       assetOrigin: new URL(req.url).origin,
       assetUrlByPath,
+      damAssetUrlById,
       textLayoutByField,
       scale,
     });

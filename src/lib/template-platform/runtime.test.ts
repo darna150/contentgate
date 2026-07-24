@@ -4,7 +4,9 @@ import test from "node:test";
 import { buildContentGateTemplateBundle } from "./contentgate-bundle";
 import { validTemplateBundleManifest } from "./test-fixtures";
 import {
+  getTemplateBundleVariantAssetChoiceFields,
   getTemplateBundleVariantBackgroundOptions,
+  getTemplateBundleVariantPersistedFields,
   getTemplateBundleSupportedSizes,
   getTemplateBundleVariantDimensions,
   getTemplateBundleVariantFieldLimits,
@@ -154,5 +156,24 @@ test("resolves designer-approved background options and selected background path
     resolveTemplateBundleRuntimeVariant(validTemplateBundleManifest, "square", "unknown")
       ?.backgroundAssetPath,
     "variants/square/background.png"
+  );
+});
+
+test("separates copy fields from image asset-choice fields for Studio persistence", () => {
+  assert.deepEqual(
+    getTemplateBundleVariantFields(validTemplateBundleManifest, "square").map((field) => field.key),
+    ["headline"]
+  );
+  assert.deepEqual(
+    getTemplateBundleVariantAssetChoiceFields(validTemplateBundleManifest, "square").map(
+      (field) => field.key
+    ),
+    ["hero_image"]
+  );
+  assert.deepEqual(
+    getTemplateBundleVariantPersistedFields(validTemplateBundleManifest, "square").map(
+      (field) => field.key
+    ),
+    ["headline", "hero_image"]
   );
 });

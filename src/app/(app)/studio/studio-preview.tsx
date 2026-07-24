@@ -243,6 +243,7 @@ export function LiveTemplatePreviewFrame({
   variantKey,
   fields,
   assetUrlByPath,
+  damAssetUrlById,
   textLayoutByField,
   width,
   height,
@@ -255,6 +256,7 @@ export function LiveTemplatePreviewFrame({
    * resolve for platform bundles served from Supabase storage (not public
    * files). Without it the renderer falls back to broken relative paths. */
   assetUrlByPath?: Record<string, string>;
+  damAssetUrlById?: Record<string, string>;
   /** Debounced, server-resolved {fontSize, lines} per field (see
    * checkDraftStructuredFieldsFit in content/actions.ts). Undefined until
    * the first resolution lands — uses a conservative local shrink estimate
@@ -272,6 +274,7 @@ export function LiveTemplatePreviewFrame({
     variantKey,
     fields,
     assetUrlByPath,
+    damAssetUrlById,
     textLayoutByField,
     scale: renderScale,
   });

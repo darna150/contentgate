@@ -85,6 +85,38 @@ export function getTemplateBundleVariantFields(
   );
 }
 
+export function getTemplateBundleVariantAssetChoiceFields(
+  manifest: TemplateBundleManifest,
+  variantKey: string
+): TemplateBundleField[] {
+  const variant = getTemplateBundleVariant(manifest, variantKey);
+  if (!variant) return [];
+  const imageSlotFields = new Set(
+    variant.slots
+      .filter((slot) => slot.kind === "image")
+      .map((slot) => slot.field)
+  );
+  return manifest.fields.filter(
+    (field) =>
+      imageSlotFields.has(field.key) &&
+      (field.type === "asset_choice" || field.type === "image")
+  );
+}
+
+export function getTemplateBundleVariantPersistedFields(
+  manifest: TemplateBundleManifest,
+  variantKey: string
+): TemplateBundleField[] {
+  const byKey = new Map<string, TemplateBundleField>();
+  for (const field of getTemplateBundleVariantFields(manifest, variantKey)) {
+    byKey.set(field.key, field);
+  }
+  for (const field of getTemplateBundleVariantAssetChoiceFields(manifest, variantKey)) {
+    byKey.set(field.key, field);
+  }
+  return [...byKey.values()];
+}
+
 export function getTemplateBundleVariantFieldLimits(
   manifest: TemplateBundleManifest,
   variantKey: string
