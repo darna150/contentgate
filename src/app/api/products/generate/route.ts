@@ -19,6 +19,7 @@ import {
   localeIsAllowedForGeneration,
   requiredEvidenceFieldKeys,
 } from "@/lib/generation-evidence";
+import { resolveTemplateAssetChoiceValues } from "@/lib/template-platform/asset-choice-values";
 import { consumeApiRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import {
   normalizeTemplatePlatformAssignment,
@@ -50,8 +51,6 @@ const PLATFORM_GENERATION_ATTEMPTS = Math.max(
   Number(process.env.PLATFORM_GENERATION_ATTEMPTS ?? "2")
 );
 const MAX_GENERATION_SOURCE_PARAGRAPHS = 24;
-const PRODUCT_VARIANT_FIELD = "__productVariantKey";
-
 const AERFORM_APPROVED_CLAIMS = [
   "Aerform Air 01 is a modular everyday carry backpack designed for commute, studio work, and short travel.",
   "Aerform Air 01 is built for lighter movement with a quiet, technical look.",
@@ -247,10 +246,6 @@ function asStringRecord(value: unknown): Record<string, string> {
   return Object.fromEntries(
     Object.entries(value).map(([key, child]) => [key, String(child ?? "")])
   );
-}
-
-function nonEmptyString(value: unknown) {
-  return typeof value === "string" && value.length > 0 ? value : null;
 }
 
 function one<T>(value: T | T[] | null | undefined): T | null {
@@ -800,22 +795,17 @@ export async function POST(req: Request) {
     if (inheritedBackgroundChoice) {
       structured[BACKGROUND_CHOICE_FIELD] = inheritedBackgroundChoice;
     }
-    for (const field of assetChoiceFields) {
-      const requestedValue =
-        nonEmptyString(assetChoices?.[field.key]) ??
-        (field.key === PRODUCT_VARIANT_FIELD
-          ? nonEmptyString(productVariantChoice)
-          : null);
-      const inheritedValue =
-        requestedValue ??
-        asStringRecord(replaceContent?.structured_fields)[field.key] ??
-        asStringRecord(campaignSource?.structured_fields)[field.key] ??
-        defaultCopy[field.key] ??
-        (typeof field.defaultValue === "string" ? field.defaultValue : null) ??
-        field.options?.[0] ??
-        null;
-      if (inheritedValue) structured[field.key] = inheritedValue;
-    }
+    structured = {
+      ...structured,
+      ...resolveTemplateAssetChoiceValues({
+        fields: assetChoiceFields,
+        requestedChoices: assetChoices,
+        legacyProductVariantChoice: productVariantChoice,
+        replaceFields: asStringRecord(replaceContent?.structured_fields),
+        campaignSourceFields: asStringRecord(campaignSource?.structured_fields),
+        defaultCopy,
+      }),
+    };
     const title = `${productDisplayName} · ${assignment.familyName}`;
     const body = flattenFields(structured, editableFields);
     const savedAt = new Date().toISOString();
