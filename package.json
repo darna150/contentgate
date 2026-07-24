@@ -21,7 +21,7 @@
     "test:rate-limits": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test src/lib/rate-limit.test.ts",
     "test:documents": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test src/lib/document-extraction.test.ts src/lib/document-index-status.test.ts",
     "test:data-helpers": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test src/lib/content-listing-shared.test.ts src/lib/document-listing-shared.test.ts src/lib/generated-copy-quality.test.ts src/lib/template-ops-shared.test.ts",
-    "test:ui": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test src/lib/roving-focus.test.ts",
+    "test:ui": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test src/lib/roving-focus.test.ts src/lib/studio-state.test.ts",
     "test:template-render": "tsx --test src/lib/template-renderer.test.tsx src/lib/template-platform/contentgate-bundle.test.ts src/lib/template-platform/contentgate-public-assets.test.ts src/lib/template-platform/runtime.test.ts src/lib/template-platform/render.test.tsx",
     "test:e2e": "playwright test",
     "smoke": "node scripts/smoke-test.mjs",

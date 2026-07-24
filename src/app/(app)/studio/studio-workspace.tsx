@@ -17,6 +17,16 @@ import {
 } from "@/lib/creative";
 import { studioEditableTemplateFields } from "@/lib/generation-evidence";
 import {
+  STUDIO_PRODUCT_VARIANT_FIELD,
+  studioDirtyState,
+  studioFieldsForContent,
+  studioInitialContentsBySize,
+  studioInitialSize,
+  studioPersistedFieldKeys,
+  studioPickerFieldKeys,
+  studioPreviewFields,
+} from "@/lib/studio-state";
+import {
   BACKGROUND_CHOICE_FIELD,
   getTemplateBundleVariantAssetChoiceFields,
   getTemplateBundleVariantBackgroundOptions,
@@ -52,17 +62,6 @@ import type {
   StudioTemplate,
 } from "./studio-data";
 
-function generatedContentSizeKey(
-  content: StudioContent | null,
-  fallback: string,
-  supportedSizes: readonly string[]
-) {
-  if (content?.outputSize && supportedSizes.includes(content.outputSize)) {
-    return content.outputSize;
-  }
-  return fallback;
-}
-
 function formatRetryWait(seconds: number) {
   const safeSeconds = Math.max(1, Math.ceil(seconds));
   const minutes = Math.floor(safeSeconds / 60);
@@ -84,7 +83,7 @@ function retryAfterSecondsFromPayload(payload: unknown) {
   return null;
 }
 
-const PRODUCT_VARIANT_FIELD = "__productVariantKey";
+const PRODUCT_VARIANT_FIELD = STUDIO_PRODUCT_VARIANT_FIELD;
 
 function StudioAssetChoicePicker({
   fieldKey,
@@ -192,16 +191,24 @@ export function StudioWorkspace({
     [selectedTemplate.platformManifest]
   );
   const [size, setSize] = useState<string>(
-    initialSize && sizes.includes(initialSize) ? initialSize : sizes[0]
+    studioInitialSize({
+      requestedSize: initialSize,
+      contents: initialContents,
+      supportedSizes: sizes,
+    })
   );
   const initialContentsBySize = useMemo(() => {
-    const entries: Partial<Record<string, StudioContent>> = {};
-    for (const item of initialContents) {
-      const itemSize = generatedContentSizeKey(item, sizes[0], sizes);
-      if (!entries[itemSize]) entries[itemSize] = item;
-    }
-    return entries;
+    return studioInitialContentsBySize(initialContents, sizes);
   }, [initialContents, sizes]);
+  const initialResolvedSize = useMemo(
+    () =>
+      studioInitialSize({
+        requestedSize: initialSize,
+        contents: initialContents,
+        supportedSizes: sizes,
+      }),
+    [initialContents, initialSize, sizes]
+  );
   const initialContentsSignature = useMemo(
     () =>
       JSON.stringify({
@@ -216,6 +223,8 @@ export function StudioWorkspace({
     [initialContents, initialSize]
   );
   const initialContent = initialContentsBySize[size] ?? initialContents[0] ?? null;
+  const initialResolvedContent =
+    initialContentsBySize[initialResolvedSize] ?? initialContents[0] ?? null;
   const [campaignSourceContentId, setCampaignSourceContentId] = useState<string | null>(
     initialContent?.id ?? null
   );
@@ -230,10 +239,10 @@ export function StudioWorkspace({
     initialContent?.manuallyEdited ?? false
   );
   const [draftFields, setDraftFields] = useState<Record<string, string>>(
-    initialContent?.structured_fields ?? selectedTemplate.default_copy
+    studioFieldsForContent(initialContent, selectedTemplate.default_copy)
   );
   const [savedFields, setSavedFields] = useState<Record<string, string>>(
-    initialContent?.structured_fields ?? selectedTemplate.default_copy
+    studioFieldsForContent(initialContent, selectedTemplate.default_copy)
   );
   const [selectedBackgroundOverride, setSelectedBackgroundOverride] = useState(
     initialContent?.structured_fields?.[BACKGROUND_CHOICE_FIELD] ??
@@ -339,19 +348,34 @@ export function StudioWorkspace({
     selectedTemplate.default_copy[PRODUCT_VARIANT_FIELD] ||
     "";
   const previewFields: Record<string, string> = useMemo(
-    () => ({
-      ...draftFields,
-      [BACKGROUND_CHOICE_FIELD]: selectedBackgroundKey,
-      [PRODUCT_VARIANT_FIELD]: selectedProductVariantKey,
-    }),
+    () =>
+      studioPreviewFields({
+        draftFields,
+        backgroundKey: selectedBackgroundKey,
+        productVariantKey: selectedProductVariantKey,
+      }),
     [draftFields, selectedBackgroundKey, selectedProductVariantKey]
+  );
+  const activeAssetChoiceFieldKeys = useMemo(
+    () => activeAssetChoiceFields.map((field) => field.key),
+    [activeAssetChoiceFields]
   );
   const persistedFieldKeys = useMemo(
     () =>
-      hasBackgroundOptions
-        ? [...activeEditableFields, ...activeAssetChoiceFields.map((field) => field.key), BACKGROUND_CHOICE_FIELD]
-        : [...activeEditableFields, ...activeAssetChoiceFields.map((field) => field.key)],
-    [activeAssetChoiceFields, activeEditableFields, hasBackgroundOptions]
+      studioPersistedFieldKeys({
+        editableFieldKeys: activeEditableFields,
+        assetChoiceFieldKeys: activeAssetChoiceFieldKeys,
+        includeBackgroundChoice: hasBackgroundOptions,
+      }),
+    [activeAssetChoiceFieldKeys, activeEditableFields, hasBackgroundOptions]
+  );
+  const pickerFieldKeys = useMemo(
+    () =>
+      studioPickerFieldKeys({
+        assetChoiceFieldKeys: activeAssetChoiceFieldKeys,
+        includeBackgroundChoice: hasBackgroundOptions,
+      }),
+    [activeAssetChoiceFieldKeys, hasBackgroundOptions]
   );
   const activeRequiredFields = useMemo(
     () =>
@@ -388,21 +412,15 @@ export function StudioWorkspace({
       JSON.stringify(activeLayoutFields.map((key) => [key, draftFields[key] ?? ""])),
     [activeLayoutFields, draftFields]
   );
-  const dirty =
-    mode === "edit" &&
-    content !== null &&
-    persistedFieldKeys.some(
-      (key) => (draftFields[key] ?? "") !== (savedFields[key] ?? "")
-    );
-  const pickerOnlyDirty =
-    dirty &&
-    content !== null &&
-    activeEditableFields.every(
-      (key) => (draftFields[key] ?? "") === (savedFields[key] ?? "")
-    ) &&
-    [BACKGROUND_CHOICE_FIELD, PRODUCT_VARIANT_FIELD].some(
-      (key) => (draftFields[key] ?? "") !== (savedFields[key] ?? "")
-    );
+  const { dirty, pickerOnlyDirty } = studioDirtyState({
+    mode,
+    hasContent: content !== null,
+    draftFields,
+    savedFields,
+    persistedFieldKeys,
+    editableFieldKeys: activeEditableFields,
+    pickerFieldKeys,
+  });
   const exportAllowed =
     !!content &&
     content.status === "approved" &&
@@ -474,16 +492,10 @@ export function StudioWorkspace({
   const versions = versionsBySize[size] ?? [];
 
   useEffect(() => {
-    const nextSize =
-      initialSize && sizes.includes(initialSize)
-        ? initialSize
-        : (initialContents[0]?.outputSize && sizes.includes(initialContents[0].outputSize)
-            ? initialContents[0].outputSize
-            : sizes[0]);
+    const nextSize = initialResolvedSize;
     if (!nextSize) return;
-    const nextContent =
-      initialContentsBySize[nextSize] ?? initialContents[0] ?? null;
-    const nextFields = nextContent?.structured_fields ?? selectedTemplate.default_copy;
+    const nextContent = initialResolvedContent;
+    const nextFields = studioFieldsForContent(nextContent, selectedTemplate.default_copy);
 
     // This effect is a route/server-state reset boundary: when the selected
     // template's initial payload changes, the Studio draft state must reset
@@ -510,9 +522,9 @@ export function StudioWorkspace({
   }, [
     initialContentsBySize,
     initialContentsSignature,
-    initialSize,
+    initialResolvedContent,
+    initialResolvedSize,
     selectedTemplate.default_copy,
-    sizes,
   ]);
 
   function confirmDiscardUnsavedChanges() {
@@ -689,6 +701,14 @@ export function StudioWorkspace({
     setBusy(true);
     setError(null);
     try {
+      const assetChoices = Object.fromEntries(
+        activeAssetChoiceFieldKeys.flatMap((key) => {
+          const value = previewFields[key];
+          return typeof value === "string" && value.length > 0
+            ? [[key, value] as const]
+            : [];
+        })
+      );
       const response = await fetch("/api/products/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -698,6 +718,7 @@ export function StudioWorkspace({
           outputSize: size,
           backgroundChoice: selectedBackgroundKey,
           productVariantChoice: selectedProductVariantKey,
+          assetChoices,
           revisions: selectedRevision ? [selectedRevision] : [],
           replaceContentId: mode === "edit" && content ? content.id : undefined,
           sourceContentId:

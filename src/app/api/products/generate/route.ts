@@ -86,6 +86,7 @@ type Body = {
   outputSize?: string;
   backgroundChoice?: string;
   productVariantChoice?: string;
+  assetChoices?: Record<string, unknown>;
   revisions?: string[]; // controlled revision keys, applied as extra instructions
   replaceContentId?: string; // when revising, update this draft in place
   sourceContentId?: string; // when adapting another size, preserve the same campaign idea
@@ -248,6 +249,10 @@ function asStringRecord(value: unknown): Record<string, string> {
   );
 }
 
+function nonEmptyString(value: unknown) {
+  return typeof value === "string" && value.length > 0 ? value : null;
+}
+
 function one<T>(value: T | T[] | null | undefined): T | null {
   if (Array.isArray(value)) return value[0] ?? null;
   return value ?? null;
@@ -302,6 +307,7 @@ export async function POST(req: Request) {
     outputSize,
     backgroundChoice,
     productVariantChoice,
+    assetChoices,
     revisions = [],
     replaceContentId,
     sourceContentId,
@@ -796,11 +802,10 @@ export async function POST(req: Request) {
     }
     for (const field of assetChoiceFields) {
       const requestedValue =
-        field.key === PRODUCT_VARIANT_FIELD &&
-        typeof productVariantChoice === "string" &&
-        productVariantChoice.length > 0
-          ? productVariantChoice
-          : null;
+        nonEmptyString(assetChoices?.[field.key]) ??
+        (field.key === PRODUCT_VARIANT_FIELD
+          ? nonEmptyString(productVariantChoice)
+          : null);
       const inheritedValue =
         requestedValue ??
         asStringRecord(replaceContent?.structured_fields)[field.key] ??
