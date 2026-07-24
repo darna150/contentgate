@@ -102,15 +102,30 @@ function StudioAssetChoicePicker({
   onChange: (value: string) => void;
 }) {
   if (!options.length) return null;
+  const hasMultipleOptions = options.length > 1;
+  const selectedOptionLabel =
+    options.find((option) => option.key === value)?.label ?? options[0]?.label ?? "This asset";
   return (
-    <div className="flex flex-col gap-4 border-t border-edge pt-6">
-      <div>
-        <span className="text-label text-ink-faint">{label}</span>
-        <p className="mt-2 text-[14px] leading-6 text-ink-muted">
-          Select an approved asset for this locked image slot. Layout, scale,
-          crop, and export rules remain controlled by the template.
-        </p>
+    <div className="flex flex-col gap-4 border-t border-edge pt-6" data-testid={`studio-asset-choice-${fieldKey}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <span className="text-label text-ink-faint">{label}</span>
+          <p className="mt-2 text-[14px] leading-6 text-ink-muted">
+            {hasMultipleOptions
+              ? "Select an approved asset for this locked image slot. Layout, scale, crop, and export rules remain controlled by the template."
+              : `${selectedOptionLabel} is the current approved option. Add more approved assets to unlock more choices.`}
+          </p>
+        </div>
+        {!hasMultipleOptions && (
+          <Badge variant="neutral">1 option</Badge>
+        )}
       </div>
+      {hasMultipleOptions ? null : (
+        <p className="mt-2 text-[14px] leading-6 text-ink-muted">
+          This control is picker-ready; it is intentionally limited until more Nimbus product
+          variants are available.
+        </p>
+      )}
       <div className="grid grid-cols-2 gap-2">
         {options.map((option) => {
           const selected = value === option.key;
@@ -118,14 +133,16 @@ function StudioAssetChoicePicker({
             <button
               key={option.key}
               type="button"
-              disabled={!editable}
-              onClick={() => editable && onChange(option.key)}
+              disabled={!editable || !hasMultipleOptions}
+              onClick={() => editable && hasMultipleOptions && onChange(option.key)}
               aria-label={`${label}: ${option.label}`}
               className={`flex items-center gap-3 rounded-[10px] border px-3 py-2 text-left text-[13px] font-bold transition ${
                 selected
                   ? "border-brand bg-brand/5 text-brand"
                   : "border-edge bg-surface text-ink-muted"
-              } ${editable && !selected ? "hover:border-brand/50" : ""}`}
+              } ${editable && hasMultipleOptions && !selected ? "hover:border-brand/50" : ""} ${
+                !hasMultipleOptions ? "cursor-default" : ""
+              }`}
             >
               {option.previewUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
