@@ -96,9 +96,12 @@ test("low-risk CTA fields stay editable without evidence", () => {
   assert.deepEqual(issues, []);
 });
 
-test("background choice field is layout, not copy", () => {
+test("template control fields are layout metadata, not copy", () => {
   const issues = contentEvidenceIssues({
-    fields: { __backgroundAssetKey: "background-options/mint-glow" },
+    fields: {
+      __backgroundAssetKey: "background-options/mint-glow",
+      __productVariantKey: "nimbus-1",
+    },
     citations: [],
     approvedSources,
   });

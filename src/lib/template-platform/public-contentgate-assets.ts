@@ -5,23 +5,29 @@ export const CONTENTGATE_PUBLIC_ASSET_VERSION = "vector-figwright-2026-07-19-01"
 type ContentGateAssetKind = "reference" | "background";
 
 const CONTENTGATE_PUBLIC_PACKAGE_BY_FAMILY: Record<string, "set-a" | "set-b"> = {
+  "aerform-air01-campaign": "set-a",
   "contentgate-local-friendly": "set-a",
   "contentgate-local-premium": "set-b",
 };
 
 const CONTENTGATE_PUBLIC_FILENAME_BY_VARIANT: Record<string, string> = {
   leaderboard: "leaderboard.png",
+  linkedin_square: "linkedin-square.png",
   link_ad: "link-ad.png",
   medium_rectangle: "medium-rectangle.png",
   portrait: "portrait.png",
+  poster: "poster.png",
+  rack_card: "rack-card.png",
   square: "square.png",
   story: "story.png",
+  us_letter: "us-letter.png",
 };
 
 export function isPublicContentGateBundle(manifest: TemplateBundleManifest) {
   return (
-    manifest.version.name === "figwright-v1" &&
-    manifest.family.key.startsWith("contentgate-local-")
+    (manifest.version.name === "figwright-v1" || manifest.version.name === "v1") &&
+    (manifest.family.key.startsWith("contentgate-local-") ||
+      manifest.family.key === "aerform-air01-campaign")
   );
 }
 
@@ -33,6 +39,14 @@ export function publicContentGateBundleVariantAssetPath(
   const packageKey = CONTENTGATE_PUBLIC_PACKAGE_BY_FAMILY[manifest.family.key];
   const filename = CONTENTGATE_PUBLIC_FILENAME_BY_VARIANT[variantKey];
   if (!packageKey || !filename) return null;
+
+  if (manifest.family.key === "aerform-air01-campaign") {
+    const assetPath =
+      kind === "background"
+        ? `/template-packages/contentgate/${packageKey}/backgrounds/${filename}`
+        : `/template-packages/contentgate/${packageKey}/${filename}`;
+    return `${assetPath}?v=${CONTENTGATE_PUBLIC_ASSET_VERSION}`;
+  }
 
   const assetPath =
     kind === "background"
@@ -55,6 +69,16 @@ function inferVariantAssetKindFromPath(assetPath: string):
     };
   }
 
+  const backgroundOptionMatch = normalized.match(
+    /(?:^|\/)variants\/([^/]+)\/background-([^/]+)\.png$/i
+  );
+  if (backgroundOptionMatch) {
+    return {
+      variantKey: `${backgroundOptionMatch[1]}::${backgroundOptionMatch[2]}`,
+      kind: "background",
+    };
+  }
+
   const packageMatch = normalized.match(
     /^template-packages\/contentgate\/set-[ab]\/(?:(backgrounds)\/)?([^/]+)\.png$/i
   );
@@ -72,6 +96,14 @@ export function publicContentGateBundleAssetPath(
 ) {
   if (!isPublicContentGateBundle(manifest)) return null;
   const inferred = inferVariantAssetKindFromPath(assetPath);
+  if (inferred?.variantKey.includes("::") && manifest.family.key === "aerform-air01-campaign") {
+    const [variantKey, optionKey] = inferred.variantKey.split("::");
+    const packageKey = CONTENTGATE_PUBLIC_PACKAGE_BY_FAMILY[manifest.family.key];
+    const filename = CONTENTGATE_PUBLIC_FILENAME_BY_VARIANT[variantKey];
+    if (packageKey && filename) {
+      return `/template-packages/contentgate/${packageKey}/background-options/${optionKey}/${filename}?v=${CONTENTGATE_PUBLIC_ASSET_VERSION}`;
+    }
+  }
   if (inferred) {
     return publicContentGateBundleVariantAssetPath(
       manifest,

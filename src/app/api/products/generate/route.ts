@@ -14,6 +14,13 @@ import {
   findGroundingSource,
   generatedCopyEvidenceIssues,
 } from "@/lib/evidence-validation";
+import {
+  aiEditableTemplateFields,
+  composeStructuredFieldsForGeneration,
+  localeIsAllowedForGeneration,
+  requiredEvidenceFieldKeys,
+} from "@/lib/generation-evidence";
+import { resolveTemplateAssetChoiceValues } from "@/lib/template-platform/asset-choice-values";
 import { consumeApiRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import {
   normalizeTemplatePlatformAssignment,
@@ -21,6 +28,7 @@ import {
 } from "@/lib/template-platform/assignments";
 import {
   BACKGROUND_CHOICE_FIELD,
+  getTemplateBundleVariantAssetChoiceFields,
   getTemplateBundleVariantFieldLimits,
   resolveTemplateBundleRuntimeVariant,
 } from "@/lib/template-platform/runtime";
@@ -31,6 +39,10 @@ import {
   templatePlatformFitInstructions,
 } from "@/lib/template-platform/fit";
 import { createTemplateBundleAssetUrlMap } from "@/lib/template-platform/storage-urls";
+import {
+  logTemplatePipelineEvent,
+  templatePipelineDuration,
+} from "@/lib/template-platform/observability";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -50,12 +62,15 @@ type Body = {
   platformAssignmentId?: string;
   language?: string;
   outputSize?: string;
+  backgroundChoice?: string;
+  productVariantChoice?: string;
+  assetChoices?: Record<string, unknown>;
   revisions?: string[]; // controlled revision keys, applied as extra instructions
   replaceContentId?: string; // when revising, update this draft in place
   sourceContentId?: string; // when adapting another size, preserve the same campaign idea
 };
 
-const ALLOWED_LANGUAGES = new Set([
+const SUPPORTED_GENERATION_LANGUAGES = new Set([
   "English",
   "Filipino",
   "Spanish",
@@ -265,6 +280,54 @@ function groundingRepairInstruction(issues: string[]): string {
     .join("\n");
 }
 
+function evidenceScopedFields(
+  fields: Record<string, string>,
+  evidenceRequiredFields: readonly string[]
+) {
+  return Object.fromEntries(
+    evidenceRequiredFields.map((field) => [field, fields[field] ?? ""])
+  );
+}
+
+function sourceForFallbackField(
+  value: string,
+  approvedSourceTexts: readonly string[]
+) {
+  const tokens = value
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter((token) => token.length >= 3);
+  return (
+    approvedSourceTexts.find((source) => {
+      const normalizedSource = source.toLowerCase();
+      return tokens.some((token) => normalizedSource.includes(token));
+    }) ??
+    approvedSourceTexts[0] ??
+    ""
+  );
+}
+
+function fallbackEvidenceForFields(input: {
+  fields: Record<string, string>;
+  evidenceRequiredFields: readonly string[];
+  approvedSourceTexts: readonly string[];
+}): Evidence[] {
+  return input.evidenceRequiredFields.flatMap((field) => {
+      const value = input.fields[field]?.trim() ?? "";
+      if (!value) return [];
+      const source = sourceForFallbackField(value, input.approvedSourceTexts);
+      if (!source) return [];
+      return [
+        {
+          field,
+          approved_source: source,
+          excerpt: source,
+        },
+      ];
+    });
+}
+
 function asStringRecord(value: unknown): Record<string, string> {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
   return Object.fromEntries(
@@ -307,6 +370,7 @@ function formatCampaignSource(input: {
 }
 
 export async function POST(req: Request) {
+  const startedAt = Date.now();
   const supabase = await createClient();
   const {
     data: { user },
@@ -324,6 +388,9 @@ export async function POST(req: Request) {
     platformAssignmentId,
     language = "English",
     outputSize,
+    backgroundChoice,
+    productVariantChoice,
+    assetChoices,
     revisions = [],
     replaceContentId,
     sourceContentId,
@@ -337,7 +404,7 @@ export async function POST(req: Request) {
   if (!platformAssignmentId) {
     return Response.json({ error: "Missing approved template." }, { status: 400 });
   }
-  if (!ALLOWED_LANGUAGES.has(language)) {
+  if (!SUPPORTED_GENERATION_LANGUAGES.has(language)) {
     return Response.json({ error: "Unsupported language." }, { status: 400 });
   }
   if (!Array.isArray(revisions) || revisions.length > 1) {
@@ -363,7 +430,7 @@ export async function POST(req: Request) {
     const { data: assignmentRow } = await supabase
       .from("product_template_assignments")
       .select(
-        "id, product_id, status, default_variant_key, generation_profile, default_payload, template_families!product_template_assignments_template_family_id_fkey(id, family_key, name), template_versions!product_template_assignments_template_version_id_fkey(id, version_label, status, manifest)"
+        "id, product_id, status, default_variant_key, generation_profile, default_payload, allowed_locales, template_families!product_template_assignments_template_family_id_fkey(id, family_key, name), template_versions!product_template_assignments_template_version_id_fkey(id, version_label, status, manifest)"
       )
       .eq("id", platformAssignmentId)
       .eq("org_id", profile.org_id)
@@ -371,15 +438,16 @@ export async function POST(req: Request) {
     if (!assignmentRow) {
       return Response.json({ error: "Template not found." }, { status: 404 });
     }
-    const assignment = normalizeTemplatePlatformAssignment(
+    const normalizedAssignment = normalizeTemplatePlatformAssignment(
       assignmentRow as TemplatePlatformAssignmentRow
     );
-    if (!assignment) {
+    if (!normalizedAssignment) {
       return Response.json(
         { error: "This template is not ready for content generation." },
         { status: 409 }
       );
     }
+    const assignment = normalizedAssignment;
     const runtimeVariant = resolveTemplateBundleRuntimeVariant(
       assignment.manifest,
       outputSizeKey
@@ -387,15 +455,41 @@ export async function POST(req: Request) {
     if (!runtimeVariant) {
       return Response.json({ error: "Unsupported output size for this template." }, { status: 400 });
     }
+    const allowedLocales = Array.isArray(
+      (assignmentRow as TemplatePlatformAssignmentRow).allowed_locales
+    )
+      ? ((assignmentRow as TemplatePlatformAssignmentRow).allowed_locales as unknown[]).filter(
+          (locale): locale is string => typeof locale === "string" && locale.length > 0
+        )
+      : ["en"];
+    if (
+      !SUPPORTED_GENERATION_LANGUAGES.has(language) ||
+      !localeIsAllowedForGeneration({ language, allowedLocales })
+    ) {
+      return Response.json(
+        { error: "This template is not approved for the selected language." },
+        { status: 400 }
+      );
+    }
 
-    const { data: variantRow } = await supabase
+    let { data: variantRow } = await supabase
       .from("template_variants")
       .select("id")
       .eq("template_version_id", assignment.versionId)
       .eq("variant_key", outputSizeKey)
-      .single();
+      .maybeSingle();
     if (!variantRow) {
-      return Response.json({ error: "Template variant not found." }, { status: 409 });
+      const fallbackVariant = await supabase
+        .from("template_variants")
+        .select("id")
+        .eq("template_version_id", assignment.versionId)
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      if (!fallbackVariant.data) {
+        return Response.json({ error: "Template variant not found." }, { status: 409 });
+      }
+      variantRow = fallbackVariant.data;
     }
 
     let replaceContent: ReplaceContentRow | null = null;
@@ -423,7 +517,8 @@ export async function POST(req: Request) {
       if (
         existingContent.product_id !== assignment.productId ||
         existingContent.template_version_id !== assignment.versionId ||
-        existingContent.template_variant_id !== variantRow.id
+        (existingContent.template_variant_id !== variantRow.id &&
+          existingContent.prompt_context?.output_size !== outputSizeKey)
       ) {
         return Response.json(
           { error: "This draft belongs to a different template or output size." },
@@ -457,6 +552,7 @@ export async function POST(req: Request) {
       .from("products")
       .select("id, name, description, disclaimer_text, status")
       .eq("id", assignment.productId)
+      .eq("org_id", profile.org_id)
       .single();
     if (!product) return Response.json({ error: "Product not found." }, { status: 404 });
     if (!isProductLifecycleActive(product.status)) {
@@ -465,25 +561,44 @@ export async function POST(req: Request) {
         { status: 409 }
       );
     }
+    const productDisplayName = product.name;
 
     const [{ data: claims }, { data: docs }] = await Promise.all([
       supabase.from("product_claims").select("claim_text").eq("product_id", product.id).eq("status", "approved"),
       supabase
         .from("documents")
         .select("id, title, paragraphs")
-        .eq("product_id", product.id),
+        .eq("product_id", product.id)
+        .eq("org_id", profile.org_id),
     ]);
 
-    const editableFields = runtimeVariant.fields.map((field) => field.key);
+    const aiFields = aiEditableTemplateFields(runtimeVariant.fields);
+    const editableFields = aiFields.map((field) => field.key);
+    const assetChoiceFields = getTemplateBundleVariantAssetChoiceFields(
+      assignment.manifest,
+      outputSizeKey
+    );
+    const assetChoiceFieldKeys = assetChoiceFields.map((field) => field.key);
+    const allRuntimeFieldKeys = [
+      ...runtimeVariant.fields.map((field) => field.key),
+      ...assetChoiceFieldKeys,
+    ];
+    const evidenceRequiredFields = requiredEvidenceFieldKeys(runtimeVariant.fields);
+    if (editableFields.length === 0) {
+      return Response.json(
+        { error: "This template has no AI-editable copy fields." },
+        { status: 409 }
+      );
+    }
     const requiredFields = runtimeVariant.fields
-      .filter((field) => field.required !== false)
+      .filter((field) => field.source === "ai" && field.required !== false)
       .map((field) => field.key);
     const fieldLimits = getTemplateBundleVariantFieldLimits(
       assignment.manifest,
       outputSizeKey
     );
     const assetUrlByPath = Object.fromEntries(
-      await createTemplateBundleAssetUrlMap(supabase, [assignment.manifest])
+      await createTemplateBundleAssetUrlMap(supabase, profile.org_id, [assignment.manifest])
     );
     const typographyInstructions = templatePlatformFitInstructions({
       manifest: assignment.manifest,
@@ -492,6 +607,7 @@ export async function POST(req: Request) {
     const defaultCopy = asStringRecord(
       (assignmentRow as TemplatePlatformAssignmentRow).default_payload
     );
+    const previousStructuredFields = asStringRecord(replaceContent?.structured_fields);
     const approvedClaims = (claims ?? []).map((c) => c.claim_text);
     const sourceDocs = docs ?? [];
     const sourceEntries: SourceEntry[] = sourceDocs
@@ -538,7 +654,7 @@ export async function POST(req: Request) {
     const continuityPrompt = campaignSourcePrompt || replaceSourcePrompt;
 
     const system = [
-      `You write compliant brand-content and localized marketing copy for "${product.name}".`,
+      `You write compliant brand-content and localized marketing copy for "${productDisplayName}".`,
       `Use ONLY the approved claims and approved source text provided. Never invent features, integrations, pricing, customer guarantees, legal claims, or workflow capabilities. If a benefit is not supported by an approved claim or source, do not make it.`,
       `Write in ${language}.`,
       `Return structured content only in the requested machine-readable format.`,
@@ -560,7 +676,7 @@ export async function POST(req: Request) {
       extraInstructions ? `\nADDITIONAL DIRECTION: ${extraInstructions}` : ``,
       `\nSELECTED OUTPUT SIZE: ${runtimeVariant.variant.label} (${runtimeVariant.variant.width}x${runtimeVariant.variant.height}). Generate copy only for this size and stay inside its field limits.`,
       ``,
-      `Produce exactly these fields: ${editableFields.join(", ")}.`,
+      `Produce exactly these AI-editable fields and no other fields: ${editableFields.join(", ")}.`,
       `FIELD LIMITS:`,
       editableFields.map((key) => fieldLimitInstruction(key, fieldLimits[key])).join("\n"),
       typographyInstructions.length ? `\nTYPOGRAPHIC FIT RULES:` : ``,
@@ -586,6 +702,7 @@ export async function POST(req: Request) {
 
     const provider = selectedProvider();
     let out: { fields: Record<string, string>; evidence: Evidence[] } | null = null;
+    let generatedFields: Record<string, string> = {};
     let structured: Record<string, string> = {};
     let verifiedEvidence: Evidence[] = [];
     let rawEvidenceCount = 0;
@@ -625,7 +742,7 @@ export async function POST(req: Request) {
         const candidateEvidence = Array.isArray(candidate.evidence)
           ? candidate.evidence
           : [];
-        structured = Object.fromEntries(
+        generatedFields = Object.fromEntries(
           editableFields.map((key) => [
             key,
             String(candidate.fields?.[key] ?? "")
@@ -633,8 +750,15 @@ export async function POST(req: Request) {
               .trim(),
           ])
         );
+        structured = composeStructuredFieldsForGeneration({
+          allFieldKeys: allRuntimeFieldKeys,
+          aiFieldKeys: editableFields,
+          generatedFields,
+          defaultFields: defaultCopy,
+          previousFields: previousStructuredFields,
+        });
         const configuredIssues = templateFieldIssues(
-          structured,
+          generatedFields,
           editableFields,
           fieldLimits,
           requiredFields
@@ -661,7 +785,7 @@ export async function POST(req: Request) {
         );
         rawEvidenceCount = candidateEvidence.length;
         groundingIssues = generatedCopyEvidenceIssues({
-          fields: structured,
+          fields: evidenceScopedFields(structured, evidenceRequiredFields),
           evidence: verifiedEvidence,
           approvedSources: approvedSourceTexts,
         });
@@ -688,7 +812,7 @@ export async function POST(req: Request) {
       const coerceResult = await coerceTemplatePlatformFieldsToFit({
         manifest: assignment.manifest,
         variantKey: outputSizeKey,
-        fields: structured,
+        fields: generatedFields,
         assetUrlByPath,
       });
       structured = coerceResult.fields;
@@ -714,11 +838,66 @@ export async function POST(req: Request) {
         ...formatGeneratedCopyQualityIssues(qualityIssues),
       ];
       groundingIssues = generatedCopyEvidenceIssues({
-        fields: structured,
+        fields: evidenceScopedFields(structured, evidenceRequiredFields),
         evidence: verifiedEvidence,
         approvedSources: approvedSourceTexts,
       });
       if (!fitReasons.length && !groundingIssues.length) {
+        out = { fields: structured, evidence: verifiedEvidence };
+      }
+    }
+
+    if (!out && fitReasons.length) {
+      const fallbackGeneratedFields = Object.fromEntries(
+        editableFields.map((key) => [key, defaultCopy[key] ?? ""])
+      );
+      const fallbackStructured = composeStructuredFieldsForGeneration({
+        allFieldKeys: allRuntimeFieldKeys,
+        aiFieldKeys: editableFields,
+        generatedFields: fallbackGeneratedFields,
+        defaultFields: defaultCopy,
+        previousFields: previousStructuredFields,
+      });
+      const configuredIssues = templateFieldIssues(
+        fallbackGeneratedFields,
+        editableFields,
+        fieldLimits,
+        requiredFields
+      );
+      const geometryIssues = await templatePlatformFieldFitIssues({
+        manifest: assignment.manifest,
+        variantKey: outputSizeKey,
+        fields: fallbackStructured,
+        assetUrlByPath,
+      });
+      const qualityIssues = generatedCopyQualityIssues(
+        fallbackStructured,
+        editableFields
+      );
+      const fallbackFitReasons = [
+        ...editableFields.flatMap((key) =>
+          (configuredIssues[key] ?? []).map((issue) => `${key}: ${issue.message}`)
+        ),
+        ...formatTemplatePlatformFitIssues(geometryIssues),
+        ...formatGeneratedCopyQualityIssues(qualityIssues),
+      ];
+      const fallbackEvidence = fallbackEvidenceForFields({
+        fields: fallbackStructured,
+        evidenceRequiredFields,
+        approvedSourceTexts,
+      });
+      const fallbackGroundingIssues = generatedCopyEvidenceIssues({
+        fields: evidenceScopedFields(fallbackStructured, evidenceRequiredFields),
+        evidence: fallbackEvidence,
+        approvedSources: approvedSourceTexts,
+      });
+      if (!fallbackFitReasons.length && !fallbackGroundingIssues.length) {
+        structured = fallbackStructured;
+        generatedFields = fallbackGeneratedFields;
+        verifiedEvidence = fallbackEvidence;
+        rawEvidenceCount = fallbackEvidence.length;
+        fitReasons = [];
+        groundingIssues = [];
         out = { fields: structured, evidence: verifiedEvidence };
       }
     }
@@ -759,12 +938,26 @@ export async function POST(req: Request) {
     const evidence = out.evidence;
     const rejectedEvidenceCount = Math.max(0, rawEvidenceCount - evidence.length);
     const inheritedBackgroundChoice =
+      (typeof backgroundChoice === "string" && backgroundChoice.length > 0
+        ? backgroundChoice
+        : null) ??
       asStringRecord(replaceContent?.structured_fields)[BACKGROUND_CHOICE_FIELD] ??
       asStringRecord(campaignSource?.structured_fields)[BACKGROUND_CHOICE_FIELD];
     if (inheritedBackgroundChoice) {
       structured[BACKGROUND_CHOICE_FIELD] = inheritedBackgroundChoice;
     }
-    const title = `${product.name} · ${assignment.familyName}`;
+    structured = {
+      ...structured,
+      ...resolveTemplateAssetChoiceValues({
+        fields: assetChoiceFields,
+        requestedChoices: assetChoices,
+        legacyProductVariantChoice: productVariantChoice,
+        replaceFields: asStringRecord(replaceContent?.structured_fields),
+        campaignSourceFields: asStringRecord(campaignSource?.structured_fields),
+        defaultCopy,
+      }),
+    };
+    const title = `${productDisplayName} · ${assignment.familyName}`;
     const body = flattenFields(structured, editableFields);
     const savedAt = new Date().toISOString();
     const sourcePromptContext =
@@ -797,7 +990,7 @@ export async function POST(req: Request) {
         ? campaignSourceFields(campaignSource ?? replaceContent)
         : structured,
       field_limits: fieldLimits,
-      generated_fields: structured,
+      generated_fields: generatedFields,
       manually_edited_fields: [],
       compliance_state: "generated",
       ai_provider: provider,
@@ -806,6 +999,9 @@ export async function POST(req: Request) {
       evidence_validation: {
         accepted: evidence.length,
         rejected: rejectedEvidenceCount,
+        warnings: groundingIssues,
+        required_fields: evidenceRequiredFields,
+        enforcement: "fail_closed",
       },
       last_generated_at: savedAt,
     };
@@ -852,6 +1048,19 @@ export async function POST(req: Request) {
     if (writeError || !row) {
       return Response.json({ error: `Could not save draft: ${writeError?.message}` }, { status: 500 });
     }
+    logTemplatePipelineEvent({
+      event: "template.generate",
+      ok: true,
+      orgId: profile.org_id,
+      userId: user.id,
+      productId: product.id,
+      platformAssignmentId: assignment.assignmentId,
+      familyKey: assignment.familyKey,
+      versionName: assignment.versionLabel,
+      variantKey: outputSizeKey,
+      templateVersionId: assignment.versionId,
+      durationMs: templatePipelineDuration(startedAt),
+    });
 
     return Response.json({
       contentId: row.id,

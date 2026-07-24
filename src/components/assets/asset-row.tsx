@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { PreviewImage } from "@/components/preview-image";
 import { AssetStatusBadge } from "./asset-status-badge";
 import { ASSET_TYPE_LABELS, type AssetItem } from "./types";
-import { formatDimensions, formatFileSize, formatDate, fileTypeLabel } from "./format";
+import { formatDimensions, formatDuration, formatFileSize, formatDate, fileTypeLabel } from "./format";
 import { EyeIcon, PencilIcon, TrashIcon } from "./icons";
 
 type Props = {
@@ -28,16 +28,26 @@ export function AssetRow({
   onDelete,
 }: Props) {
   const dims = formatDimensions(asset.widthPixels, asset.heightPixels);
+  const duration = formatDuration(asset.durationSeconds);
   const meta = `${fileTypeLabel(asset.mimeType)} · ${formatFileSize(asset.fileSizeBytes)}${
-    dims ? ` · ${dims}` : ""
+    duration ? ` · ${duration}` : dims ? ` · ${dims}` : ""
   }`;
 
   const thumb = (
-    <PreviewImage
-      src={asset.previewUrl}
-      alt={asset.altText || asset.title}
-      className="p-1"
-    />
+    asset.mediaKind === "video" ? (
+      <div className="relative h-full w-full bg-ink">
+        <video src={asset.previewUrl} className="h-full w-full object-cover" muted preload="metadata" />
+        <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold uppercase text-white/90">
+          Video
+        </span>
+      </div>
+    ) : (
+      <PreviewImage
+        src={asset.previewUrl}
+        alt={asset.altText || asset.title}
+        className="p-1"
+      />
+    )
   );
 
   const actions = (

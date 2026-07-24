@@ -15,13 +15,13 @@
     "test:migrations": "node scripts/check-migrations.mjs && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test src/lib/tenant-integrity-sql.test.ts",
     "test:assets": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test src/lib/product-assets.test.ts src/lib/render-output-storage.test.ts src/lib/server-export-formats.test.ts",
     "test:workspace": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test src/lib/product-workspace.test.ts",
-    "test:knowledge": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test src/lib/knowledge-hub.test.ts src/lib/knowledge-reliability.test.ts src/lib/evidence-validation.test.ts src/lib/evidence-lifecycle.test.ts",
+    "test:knowledge": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test src/lib/knowledge-hub.test.ts src/lib/knowledge-reliability.test.ts src/lib/evidence-validation.test.ts src/lib/generation-evidence.test.ts src/lib/evidence-lifecycle.test.ts",
     "test:approval": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test src/lib/content-governance.test.ts",
-    "test:templates": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test src/lib/template-contract.test.ts src/lib/template-platform/manifest.test.ts src/lib/template-platform/publish-readiness.test.ts src/lib/template-platform/preflight.test.ts src/lib/template-platform/bundle-directory.test.ts src/lib/template-platform/compiler.test.ts src/lib/template-platform/importer.test.ts src/lib/template-platform/figma-publisher.test.ts src/lib/template-platform/assignments.test.ts src/lib/template-platform/publishing.test.ts src/lib/template-platform/fit.test.ts",
+    "test:templates": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test src/lib/template-contract.test.ts src/lib/template-platform/manifest.test.ts src/lib/template-platform/publish-readiness.test.ts src/lib/template-platform/preflight.test.ts src/lib/template-platform/bundle-directory.test.ts src/lib/template-platform/compiler.test.ts src/lib/template-platform/storage-paths.test.ts src/lib/template-platform/importer.test.ts src/lib/template-platform/figma-publisher.test.ts src/lib/template-platform/assignments.test.ts src/lib/template-platform/publishing.test.ts src/lib/template-platform/fit.test.ts src/lib/template-platform/dam-bindings.test.ts src/lib/template-platform/asset-choice-values.test.ts src/lib/template-platform/onboarding-report.test.ts src/lib/template-platform/observability.test.ts src/lib/template-platform/nimbus-source.test.ts",
     "test:rate-limits": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test src/lib/rate-limit.test.ts",
     "test:documents": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test src/lib/document-extraction.test.ts src/lib/document-index-status.test.ts",
     "test:data-helpers": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test src/lib/content-listing-shared.test.ts src/lib/document-listing-shared.test.ts src/lib/generated-copy-quality.test.ts src/lib/template-ops-shared.test.ts src/lib/invites.test.ts",
-    "test:ui": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test src/lib/roving-focus.test.ts",
+    "test:ui": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test src/lib/roving-focus.test.ts src/lib/studio-state.test.ts",
     "test:template-render": "tsx --test src/lib/template-renderer.test.tsx src/lib/template-platform/contentgate-bundle.test.ts src/lib/template-platform/contentgate-public-assets.test.ts src/lib/template-platform/runtime.test.ts src/lib/template-platform/render.test.tsx",
     "test:e2e": "playwright test",
     "smoke": "node scripts/smoke-test.mjs",
@@ -32,8 +32,10 @@
     "contentgate:render-samples": "tsx .tools/render-contentgate-samples.tsx",
     "contentgate:contact-sheets": "node .tools/render-contact-sheet.mjs",
     "template-platform:write-contentgate-bundles": "tsx scripts/template-platform/write-contentgate-bundles.ts",
+    "template-platform:generate-nimbus-bundle": "node scripts/template-platform/generate-nimbus-bundle.mjs",
     "template-platform:write-figma-publisher-bundle": "tsx scripts/template-platform/write-figma-publisher-bundle.ts",
     "template-platform:preflight-bundle": "tsx scripts/template-platform/preflight-bundle.ts",
+    "template-platform:onboard-client": "tsx scripts/template-platform/onboard-client-template.ts",
     "template-platform:preflight-contentgate": "tsx scripts/template-platform/preflight-contentgate.ts",
     "template-platform:install-contentgate": "tsx scripts/template-platform/install-contentgate-platform.ts",
     "template-platform:write-migration-sql": "tsx scripts/template-platform/write-platform-migration-sql.ts"
@@ -55,13 +57,13 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^1.24.0",
-    "next": "16.2.9",
+    "next": "16.2.11",
     "officeparser": "^7.2.1",
     "opentype.js": "^2.0.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "server-only": "^0.0.1",
-    "sharp": "0.34.5",
+    "sharp": "0.35.3",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.6.0"
   },
@@ -73,9 +75,13 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.2.9",
+    "eslint-config-next": "16.2.11",
     "tailwindcss": "^4",
     "tsx": "^4.23.1",
     "typescript": "^5"
+  },
+  "overrides": {
+    "postcss": "8.5.15",
+    "sharp": "0.35.3"
   }
 }

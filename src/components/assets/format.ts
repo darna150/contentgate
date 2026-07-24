@@ -19,6 +19,17 @@ export function formatDimensions(
   return `${width} × ${height}px`;
 }
 
+export function formatDuration(seconds: number | null): string | null {
+  if (seconds === null || !Number.isFinite(seconds)) return null;
+  const totalSeconds = Math.max(0, Math.round(seconds));
+  const minutes = Math.floor(totalSeconds / 60);
+  const remainingSeconds = totalSeconds % 60;
+  if (minutes < 60) return `${minutes}:${String(remainingSeconds).padStart(2, "0")}`;
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  return `${hours}:${String(remainingMinutes).padStart(2, "0")}:${String(remainingSeconds).padStart(2, "0")}`;
+}
+
 export function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-US", {
     month: "short",
@@ -43,8 +54,11 @@ const MIME_LABELS: Record<string, string> = {
   "image/webp": "WEBP",
   "image/gif": "GIF",
   "image/avif": "AVIF",
+  "video/mp4": "MP4",
+  "video/quicktime": "MOV",
+  "video/webm": "WEBM",
 };
 
 export function fileTypeLabel(mimeType: string): string {
-  return MIME_LABELS[mimeType] ?? mimeType.split("/")[1]?.toUpperCase() ?? "IMAGE";
+  return MIME_LABELS[mimeType] ?? mimeType.split("/")[1]?.toUpperCase() ?? "ASSET";
 }

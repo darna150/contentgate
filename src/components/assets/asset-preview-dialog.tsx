@@ -1,12 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import { createProductAssetDownloadUrl } from "@/app/(app)/products/actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AssetStatusBadge } from "./asset-status-badge";
 import { ASSET_TYPE_LABELS, type AssetItem } from "./types";
-import { formatDimensions, formatFileSize, formatDateTime, fileTypeLabel } from "./format";
+import { formatDimensions, formatDuration, formatFileSize, formatDateTime, fileTypeLabel } from "./format";
 import { PencilIcon, TrashIcon } from "./icons";
 
 type Props = {
@@ -19,8 +20,24 @@ type Props = {
 
 export function AssetPreviewDialog({ asset, isAdmin, onClose, onEdit, onDelete }: Props) {
   const dims = formatDimensions(asset.widthPixels, asset.heightPixels);
+  const duration = formatDuration(asset.durationSeconds);
   const [imageFailed, setImageFailed] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState(false);
   const canDownload = asset.approvalStatus === "approved" || isAdmin;
+
+  async function handleDownload() {
+    setDownloadError(null);
+    setDownloading(true);
+    try {
+      const url = await createProductAssetDownloadUrl(asset.id);
+      window.location.href = url;
+    } catch (err) {
+      setDownloadError(err instanceof Error ? err.message : "Could not create download link.");
+    } finally {
+      setDownloading(false);
+    }
+  }
 
   return (
     <Dialog open onOpenChange={(next) => !next && onClose()}>
@@ -30,7 +47,14 @@ export function AssetPreviewDialog({ asset, isAdmin, onClose, onEdit, onDelete }
         </DialogHeader>
         <div className="flex flex-col gap-5 sm:flex-row">
           <div className="flex h-[220px] flex-shrink-0 items-center justify-center rounded-control border border-edge bg-page p-3 sm:h-[320px] sm:w-[300px]">
-            {imageFailed ? (
+            {asset.mediaKind === "video" ? (
+              <video
+                src={asset.previewUrl}
+                className="max-h-full w-full rounded-[6px]"
+                controls
+                preload="metadata"
+              />
+            ) : imageFailed ? (
               <div className="flex flex-col items-center gap-1.5 text-center">
                 <span className="flex size-8 items-center justify-center rounded-full bg-edge text-[13px] text-ink-faint">
                   !
@@ -71,6 +95,20 @@ export function AssetPreviewDialog({ asset, isAdmin, onClose, onEdit, onDelete }
                   <dd className="text-ink">{dims}</dd>
                 </>
               )}
+              {duration && (
+                <>
+                  <dt className="text-ink-faint">Duration</dt>
+                  <dd className="text-ink">{duration}</dd>
+                </>
+              )}
+              {asset.category && (
+                <>
+                  <dt className="text-ink-faint">Category</dt>
+                  <dd className="text-ink">{asset.category}</dd>
+                </>
+              )}
+              <dt className="text-ink-faint">Downloads</dt>
+              <dd className="text-ink">{asset.downloadCount}</dd>
               <dt className="text-ink-faint">Updated</dt>
               <dd className="text-ink">{formatDateTime(asset.updatedAt)}</dd>
               <dt className="text-ink-faint">Uploaded</dt>
@@ -99,11 +137,14 @@ export function AssetPreviewDialog({ asset, isAdmin, onClose, onEdit, onDelete }
 
             <div className="mt-auto flex flex-wrap gap-2 border-t border-edge pt-3.5">
               {canDownload && asset.previewUrl && (
-                <Button asChild variant="secondary">
-                  <a href={asset.previewUrl} download={asset.originalFileName || asset.title}>
-                    Download asset
-                  </a>
+                <Button type="button" variant="secondary" onClick={handleDownload} disabled={downloading}>
+                  {downloading ? "Preparing…" : "Download asset"}
                 </Button>
+              )}
+              {downloadError && (
+                <p role="alert" className="basis-full text-[11.5px] leading-relaxed text-reject">
+                  {downloadError}
+                </p>
               )}
               {!canDownload && (
                 <p className="text-[11.5px] leading-relaxed text-ink-faint">

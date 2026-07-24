@@ -122,8 +122,8 @@ export function ServerPreviewFrame({
     const viewport = viewportRef.current;
     if (!viewport) return;
     const updateScale = () => {
-      const availableWidth = Math.max(1, viewport.clientWidth - 48);
-      const availableHeight = Math.max(1, viewport.clientHeight - 48);
+      const availableWidth = Math.max(1, viewport.clientWidth - 32);
+      const availableHeight = Math.max(1, viewport.clientHeight - 32);
       setScale(previewScale({ availableWidth, availableHeight, width, height }));
     };
     updateScale();
@@ -135,7 +135,7 @@ export function ServerPreviewFrame({
   return (
     <div
       ref={viewportRef}
-      className="relative flex h-full min-h-0 w-full items-center justify-center overflow-hidden bg-page p-6"
+      className="relative flex h-full min-h-0 w-full items-center justify-center overflow-hidden bg-[#f5f5f2] p-4"
     >
       {updating && (
         <div className="absolute right-4 top-4 z-10 rounded-full bg-surface/90 px-3 py-1.5 text-[11px] font-semibold text-ink-muted shadow-sm">
@@ -200,8 +200,8 @@ export function MissingDraftFrame({
     const viewport = viewportRef.current;
     if (!viewport) return;
     const updateScale = () => {
-      const availableWidth = Math.max(1, viewport.clientWidth - 48);
-      const availableHeight = Math.max(1, viewport.clientHeight - 48);
+      const availableWidth = Math.max(1, viewport.clientWidth - 32);
+      const availableHeight = Math.max(1, viewport.clientHeight - 32);
       setScale(previewScale({ availableWidth, availableHeight, width, height }));
     };
     updateScale();
@@ -213,7 +213,7 @@ export function MissingDraftFrame({
   return (
     <div
       ref={viewportRef}
-      className="relative flex h-full min-h-0 w-full items-center justify-center overflow-hidden bg-page p-6"
+      className="relative flex h-full min-h-0 w-full items-center justify-center overflow-hidden bg-[#f5f5f2] p-4"
     >
       <div
         className="flex flex-col items-center justify-center rounded-[3px] border border-dashed border-edge-strong bg-surface px-6 py-8 text-center shadow-sm"
@@ -242,14 +242,22 @@ export function LiveTemplatePreviewFrame({
   manifest,
   variantKey,
   fields,
+  assetUrlByPath,
+  damAssetUrlById,
   textLayoutByField,
   width,
   height,
   updating,
+  original = false,
 }: {
   manifest: TemplateBundleManifest;
   variantKey: string;
   fields: Record<string, unknown>;
+  /** Signed storage URLs per manifest asset path, so background/product images
+   * resolve for platform bundles served from Supabase storage (not public
+   * files). Without it the renderer falls back to broken relative paths. */
+  assetUrlByPath?: Record<string, string>;
+  damAssetUrlById?: Record<string, string>;
   /** Debounced, server-resolved {fontSize, lines} per field (see
    * checkDraftStructuredFieldsFit in content/actions.ts). Undefined until
    * the first resolution lands — uses a conservative local shrink estimate
@@ -258,6 +266,7 @@ export function LiveTemplatePreviewFrame({
   width: number;
   height: number;
   updating: boolean;
+  original?: boolean;
 }) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0.72);
@@ -266,16 +275,19 @@ export function LiveTemplatePreviewFrame({
     manifest,
     variantKey,
     fields,
+    assetUrlByPath,
+    damAssetUrlById,
     textLayoutByField,
     scale: renderScale,
+    original,
   });
 
   useEffect(() => {
     const viewport = viewportRef.current;
     if (!viewport) return;
     const updateScale = () => {
-      const availableWidth = Math.max(1, viewport.clientWidth - 48);
-      const availableHeight = Math.max(1, viewport.clientHeight - 48);
+      const availableWidth = Math.max(1, viewport.clientWidth - 32);
+      const availableHeight = Math.max(1, viewport.clientHeight - 32);
       setScale(previewScale({ availableWidth, availableHeight, width, height }));
     };
     updateScale();
@@ -286,13 +298,13 @@ export function LiveTemplatePreviewFrame({
 
   if (!rendered) {
     return (
-      <div className="relative flex h-full min-h-0 w-full items-center justify-center overflow-hidden bg-page p-6">
+      <div className="relative flex h-full min-h-0 w-full items-center justify-center overflow-hidden bg-[#f5f5f2] p-4">
         <div className="flex max-w-[420px] flex-col items-center gap-3 rounded-card border border-edge bg-surface px-7 py-6 text-center shadow-elevated">
           <div className="flex size-11 items-center justify-center rounded-full bg-brand-tint text-[18px] text-brand">
             !
           </div>
           <div className="flex flex-col gap-1.5">
-            <p className="text-[14px] font-bold text-ink">Template preview unavailable</p>
+          <p className="text-[14px] font-bold text-ink">Template preview unavailable</p>
             <p className="text-[12.5px] leading-5 text-ink-muted">
               This template size could not render locally. Switch sizes or refresh Studio.
             </p>
@@ -305,7 +317,7 @@ export function LiveTemplatePreviewFrame({
   return (
     <div
       ref={viewportRef}
-      className="relative flex h-full min-h-0 w-full items-center justify-center overflow-hidden bg-page p-6"
+      className="relative flex h-full min-h-0 w-full items-center justify-center overflow-hidden bg-[#f5f5f2] p-4"
     >
       {updating && (
         <div className="absolute right-4 top-4 z-10 rounded-full bg-surface/90 px-3 py-1.5 text-[11px] font-semibold text-ink-muted shadow-sm">

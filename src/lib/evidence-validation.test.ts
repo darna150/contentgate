@@ -173,3 +173,52 @@ test("requires approved sources to exist", () => {
     ["No approved claims or source text are available for generation."]
   );
 });
+
+test("generated copy evidence rejects citations that are not approved verbatim sources", () => {
+  assert.deepEqual(
+    generatedCopyEvidenceIssues({
+      fields: {
+        headline: "Automated campaigns guarantee sales growth",
+      },
+      evidence: [
+        {
+          field: "headline",
+          approved_source: approved[0],
+          excerpt: "guarantee sales growth",
+        },
+      ],
+      approvedSources: approved,
+    }),
+    ["headline: cited quote was not found verbatim in an approved source."]
+  );
+});
+
+test("generated copy evidence accepts supported non-cta fields", () => {
+  assert.deepEqual(
+    generatedCopyEvidenceIssues({
+      fields: {
+        headline: "Create localized marketing content from approved templates",
+        cta: "Get started",
+      },
+      evidence: [
+        {
+          field: "headline",
+          approved_source: approved[0],
+        },
+      ],
+      approvedSources: approved,
+    }),
+    []
+  );
+});
+
+test("generated copy evidence requires approved sources", () => {
+  assert.deepEqual(
+    generatedCopyEvidenceIssues({
+      fields: { headline: "Create localized marketing content" },
+      evidence: [],
+      approvedSources: [],
+    }),
+    ["No approved claims or source text are available for generation."]
+  );
+});

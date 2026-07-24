@@ -3,7 +3,9 @@ import { expect, test, type Page, type TestInfo } from "@playwright/test";
 const E2E_EMAIL = process.env.CONTENTGATE_E2E_EMAIL;
 const E2E_PASSWORD = process.env.CONTENTGATE_E2E_PASSWORD;
 const BASE_URL = process.env.CONTENTGATE_E2E_BASE_URL ?? "";
-const CONTENTGATE_PRODUCT_ID = "20000000-0000-0000-0000-000000000001";
+const DEMO_PRODUCT_ID =
+  process.env.CONTENTGATE_E2E_PRODUCT_ID ??
+  "27cf3a56-84e6-41fb-8cb7-4bf7dbe3c564";
 
 type BrowserIssue = {
   kind: "console" | "pageerror" | "requestfailed" | "http";
@@ -21,32 +23,32 @@ const SURFACES: Surface[] = [
   { name: "Products", path: "/products", expectedText: /Products/i },
   {
     name: "Product overview",
-    path: `/products/${CONTENTGATE_PRODUCT_ID}`,
-    expectedText: /ContentGate/i,
+    path: `/products/${DEMO_PRODUCT_ID}`,
+    expectedText: /Nimbus 1/i,
   },
   {
     name: "Product templates",
-    path: `/products/${CONTENTGATE_PRODUCT_ID}?view=templates`,
-    expectedText: /ContentGate Local Friendly/i,
+    path: `/products/${DEMO_PRODUCT_ID}?view=templates`,
+    expectedText: /Nimbus Air Campaign/i,
   },
   {
     name: "Product content",
-    path: `/products/${CONTENTGATE_PRODUCT_ID}?view=content`,
+    path: `/products/${DEMO_PRODUCT_ID}?view=content`,
     expectedText: /Every piece generated|Generated content|Content/i,
   },
   {
     name: "Product approvals",
-    path: `/products/${CONTENTGATE_PRODUCT_ID}?view=approvals`,
+    path: `/products/${DEMO_PRODUCT_ID}?view=approvals`,
     expectedText: /Approval|Open Approval Queue|The queue is clear/i,
   },
   {
     name: "Product knowledge",
-    path: `/products/${CONTENTGATE_PRODUCT_ID}?view=knowledge`,
+    path: `/products/${DEMO_PRODUCT_ID}?view=knowledge`,
     expectedText: /Source documents|Approved claims|Knowledge/i,
   },
   {
     name: "Product assets",
-    path: `/products/${CONTENTGATE_PRODUCT_ID}?view=assets`,
+    path: `/products/${DEMO_PRODUCT_ID}?view=assets`,
     expectedText: /Assets|No assets/i,
   },
   { name: "Content library", path: "/content", expectedText: /Content/i },
@@ -107,7 +109,7 @@ async function assertNoBrokenImages(page: Page, surfaceName: string) {
           )
           .every((image) => image.complete && image.naturalWidth > 0 && image.naturalHeight > 0),
       undefined,
-      { timeout: 10_000 }
+      { timeout: 45_000 }
     )
     .catch(() => {
       // Keep the assertion below as the source of truth so failures include

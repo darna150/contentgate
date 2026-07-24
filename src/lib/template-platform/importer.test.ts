@@ -57,12 +57,19 @@ function manifestWithRealAssetHashes() {
   };
 }
 
-function fakeRepository(existingFamilyId: string | null = null) {
+function fakeRepository(options: {
+  existingFamilyId?: string | null;
+  failInsert?: boolean;
+} = {}) {
   const calls: string[] = [];
   const uploads: Array<{
     bucket: string;
     path: string;
     contentType: string | null;
+  }> = [];
+  const removals: Array<{
+    bucket: string;
+    paths: readonly string[];
   }> = [];
   const inserted: CompiledTemplateBundleImport["rows"][] = [];
   const failed: FailedTemplateImportRunInsert[] = [];
@@ -70,7 +77,7 @@ function fakeRepository(existingFamilyId: string | null = null) {
   const repository: TemplateBundleImportRepository = {
     async findTemplateFamilyId() {
       calls.push("find-family");
-      return existingFamilyId;
+      return options.existingFamilyId ?? null;
     },
     async uploadTemplateAsset(input) {
       calls.push(`upload:${input.path}`);
@@ -80,8 +87,18 @@ function fakeRepository(existingFamilyId: string | null = null) {
         contentType: input.contentType,
       });
     },
+    async removeTemplateAssets(input) {
+      calls.push("remove-uploads");
+      removals.push({
+        bucket: input.bucket,
+        paths: input.paths,
+      });
+    },
     async insertCompiledTemplateBundle(rows) {
       calls.push("insert-compiled");
+      if (options.failInsert) {
+        throw new Error("database commit failed");
+      }
       inserted.push(rows);
     },
     async insertFailedTemplateImportRun(row) {
@@ -90,7 +107,7 @@ function fakeRepository(existingFamilyId: string | null = null) {
     },
   };
 
-  return { calls, uploads, inserted, failed, repository };
+  return { calls, uploads, removals, inserted, failed, repository };
 }
 
 const fixedIds = {
@@ -140,11 +157,15 @@ test("uploads every verified asset before inserting compiled template rows", asy
       TEMPLATE_BUNDLE_STORAGE_BUCKET,
     ]
   );
+  assert.equal(
+    repo.uploads.every((upload) => /\/assets\/[a-f0-9]{64}\//.test(upload.path)),
+    true
+  );
 });
 
 test("reuses an existing template family id when importing a new version", async () => {
   const { manifest, sources } = manifestWithRealAssetHashes();
-  const repo = fakeRepository("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+  const repo = fakeRepository({ existingFamilyId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" });
 
   const result = await importTemplateBundle(
     { ...baseRequest, manifest, assets: sources },
@@ -179,6 +200,7 @@ test("records a failed import and skips uploads when an asset checksum is wrong"
     repo.failed[0].report.issues.some((issue) => issue.message.includes("checksum mismatch")),
     true
   );
+  assert.equal(repo.removals.length, 0);
 });
 
 test("records a failed import when manifest validation fails", async () => {
@@ -201,6 +223,26 @@ test("records a failed import when manifest validation fails", async () => {
   assert.equal(
     repo.failed[0].report.issues.some((issue) => issue.path === "variants"),
     true
+  );
+  assert.equal(repo.removals.length, 0);
+});
+
+test("removes uploaded assets when the atomic database import commit fails", async () => {
+  const { manifest, sources } = manifestWithRealAssetHashes();
+  const repo = fakeRepository({ failInsert: true });
+
+  await assert.rejects(
+    importTemplateBundle({ ...baseRequest, manifest, assets: sources }, repo.repository),
+    /database commit failed/
+  );
+
+  assert.equal(repo.inserted.length, 0);
+  assert.equal(repo.uploads.length, manifest.assets.length);
+  assert.equal(repo.removals.length, 1);
+  assert.equal(repo.removals[0].bucket, TEMPLATE_BUNDLE_STORAGE_BUCKET);
+  assert.deepEqual(
+    [...repo.removals[0].paths].sort(),
+    repo.uploads.map((upload) => upload.path).sort()
   );
 });
 

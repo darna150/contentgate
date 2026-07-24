@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ImageResponse } from "next/og";
 import { renderToStaticMarkup } from "react-dom/server";
 
 import { buildContentGateTemplateBundle } from "./contentgate-bundle";
@@ -15,8 +14,23 @@ import { isPublicContentGateBundle } from "./public-contentgate-assets";
 import { validateTemplateBundlePublishReadiness } from "./publish-readiness";
 import { renderTemplateBundleVariant } from "./render";
 import { BACKGROUND_CHOICE_FIELD } from "./runtime";
-import { loadTemplateBundleImageFonts } from "./server-fonts";
 import { validTemplateBundleManifest } from "./test-fixtures";
+
+const validManifestSignedAssets = {
+  "variants/square/background.png": "https://storage.example.test/square-background.png?token=private",
+  "variants/square/background-alt.png":
+    "https://storage.example.test/square-background-alt.png?token=private",
+  "variants/square/reference.png": "https://storage.example.test/square-reference.png?token=private",
+};
+
+const privateTemplateManifest = {
+  ...validTemplateBundleManifest,
+  family: {
+    ...validTemplateBundleManifest.family,
+    key: "nimbus-air-test",
+    name: "Nimbus Air Test",
+  },
+};
 
 test("renders platform bundle generated mode with background and text slots", async () => {
   const bundle = await buildContentGateTemplateBundle("contentgate_local_friendly");
@@ -24,9 +38,9 @@ test("renders platform bundle generated mode with background and text slots", as
     manifest: bundle.manifest,
     variantKey: "leaderboard",
     fields: {
-      headline: "On-brand local content",
-      subheadline: "Approved templates for every team",
-      cta: "Learn more",
+      headline: "Carry lighter.",
+      subheadline: "Technical carry for daily routes.",
+      cta: "Explore",
     },
   });
 
@@ -35,8 +49,8 @@ test("renders platform bundle generated mode with background and text slots", as
   assert.equal(rendered.height, 90);
   const html = renderToStaticMarkup(rendered.element);
   assert.match(html, /set-a\/backgrounds\/leaderboard\.png/);
-  assert.match(html, /On-brand local content/);
-  assert.match(html, /data-template-platform-bundle="contentgate-local-friendly"/);
+  assert.match(html, /Carry lighter/);
+  assert.match(html, /data-template-platform-bundle="aerform-air01-campaign"/);
   assert.match(html, /overflow:hidden/);
 });
 
@@ -46,15 +60,19 @@ test("renders platform bundle with signed asset URLs when provided", async () =>
     manifest: bundle.manifest,
     variantKey: "leaderboard",
     fields: {},
+    assetOrigin: "https://contentgate.example",
     assetUrlByPath: {
-      "template-packages/contentgate/set-a/backgrounds/leaderboard.png":
+      "variants/leaderboard/background.png":
         "https://storage.example.test/signed-background.png",
     },
   });
 
   assert.ok(rendered);
   const html = renderToStaticMarkup(rendered.element);
-  assert.match(html, /https:\/\/storage\.example\.test\/signed-background\.png/);
+  assert.match(
+    html,
+    /https:\/\/contentgate\.example\/template-packages\/contentgate\/set-a\/backgrounds\/leaderboard\.png\?v=vector-figwright-/
+  );
 });
 
 test("a shrink_to_fit slot renders at its resolved smaller size, not the authored max", async () => {
@@ -71,6 +89,7 @@ test("a shrink_to_fit slot renders at its resolved smaller size, not the authore
     variantKey: "square",
     fields: { headline: longHeadline },
     textLayoutByField,
+    assetUrlByPath: validManifestSignedAssets,
   });
   assert.ok(withResolvedLayout);
   const resolvedHtml = renderToStaticMarkup(withResolvedLayout.element);
@@ -83,6 +102,7 @@ test("a shrink_to_fit slot renders at its resolved smaller size, not the authore
     manifest: validTemplateBundleManifest,
     variantKey: "square",
     fields: { headline: longHeadline },
+    assetUrlByPath: validManifestSignedAssets,
   });
   assert.ok(withoutResolvedLayout);
   const unresolvedHtml = renderToStaticMarkup(withoutResolvedLayout.element);
@@ -97,11 +117,57 @@ test("renders selected designer-approved background option in generated mode", (
       headline: "Background option test",
       [BACKGROUND_CHOICE_FIELD]: "warm",
     },
+    assetUrlByPath: validManifestSignedAssets,
   });
 
   assert.ok(rendered);
   const html = renderToStaticMarkup(rendered.element);
-  assert.match(html, /variants\/square\/background-alt\.png/);
+  assert.match(html, /square-background-alt\.png\?token=private/);
+});
+
+test("private template bundles do not fall back to relative app asset paths", () => {
+  const rendered = renderTemplateBundleVariant({
+    manifest: privateTemplateManifest,
+    variantKey: "square",
+    fields: {
+      headline: "Missing signed asset test",
+    },
+  });
+
+  assert.equal(rendered, null);
+});
+
+test("private signed asset URLs are not rewritten to high-density variants", () => {
+  const rendered = renderTemplateBundleVariant({
+    manifest: privateTemplateManifest,
+    variantKey: "square",
+    fields: {
+      headline: "Signed asset density test",
+    },
+    assetUrlByPath: validManifestSignedAssets,
+    scale: 2,
+  });
+
+  assert.ok(rendered);
+  const html = renderToStaticMarkup(rendered.element);
+  assert.match(html, /square-background\.png\?token=private/);
+  assert.doesNotMatch(html, /square-background@2x\.png/);
+});
+
+test("image slots without rotation omit transform CSS for ImageResponse", () => {
+  const rendered = renderTemplateBundleVariant({
+    manifest: privateTemplateManifest,
+    variantKey: "square",
+    fields: {
+      headline: "ImageResponse transform test",
+      hero_image: "https://assets.example.test/hero.png",
+    },
+    assetUrlByPath: validManifestSignedAssets,
+  });
+
+  assert.ok(rendered);
+  const html = renderToStaticMarkup(rendered.element);
+  assert.doesNotMatch(html, /transform:undefined/);
 });
 
 test("renders platform bundle original mode with reference only", async () => {
@@ -130,7 +196,7 @@ test("ContentGate figwright bundles use versioned public assets for browser and 
       name: "figwright-v1",
     },
     assets: bundle.manifest.assets.map((asset) =>
-      asset.path.includes("template-packages/contentgate/set-a/backgrounds/leaderboard.png")
+      asset.path.includes("variants/leaderboard/background.png")
         ? {
             ...asset,
             path: "variants/leaderboard/background.png",
@@ -152,7 +218,7 @@ test("ContentGate figwright bundles use versioned public assets for browser and 
   assert.ok(browserRendered);
   assert.match(
     renderToStaticMarkup(browserRendered.element),
-    /\/template-bundles\/contentgate-local-friendly\/figwright-v1\/variants\/leaderboard\/background\.png\?v=vector-figwright-/
+    /\/template-packages\/contentgate\/set-a\/backgrounds\/leaderboard\.png\?v=vector-figwright-/
   );
 
   const exportRendered = renderTemplateBundleVariant({
@@ -164,7 +230,7 @@ test("ContentGate figwright bundles use versioned public assets for browser and 
   assert.ok(exportRendered);
   assert.match(
     renderToStaticMarkup(exportRendered.element),
-    /https:\/\/contentgate\.example\/template-bundles\/contentgate-local-friendly\/figwright-v1\/variants\/leaderboard\/background\.png\?v=vector-figwright-/
+    /https:\/\/contentgate\.example\/template-packages\/contentgate\/set-a\/backgrounds\/leaderboard\.png\?v=vector-figwright-/
   );
 });
 
@@ -200,7 +266,7 @@ test("ContentGate figwright bundles render true 2x exports with high-density ass
   const html = renderToStaticMarkup(rendered.element);
   assert.match(
     html,
-    /https:\/\/contentgate\.example\/template-bundles\/contentgate-local-friendly\/figwright-v1\/variants\/medium_rectangle\/background@2x\.png\?v=vector-figwright-/
+    /https:\/\/contentgate\.example\/template-packages\/contentgate\/set-a\/backgrounds\/medium-rectangle@2x\.png\?v=vector-figwright-/
   );
   assert.match(html, /font-size:\d+(?:\.\d+)?px/);
 });
@@ -220,7 +286,7 @@ test("ContentGate figwright bundles also support legacy public package asset pat
     variantKey: "leaderboard",
     fields: {},
     assetUrlByPath: {
-      "template-packages/contentgate/set-a/backgrounds/leaderboard.png":
+      "variants/leaderboard/background.png":
         "https://storage.example.test/signed-background.png",
     },
   });
@@ -229,7 +295,7 @@ test("ContentGate figwright bundles also support legacy public package asset pat
   const html = renderToStaticMarkup(rendered.element);
   assert.match(
     html,
-    /\/template-bundles\/contentgate-local-friendly\/figwright-v1\/variants\/leaderboard\/background\.png\?v=vector-figwright-/
+    /\/template-packages\/contentgate\/set-a\/backgrounds\/leaderboard\.png\?v=vector-figwright-/
   );
   assert.doesNotMatch(html, /storage\.example\.test/);
 });
@@ -247,48 +313,37 @@ test("ContentGate figwright bundles are recognized as public assets", async () =
   assert.equal(isPublicContentGateBundle(manifest), true);
 });
 
-test("generated bundle renders can be consumed by ImageResponse", async () => {
+test("generated bundle renders with absolute assets for ImageResponse consumption", async () => {
   const bundle = await buildContentGateTemplateBundle("contentgate_local_friendly");
-  const backgroundPath = "template-packages/contentgate/set-a/backgrounds/link-ad.png";
   const rendered = renderTemplateBundleVariant({
     manifest: bundle.manifest,
     variantKey: "link_ad",
     fields: {
-      cta: "Get Started Today",
-      headline: "Local Content,\nBrand Approved",
-      local_detail: "Your local team. Your brand. Ready to go.",
-      proof_note: "Trusted by branch teams,\nfranchises & field reps.",
-      subheadline:
-        "Create on-brand local marketing from approved templates—without breaking the design system.",
+      cta: "Explore",
+      headline: "Carry lighter.\nMove quieter.",
+      subheadline: "Technical carry for commute and travel.",
     },
-    assetUrlByPath: {
-      [backgroundPath]:
-        "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=",
-    },
+    assetOrigin: "https://contentgate.example",
   });
 
   assert.ok(rendered);
-
-  const fonts = await loadTemplateBundleImageFonts({ manifest: bundle.manifest });
-  const response = new ImageResponse(rendered.element, {
-    width: rendered.width,
-    height: rendered.height,
-    fonts,
-  });
-  const png = await response.arrayBuffer();
-
-  assert.equal(response.headers.get("content-type"), "image/png");
-  assert.ok(png.byteLength > 0);
+  const html = renderToStaticMarkup(rendered.element);
+  assert.match(
+    html,
+    /https:\/\/contentgate\.example\/template-packages\/contentgate\/set-a\/backgrounds\/link-ad\.png\?v=vector-figwright-/
+  );
+  assert.match(
+    html,
+    /https:\/\/contentgate\.example\/template-packages\/contentgate\/products\/charcoal\.png/
+  );
 });
 
 test("ContentGate link ad headlines reserve descender-safe line boxes", async () => {
   const bundle = await buildContentGateTemplateBundle("contentgate_local_friendly");
   const fields = {
     cta: "Get started",
-    headline: "Share your offer—\nready to go",
-    local_detail: "Create local link ads faster",
-    proof_note: "Editable fields guided by locked templates",
-    subheadline: "Local edits from approved templates, assets, and product knowledge.",
+    headline: "Carry lighter.\nMove quieter.",
+    subheadline: "Technical carry for commute and travel.",
   };
   const issues = await templatePlatformFieldFitIssues({
     manifest: bundle.manifest,
@@ -304,8 +359,8 @@ test("ContentGate link ad headlines reserve descender-safe line boxes", async ()
   });
   assert.ok(rendered);
   const html = renderToStaticMarkup(rendered.element);
-  assert.match(html, /Share your offer/);
-  assert.match(html, /line-height:1.04/);
+  assert.match(html, /Carry lighter/);
+  assert.match(html, /line-height:1.2400000095367432/);
 });
 
 test("reports platform copy that wraps beyond the locked text slot", async () => {

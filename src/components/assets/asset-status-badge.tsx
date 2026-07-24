@@ -7,6 +7,7 @@ import { ASSET_STATUS_LABELS } from "./types";
 type BadgeVariant = NonNullable<VariantProps<typeof badgeVariants>["variant"]>;
 
 const STYLES: Record<ProductAssetApprovalStatus, BadgeVariant> = {
+  processing: "neutral",
   pending: "warn",
   approved: "approve",
   rejected: "reject",

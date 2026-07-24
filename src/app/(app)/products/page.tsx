@@ -28,7 +28,7 @@ export default async function ProductsPage() {
       .from("products")
       .select("id, name, description, status")
       .order("created_at", { ascending: true });
-    products = data ?? [];
+    products = (data ?? []) as ProductRow[];
 
     if (products.length) {
       const ids = products.map((p) => p.id);

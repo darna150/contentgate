@@ -15,8 +15,20 @@ import {
   studioContentUrl,
   templatePreviewUrl,
 } from "@/lib/creative";
+import { studioEditableTemplateFields } from "@/lib/generation-evidence";
+import {
+  STUDIO_PRODUCT_VARIANT_FIELD,
+  studioDirtyState,
+  studioFieldsForContent,
+  studioInitialContentsBySize,
+  studioInitialSize,
+  studioPersistedFieldKeys,
+  studioPickerFieldKeys,
+  studioPreviewFields,
+} from "@/lib/studio-state";
 import {
   BACKGROUND_CHOICE_FIELD,
+  getTemplateBundleVariantAssetChoiceFields,
   getTemplateBundleVariantBackgroundOptions,
   getTemplateBundleVariantFieldLimits,
   getTemplateBundleVariantFields,
@@ -51,17 +63,6 @@ import type {
   StudioTemplate,
 } from "./studio-data";
 
-function generatedContentSizeKey(
-  content: StudioContent | null,
-  fallback: string,
-  supportedSizes: readonly string[]
-) {
-  if (content?.outputSize && supportedSizes.includes(content.outputSize)) {
-    return content.outputSize;
-  }
-  return fallback;
-}
-
 function formatRetryWait(seconds: number) {
   const safeSeconds = Math.max(1, Math.ceil(seconds));
   const minutes = Math.floor(safeSeconds / 60);
@@ -81,6 +82,79 @@ function retryAfterSecondsFromPayload(payload: unknown) {
     return Math.max(1, payload.retryAfterSeconds);
   }
   return null;
+}
+
+const PRODUCT_VARIANT_FIELD = STUDIO_PRODUCT_VARIANT_FIELD;
+
+function StudioAssetChoicePicker({
+  fieldKey,
+  label,
+  options,
+  value,
+  editable,
+  onChange,
+}: {
+  fieldKey: string;
+  label: string;
+  options: Array<{ key: string; label: string; previewUrl?: string }>;
+  value: string;
+  editable: boolean;
+  onChange: (value: string) => void;
+}) {
+  if (!options.length) return null;
+  const hasMultipleOptions = options.length > 1;
+  return (
+    <div className="flex flex-col gap-3 border-t border-edge pt-5" data-testid={`studio-asset-choice-${fieldKey}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <span className="text-label text-ink-faint">{label}</span>
+          {hasMultipleOptions && (
+            <p className="mt-2 text-[14px] leading-6 text-ink-muted">
+              Select an approved asset for this locked image slot. Layout, scale, crop, and export
+              rules remain controlled by the template.
+            </p>
+          )}
+        </div>
+        {!hasMultipleOptions && (
+          <Badge variant="neutral">1 option</Badge>
+        )}
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        {options.map((option) => {
+          const selected = value === option.key;
+          return (
+            <button
+              key={option.key}
+              type="button"
+              disabled={!editable || !hasMultipleOptions}
+              onClick={() => editable && hasMultipleOptions && onChange(option.key)}
+              aria-label={`${label}: ${option.label}`}
+              className={`flex items-center gap-3 rounded-[10px] border px-3 py-2 text-left text-[13px] font-bold transition ${
+                selected
+                  ? "border-brand bg-brand/5 text-brand"
+                  : "border-edge bg-surface text-ink-muted"
+              } ${editable && hasMultipleOptions && !selected ? "hover:border-brand/50" : ""} ${
+                !hasMultipleOptions ? "cursor-default" : ""
+              }`}
+            >
+              {option.previewUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={option.previewUrl}
+                  alt=""
+                  className="size-8 rounded-[7px] object-cover ring-1 ring-black/10"
+                />
+              ) : (
+                <span className="size-5 rounded-full bg-brand-tint ring-1 ring-black/10" />
+              )}
+              {option.label}
+            </button>
+          );
+        })}
+      </div>
+      <input type="hidden" name={fieldKey} value={value} readOnly />
+    </div>
+  );
 }
 
 async function downloadUrl(url: string, filename: string) {
@@ -128,17 +202,40 @@ export function StudioWorkspace({
     [selectedTemplate.platformManifest]
   );
   const [size, setSize] = useState<string>(
-    initialSize && sizes.includes(initialSize) ? initialSize : sizes[0]
+    studioInitialSize({
+      requestedSize: initialSize,
+      contents: initialContents,
+      supportedSizes: sizes,
+    })
   );
   const initialContentsBySize = useMemo(() => {
-    const entries: Partial<Record<string, StudioContent>> = {};
-    for (const item of initialContents) {
-      const itemSize = generatedContentSizeKey(item, sizes[0], sizes);
-      if (!entries[itemSize]) entries[itemSize] = item;
-    }
-    return entries;
+    return studioInitialContentsBySize(initialContents, sizes);
   }, [initialContents, sizes]);
+  const initialResolvedSize = useMemo(
+    () =>
+      studioInitialSize({
+        requestedSize: initialSize,
+        contents: initialContents,
+        supportedSizes: sizes,
+      }),
+    [initialContents, initialSize, sizes]
+  );
+  const initialContentsSignature = useMemo(
+    () =>
+      JSON.stringify({
+        initialSize,
+        contents: initialContents.map((item) => [
+          item.id,
+          item.outputSize,
+          item.updatedAt,
+          item.structured_fields,
+        ]),
+      }),
+    [initialContents, initialSize]
+  );
   const initialContent = initialContentsBySize[size] ?? initialContents[0] ?? null;
+  const initialResolvedContent =
+    initialContentsBySize[initialResolvedSize] ?? initialContents[0] ?? null;
   const [campaignSourceContentId, setCampaignSourceContentId] = useState<string | null>(
     initialContent?.id ?? null
   );
@@ -153,10 +250,20 @@ export function StudioWorkspace({
     initialContent?.manuallyEdited ?? false
   );
   const [draftFields, setDraftFields] = useState<Record<string, string>>(
-    initialContent?.structured_fields ?? selectedTemplate.default_copy
+    studioFieldsForContent(initialContent, selectedTemplate.default_copy)
   );
   const [savedFields, setSavedFields] = useState<Record<string, string>>(
-    initialContent?.structured_fields ?? selectedTemplate.default_copy
+    studioFieldsForContent(initialContent, selectedTemplate.default_copy)
+  );
+  const [selectedBackgroundOverride, setSelectedBackgroundOverride] = useState(
+    initialContent?.structured_fields?.[BACKGROUND_CHOICE_FIELD] ??
+      selectedTemplate.default_copy[BACKGROUND_CHOICE_FIELD] ??
+      ""
+  );
+  const [selectedProductVariantOverride, setSelectedProductVariantOverride] = useState(
+    initialContent?.structured_fields?.[PRODUCT_VARIANT_FIELD] ??
+      selectedTemplate.default_copy[PRODUCT_VARIANT_FIELD] ??
+      ""
   );
   const [busy, setBusy] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -196,13 +303,16 @@ export function StudioWorkspace({
     canReview,
   });
   const editable = mode === "create" || mode === "edit";
-  const activeFields = content ? draftFields : selectedTemplate.default_copy;
+  const activeFields = draftFields;
   const activeVariantFields = useMemo(
     () =>
       selectedTemplate.platformManifest
         ? getTemplateBundleVariantFields(selectedTemplate.platformManifest, size)
         : selectedTemplate.editable_fields.map((key) => ({
             key,
+            label: key,
+            type: "text" as const,
+            source: "user" as const,
             required: selectedTemplate.required_fields.includes(key),
           })),
     [
@@ -213,8 +323,22 @@ export function StudioWorkspace({
     ]
   );
   const activeEditableFields = useMemo(
+    () =>
+      selectedTemplate.platformManifest
+        ? studioEditableTemplateFields(activeVariantFields).map((field) => field.key)
+        : activeVariantFields.map((field) => field.key),
+    [activeVariantFields, selectedTemplate.platformManifest]
+  );
+  const activeLayoutFields = useMemo(
     () => activeVariantFields.map((field) => field.key),
     [activeVariantFields]
+  );
+  const activeAssetChoiceFields = useMemo(
+    () =>
+      selectedTemplate.platformManifest
+        ? getTemplateBundleVariantAssetChoiceFields(selectedTemplate.platformManifest, size)
+        : [],
+    [selectedTemplate.platformManifest, size]
   );
   const backgroundOptions = useMemo(
     () =>
@@ -223,22 +347,57 @@ export function StudioWorkspace({
         : [],
     [selectedTemplate.platformManifest, size]
   );
-  const hasBackgroundOptions = backgroundOptions.length > 1;
+  const hasBackgroundOptions = backgroundOptions.length > 0;
   const selectedBackgroundKey =
-    draftFields[BACKGROUND_CHOICE_FIELD] || backgroundOptions[0]?.key || "default";
+    selectedBackgroundOverride ||
+    draftFields[BACKGROUND_CHOICE_FIELD] ||
+    backgroundOptions[0]?.key ||
+    "default";
+  const selectedProductVariantKey =
+    selectedProductVariantOverride ||
+    draftFields[PRODUCT_VARIANT_FIELD] ||
+    selectedTemplate.assetChoiceOptionsByField?.[PRODUCT_VARIANT_FIELD]?.[0]?.key ||
+    selectedTemplate.default_copy[PRODUCT_VARIANT_FIELD] ||
+    "";
+  const previewFields: Record<string, string> = useMemo(
+    () =>
+      studioPreviewFields({
+        draftFields,
+        backgroundKey: selectedBackgroundKey,
+        productVariantKey: selectedProductVariantKey,
+      }),
+    [draftFields, selectedBackgroundKey, selectedProductVariantKey]
+  );
+  const activeAssetChoiceFieldKeys = useMemo(
+    () => activeAssetChoiceFields.map((field) => field.key),
+    [activeAssetChoiceFields]
+  );
   const persistedFieldKeys = useMemo(
     () =>
-      hasBackgroundOptions
-        ? [...activeEditableFields, BACKGROUND_CHOICE_FIELD]
-        : activeEditableFields,
-    [activeEditableFields, hasBackgroundOptions]
+      studioPersistedFieldKeys({
+        editableFieldKeys: activeEditableFields,
+        assetChoiceFieldKeys: activeAssetChoiceFieldKeys,
+        includeBackgroundChoice: hasBackgroundOptions,
+      }),
+    [activeAssetChoiceFieldKeys, activeEditableFields, hasBackgroundOptions]
+  );
+  const pickerFieldKeys = useMemo(
+    () =>
+      studioPickerFieldKeys({
+        assetChoiceFieldKeys: activeAssetChoiceFieldKeys,
+        includeBackgroundChoice: hasBackgroundOptions,
+      }),
+    [activeAssetChoiceFieldKeys, hasBackgroundOptions]
   );
   const activeRequiredFields = useMemo(
     () =>
-      activeVariantFields
+      (selectedTemplate.platformManifest
+        ? studioEditableTemplateFields(activeVariantFields)
+        : activeVariantFields
+      )
         .filter((field) => field.required !== false)
         .map((field) => field.key),
-    [activeVariantFields]
+    [activeVariantFields, selectedTemplate.platformManifest]
   );
   const activeFieldLimits = selectedTemplate.platformManifest
     ? getTemplateBundleVariantFieldLimits(selectedTemplate.platformManifest, size)
@@ -266,15 +425,18 @@ export function StudioWorkspace({
   const hasLayoutOverflow = overflowFields.length > 0;
   const fitCheckSignature = useMemo(
     () =>
-      JSON.stringify(activeEditableFields.map((key) => [key, draftFields[key] ?? ""])),
-    [activeEditableFields, draftFields]
+      JSON.stringify(activeLayoutFields.map((key) => [key, draftFields[key] ?? ""])),
+    [activeLayoutFields, draftFields]
   );
-  const dirty =
-    mode === "edit" &&
-    content !== null &&
-    persistedFieldKeys.some(
-      (key) => (draftFields[key] ?? "") !== (savedFields[key] ?? "")
-    );
+  const { dirty, pickerOnlyDirty } = studioDirtyState({
+    mode,
+    hasContent: content !== null,
+    draftFields,
+    savedFields,
+    persistedFieldKeys,
+    editableFieldKeys: activeEditableFields,
+    pickerFieldKeys,
+  });
   const exportAllowed =
     !!content &&
     content.status === "approved" &&
@@ -345,6 +507,42 @@ export function StudioWorkspace({
   const downloadDisabled = Boolean(downloadDisabledReason);
   const versions = versionsBySize[size] ?? [];
 
+  useEffect(() => {
+    const nextSize = initialResolvedSize;
+    if (!nextSize) return;
+    const nextContent = initialResolvedContent;
+    const nextFields = studioFieldsForContent(nextContent, selectedTemplate.default_copy);
+
+    // This effect is a route/server-state reset boundary: when the selected
+    // template's initial payload changes, the Studio draft state must reset
+    // together. Phase 6 should replace this cluster with a reducer.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSize(nextSize);
+    setContentsBySize(initialContentsBySize);
+    setCampaignSourceContentId(nextContent?.id ?? null);
+    setDraftFields(nextFields);
+    setSavedFields(nextFields);
+    setSelectedBackgroundOverride(String(nextFields[BACKGROUND_CHOICE_FIELD] ?? ""));
+    setSelectedProductVariantOverride(
+      String(nextFields[PRODUCT_VARIANT_FIELD] ?? "")
+    );
+    setHasManualEdits(nextContent?.manuallyEdited ?? false);
+    setSelectedRevision(null);
+    setShowOriginal(false);
+    setError(null);
+    setCopied(false);
+    setOverflowFields([]);
+    setTextLayoutByField(undefined);
+    setSaveState("idle");
+    setSavedAt(null);
+  }, [
+    initialContentsBySize,
+    initialContentsSignature,
+    initialResolvedContent,
+    initialResolvedSize,
+    selectedTemplate.default_copy,
+  ]);
+
   function confirmDiscardUnsavedChanges() {
     if (!dirty) return true;
     return window.confirm("You have unsaved copy edits. Discard them and continue?");
@@ -383,7 +581,7 @@ export function StudioWorkspace({
       setTextLayoutByField(result.textLayoutByField);
       if (showOverflowAdvisory) setOverflowFields(result.overflowFields);
       else if (mode === "edit") setOverflowFields([]);
-    }, 400);
+    }, 900);
     return () => {
       cancelled = true;
       window.clearTimeout(timer);
@@ -462,11 +660,19 @@ export function StudioWorkspace({
   function selectSize(nextSize: string) {
     if (nextSize !== size && !confirmDiscardUnsavedChanges()) return;
     const nextContent = contentsBySize[nextSize] ?? null;
-    const nextFields = nextContent ? nextContent.structured_fields : selectedTemplate.default_copy;
+    const nextFields = {
+      ...(nextContent ? nextContent.structured_fields : selectedTemplate.default_copy),
+      [BACKGROUND_CHOICE_FIELD]: selectedBackgroundKey,
+      [PRODUCT_VARIANT_FIELD]: selectedProductVariantKey,
+    };
     setSize(nextSize);
     if (nextContent) setCampaignSourceContentId(nextContent.id);
     setDraftFields(nextFields);
     setSavedFields(nextFields);
+    setSelectedBackgroundOverride(String(nextFields[BACKGROUND_CHOICE_FIELD] ?? ""));
+    setSelectedProductVariantOverride(
+      String(nextFields[PRODUCT_VARIANT_FIELD] ?? "")
+    );
     setHasManualEdits(nextContent?.manuallyEdited ?? false);
     setError(null);
     setCopied(false);
@@ -474,11 +680,12 @@ export function StudioWorkspace({
     setTextLayoutByField(undefined);
     setSaveState("idle");
     setSavedAt(null);
-    setShowOriginal(false);
   }
 
   function updateField(key: string, value: string) {
     const nextFields = { ...draftFields, [key]: value };
+    if (key === BACKGROUND_CHOICE_FIELD) setSelectedBackgroundOverride(value);
+    if (key === PRODUCT_VARIANT_FIELD) setSelectedProductVariantOverride(value);
     const nextDirty = persistedFieldKeys.some(
       (field) => (nextFields[field] ?? "") !== (savedFields[field] ?? "")
     );
@@ -494,7 +701,7 @@ export function StudioWorkspace({
       setError("Studio is still saving your last edit. Try again in a second.");
       return;
     }
-    if (dirty) {
+    if (dirty && !pickerOnlyDirty) {
       if (!confirmDiscardUnsavedChanges()) return;
       saveSequence.current += 1;
       setDraftFields(savedFields);
@@ -510,6 +717,14 @@ export function StudioWorkspace({
     setError(null);
     setTruncatedFields([]);
     try {
+      const assetChoices = Object.fromEntries(
+        activeAssetChoiceFieldKeys.flatMap((key) => {
+          const value = previewFields[key];
+          return typeof value === "string" && value.length > 0
+            ? [[key, value] as const]
+            : [];
+        })
+      );
       const response = await fetch("/api/products/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -517,6 +732,9 @@ export function StudioWorkspace({
           platformAssignmentId: selectedTemplate.platformAssignmentId,
           language,
           outputSize: size,
+          backgroundChoice: selectedBackgroundKey,
+          productVariantChoice: selectedProductVariantKey,
+          assetChoices,
           revisions: selectedRevision ? [selectedRevision] : [],
           replaceContentId: mode === "edit" && content ? content.id : undefined,
           sourceContentId:
@@ -533,12 +751,18 @@ export function StudioWorkspace({
         return;
       }
       setRetryUntil(null);
+      const returnedFields = result.structured_fields as Record<string, string>;
+      const generatedFields = {
+        ...returnedFields,
+        [BACKGROUND_CHOICE_FIELD]: selectedBackgroundKey,
+        [PRODUCT_VARIANT_FIELD]: selectedProductVariantKey,
+      };
       const nextContent: StudioContent = {
         id: result.contentId as string,
         title: result.title as string,
         status: "draft",
         rejectionNote: null,
-        structured_fields: result.structured_fields as Record<string, string>,
+        structured_fields: generatedFields,
         outputSize: (result.outputSize as string | null) ?? size,
         campaignRootContentId:
           (result.campaignRootContentId as string | undefined) ??
@@ -554,6 +778,8 @@ export function StudioWorkspace({
       setSize(nextContentSize);
       setDraftFields(nextContent.structured_fields);
       setSavedFields(nextContent.structured_fields);
+      setSelectedBackgroundOverride(selectedBackgroundKey);
+      setSelectedProductVariantOverride(selectedProductVariantKey);
       setTextLayoutByField(undefined);
       setSaveState("saved");
       setSavedAt(new Date().toISOString());
@@ -713,11 +939,14 @@ export function StudioWorkspace({
   const studioTitle = content?.title || `${selectedProduct.name} — ${selectedTemplate.variant}`;
 
   return (
-    <div className="flex h-screen min-h-[720px] flex-col overflow-hidden bg-page">
-      <header className="flex h-[76px] shrink-0 items-center justify-between gap-4 border-b border-edge bg-surface px-10">
+    <div className="flex h-[100dvh] min-h-0 flex-col overflow-hidden bg-page">
+      <header className="flex h-[56px] shrink-0 items-center justify-between gap-4 border-b border-edge bg-surface px-8">
         <div className="flex min-w-0 items-center gap-4">
-          <Link href="/content" className="shrink-0 text-[14px] font-semibold text-ink-muted hover:text-brand">
-            ← Content
+          <Link
+            href={content ? "/content" : `/products/${selectedProduct.id}?view=templates`}
+            className="shrink-0 text-[14px] font-semibold text-ink-muted hover:text-brand"
+          >
+            ← {content ? "Content" : "Product"}
           </Link>
           <span className="h-5 w-px shrink-0 bg-edge" aria-hidden="true" />
           <h1 className="truncate text-[18px] font-bold tracking-[-0.02em] text-ink">
@@ -752,9 +981,59 @@ export function StudioWorkspace({
 
       <div
         className="grid min-h-0 flex-1 overflow-hidden"
-        style={{ gridTemplateColumns: "minmax(360px, 400px) minmax(0, 1fr)" }}
+        style={{ gridTemplateColumns: "minmax(340px, 400px) minmax(0, 1fr)" }}
       >
-        <aside className="flex min-h-0 flex-col gap-7 overflow-y-auto border-r border-edge bg-surface px-10 py-8">
+        <aside className="flex min-h-0 flex-col gap-6 overflow-y-auto border-r border-edge bg-surface px-8 py-6">
+          <div className="flex flex-col gap-3">
+            <span className="text-label text-ink-faint">Product & variant</span>
+            <select
+              value={`${selectedProduct.name} · ${selectedTemplate.variant}`}
+              disabled
+              aria-label="Product and template variant"
+              className="h-10 w-full rounded-[8px] border border-edge-strong bg-surface px-3 text-[13px] font-semibold text-ink outline-none disabled:opacity-100"
+            >
+              <option>{selectedProduct.name} · {selectedTemplate.variant}</option>
+            </select>
+          </div>
+
+          {mode === "review" && content && (
+            <StudioReviewActions contentId={content.id} onReviewed={markReviewed} />
+          )}
+
+          {!showOriginal &&
+            selectedTemplate.platformManifest &&
+            activeAssetChoiceFields.map((field) => (
+              <StudioAssetChoicePicker
+                key={field.key}
+                fieldKey={field.key}
+                label={field.label}
+                options={selectedTemplate.assetChoiceOptionsByField?.[field.key] ?? []}
+                value={String(previewFields[field.key] ?? "")}
+                editable={editable}
+                onChange={(value) => updateField(field.key, value)}
+              />
+            ))}
+
+          {!showOriginal && selectedTemplate.platformManifest && hasBackgroundOptions && (
+            <StudioBackgroundPicker
+              options={backgroundOptions}
+              value={selectedBackgroundKey}
+              editable={editable}
+              onChange={(value) => updateField(BACKGROUND_CHOICE_FIELD, value)}
+            />
+          )}
+
+          <StudioFields
+            fields={activeEditableFields}
+            requiredFields={activeRequiredFields}
+            values={activeFields}
+            limits={activeFieldLimits}
+            editable={editable}
+            issuesByField={issuesByField}
+            overflowFields={overflowFields}
+            onChange={updateField}
+          />
+
           {mode === "create" && (
             <StudioGeneratePanel
               language={language}
@@ -810,30 +1089,6 @@ export function StudioWorkspace({
               warning={truncationWarning}
             />
           )}
-
-          {mode === "review" && content && (
-            <StudioReviewActions contentId={content.id} onReviewed={markReviewed} />
-          )}
-
-          {content && !showOriginal && selectedTemplate.platformManifest && hasBackgroundOptions && (
-            <StudioBackgroundPicker
-              options={backgroundOptions}
-              value={selectedBackgroundKey}
-              editable={editable}
-              onChange={(value) => updateField(BACKGROUND_CHOICE_FIELD, value)}
-            />
-          )}
-
-          <StudioFields
-            fields={activeEditableFields}
-            requiredFields={activeRequiredFields}
-            values={activeFields}
-            limits={activeFieldLimits}
-            editable={editable}
-            issuesByField={issuesByField}
-            overflowFields={overflowFields}
-            onChange={updateField}
-          />
 
           {mode === "edit" && content && hasManualEdits && (
             <p className="rounded-control border border-warn-border bg-warn-tint px-3 py-2 text-[11.5px] leading-relaxed text-warn">
@@ -927,7 +1182,7 @@ export function StudioWorkspace({
           )}
         </aside>
 
-        <section className="flex min-h-0 min-w-0 flex-col bg-page">
+        <section className="flex min-h-0 min-w-0 flex-col bg-[#f5f5f2]">
           <StudioToolbar
             sizes={sizes}
             activeSize={size}
@@ -941,16 +1196,9 @@ export function StudioWorkspace({
                 ? getTemplateBundleVariantDimensions(selectedTemplate.platformManifest, key)
                 : knownSizeDimensions(key)) ?? undefined
             }
-            sizeStatus={(key) => {
-              const item = contentsBySize[key];
-              if (!item) return "empty";
-              if (item.status === "approved") return "approved";
-              if (item.status === "in_review") return "in_review";
-              return "draft";
-            }}
             onSelectSize={selectSize}
             viewToggle={
-              hasAnyGeneratedDraft && content
+              hasAnyGeneratedDraft
                 ? { showOriginal, onShowOriginalChange: setShowOriginal }
                 : undefined
             }
@@ -970,11 +1218,25 @@ export function StudioWorkspace({
               <LiveTemplatePreviewFrame
                 manifest={selectedTemplate.platformManifest}
                 variantKey={size}
-                fields={draftFields}
+                fields={previewFields}
+                assetUrlByPath={selectedTemplate.platformAssetUrlByPath}
+                damAssetUrlById={selectedTemplate.damAssetUrlById}
                 textLayoutByField={textLayoutByField}
                 width={dims.w}
                 height={dims.h}
                 updating={saveState === "saving"}
+              />
+            ) : isBrandReferenceView && selectedTemplate.platformManifest ? (
+              <LiveTemplatePreviewFrame
+                manifest={selectedTemplate.platformManifest}
+                variantKey={size}
+                fields={previewFields}
+                assetUrlByPath={selectedTemplate.platformAssetUrlByPath}
+                damAssetUrlById={selectedTemplate.damAssetUrlById}
+                width={dims.w}
+                height={dims.h}
+                updating={false}
+                original
               />
             ) : (
               <ServerPreviewFrame

@@ -1,5 +1,9 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import {
+  logTemplatePipelineEvent,
+  templatePipelineDuration,
+} from "@/lib/template-platform/observability";
 import { decideTemplateVersionPublish } from "@/lib/template-platform/publishing";
 
 export const runtime = "nodejs";
@@ -34,6 +38,7 @@ async function requireAdmin() {
 }
 
 export async function POST(req: Request) {
+  const startedAt = Date.now();
   if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
     return Response.json({ error: "Template publishing is not configured." }, { status: 503 });
   }
@@ -69,31 +74,42 @@ export async function POST(req: Request) {
     return Response.json({ error: decision.reason }, { status: 409 });
   }
 
-  if (!decision.alreadyPublished) {
-    const publishedAt = new Date().toISOString();
-    const { error: familyError } = await supabase
-      .from("template_families")
-      .update({ status: "active", updated_at: publishedAt })
-      .eq("id", version.family_id)
-      .eq("org_id", admin.value.orgId);
-    if (familyError) {
-      return Response.json({ error: "Failed to activate template family." }, { status: 500 });
+  const { data: publishedRows, error: publishError } = await supabase.rpc(
+    "publish_template_version_atomic",
+    {
+      p_template_version_id: version.id,
+      p_org_id: admin.value.orgId,
+      p_published_at: new Date().toISOString(),
     }
-
-    const { error: publishError } = await supabase
-      .from("template_versions")
-      .update({ status: "published", published_at: publishedAt })
-      .eq("id", version.id)
-      .eq("org_id", admin.value.orgId);
-    if (publishError) {
-      return Response.json({ error: "Failed to publish template version." }, { status: 500 });
-    }
+  );
+  if (publishError) {
+    logTemplatePipelineEvent({
+      event: "template.publish",
+      ok: false,
+      orgId: admin.value.orgId,
+      userId: admin.value.userId,
+      templateVersionId: version.id,
+      templateFamilyId: version.family_id,
+      durationMs: templatePipelineDuration(startedAt),
+      reason: "rpc_failed",
+    });
+    return Response.json({ error: "Failed to publish template version." }, { status: 500 });
   }
+  const published = Array.isArray(publishedRows) ? publishedRows[0] : publishedRows;
+  logTemplatePipelineEvent({
+    event: "template.publish",
+    ok: true,
+    orgId: admin.value.orgId,
+    userId: admin.value.userId,
+    templateVersionId: published?.template_version_id ?? version.id,
+    templateFamilyId: published?.template_family_id ?? version.family_id,
+    durationMs: templatePipelineDuration(startedAt),
+  });
 
   return Response.json({
-    templateVersionId: version.id,
-    templateFamilyId: version.family_id,
+    templateVersionId: published?.template_version_id ?? version.id,
+    templateFamilyId: published?.template_family_id ?? version.family_id,
     status: "published",
-    alreadyPublished: decision.alreadyPublished,
+    alreadyPublished: published?.already_published ?? decision.alreadyPublished,
   });
 }

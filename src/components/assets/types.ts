@@ -1,5 +1,6 @@
 import type {
   ProductAssetApprovalStatus,
+  ProductAssetMediaKind,
   ProductAssetType,
 } from "@/lib/product-assets";
 
@@ -21,6 +22,14 @@ export type AssetItem = {
   createdAt: string;
   updatedAt: string;
   previewUrl: string;
+  mediaKind: ProductAssetMediaKind;
+  checksumSha256: string | null;
+  durationSeconds: number | null;
+  aspectRatio: number | null;
+  posterStoragePath: string | null;
+  category: string | null;
+  downloadCount: number;
+  lastDownloadedAt: string | null;
 };
 
 export type ProductOption = { id: string; name: string; status: string };
@@ -30,9 +39,11 @@ export const ASSET_TYPE_LABELS: Record<ProductAssetType, string> = {
   packshot: "Packshot",
   background: "Background",
   image: "Supporting image",
+  video: "Video",
 };
 
 export const ASSET_STATUS_LABELS: Record<ProductAssetApprovalStatus, string> = {
+  processing: "Processing",
   pending: "Pending",
   approved: "Approved",
   rejected: "Rejected",

@@ -2,6 +2,7 @@ import "server-only";
 
 import type {
   ProductAssetApprovalStatus,
+  ProductAssetMediaKind,
   ProductAssetType,
 } from "@/lib/product-assets";
 import {
@@ -12,6 +13,7 @@ import {
 } from "@/lib/product-workspace";
 import { createClient } from "@/lib/supabase/server";
 import { createProductAssetPreviewUrlMap } from "@/lib/product-assets-server";
+import { platformTemplatePreviewUrl } from "@/lib/creative";
 import {
   documentIndexStatus,
   type DocumentIndexStatus,
@@ -20,7 +22,6 @@ import {
   normalizeTemplatePlatformAssignment,
   type TemplatePlatformAssignmentRow,
 } from "@/lib/template-platform/assignments";
-import { publicContentGateBundleAssetPath } from "@/lib/template-platform/public-contentgate-assets";
 import { cursorFromOffset, offsetFromCursor } from "@/lib/content-listing-shared";
 
 type Joined<T> = T | T[] | null;
@@ -51,6 +52,14 @@ export type ProductWorkspaceAsset = {
   previewUrl: string;
   createdAt: string;
   updatedAt: string;
+  mediaKind: ProductAssetMediaKind;
+  checksumSha256: string | null;
+  durationSeconds: number | null;
+  aspectRatio: number | null;
+  posterStoragePath: string | null;
+  category: string | null;
+  downloadCount: number;
+  lastDownloadedAt: string | null;
 };
 
 export type ProductWorkspaceSource = {
@@ -154,6 +163,10 @@ type ProductWorkspaceView =
   | "content"
   | "approvals";
 
+type NormalizedPlatformTemplate = NonNullable<
+  ReturnType<typeof normalizeTemplatePlatformAssignment>
+>;
+
 type AssetRow = {
   id: string;
   asset_type: ProductAssetType;
@@ -170,6 +183,14 @@ type AssetRow = {
   storage_path: string;
   created_at: string;
   updated_at: string;
+  media_kind: ProductAssetMediaKind | null;
+  checksum_sha256: string | null;
+  duration_seconds: number | string | null;
+  aspect_ratio: number | string | null;
+  poster_storage_path: string | null;
+  category: string | null;
+  download_count: number | null;
+  last_downloaded_at: string | null;
 };
 
 type ContentRow = {
@@ -295,7 +316,7 @@ export async function getProductWorkspace(
     .from("product_assets")
     .select(
       needsAssetRows
-        ? "id, asset_type, title, description, alt_text, original_file_name, mime_type, file_size_bytes, width_pixels, height_pixels, tags, approval_status, storage_path, created_at, updated_at"
+        ? "id, asset_type, title, description, alt_text, original_file_name, mime_type, file_size_bytes, width_pixels, height_pixels, tags, approval_status, storage_path, created_at, updated_at, media_kind, checksum_sha256, duration_seconds, aspect_ratio, poster_storage_path, category, download_count, last_downloaded_at"
         : "id, storage_path"
     )
     .eq("org_id", profile.org_id)
@@ -404,6 +425,14 @@ export async function getProductWorkspace(
         previewUrl: assetPreviewUrls.get(asset.storage_path) ?? "",
         createdAt: asset.created_at,
         updatedAt: asset.updated_at,
+        mediaKind: asset.media_kind ?? (asset.mime_type?.startsWith("video/") ? "video" : "image"),
+        checksumSha256: asset.checksum_sha256,
+        durationSeconds: asset.duration_seconds === null ? null : Number(asset.duration_seconds),
+        aspectRatio: asset.aspect_ratio === null ? null : Number(asset.aspect_ratio),
+        posterStoragePath: asset.poster_storage_path,
+        category: asset.category,
+        downloadCount: asset.download_count ?? 0,
+        lastDownloadedAt: asset.last_downloaded_at,
       }))
     : [];
 
@@ -460,7 +489,7 @@ export async function getProductWorkspace(
   });
   const normalizedPlatformTemplates = ((platformTemplateResult.data ?? []) as TemplatePlatformAssignmentRow[])
     .map(normalizeTemplatePlatformAssignment)
-    .filter((template): template is NonNullable<typeof template> => Boolean(template));
+    .filter((template): template is NormalizedPlatformTemplate => Boolean(template));
   const platformTemplates = normalizedPlatformTemplates.map((template) => {
       const fieldsBySize = Object.fromEntries(
         template.supportedSizes.map((size) => {
@@ -485,18 +514,10 @@ export async function getProductWorkspace(
         })
       );
       const referenceAssetBySize = Object.fromEntries(
-        template.supportedSizes.map((size) => {
-          const variant = template.manifest.variants.find((item) => item.key === size);
-          const asset = variant
-            ? template.manifest.assets.find((item) => item.key === variant.referenceAsset)
-            : null;
-          return [
-            size,
-            asset
-              ? (publicContentGateBundleAssetPath(template.manifest, asset.path) ?? asset.path)
-              : "",
-          ];
-        })
+        template.supportedSizes.map((size) => [
+          size,
+          platformTemplatePreviewUrl(template.assignmentId, size),
+        ])
       );
       const backgroundAssetBySize = Object.fromEntries(
         template.supportedSizes.map((size) => {
@@ -504,12 +525,7 @@ export async function getProductWorkspace(
           const asset = variant
             ? template.manifest.assets.find((item) => item.key === variant.backgroundAsset)
             : null;
-          return [
-            size,
-            asset
-              ? (publicContentGateBundleAssetPath(template.manifest, asset.path) ?? asset.path)
-              : "",
-          ];
+          return [size, asset ? asset.path : ""];
         })
       );
       return {

@@ -34,13 +34,15 @@ export function StudioBackgroundPicker({
 }) {
   const buttonRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
-  if (options.length < 2) return null;
+  if (!options.length) return null;
+
+  const hasMultipleOptions = options.length > 1;
 
   const selectedIndex = options.findIndex((option) => option.key === value);
   const focusableIndex = selectedIndex === -1 ? 0 : selectedIndex;
 
   function handleKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
-    if (!editable) return;
+    if (!editable || !hasMultipleOptions) return;
     const nextIndex = nextRovingIndex(focusableIndex, event.key, options.length);
     if (nextIndex === null) return;
     event.preventDefault();
@@ -49,16 +51,21 @@ export function StudioBackgroundPicker({
   }
 
   return (
-    <div className="flex flex-col gap-5 border-t border-edge pt-6">
+    <div className="flex flex-col gap-3 border-t border-edge pt-5" data-testid="studio-background-picker">
       <div className="flex items-start justify-between gap-3">
         <div>
           <span className="text-label text-ink-faint">Background style</span>
-          <p className="mt-2 text-[14px] leading-6 text-ink-muted">
-            Swaps the locked background design only — your headline, CTA, and other copy stay
-            exactly as written.
-          </p>
+          {hasMultipleOptions && (
+            <p className="mt-2 text-[14px] leading-6 text-ink-muted">
+              Swaps the locked background design only. Copy stays exactly as written.
+            </p>
+          )}
         </div>
-        {!editable && <Badge variant="neutral">Locked</Badge>}
+        {!editable ? (
+          <Badge variant="neutral">Locked</Badge>
+        ) : !hasMultipleOptions ? (
+          <Badge variant="neutral">1 option</Badge>
+        ) : null}
       </div>
 
       <div
@@ -78,8 +85,8 @@ export function StudioBackgroundPicker({
               type="button"
               role="radio"
               tabIndex={index === focusableIndex ? 0 : -1}
-              onClick={() => editable && onChange(option.key)}
-              disabled={!editable}
+              onClick={() => editable && hasMultipleOptions && onChange(option.key)}
+              disabled={!editable || !hasMultipleOptions}
               aria-checked={selected}
               title={option.label}
               className={cn(
@@ -87,8 +94,8 @@ export function StudioBackgroundPicker({
                 selected
                   ? "border-brand shadow-sm"
                   : "border-transparent ring-1 ring-inset ring-edge",
-                editable && !selected && "hover:ring-brand/50",
-                !editable && "cursor-default",
+                editable && hasMultipleOptions && !selected && "hover:ring-brand/50",
+                (!editable || !hasMultipleOptions) && "cursor-default",
                 !editable && !selected && "opacity-55",
                 swatchStyle(option)
               )}

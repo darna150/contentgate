@@ -8,6 +8,7 @@ import { AssetLibrary } from "@/components/assets/asset-library";
 import type { AssetItem, ProductOption } from "@/components/assets/types";
 import type {
   ProductAssetApprovalStatus,
+  ProductAssetMediaKind,
   ProductAssetType,
 } from "@/lib/product-assets";
 
@@ -30,6 +31,14 @@ type AssetRow = {
   created_at: string;
   updated_at: string;
   previewUrl: string;
+  media_kind: ProductAssetMediaKind | null;
+  checksum_sha256: string | null;
+  duration_seconds: number | string | null;
+  aspect_ratio: number | string | null;
+  poster_storage_path: string | null;
+  category: string | null;
+  download_count: number | null;
+  last_downloaded_at: string | null;
   products: Joined<{ id: string; name: string }>;
 };
 
@@ -108,6 +117,14 @@ export default async function AssetsPage({
       createdAt: row.created_at,
       updatedAt: row.updated_at,
       previewUrl: row.previewUrl,
+      mediaKind: row.media_kind ?? (row.mime_type.startsWith("video/") ? "video" : "image"),
+      checksumSha256: row.checksum_sha256,
+      durationSeconds: row.duration_seconds === null ? null : Number(row.duration_seconds),
+      aspectRatio: row.aspect_ratio === null ? null : Number(row.aspect_ratio),
+      posterStoragePath: row.poster_storage_path,
+      category: row.category,
+      downloadCount: row.download_count ?? 0,
+      lastDownloadedAt: row.last_downloaded_at,
     };
   });
 

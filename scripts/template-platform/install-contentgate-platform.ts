@@ -43,6 +43,7 @@ type AdminClient = {
         data: Uint8Array,
         options?: { contentType?: string; upsert?: boolean }
       ): Promise<{ error: { message: string } | null }>;
+      remove(paths: readonly string[]): Promise<{ error: { message: string } | null }>;
     };
   };
 };
@@ -84,6 +85,13 @@ function createCliTemplateBundleRepository(
         upsert: true,
       });
       throwOnSupabaseError(result, `Upload template asset ${input.path}`);
+    },
+    async removeTemplateAssets(input) {
+      if (input.paths.length === 0) return;
+      throwOnSupabaseError(
+        await client.storage.from(input.bucket).remove(input.paths),
+        "Remove uploaded template assets"
+      );
     },
     async insertCompiledTemplateBundle(rows) {
       throwOnSupabaseError(

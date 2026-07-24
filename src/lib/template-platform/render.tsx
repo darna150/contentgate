@@ -1,12 +1,20 @@
 import React from "react";
 
-import type { TemplateBundleManifest, TemplateBundleTextSlot } from "./manifest";
+import type {
+  TemplateBundleImageSlot,
+  TemplateBundleManifest,
+  TemplateBundleTextSlot,
+} from "./manifest";
+import { selectedTemplateAssetUrl } from "./dam-bindings";
 import {
   templateBundleFontStack,
   templateBundleFontStyle,
   templateBundleFontWeight,
 } from "./fonts";
-import { publicContentGateBundleAssetPath } from "./public-contentgate-assets";
+import {
+  isPublicContentGateBundle,
+  publicContentGateBundleAssetPath,
+} from "./public-contentgate-assets";
 import {
   BACKGROUND_CHOICE_FIELD,
   resolveTemplateBundleRuntimeVariant,
@@ -70,7 +78,8 @@ function renderTextSlot(
   slot: TemplateBundleTextSlot,
   fields: Record<string, unknown>,
   layoutByField?: Record<string, TemplateBundleTextLayout>,
-  scale = 1
+  scale = 1,
+  colorOverride?: string
 ) {
   const resolved = layoutByField?.[slot.field];
   const content = resolved ? resolved.lines.join("\n") : cleanText(fields[slot.field]);
@@ -79,6 +88,10 @@ function renderTextSlot(
     : fallbackFontSizeForUnresolvedText(slot, content, scale);
   const horizontalAlign =
     slot.align === "center" ? "center" : slot.align === "right" ? "flex-end" : "flex-start";
+  const lineHeight =
+    slot.field === "headline" && slot.maxLines > 1
+      ? Math.max(slot.lineHeight, 1.2400000095367432)
+      : slot.lineHeight;
 
   return (
     <div
@@ -93,14 +106,14 @@ function renderTextSlot(
         width: scaledNumber(slot.width, scale),
         height: scaledNumber(slot.height, scale),
         overflow: "hidden",
-        color: slot.color,
+        color: colorOverride ?? slot.color,
         display: "flex",
         flexDirection: "column",
         fontFamily: templateBundleFontStack(manifest, slot),
         fontSize,
         fontWeight: templateBundleFontWeight(manifest, slot),
         fontStyle: templateBundleFontStyle(manifest, slot),
-        lineHeight: slot.lineHeight,
+        lineHeight,
         letterSpacing: scaledNumber(slot.letterSpacing ?? 0, scale),
         textAlign: slot.align ?? "left",
         whiteSpace: "pre-wrap",
@@ -137,27 +150,134 @@ function renderTextSlot(
   );
 }
 
+const PRODUCT_VARIANT_FIELD = "__productVariantKey";
+
+const DARK_BACKGROUND_KEYS = new Set(["terracotta-edge", "night-threshold", "dark-performance"]);
+
+// Resolve the selected product-variant image from the manifest's registered
+// image assets (path convention `products/<key>.png`, or a matching asset key),
+// signed through assetUrlByPath like every other bundle asset. Bundles that
+// declare no product variants simply have no matching asset and render nothing.
+function selectedProductAsset(
+  manifest: TemplateBundleManifest,
+  fields: Record<string, unknown>,
+  assetUrlByPath?: Record<string, string>,
+  assetOrigin?: string
+) {
+  const field = manifest.fields.find((item) => item.key === PRODUCT_VARIANT_FIELD);
+  const selected = fields[PRODUCT_VARIANT_FIELD];
+  const key =
+    (typeof selected === "string" && selected) ||
+    (typeof field?.defaultValue === "string" ? field.defaultValue : undefined) ||
+    field?.options?.[0];
+  if (!key) return null;
+  const asset = manifest.assets.find(
+    (item) =>
+      item.kind === "image" &&
+      (item.key === `product-${key}` ||
+        item.path === `products/${key}.png` ||
+        item.path.endsWith(`/${key}.png`))
+  );
+  if (!asset) return null;
+  if (isPublicContentGateBundle(manifest) && asset.path === `products/${key}.png`) {
+    const publicProductPath = `/template-packages/contentgate/products/${key}.png`;
+    return assetOrigin ? new URL(publicProductPath, assetOrigin).toString() : publicProductPath;
+  }
+  return resolveImageSource(manifest, asset.path, assetUrlByPath, assetOrigin);
+}
+
+function renderImageSlot(
+  slot: TemplateBundleImageSlot,
+  manifest: TemplateBundleManifest,
+  fields: Record<string, unknown>,
+  assetUrlByPath?: Record<string, string>,
+  damAssetUrlById?: Record<string, string>,
+  scale = 1,
+  assetOrigin?: string
+) {
+  const damSrc = selectedTemplateAssetUrl({
+    field: manifest.fields.find((field) => field.key === slot.field),
+    selectedValue: fields[slot.field],
+    damAssetUrlById,
+  });
+  const src =
+    damSrc ??
+    (slot.field === PRODUCT_VARIANT_FIELD
+      ? selectedProductAsset(manifest, fields, assetUrlByPath, assetOrigin)
+      : cleanText(fields[slot.field]));
+  if (!src) return null;
+  const shadowWidth = scaledNumber(slot.width * 0.68, scale);
+  const shadowHeight = scaledNumber(Math.max(10, slot.height * 0.085), scale);
+  const shadowLeft = scaledNumber(slot.x + slot.width * 0.16, scale);
+  const shadowTop = scaledNumber(slot.y + slot.height * 0.87, scale);
+  return (
+    <React.Fragment key={slot.key}>
+      <div
+        aria-hidden="true"
+        style={{
+          position: "absolute",
+          left: shadowLeft,
+          top: shadowTop,
+          width: shadowWidth,
+          height: shadowHeight,
+          borderRadius: "50%",
+          background: "rgba(0,0,0,.34)",
+          filter: `blur(${scaledNumber(Math.max(4, slot.width * 0.035), scale)}px)`,
+          transform: "translateY(12%)",
+        }}
+      />
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={src}
+        alt=""
+        data-template-field={slot.field}
+        style={{
+          position: "absolute",
+          left: scaledNumber(slot.x, scale),
+          top: scaledNumber(slot.y, scale),
+          width: scaledNumber(slot.width, scale),
+          height: scaledNumber(slot.height, scale),
+          display: "block",
+          objectFit: slot.fit,
+          ...(slot.rotation ? { transform: `rotate(${slot.rotation}deg)` } : {}),
+        }}
+      />
+    </React.Fragment>
+  );
+}
+
 function resolveImageSource(
   manifest: TemplateBundleManifest,
   path: string,
   assetUrlByPath?: Record<string, string>,
   assetOrigin?: string
 ) {
+  const signedUrl = assetUrlByPath?.[path];
+  if (signedUrl && !isPublicContentGateBundle(manifest)) return signedUrl;
   const publicPath = publicContentGateBundleAssetPath(manifest, path);
   if (publicPath) {
     return assetOrigin ? new URL(publicPath, assetOrigin).toString() : publicPath;
   }
-  const signedUrl = assetUrlByPath?.[path];
   if (signedUrl) return signedUrl;
   if (path.startsWith("http://") || path.startsWith("https://") || path.startsWith("/")) {
-    return path;
+    return assetOrigin && path.startsWith("/")
+      ? new URL(path, assetOrigin).toString()
+      : path;
   }
-  return `/${path}`;
+  if (isPublicContentGateBundle(manifest)) return `/${path}`;
+  return null;
 }
 
-function highDensityImageSource(src: string) {
+function highDensityImageSource(src: string | null) {
+  if (!src) return null;
   if (src.startsWith("http://") || src.startsWith("https://")) {
     const url = new URL(src);
+    // Supabase signed storage URLs include object authorization in a token
+    // query parameter. Rewriting only the pathname from background.png to
+    // background@2x.png reuses a token for a different object, which can
+    // surface as a blocked/invalid cross-origin image response in browsers.
+    // Public versioned assets may still use benign cache-busting query params.
+    if (url.searchParams.has("token")) return null;
     if (!url.pathname.toLowerCase().endsWith(".png")) return null;
     url.pathname = url.pathname.replace(/\.png$/i, "@2x.png");
     return url.toString();
@@ -173,6 +293,7 @@ export function renderTemplateBundleVariant(input: {
   variantKey: string;
   fields: Record<string, unknown>;
   assetUrlByPath?: Record<string, string>;
+  damAssetUrlById?: Record<string, string>;
   assetOrigin?: string;
   original?: boolean;
   /** Pre-resolved {fontSize, lines} per field, from fit.ts. Optional so
@@ -186,6 +307,9 @@ export function renderTemplateBundleVariant(input: {
     typeof input.fields[BACKGROUND_CHOICE_FIELD] === "string"
       ? String(input.fields[BACKGROUND_CHOICE_FIELD])
       : undefined;
+  const textColorOverride = selectedBackgroundKey && DARK_BACKGROUND_KEYS.has(selectedBackgroundKey)
+    ? "#F7F2E8"
+    : undefined;
   const runtime = resolveTemplateBundleRuntimeVariant(
     input.manifest,
     input.variantKey,
@@ -201,6 +325,7 @@ export function renderTemplateBundleVariant(input: {
     input.assetUrlByPath,
     input.assetOrigin
   );
+  if (!imageSrc) return null;
   const imageSrc2x = highDensityImageSource(imageSrc);
   const displayImageSrc = scale > 1 && imageSrc2x ? imageSrc2x : imageSrc;
   const width = runtime.variant.width * scale;
@@ -236,17 +361,26 @@ export function renderTemplateBundleVariant(input: {
           }}
         />
         {!input.original &&
-          runtime.variant.slots
-            .filter((slot): slot is TemplateBundleTextSlot => slot.kind === "text")
-            .map((slot) =>
-              renderTextSlot(
-                input.manifest,
-                slot,
-                input.fields,
-                input.textLayoutByField,
-                scale
-              )
-            )}
+          runtime.variant.slots.map((slot) =>
+            slot.kind === "image"
+              ? renderImageSlot(
+                  slot,
+                  input.manifest,
+                  input.fields,
+                  input.assetUrlByPath,
+                  input.damAssetUrlById,
+                  scale,
+                  input.assetOrigin
+                )
+              : renderTextSlot(
+                  input.manifest,
+                  slot,
+                  input.fields,
+                  input.textLayoutByField,
+                  scale,
+                  textColorOverride
+                )
+          )}
       </div>
     ),
   };

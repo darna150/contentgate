@@ -17,7 +17,9 @@ export function StudioPageView({ state }: { state: StudioState }) {
     <div className="flex min-h-screen flex-col bg-page">
       {selectedProduct && selectedTemplate ? (
         <StudioWorkspace
-          key={selectedTemplate.id}
+          key={`${selectedTemplate.id}:${initialSize ?? "new"}:${initialContents
+            .map((content) => content.id)
+            .join(",")}`}
           selectedProduct={selectedProduct}
           selectedTemplate={selectedTemplate}
           initialContents={initialContents}

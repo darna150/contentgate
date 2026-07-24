@@ -52,6 +52,10 @@ export type TemplateBundleImportRepository = {
     data: Uint8Array;
     contentType: string | null;
   }): Promise<void>;
+  removeTemplateAssets(input: {
+    bucket: typeof TEMPLATE_BUNDLE_STORAGE_BUCKET;
+    paths: readonly string[];
+  }): Promise<void>;
   insertCompiledTemplateBundle(
     rows: CompiledTemplateBundleImport["rows"]
   ): Promise<void>;
@@ -216,6 +220,7 @@ export async function importTemplateBundle(
   }
 
   const sourcesByPath = assetSourceByPath(request.assets);
+  const uploadedPaths: string[] = [];
   for (const asset of compileResult.value.rows.assets) {
     const manifestAsset = request.manifest.assets.find(
       (candidate) => candidate.key === asset.asset_key
@@ -230,8 +235,19 @@ export async function importTemplateBundle(
       data: source.data,
       contentType: source.contentType ?? asset.mime_type,
     });
+    uploadedPaths.push(asset.storage_path);
   }
 
-  await repository.insertCompiledTemplateBundle(compileResult.value.rows);
+  try {
+    await repository.insertCompiledTemplateBundle(compileResult.value.rows);
+  } catch (error) {
+    if (uploadedPaths.length > 0) {
+      await repository.removeTemplateAssets({
+        bucket: TEMPLATE_BUNDLE_STORAGE_BUCKET,
+        paths: uploadedPaths,
+      });
+    }
+    throw error;
+  }
   return compileResult;
 }

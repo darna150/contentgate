@@ -11,6 +11,7 @@ export type TemplatePlatformAssignmentRow = {
   default_variant_key: string | null;
   generation_profile: unknown;
   default_payload: unknown;
+  allowed_locales?: unknown;
   template_families: {
     id: string;
     family_key: string;

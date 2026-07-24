@@ -11,6 +11,15 @@ export type TemplateBundleFieldType =
 
 export type TemplateBundleFieldSource = "ai" | "locked" | "product" | "user";
 
+export type TemplateBundleAssetBinding = {
+  source: "product_assets";
+  scope?: "brand" | "product" | "product_or_brand";
+  mediaKind?: "image" | "video";
+  assetType?: "background" | "image" | "logo" | "packshot" | "video";
+  category?: string;
+  tags?: readonly string[];
+};
+
 export type TemplateBundleField = {
   key: string;
   label: string;
@@ -20,6 +29,7 @@ export type TemplateBundleField = {
   localizable?: boolean;
   evidenceRequired?: boolean;
   options?: readonly string[];
+  assetBinding?: TemplateBundleAssetBinding;
   defaultValue?: unknown;
 };
 
@@ -180,6 +190,53 @@ function validateUniqueKeys(
   });
 }
 
+const ASSET_BINDING_SCOPES = new Set(["brand", "product", "product_or_brand"]);
+const ASSET_BINDING_MEDIA_KINDS = new Set(["image", "video"]);
+const ASSET_BINDING_ASSET_TYPES = new Set(["background", "image", "logo", "packshot", "video"]);
+
+function validateAssetBinding(
+  binding: unknown,
+  path: string,
+  issues: TemplateBundleIssue[]
+) {
+  if (binding == null) return;
+  if (!isRecord(binding)) {
+    issues.push(issue("value", path, "Asset binding must be an object."));
+    return;
+  }
+  if (binding.source !== "product_assets") {
+    issues.push(issue("value", `${path}.source`, "Asset binding source must be product_assets."));
+  }
+  if (
+    binding.scope != null &&
+    !ASSET_BINDING_SCOPES.has(String(binding.scope))
+  ) {
+    issues.push(issue("value", `${path}.scope`, "Asset binding scope is invalid."));
+  }
+  if (
+    binding.mediaKind != null &&
+    !ASSET_BINDING_MEDIA_KINDS.has(String(binding.mediaKind))
+  ) {
+    issues.push(issue("value", `${path}.mediaKind`, "Asset binding mediaKind is invalid."));
+  }
+  if (
+    binding.assetType != null &&
+    !ASSET_BINDING_ASSET_TYPES.has(String(binding.assetType))
+  ) {
+    issues.push(issue("value", `${path}.assetType`, "Asset binding assetType is invalid."));
+  }
+  if (binding.category != null && typeof binding.category !== "string") {
+    issues.push(issue("value", `${path}.category`, "Asset binding category must be a string."));
+  }
+  if (
+    binding.tags != null &&
+    (!Array.isArray(binding.tags) ||
+      !binding.tags.every((tag) => typeof tag === "string" && tag.length > 0))
+  ) {
+    issues.push(issue("value", `${path}.tags`, "Asset binding tags must be non-empty strings."));
+  }
+}
+
 function isInsideCanvas(slot: Record<string, unknown>, canvas: { width: number; height: number }) {
   if (
     !isNonNegativeFinite(slot.x) ||
@@ -249,6 +306,11 @@ export function validateTemplateBundleManifest(
       .map((asset) => (isRecord(asset) ? asset.key : null))
       .filter((key): key is string => typeof key === "string" && key.length > 0)
   );
+
+  fields.forEach((field, index) => {
+    if (!isRecord(field)) return;
+    validateAssetBinding(field.assetBinding, `fields.${index}.assetBinding`, issues);
+  });
 
   fonts.forEach((font, index) => {
     if (!isRecord(font)) return;

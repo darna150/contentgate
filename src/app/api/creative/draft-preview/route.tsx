@@ -1,5 +1,6 @@
 import { ImageResponse } from "next/og";
 import { createClient } from "@/lib/supabase/server";
+import { createTemplateDamAssetUrlMap } from "@/lib/product-assets-server";
 import type { TemplateBundleManifest } from "@/lib/template-platform/manifest";
 import { renderTemplateBundleVariant } from "@/lib/template-platform/render";
 import { resolveTemplatePlatformVariantLayout } from "@/lib/template-platform/fit";
@@ -63,7 +64,7 @@ export async function GET(req: Request) {
   const { data: content } = await supabase
     .from("generated_content")
     .select(
-      "id, title, structured_fields, template_versions!generated_content_template_version_id_fkey(manifest), template_variants!generated_content_template_variant_id_fkey(variant_key), products!generated_content_product_id_fkey(name)"
+      "id, org_id, product_id, title, structured_fields, template_versions!generated_content_template_version_id_fkey(manifest), template_variants!generated_content_template_variant_id_fkey(variant_key), products!generated_content_product_id_fkey(name)"
     )
     .eq("id", contentId)
     .single();
@@ -96,9 +97,16 @@ export async function GET(req: Request) {
   }
 
   const assetUrlByPath = Object.fromEntries(
-    await createTemplateBundleAssetUrlMap(supabase, [manifest])
+    await createTemplateBundleAssetUrlMap(supabase, content.org_id, [manifest])
   );
   const fields = (content.structured_fields ?? {}) as Record<string, string>;
+  const damAssetUrlById = await createTemplateDamAssetUrlMap({
+    supabase,
+    orgId: content.org_id,
+    productId: content.product_id,
+    manifest,
+    fields,
+  });
   const textLayoutByField = await resolveTemplatePlatformVariantLayout({
     manifest,
     variantKey,
@@ -111,6 +119,7 @@ export async function GET(req: Request) {
     fields,
     assetOrigin: new URL(req.url).origin,
     assetUrlByPath,
+    damAssetUrlById,
     textLayoutByField,
     scale,
   });

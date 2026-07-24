@@ -8,7 +8,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { SizeChipStatus } from "@/components/size-chip";
 import { cn } from "@/lib/utils";
 
 export type ExportFormat = "png" | "jpeg" | "pdf";
@@ -19,7 +18,6 @@ export function StudioToolbar({
   activeSize,
   sizeLabel,
   sizeDims,
-  sizeStatus,
   onSelectSize,
   viewToggle,
 }: {
@@ -27,67 +25,52 @@ export function StudioToolbar({
   activeSize: string;
   sizeLabel: (size: string) => string;
   sizeDims: (size: string) => { w: number; h: number } | undefined;
-  sizeStatus: (size: string) => SizeChipStatus;
   onSelectSize: (size: string) => void;
   viewToggle?: { showOriginal: boolean; onShowOriginalChange: (showOriginal: boolean) => void };
 }) {
   return (
-    <div className="flex flex-col gap-5 border-b border-edge bg-surface px-10 py-7">
-      <div className="flex flex-wrap items-start gap-x-8 gap-y-4">
-        {sizes.map((key) => {
-          const dims = sizeDims(key);
-          const active = activeSize === key;
-          const status = sizeStatus(key);
-          return (
-            <button
-              key={key}
-              type="button"
-              onClick={() => onSelectSize(key)}
-              className={cn(
-                "min-w-[92px] rounded-full px-4 py-2 text-center transition-colors",
-                active
-                  ? "bg-ink text-white"
-                  : "text-ink hover:bg-page"
-              )}
-              aria-pressed={active}
-              title={status === "empty" ? "Not generated yet" : undefined}
-            >
-              <span className="block text-[14px] font-bold leading-tight">{sizeLabel(key)}</span>
-              {dims && (
-                <span
-                  className={cn(
-                    "mt-0.5 block text-[11px] font-medium leading-tight",
-                    active ? "text-white/60" : "text-ink-faint"
-                  )}
-                >
-                  {dims.w}×{dims.h}
-                </span>
-              )}
-            </button>
-          );
-        })}
+    <div className="flex min-h-[64px] items-center justify-between gap-4 border-b border-edge bg-surface px-6 py-3">
+      <div className="flex min-w-0 items-center gap-3">
+        <Select value={activeSize} onValueChange={onSelectSize}>
+          <SelectTrigger
+            className="h-10 w-[340px] max-w-[52vw] rounded-[8px] border-edge-strong text-[13px] font-bold"
+            aria-label="Size and format"
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {sizes.map((key) => {
+              const dims = sizeDims(key);
+              return (
+                <SelectItem key={key} value={key}>
+                  {sizeLabel(key)}{dims ? ` · ${dims.w}×${dims.h}` : ""}
+                </SelectItem>
+              );
+            })}
+          </SelectContent>
+        </Select>
       </div>
       {viewToggle && (
-        <div className="flex w-fit items-center gap-1 rounded-full bg-page p-1">
+        <div className="flex shrink-0 items-center gap-1 rounded-[8px] bg-page p-1">
           <button
             type="button"
             onClick={() => viewToggle.onShowOriginalChange(false)}
             className={cn(
-              "rounded-full px-5 py-3 text-[14px] font-bold transition-colors",
+              "rounded-[7px] px-3.5 py-2 text-[12.5px] font-bold transition-colors",
               !viewToggle.showOriginal ? "bg-surface text-ink shadow-sm" : "text-ink-faint"
             )}
           >
-            Your draft
+            Draft
           </button>
           <button
             type="button"
             onClick={() => viewToggle.onShowOriginalChange(true)}
             className={cn(
-              "rounded-full px-5 py-3 text-[14px] font-bold transition-colors",
+              "rounded-[7px] px-3.5 py-2 text-[12.5px] font-bold transition-colors",
               viewToggle.showOriginal ? "bg-surface text-ink shadow-sm" : "text-ink-faint"
             )}
           >
-            Brand reference
+            Reference
           </button>
         </div>
       )}
