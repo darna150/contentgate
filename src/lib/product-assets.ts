@@ -40,6 +40,33 @@ export function productAssetMediaKindForMimeType(mimeType: string): ProductAsset
   return null;
 }
 
+export function detectProductAssetVideoMimeType(
+  data: Uint8Array,
+  claimedMimeType: string
+) {
+  if (claimedMimeType === "video/webm") {
+    return data.length >= 4 &&
+      data[0] === 0x1a &&
+      data[1] === 0x45 &&
+      data[2] === 0xdf &&
+      data[3] === 0xa3
+      ? claimedMimeType
+      : null;
+  }
+
+  if (claimedMimeType === "video/mp4" || claimedMimeType === "video/quicktime") {
+    return data.length >= 12 &&
+      data[4] === 0x66 &&
+      data[5] === 0x74 &&
+      data[6] === 0x79 &&
+      data[7] === 0x70
+      ? claimedMimeType
+      : null;
+  }
+
+  return null;
+}
+
 export function isProductAssetType(value: string): value is ProductAssetType {
   return PRODUCT_ASSET_TYPES.includes(value as ProductAssetType);
 }

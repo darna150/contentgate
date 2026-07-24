@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   buildProductAssetStoragePath,
   defaultProductAssetTitle,
+  detectProductAssetVideoMimeType,
   isProductAssetStoragePath,
   parseProductAssetTags,
   productAssetMediaKindForMimeType,
@@ -65,4 +66,32 @@ test("accepts supported video assets and rejects oversized videos", () => {
   });
   Object.defineProperty(tooLargeVideo, "size", { value: 100 * 1024 * 1024 + 1 });
   assert.throws(() => validateProductAssetFile(tooLargeVideo), /100 MB/);
+});
+
+test("detects video containers from bytes instead of trusting MIME alone", () => {
+  assert.equal(
+    detectProductAssetVideoMimeType(
+      new Uint8Array([0, 0, 0, 24, 0x66, 0x74, 0x79, 0x70, 0x69, 0x73, 0x6f, 0x6d]),
+      "video/mp4"
+    ),
+    "video/mp4"
+  );
+  assert.equal(
+    detectProductAssetVideoMimeType(
+      new Uint8Array([0x1a, 0x45, 0xdf, 0xa3, 0x9f, 0x42]),
+      "video/webm"
+    ),
+    "video/webm"
+  );
+  assert.equal(
+    detectProductAssetVideoMimeType(new TextEncoder().encode("not a real video"), "video/mp4"),
+    null
+  );
+  assert.equal(
+    detectProductAssetVideoMimeType(
+      new Uint8Array([0, 0, 0, 24, 0x66, 0x74, 0x79, 0x70]),
+      "video/webm"
+    ),
+    null
+  );
 });

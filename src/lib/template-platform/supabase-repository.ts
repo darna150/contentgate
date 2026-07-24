@@ -39,6 +39,7 @@ type SupabaseTemplatePlatformClient = {
         data: Uint8Array,
         options?: { contentType?: string; upsert?: boolean }
       ): Promise<SupabaseWriteResult>;
+      remove(paths: readonly string[]): Promise<SupabaseWriteResult>;
     };
   };
 };
@@ -73,6 +74,14 @@ export function createSupabaseTemplateBundleRepository(
           upsert: options.uploadUpsert ?? true,
         });
       throwOnSupabaseError(result, `Upload template asset ${input.path}`);
+    },
+
+    async removeTemplateAssets(input) {
+      if (input.paths.length === 0) return;
+      throwOnSupabaseError(
+        await client.storage.from(input.bucket).remove(input.paths),
+        "Remove uploaded template assets"
+      );
     },
 
     async insertCompiledTemplateBundle(rows: CompiledTemplateBundleImport["rows"]) {

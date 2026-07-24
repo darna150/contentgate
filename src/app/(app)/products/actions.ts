@@ -10,6 +10,7 @@ import {
   buildProductAssetStoragePath,
   cleanProductAssetText,
   defaultProductAssetTitle,
+  detectProductAssetVideoMimeType,
   isProductAssetApprovalStatus,
   isProductAssetStoragePath,
   isProductAssetType,
@@ -280,7 +281,10 @@ export async function uploadProductAsset(productId: string, formData: FormData) 
     if (!VIDEO_ASSET_MIME_TYPES.has(file.type)) {
       throw new Error("Use an MP4, MOV, or WebM video.");
     }
-    detectedMimeType = file.type;
+    detectedMimeType = detectProductAssetVideoMimeType(fileBytes, file.type);
+    if (!detectedMimeType) {
+      throw new Error("The video contents do not match the selected file type.");
+    }
     const durationRaw = cleanProductAssetText(formData.get("duration_seconds"), 24);
     const parsedDuration = durationRaw ? Number(durationRaw) : NaN;
     if (Number.isFinite(parsedDuration) && parsedDuration >= 0) {
@@ -491,7 +495,7 @@ export async function createProductAssetDownloadUrl(assetId: string) {
 
   const { data: asset, error: assetError } = await supabase
     .from("product_assets")
-    .select("id, org_id, product_id, title, storage_path, original_file_name, approval_status, download_count")
+    .select("id, org_id, product_id, title, storage_path, original_file_name, approval_status")
     .eq("id", assetId)
     .eq("org_id", profile.org_id)
     .maybeSingle();
@@ -510,14 +514,12 @@ export async function createProductAssetDownloadUrl(assetId: string) {
     throw new Error(`Could not create download URL: ${error?.message ?? "Unknown error"}`);
   }
 
-  await supabase
-    .from("product_assets")
-    .update({
-      download_count: (asset.download_count ?? 0) + 1,
-      last_downloaded_at: new Date().toISOString(),
-    })
-    .eq("id", asset.id)
-    .eq("org_id", profile.org_id);
+  const { error: recordError } = await supabase.rpc("record_product_asset_download", {
+    p_asset_id: asset.id,
+  });
+  if (recordError) {
+    throw new Error(`Could not record asset download: ${recordError.message}`);
+  }
 
   await writeAudit({
     org_id: profile.org_id,

@@ -55,3 +55,15 @@ test("falls back to the workspace notebook when no product sessions exist", () =
     { activeSessionId: null, selectedProductId: "workspace" }
   );
 });
+
+test("keeps the workspace notebook selected when it has no session", () => {
+  assert.deepEqual(
+    resolveInitialKnowledgeSelection({
+      notebookIds: ["workspace", "product-a"],
+      sessions: [],
+      requestedProductId: "workspace",
+      workspaceNotebookId: "workspace",
+    }),
+    { activeSessionId: null, selectedProductId: "workspace" }
+  );
+});
