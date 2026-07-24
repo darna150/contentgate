@@ -388,6 +388,54 @@ function unchangedGeneratedFields(input: {
   });
 }
 
+function allGeneratedFieldsUnchanged(input: {
+  editableFields: string[];
+  generatedFields: Record<string, string>;
+  previousFields: Record<string, string>;
+}) {
+  const comparableFields = input.editableFields.filter(
+    (key) => normalizedCopyValue(input.previousFields[key]).length > 0
+  );
+  return (
+    comparableFields.length > 0 &&
+    comparableFields.every(
+      (key) =>
+        normalizedCopyValue(input.generatedFields[key]) ===
+        normalizedCopyValue(input.previousFields[key])
+    )
+  );
+}
+
+function deterministicRevisionVariation(input: {
+  revision: string | undefined;
+  editableFields: string[];
+  fields: Record<string, string>;
+  previousFields: Record<string, string>;
+  fieldLimits: Record<string, { max_chars?: number } | undefined>;
+}) {
+  if (input.revision !== "shorter") return null;
+  const nextFields: Record<string, string> = {};
+  for (const key of input.editableFields) {
+    const current = String(input.fields[key] ?? "");
+    const previous = String(input.previousFields[key] ?? "");
+    if (!current || normalizedCopyValue(current) !== normalizedCopyValue(previous)) continue;
+    const shortened = current
+      .replace(/[.!]+/g, "")
+      .replace(/\s*[\r\n]+\s*/g, " ")
+      .replace(/\s{2,}/g, " ")
+      .trim();
+    const limit = input.fieldLimits[key]?.max_chars;
+    if (
+      shortened &&
+      shortened !== current &&
+      (!limit || shortened.length <= limit)
+    ) {
+      nextFields[key] = shortened;
+    }
+  }
+  return Object.keys(nextFields).length ? nextFields : null;
+}
+
 export async function POST(req: Request) {
   const startedAt = Date.now();
   const supabase = await createClient();
@@ -863,6 +911,21 @@ export async function POST(req: Request) {
       });
       structured = coerceResult.fields;
       coercedTruncatedFields = coerceResult.truncatedFields;
+      const coercedGeneratedFields = Object.fromEntries(
+        editableFields.map((key) => [key, structured[key] ?? ""])
+      );
+      if (
+        isRegeneration &&
+        allGeneratedFieldsUnchanged({
+          editableFields,
+          generatedFields: coercedGeneratedFields,
+          previousFields: previousStructuredFields,
+        })
+      ) {
+        variationIssues = [
+          "fit coercion collapsed the alternate back to the current visible copy",
+        ];
+      }
       const configuredIssues = templateFieldIssues(
         structured,
         editableFields,
@@ -888,7 +951,7 @@ export async function POST(req: Request) {
         evidence: verifiedEvidence,
         approvedSources: approvedSourceTexts,
       });
-      if (!fitReasons.length && !groundingIssues.length) {
+      if (!fitReasons.length && !groundingIssues.length && !variationIssues.length) {
         out = { fields: structured, evidence: verifiedEvidence };
       }
     }
@@ -1023,6 +1086,36 @@ export async function POST(req: Request) {
         defaultCopy,
       }),
     };
+    const visibleGeneratedFields = Object.fromEntries(
+      editableFields.map((key) => [key, structured[key] ?? ""])
+    );
+    if (
+      isRegeneration &&
+      allGeneratedFieldsUnchanged({
+        editableFields,
+        generatedFields: visibleGeneratedFields,
+        previousFields: previousStructuredFields,
+      })
+    ) {
+      const deterministicFields = deterministicRevisionVariation({
+        revision: revisions[0],
+        editableFields,
+        fields: visibleGeneratedFields,
+        previousFields: previousStructuredFields,
+        fieldLimits,
+      });
+      if (!deterministicFields) {
+        return Response.json(
+          {
+            error:
+              "ContentGate could not produce a meaningfully different alternate. Please try Generate again.",
+          },
+          { status: 422 }
+        );
+      }
+      structured = { ...structured, ...deterministicFields };
+      generatedFields = { ...generatedFields, ...deterministicFields };
+    }
     const title = `${productDisplayName} · ${assignment.familyName}`;
     const body = flattenFields(structured, editableFields);
     const savedAt = new Date().toISOString();

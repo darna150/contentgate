@@ -28,7 +28,7 @@ export function fieldLabel(key: string): string {
 export const REVISION_OPTIONS: { key: string; label: string; instruction: string }[] = [
   { key: "shorter", label: "Shorter", instruction: "Make the copy noticeably shorter and tighter." },
   { key: "longer", label: "Longer", instruction: "Expand the copy with a little more supporting detail (still only from approved sources)." },
-  { key: "strategic", label: "More strategic", instruction: "Frame the copy for brand leaders and decision-makers while staying grounded in approved sources." },
+  { key: "strategic", label: "More strategic", instruction: "Create a visibly different strategic rewrite for brand leaders and decision-makers. Change the wording in at least one editable field; do not return the current headline or subheadline verbatim unless it is a fixed product name." },
   { key: "playful", label: "More playful", instruction: "Make the copy lighter and more playful without inventing facts or leaving the approved source material." },
   { key: "urgent", label: "More urgent", instruction: "Create a stronger sense of timeliness and action while staying grounded in approved sources." },
   { key: "simpler", label: "Simpler", instruction: "Simplify the language and make the message easier to understand at a glance." },
