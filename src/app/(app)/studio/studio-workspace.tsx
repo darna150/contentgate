@@ -337,7 +337,7 @@ export function StudioWorkspace({
         : [],
     [selectedTemplate.platformManifest, size]
   );
-  const hasBackgroundOptions = backgroundOptions.length > 1;
+  const hasBackgroundOptions = backgroundOptions.length > 0;
   const selectedBackgroundKey =
     selectedBackgroundOverride ||
     draftFields[BACKGROUND_CHOICE_FIELD] ||
