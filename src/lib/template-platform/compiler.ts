@@ -9,6 +9,7 @@ import {
   type TemplateBundleVariant,
 } from "./manifest.ts";
 import { validateTemplateBundlePublishReadiness } from "./publish-readiness.ts";
+import { templateBundleAssetStoragePath } from "./storage-paths.ts";
 
 type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 
@@ -131,14 +132,6 @@ export function stableJsonSha256(value: unknown): string {
     .digest("hex");
 }
 
-function normalizeStoragePrefix(prefix: string) {
-  return prefix
-    .split("/")
-    .map((part) => part.trim())
-    .filter(Boolean)
-    .join("/");
-}
-
 function isPortableAssetPath(path: string) {
   return (
     path.length > 0 &&
@@ -146,23 +139,6 @@ function isPortableAssetPath(path: string) {
     !path.includes("\\") &&
     !path.split("/").includes("..")
   );
-}
-
-function safeStorageFileName(assetPath: string) {
-  return assetPath
-    .split("/")
-    .filter(Boolean)
-    .at(-1)
-    ?.replace(/[^a-zA-Z0-9._-]+/g, "-") || "asset";
-}
-
-function storagePath(prefix: string, asset: TemplateBundleAsset) {
-  return [
-    normalizeStoragePrefix(prefix),
-    "assets",
-    asset.sha256,
-    safeStorageFileName(asset.path),
-  ].filter(Boolean).join("/");
 }
 
 function variantFieldKeys(variant: TemplateBundleVariant): string[] {
@@ -274,7 +250,7 @@ export function compileTemplateBundleImport(
       variant_id: ownerVariantKey ? variantIds.get(ownerVariantKey) ?? null : null,
       asset_key: asset.key,
       asset_kind: asset.kind,
-      storage_path: storagePath(options.storagePrefix, asset),
+      storage_path: templateBundleAssetStoragePath(options.storagePrefix, asset),
       mime_type: asset.mimeType ?? null,
       width: asset.width ?? null,
       height: asset.height ?? null,

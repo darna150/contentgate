@@ -23,6 +23,18 @@ function normalizedTags(tags: readonly string[] | null | undefined) {
   return new Set((tags ?? []).map((tag) => tag.trim().toLowerCase()).filter(Boolean));
 }
 
+function labelFromOptionKey(key: string) {
+  return key
+    .split(/[-_\s]+/)
+    .filter(Boolean)
+    .map((part) =>
+      /^\d+$/.test(part)
+        ? part
+        : `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`
+    )
+    .join(" ");
+}
+
 export function fieldHasDamBinding(field: TemplateBundleField) {
   return field.assetBinding?.source === "product_assets";
 }
@@ -61,7 +73,10 @@ export function buildTemplateAssetChoiceOptions(input: {
   previewUrlByStoragePath?: ReadonlyMap<string, string>;
 }): TemplateAssetChoiceOption[] {
   if (!fieldHasDamBinding(input.field)) {
-    return (input.field.options ?? []).map((key) => ({ key, label: key }));
+    return (input.field.options ?? []).map((key) => ({
+      key,
+      label: labelFromOptionKey(key),
+    }));
   }
 
   return input.assets

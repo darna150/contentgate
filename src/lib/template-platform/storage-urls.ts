@@ -1,7 +1,8 @@
 import "server-only";
 
 import { TEMPLATE_BUNDLE_STORAGE_BUCKET, templateBundleStoragePrefix } from "./importer";
-import type { TemplateBundleManifest } from "./manifest";
+import type { TemplateBundleAsset, TemplateBundleManifest } from "./manifest";
+import { templateBundleAssetStoragePath } from "./storage-paths";
 
 const TEMPLATE_BUNDLE_URL_TTL_SECONDS = 60 * 60;
 
@@ -21,17 +22,15 @@ type StorageClient = {
   };
 };
 
-// Must match exactly where importTemplateBundle uploads each asset — an
-// org-scoped prefix ({orgId}/template-bundles/{family}/{version}) built by the
-// same helper the importer uses. Reconstructing a non-org-scoped path here (as
-// this once did) signs objects that don't exist, so the URL map comes back
-// empty and the renderer falls through to broken relative asset paths.
 export function templateBundleStoragePath(
   orgId: string,
   manifest: TemplateBundleManifest,
-  assetPath: string
+  asset: TemplateBundleAsset
 ) {
-  return `${templateBundleStoragePrefix({ orgId, manifest })}/${assetPath}`;
+  return templateBundleAssetStoragePath(
+    templateBundleStoragePrefix({ orgId, manifest }),
+    asset
+  );
 }
 
 // Includes "font" alongside "background"/"reference": renderer image fonts
@@ -51,7 +50,7 @@ export async function createTemplateBundleAssetUrlMap(
       manifests.flatMap((manifest) =>
         manifest.assets
           .filter((asset) => SIGNED_ASSET_KINDS.has(asset.kind))
-          .map((asset) => templateBundleStoragePath(orgId, manifest, asset.path))
+          .map((asset) => templateBundleStoragePath(orgId, manifest, asset))
       )
     )
   );
@@ -76,7 +75,7 @@ export async function createTemplateBundleAssetUrlMap(
       manifest.assets
         .filter((asset) => SIGNED_ASSET_KINDS.has(asset.kind))
         .flatMap((asset) => {
-          const storagePath = templateBundleStoragePath(orgId, manifest, asset.path);
+          const storagePath = templateBundleStoragePath(orgId, manifest, asset);
           const signedUrl = signedByStoragePath.get(storagePath);
           return signedUrl ? [[asset.path, signedUrl] as const] : [];
         })

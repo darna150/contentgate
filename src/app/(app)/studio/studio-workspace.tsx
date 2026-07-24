@@ -103,29 +103,22 @@ function StudioAssetChoicePicker({
 }) {
   if (!options.length) return null;
   const hasMultipleOptions = options.length > 1;
-  const selectedOptionLabel =
-    options.find((option) => option.key === value)?.label ?? options[0]?.label ?? "This asset";
   return (
-    <div className="flex flex-col gap-4 border-t border-edge pt-6" data-testid={`studio-asset-choice-${fieldKey}`}>
+    <div className="flex flex-col gap-3 border-t border-edge pt-5" data-testid={`studio-asset-choice-${fieldKey}`}>
       <div className="flex items-start justify-between gap-3">
         <div>
           <span className="text-label text-ink-faint">{label}</span>
-          <p className="mt-2 text-[14px] leading-6 text-ink-muted">
-            {hasMultipleOptions
-              ? "Select an approved asset for this locked image slot. Layout, scale, crop, and export rules remain controlled by the template."
-              : `${selectedOptionLabel} is the current approved option. Add more approved assets to unlock more choices.`}
-          </p>
+          {hasMultipleOptions && (
+            <p className="mt-2 text-[14px] leading-6 text-ink-muted">
+              Select an approved asset for this locked image slot. Layout, scale, crop, and export
+              rules remain controlled by the template.
+            </p>
+          )}
         </div>
         {!hasMultipleOptions && (
           <Badge variant="neutral">1 option</Badge>
         )}
       </div>
-      {hasMultipleOptions ? null : (
-        <p className="mt-2 text-[14px] leading-6 text-ink-muted">
-          This control is picker-ready; it is intentionally limited until more Nimbus product
-          variants are available.
-        </p>
-      )}
       <div className="grid grid-cols-2 gap-2">
         {options.map((option) => {
           const selected = value === option.key;
@@ -948,7 +941,7 @@ export function StudioWorkspace({
 
   return (
     <div className="flex h-screen min-h-[720px] flex-col overflow-hidden bg-page">
-      <header className="flex h-[76px] shrink-0 items-center justify-between gap-4 border-b border-edge bg-surface px-10">
+      <header className="flex h-[56px] shrink-0 items-center justify-between gap-4 border-b border-edge bg-surface px-8">
         <div className="flex min-w-0 items-center gap-4">
           <Link
             href={content ? "/content" : `/products/${selectedProduct.id}?view=templates`}
@@ -989,17 +982,17 @@ export function StudioWorkspace({
 
       <div
         className="grid min-h-0 flex-1 overflow-hidden"
-        style={{ gridTemplateColumns: "minmax(360px, 400px) minmax(0, 1fr)" }}
+        style={{ gridTemplateColumns: "minmax(340px, 400px) minmax(0, 1fr)" }}
       >
-        <aside className="flex min-h-0 flex-col gap-7 overflow-y-auto border-r border-edge bg-surface px-10 py-8">
-          <div className="flex flex-col gap-6">
+        <aside className="flex min-h-0 flex-col gap-6 overflow-y-auto border-r border-edge bg-surface px-8 py-6">
+          <div className="flex flex-col gap-4">
             <div className="flex flex-col gap-3">
               <span className="text-label text-ink-faint">Product & variant</span>
               <select
                 value={`${selectedProduct.name} · ${selectedTemplate.variant}`}
                 disabled
                 aria-label="Product and template variant"
-                className="h-[48px] w-full rounded-[8px] border border-edge-strong bg-surface px-4 text-[14px] font-semibold text-ink outline-none disabled:opacity-100"
+                className="h-10 w-full rounded-[8px] border border-edge-strong bg-surface px-3 text-[13px] font-semibold text-ink outline-none disabled:opacity-100"
               >
                 <option>{selectedProduct.name} · {selectedTemplate.variant}</option>
               </select>
@@ -1012,7 +1005,7 @@ export function StudioWorkspace({
                 onChange={(event) => selectSize(event.target.value)}
                 disabled={busy}
                 aria-label="Size and format"
-                className="h-[48px] w-full rounded-[8px] border border-edge-strong bg-surface px-4 text-[14px] font-semibold text-ink outline-none focus:border-brand disabled:opacity-60"
+                className="h-10 w-full rounded-[8px] border border-edge-strong bg-surface px-3 text-[13px] font-semibold text-ink outline-none focus:border-brand disabled:opacity-60"
               >
                 {sizes.map((key) => {
                   const metaDims =
@@ -1218,7 +1211,7 @@ export function StudioWorkspace({
           )}
         </aside>
 
-        <section className="flex min-h-0 min-w-0 flex-col bg-page">
+        <section className="flex min-h-0 min-w-0 flex-col bg-[#f5f5f2]">
           <StudioToolbar
             sizes={sizes}
             activeSize={size}

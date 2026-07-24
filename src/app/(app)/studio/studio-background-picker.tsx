@@ -51,15 +51,15 @@ export function StudioBackgroundPicker({
   }
 
   return (
-    <div className="flex flex-col gap-5 border-t border-edge pt-6" data-testid="studio-background-picker">
+    <div className="flex flex-col gap-3 border-t border-edge pt-5" data-testid="studio-background-picker">
       <div className="flex items-start justify-between gap-3">
         <div>
           <span className="text-label text-ink-faint">Background style</span>
-          <p className="mt-2 text-[14px] leading-6 text-ink-muted">
-            {hasMultipleOptions
-              ? "Swaps the locked background design only — your headline, CTA, and other copy stay exactly as written."
-              : "Sky is the current approved background. Add more brand backgrounds to unlock more choices."}
-          </p>
+          {hasMultipleOptions && (
+            <p className="mt-2 text-[14px] leading-6 text-ink-muted">
+              Swaps the locked background design only. Copy stays exactly as written.
+            </p>
+          )}
         </div>
         {!editable ? (
           <Badge variant="neutral">Locked</Badge>

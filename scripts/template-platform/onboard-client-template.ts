@@ -46,12 +46,16 @@ function sampleFromManifest(
   return {
     key: "manifest-defaults",
     fields: Object.fromEntries(
-      manifest.fields.map((field) => [
-        field.key,
-        typeof field.defaultValue === "string"
-          ? field.defaultValue
-          : field.options?.[0] ?? "",
-      ])
+      manifest.fields.map((field) => {
+        const value =
+          typeof field.defaultValue === "string"
+            ? field.defaultValue
+            : field.options?.[0] ??
+              (field.required && field.type === "text"
+                ? `Sample ${field.label.toLowerCase()}`
+                : "");
+        return [field.key, value];
+      })
     ),
   };
 }

@@ -239,7 +239,7 @@ async function assertPreviewIsAvailable(page: Page) {
 }
 
 async function expectNimbusStudioPickers(page: Page) {
-  await expect(page.getByLabel("Size and format")).toContainText(OUTPUT_SIZE_LABEL);
+  await expect(page.getByLabel("Size and format")).toHaveValue(OUTPUT_SIZE);
   const productPicker = page.getByTestId("studio-asset-choice-__productVariantKey");
   await expect(productPicker).toBeVisible();
   await expect(productPicker).toContainText("Nimbus 1");
@@ -252,9 +252,9 @@ async function expectNimbusStudioPickers(page: Page) {
 }
 
 async function findFieldTextarea(page: Page, labelPattern: RegExp) {
-  const label = page.locator("label").filter({ hasText: labelPattern }).first();
-  await expect(label).toBeVisible();
-  return label.locator("xpath=following-sibling::textarea").first();
+  const textarea = page.getByLabel(labelPattern).first();
+  await expect(textarea).toBeVisible();
+  return textarea;
 }
 
 async function findEditableTextArea(page: Page) {

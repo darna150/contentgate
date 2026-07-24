@@ -16,6 +16,22 @@ import { renderTemplateBundleVariant } from "./render";
 import { BACKGROUND_CHOICE_FIELD } from "./runtime";
 import { validTemplateBundleManifest } from "./test-fixtures";
 
+const validManifestSignedAssets = {
+  "variants/square/background.png": "https://storage.example.test/square-background.png?token=private",
+  "variants/square/background-alt.png":
+    "https://storage.example.test/square-background-alt.png?token=private",
+  "variants/square/reference.png": "https://storage.example.test/square-reference.png?token=private",
+};
+
+const privateTemplateManifest = {
+  ...validTemplateBundleManifest,
+  family: {
+    ...validTemplateBundleManifest.family,
+    key: "nimbus-air-test",
+    name: "Nimbus Air Test",
+  },
+};
+
 test("renders platform bundle generated mode with background and text slots", async () => {
   const bundle = await buildContentGateTemplateBundle("contentgate_local_friendly");
   const rendered = renderTemplateBundleVariant({
@@ -73,6 +89,7 @@ test("a shrink_to_fit slot renders at its resolved smaller size, not the authore
     variantKey: "square",
     fields: { headline: longHeadline },
     textLayoutByField,
+    assetUrlByPath: validManifestSignedAssets,
   });
   assert.ok(withResolvedLayout);
   const resolvedHtml = renderToStaticMarkup(withResolvedLayout.element);
@@ -85,6 +102,7 @@ test("a shrink_to_fit slot renders at its resolved smaller size, not the authore
     manifest: validTemplateBundleManifest,
     variantKey: "square",
     fields: { headline: longHeadline },
+    assetUrlByPath: validManifestSignedAssets,
   });
   assert.ok(withoutResolvedLayout);
   const unresolvedHtml = renderToStaticMarkup(withoutResolvedLayout.element);
@@ -99,11 +117,57 @@ test("renders selected designer-approved background option in generated mode", (
       headline: "Background option test",
       [BACKGROUND_CHOICE_FIELD]: "warm",
     },
+    assetUrlByPath: validManifestSignedAssets,
   });
 
   assert.ok(rendered);
   const html = renderToStaticMarkup(rendered.element);
-  assert.match(html, /variants\/square\/background-alt\.png/);
+  assert.match(html, /square-background-alt\.png\?token=private/);
+});
+
+test("private template bundles do not fall back to relative app asset paths", () => {
+  const rendered = renderTemplateBundleVariant({
+    manifest: privateTemplateManifest,
+    variantKey: "square",
+    fields: {
+      headline: "Missing signed asset test",
+    },
+  });
+
+  assert.equal(rendered, null);
+});
+
+test("private signed asset URLs are not rewritten to high-density variants", () => {
+  const rendered = renderTemplateBundleVariant({
+    manifest: privateTemplateManifest,
+    variantKey: "square",
+    fields: {
+      headline: "Signed asset density test",
+    },
+    assetUrlByPath: validManifestSignedAssets,
+    scale: 2,
+  });
+
+  assert.ok(rendered);
+  const html = renderToStaticMarkup(rendered.element);
+  assert.match(html, /square-background\.png\?token=private/);
+  assert.doesNotMatch(html, /square-background@2x\.png/);
+});
+
+test("image slots without rotation omit transform CSS for ImageResponse", () => {
+  const rendered = renderTemplateBundleVariant({
+    manifest: privateTemplateManifest,
+    variantKey: "square",
+    fields: {
+      headline: "ImageResponse transform test",
+      hero_image: "https://assets.example.test/hero.png",
+    },
+    assetUrlByPath: validManifestSignedAssets,
+  });
+
+  assert.ok(rendered);
+  const html = renderToStaticMarkup(rendered.element);
+  assert.doesNotMatch(html, /transform:undefined/);
 });
 
 test("renders platform bundle original mode with reference only", async () => {

@@ -239,7 +239,7 @@ function renderImageSlot(
           height: scaledNumber(slot.height, scale),
           display: "block",
           objectFit: slot.fit,
-          transform: slot.rotation ? `rotate(${slot.rotation}deg)` : undefined,
+          ...(slot.rotation ? { transform: `rotate(${slot.rotation}deg)` } : {}),
         }}
       />
     </React.Fragment>
@@ -264,10 +264,12 @@ function resolveImageSource(
       ? new URL(path, assetOrigin).toString()
       : path;
   }
-  return `/${path}`;
+  if (isPublicContentGateBundle(manifest)) return `/${path}`;
+  return null;
 }
 
-function highDensityImageSource(src: string) {
+function highDensityImageSource(src: string | null) {
+  if (!src) return null;
   if (src.startsWith("http://") || src.startsWith("https://")) {
     const url = new URL(src);
     // Supabase signed storage URLs include object authorization in a token
@@ -323,6 +325,7 @@ export function renderTemplateBundleVariant(input: {
     input.assetUrlByPath,
     input.assetOrigin
   );
+  if (!imageSrc) return null;
   const imageSrc2x = highDensityImageSource(imageSrc);
   const displayImageSrc = scale > 1 && imageSrc2x ? imageSrc2x : imageSrc;
   const width = runtime.variant.width * scale;

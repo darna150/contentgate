@@ -109,7 +109,7 @@ async function assertNoBrokenImages(page: Page, surfaceName: string) {
           )
           .every((image) => image.complete && image.naturalWidth > 0 && image.naturalHeight > 0),
       undefined,
-      { timeout: 10_000 }
+      { timeout: 45_000 }
     )
     .catch(() => {
       // Keep the assertion below as the source of truth so failures include

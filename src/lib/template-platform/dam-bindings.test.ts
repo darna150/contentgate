@@ -91,6 +91,6 @@ test("builds Studio picker options from DAM assets and preserves manifest fallba
       productId: "product-1",
       assets: [],
     }),
-    [{ key: "charcoal", label: "charcoal" }]
+    [{ key: "charcoal", label: "Charcoal" }]
   );
 });
