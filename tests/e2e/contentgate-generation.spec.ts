@@ -239,7 +239,7 @@ async function findEditableTextArea(page: Page) {
   for (let index = 0; index < count; index += 1) {
     const textarea = textareas.nth(index);
     const value = await textarea.inputValue();
-    if (/local|content|brand|get started|see how|approved/i.test(value)) {
+    if (value.trim().length > 0) {
       return textarea;
     }
   }
