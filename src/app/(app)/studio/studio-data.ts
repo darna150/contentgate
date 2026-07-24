@@ -16,6 +16,7 @@ import {
 } from "@/lib/template-platform/runtime";
 import { createTemplateBundleAssetUrlMap } from "@/lib/template-platform/storage-urls";
 import type { FieldLimits } from "@/lib/template-fields";
+import { studioEditableTemplateFields } from "@/lib/generation-evidence";
 
 export type StudioProduct = {
   id: string;
@@ -227,9 +228,13 @@ async function platformAssignmentsToTemplates(rows: PlatformAssignmentRow[]): Pr
         templateVersionId: version.id,
         platformManifest: manifest,
         referenceAssetBySize,
-        editable_fields: runtime.fields.map((field) => field.key),
+        editable_fields: studioEditableTemplateFields(runtime.fields).map((field) => field.key),
         required_fields: runtime.fields
-          .filter((field) => field.required !== false)
+          .filter(
+            (field) =>
+              (field.source === "ai" || field.source === "user") &&
+              field.required !== false
+          )
           .map((field) => field.key),
         default_copy: Object.fromEntries(
           runtime.fields.map((field) => [field.key, String(defaultCopy[field.key] ?? "")])

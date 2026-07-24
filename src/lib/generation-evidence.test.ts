@@ -6,6 +6,7 @@ import {
   evidenceGateForGeneratedFields,
   localeIsAllowedForGeneration,
   requiredEvidenceFieldKeys,
+  studioEditableTemplateFields,
 } from "./generation-evidence.ts";
 import type { TemplateBundleField } from "./template-platform/manifest.ts";
 
@@ -41,6 +42,21 @@ test("only AI text fields are eligible for generation", () => {
 
 test("evidence requirements apply only to AI-generated fields", () => {
   assert.deepEqual(requiredEvidenceFieldKeys(fields), ["headline"]);
+});
+
+test("Studio can manually edit AI and user fields, but not product or locked fields", () => {
+  assert.deepEqual(
+    studioEditableTemplateFields([
+      ...fields,
+      {
+        key: "price",
+        label: "Price",
+        type: "text",
+        source: "product",
+      },
+    ]).map((field) => field.key),
+    ["headline", "cta"]
+  );
 });
 
 test("structured generation preserves locked and user-sourced fields", () => {

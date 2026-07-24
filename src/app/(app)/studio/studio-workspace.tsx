@@ -15,6 +15,7 @@ import {
   studioContentUrl,
   templatePreviewUrl,
 } from "@/lib/creative";
+import { studioEditableTemplateFields } from "@/lib/generation-evidence";
 import {
   BACKGROUND_CHOICE_FIELD,
   getTemplateBundleVariantBackgroundOptions,
@@ -276,6 +277,9 @@ export function StudioWorkspace({
         ? getTemplateBundleVariantFields(selectedTemplate.platformManifest, size)
         : selectedTemplate.editable_fields.map((key) => ({
             key,
+            label: key,
+            type: "text" as const,
+            source: "user" as const,
             required: selectedTemplate.required_fields.includes(key),
           })),
     [
@@ -286,6 +290,13 @@ export function StudioWorkspace({
     ]
   );
   const activeEditableFields = useMemo(
+    () =>
+      selectedTemplate.platformManifest
+        ? studioEditableTemplateFields(activeVariantFields).map((field) => field.key)
+        : activeVariantFields.map((field) => field.key),
+    [activeVariantFields, selectedTemplate.platformManifest]
+  );
+  const activeLayoutFields = useMemo(
     () => activeVariantFields.map((field) => field.key),
     [activeVariantFields]
   );
@@ -323,10 +334,13 @@ export function StudioWorkspace({
   );
   const activeRequiredFields = useMemo(
     () =>
-      activeVariantFields
+      (selectedTemplate.platformManifest
+        ? studioEditableTemplateFields(activeVariantFields)
+        : activeVariantFields
+      )
         .filter((field) => field.required !== false)
         .map((field) => field.key),
-    [activeVariantFields]
+    [activeVariantFields, selectedTemplate.platformManifest]
   );
   const activeFieldLimits = selectedTemplate.platformManifest
     ? getTemplateBundleVariantFieldLimits(selectedTemplate.platformManifest, size)
@@ -350,8 +364,8 @@ export function StudioWorkspace({
   const hasLayoutOverflow = overflowFields.length > 0;
   const fitCheckSignature = useMemo(
     () =>
-      JSON.stringify(activeEditableFields.map((key) => [key, draftFields[key] ?? ""])),
-    [activeEditableFields, draftFields]
+      JSON.stringify(activeLayoutFields.map((key) => [key, draftFields[key] ?? ""])),
+    [activeLayoutFields, draftFields]
   );
   const dirty =
     mode === "edit" &&

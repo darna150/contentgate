@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { flattenFields } from "@/lib/templates";
+import { studioEditableTemplateFields } from "@/lib/generation-evidence";
 import { templateFieldIssues, type FieldLimits } from "@/lib/template-fields";
 import { validateTemplateContentFit } from "@/lib/template-content-fit";
 import type { TemplateBundleManifest } from "@/lib/template-platform/manifest";
@@ -221,22 +222,36 @@ export async function updateStructuredFields(
     return { error: "Template configuration was not found." };
   }
 
+  const platformFields =
+    !template && version?.manifest && variant?.variant_key
+      ? getTemplateBundleVariantFields(
+          version.manifest as TemplateBundleManifest,
+          variant.variant_key
+        )
+      : [];
+  const editablePlatformFields = studioEditableTemplateFields(platformFields);
   const order = template
     ? ((template.editable_fields ?? []) as string[])
-    : getTemplateBundleVariantFields(
-        version!.manifest as TemplateBundleManifest,
-        variant!.variant_key
-      ).map((field) => field.key);
+    : editablePlatformFields.map((field) => field.key);
+  const fullOrder = template ? order : platformFields.map((field) => field.key);
   const requiredFields = template
     ? order
-    : getTemplateBundleVariantFields(
-        version!.manifest as TemplateBundleManifest,
-        variant!.variant_key
-      )
+    : editablePlatformFields
         .filter((field) => field.required !== false)
         .map((field) => field.key);
+  const fullRequiredFields = template
+    ? requiredFields
+    : platformFields
+        .filter((field) => field.required !== false)
+        .map((field) => field.key);
+  const existingFields = (content?.structured_fields ?? {}) as Record<string, string>;
   const cleaned = Object.fromEntries(
-    order.map((key) => [key, String(fields[key] ?? "")])
+    (template ? order : fullOrder).map((key) => [
+      key,
+      order.includes(key)
+        ? String(fields[key] ?? "")
+        : String(existingFields[key] ?? ""),
+    ])
   );
   if (!template && typeof fields[BACKGROUND_CHOICE_FIELD] === "string") {
     cleaned[BACKGROUND_CHOICE_FIELD] = fields[BACKGROUND_CHOICE_FIELD];
@@ -265,7 +280,7 @@ export async function updateStructuredFields(
           version!.manifest as TemplateBundleManifest,
           variant!.variant_key
         );
-        const issues = templateFieldIssues(cleaned, order, limits, requiredFields);
+        const issues = templateFieldIssues(cleaned, fullOrder, limits, fullRequiredFields);
         const firstIssue = Object.entries(issues)[0];
         return firstIssue
           ? `${firstIssue[0]}: ${firstIssue[1].map((issue) => issue.message).join(", ")}`
@@ -291,7 +306,7 @@ export async function updateStructuredFields(
     if (firstGeometryIssue) return { error: firstGeometryIssue };
   }
 
-  const body = flattenFields(cleaned, order);
+  const body = flattenFields(cleaned, template ? order : fullOrder);
   if (!body) return { error: "Content cannot be empty." };
 
   const generatedFields =
@@ -364,15 +379,23 @@ export async function checkDraftStructuredFieldsFit(
 
   if (!template && version?.manifest && variant?.variant_key) {
     const platformFields = getTemplateBundleVariantFields(version.manifest, variant.variant_key);
-    const order = platformFields.map((field) => field.key);
-    const requiredFields = platformFields
+    const editableFields = studioEditableTemplateFields(platformFields);
+    const order = editableFields.map((field) => field.key);
+    const fullOrder = platformFields.map((field) => field.key);
+    const fullRequiredFields = platformFields
       .filter((field) => field.required !== false)
       .map((field) => field.key);
     const limits = getTemplateBundleVariantFieldLimits(version.manifest, variant.variant_key);
+    const existingFields = (content.structured_fields ?? {}) as Record<string, string>;
     const cleaned = Object.fromEntries(
-      order.map((key) => [key, String(fields[key] ?? "")])
+      fullOrder.map((key) => [
+        key,
+        order.includes(key)
+          ? String(fields[key] ?? "")
+          : String(existingFields[key] ?? ""),
+      ])
     );
-    const configuredIssues = templateFieldIssues(cleaned, order, limits, requiredFields);
+    const configuredIssues = templateFieldIssues(cleaned, fullOrder, limits, fullRequiredFields);
     const orgId = await resolveOrgId(ctx.supabase);
     const assetUrlByPath = orgId
       ? Object.fromEntries(

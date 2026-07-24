@@ -34,6 +34,15 @@ export function aiEditableTemplateFields(
   return fields.filter((field) => field.type === "text" && field.source === "ai");
 }
 
+export function studioEditableTemplateFields(
+  fields: readonly TemplateBundleField[]
+): TemplateBundleField[] {
+  return fields.filter(
+    (field) =>
+      field.type === "text" && (field.source === "ai" || field.source === "user")
+  );
+}
+
 export function requiredEvidenceFieldKeys(
   fields: readonly TemplateBundleField[]
 ): string[] {
