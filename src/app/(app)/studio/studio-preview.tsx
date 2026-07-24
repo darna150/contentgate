@@ -248,6 +248,7 @@ export function LiveTemplatePreviewFrame({
   width,
   height,
   updating,
+  original = false,
 }: {
   manifest: TemplateBundleManifest;
   variantKey: string;
@@ -265,6 +266,7 @@ export function LiveTemplatePreviewFrame({
   width: number;
   height: number;
   updating: boolean;
+  original?: boolean;
 }) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0.72);
@@ -277,6 +279,7 @@ export function LiveTemplatePreviewFrame({
     damAssetUrlById,
     textLayoutByField,
     scale: renderScale,
+    original,
   });
 
   useEffect(() => {
@@ -301,7 +304,7 @@ export function LiveTemplatePreviewFrame({
             !
           </div>
           <div className="flex flex-col gap-1.5">
-            <p className="text-[14px] font-bold text-ink">Template preview unavailable</p>
+          <p className="text-[14px] font-bold text-ink">Template preview unavailable</p>
             <p className="text-[12.5px] leading-5 text-ink-muted">
               This template size could not render locally. Switch sizes or refresh Studio.
             </p>

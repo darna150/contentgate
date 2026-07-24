@@ -96,22 +96,19 @@ async function expectStudioDraftState(
   await expect(page.getByText(new RegExp(`^${escapeRegExp(status)}$`, "i")).first()).toBeVisible({
     timeout,
   });
-  await expect(
-    page.getByRole("button", {
-      name: new RegExp(`${escapeRegExp(OUTPUT_SIZE_LABEL)}\\s+1080×1080`, "i"),
-    })
-  ).toHaveAttribute("aria-pressed", "true", { timeout });
+  await expect(page.getByLabel("Size and format")).toContainText(
+    new RegExp(`${escapeRegExp(OUTPUT_SIZE_LABEL)}\\s+·\\s+1080×1080`, "i"),
+    { timeout }
+  );
 }
 
 async function expectNimbusReviewMode(page: Page) {
   await expect(page.getByText(/Awaiting your review/i)).toBeVisible({
     timeout: 30_000,
   });
-  await expect(
-    page.getByRole("button", {
-      name: new RegExp(`${escapeRegExp(OUTPUT_SIZE_LABEL)}\\s+1080×1080`, "i"),
-    })
-  ).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByLabel("Size and format")).toContainText(
+    new RegExp(`${escapeRegExp(OUTPUT_SIZE_LABEL)}\\s+·\\s+1080×1080`, "i")
+  );
 }
 
 async function openNimbusTemplate(page: Page) {
@@ -239,7 +236,9 @@ async function assertPreviewIsAvailable(page: Page) {
 }
 
 async function expectNimbusStudioPickers(page: Page) {
-  await expect(page.getByLabel("Size and format")).toHaveValue(OUTPUT_SIZE);
+  await expect(page.getByLabel("Size and format")).toContainText(
+    new RegExp(`${escapeRegExp(OUTPUT_SIZE_LABEL)}\\s+·\\s+1080×1080`, "i")
+  );
   const productPicker = page.getByTestId("studio-asset-choice-__productVariantKey");
   await expect(productPicker).toBeVisible();
   await expect(productPicker).toContainText("Nimbus 1");

@@ -680,7 +680,6 @@ export function StudioWorkspace({
     setTextLayoutByField(undefined);
     setSaveState("idle");
     setSavedAt(null);
-    setShowOriginal(false);
   }
 
   function updateField(key: string, value: string) {
@@ -940,7 +939,7 @@ export function StudioWorkspace({
   const studioTitle = content?.title || `${selectedProduct.name} — ${selectedTemplate.variant}`;
 
   return (
-    <div className="flex h-screen min-h-[720px] flex-col overflow-hidden bg-page">
+    <div className="flex h-[100dvh] min-h-0 flex-col overflow-hidden bg-page">
       <header className="flex h-[56px] shrink-0 items-center justify-between gap-4 border-b border-edge bg-surface px-8">
         <div className="flex min-w-0 items-center gap-4">
           <Link
@@ -985,44 +984,16 @@ export function StudioWorkspace({
         style={{ gridTemplateColumns: "minmax(340px, 400px) minmax(0, 1fr)" }}
       >
         <aside className="flex min-h-0 flex-col gap-6 overflow-y-auto border-r border-edge bg-surface px-8 py-6">
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-col gap-3">
-              <span className="text-label text-ink-faint">Product & variant</span>
-              <select
-                value={`${selectedProduct.name} · ${selectedTemplate.variant}`}
-                disabled
-                aria-label="Product and template variant"
-                className="h-10 w-full rounded-[8px] border border-edge-strong bg-surface px-3 text-[13px] font-semibold text-ink outline-none disabled:opacity-100"
-              >
-                <option>{selectedProduct.name} · {selectedTemplate.variant}</option>
-              </select>
-            </div>
-
-            <div className="flex flex-col gap-3">
-              <span className="text-label text-ink-faint">Size / format</span>
-              <select
-                value={size}
-                onChange={(event) => selectSize(event.target.value)}
-                disabled={busy}
-                aria-label="Size and format"
-                className="h-10 w-full rounded-[8px] border border-edge-strong bg-surface px-3 text-[13px] font-semibold text-ink outline-none focus:border-brand disabled:opacity-60"
-              >
-                {sizes.map((key) => {
-                  const metaDims =
-                    (selectedTemplate.platformManifest
-                      ? getTemplateBundleVariantDimensions(selectedTemplate.platformManifest, key)
-                      : knownSizeDimensions(key)) ?? undefined;
-                  const label = selectedTemplate.platformManifest
-                    ? getTemplateBundleVariantLabel(selectedTemplate.platformManifest, key)
-                    : sizeLabel(key);
-                  return (
-                    <option key={key} value={key}>
-                      {label}{metaDims ? ` · ${metaDims.w}×${metaDims.h}` : ""}
-                    </option>
-                  );
-                })}
-              </select>
-            </div>
+          <div className="flex flex-col gap-3">
+            <span className="text-label text-ink-faint">Product & variant</span>
+            <select
+              value={`${selectedProduct.name} · ${selectedTemplate.variant}`}
+              disabled
+              aria-label="Product and template variant"
+              className="h-10 w-full rounded-[8px] border border-edge-strong bg-surface px-3 text-[13px] font-semibold text-ink outline-none disabled:opacity-100"
+            >
+              <option>{selectedProduct.name} · {selectedTemplate.variant}</option>
+            </select>
           </div>
 
           {mode === "review" && content && (
@@ -1225,16 +1196,9 @@ export function StudioWorkspace({
                 ? getTemplateBundleVariantDimensions(selectedTemplate.platformManifest, key)
                 : knownSizeDimensions(key)) ?? undefined
             }
-            sizeStatus={(key) => {
-              const item = contentsBySize[key];
-              if (!item) return "empty";
-              if (item.status === "approved") return "approved";
-              if (item.status === "in_review") return "in_review";
-              return "draft";
-            }}
             onSelectSize={selectSize}
             viewToggle={
-              hasAnyGeneratedDraft && content
+              hasAnyGeneratedDraft
                 ? { showOriginal, onShowOriginalChange: setShowOriginal }
                 : undefined
             }
@@ -1242,7 +1206,7 @@ export function StudioWorkspace({
 
           <div className="relative min-h-0 flex-1 overflow-hidden bg-page">
             {busy && <GenerationLoader />}
-            {!content && hasAnyGeneratedDraft && !showOriginal && !selectedTemplate.platformManifest ? (
+            {!content && hasAnyGeneratedDraft && !showOriginal ? (
               <MissingDraftFrame
                 width={dims.w}
                 height={dims.h}
@@ -1261,6 +1225,18 @@ export function StudioWorkspace({
                 width={dims.w}
                 height={dims.h}
                 updating={saveState === "saving"}
+              />
+            ) : isBrandReferenceView && selectedTemplate.platformManifest ? (
+              <LiveTemplatePreviewFrame
+                manifest={selectedTemplate.platformManifest}
+                variantKey={size}
+                fields={previewFields}
+                assetUrlByPath={selectedTemplate.platformAssetUrlByPath}
+                damAssetUrlById={selectedTemplate.damAssetUrlById}
+                width={dims.w}
+                height={dims.h}
+                updating={false}
+                original
               />
             ) : (
               <ServerPreviewFrame
