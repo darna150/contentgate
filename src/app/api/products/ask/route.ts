@@ -62,30 +62,25 @@ function fallbackParagraphRowsFromDocuments(
 
 async function fallbackSearchApprovedKnowledge(
   supabase: Awaited<ReturnType<typeof createClient>>,
-  productId: string | null,
+  productId: string,
   question: string
 ) {
-  let query = supabase
+  const { data, error } = await supabase
     .from("documents")
     .select("id, title, paragraphs")
+    .eq("product_id", productId)
     .order("updated_at", { ascending: false })
     .limit(20);
-  if (productId) {
-    query = query.or(`product_id.eq.${productId},product_id.is.null`);
-  }
-  const { data, error } = await query;
   if (error) {
     console.error("knowledge fallback retrieval failed:", error);
     return [];
   }
 
-  const normalized = fallbackParagraphRowsFromDocuments((data ?? []) as DocumentParagraphRow[]);
-  const ranked = rankKnowledgeEvidence(
+  return rankKnowledgeEvidence(
     question,
-    normalized,
+    fallbackParagraphRowsFromDocuments((data ?? []) as DocumentParagraphRow[]),
     12
   );
-  return ranked.length > 0 ? ranked : normalized.slice(0, 12);
 }
 
 function openAIOutputText(response: OpenAIResponse) {
@@ -125,12 +120,9 @@ async function answerWithOpenAI(input: {
 
   const body: Record<string, unknown> = {
     model: OPENAI_ASK_MODEL,
-    max_output_tokens: 1400,
+    max_output_tokens: 1024,
     input: [
-      {
-        role: "system",
-        content: input.system,
-      },
+      { role: "system", content: input.system },
       {
         role: "user",
         content: [
@@ -184,41 +176,6 @@ async function answerWithOpenAI(input: {
   return parseKnowledgeAnswer(JSON.parse(text));
 }
 
-async function logKnowledgeQuery(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  input: {
-    userId: string;
-    productId: string | null;
-    question: string;
-    answer: string;
-    notFound: boolean;
-    citations: unknown[];
-  }
-) {
-  try {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("org_id")
-      .eq("id", input.userId)
-      .single();
-    if (profile?.org_id) {
-      const { error: logError } = await supabase.from("knowledge_queries").insert({
-        org_id: profile.org_id,
-        product_id: input.productId,
-        user_id: input.userId,
-        question: input.question,
-        not_found: input.notFound,
-        citation_count: input.citations.length,
-        answer: input.answer,
-        citations: input.citations,
-      });
-      if (logError) console.warn("knowledge query audit log failed:", logError);
-    }
-  } catch (logError) {
-    console.warn("knowledge query audit log failed:", logError);
-  }
-}
-
 export async function POST(req: Request) {
   const supabase = await createClient();
   const {
@@ -242,33 +199,22 @@ export async function POST(req: Request) {
   }
 
   const productId =
-    typeof payload.productId === "string"
-      ? payload.productId
-      : payload.productId === null
-        ? null
-        : undefined;
+    typeof payload.productId === "string" ? payload.productId : "";
   const question =
     typeof payload.question === "string" ? payload.question.trim() : "";
-  if (productId === undefined || !question) {
+  if (!productId || !question) {
     return NextResponse.json({ error: "Missing productId or question" }, { status: 400 });
   }
   if (question.length > 500) {
     return NextResponse.json({ error: "Question is too long" }, { status: 400 });
   }
 
-  const product = productId
-    ? (await supabase
-        .from("products")
-        .select("id, name, description, disclaimer_text")
-        .eq("id", productId)
-        .eq("status", "active")
-        .single()).data
-    : {
-        id: null,
-        name: "All sources",
-        description: null,
-        disclaimer_text: null,
-      };
+  const { data: product } = await supabase
+    .from("products")
+    .select("id, name, description, disclaimer_text")
+    .eq("id", productId)
+    .eq("status", "active")
+    .single();
   if (!product) return NextResponse.json({ error: "Product not found" }, { status: 404 });
 
   const { data: retrievalRows, error: retrievalError } = await supabase.rpc(
@@ -282,8 +228,6 @@ export async function POST(req: Request) {
   let evidence = normalizeRetrievedParagraphs(retrievalRows ?? []);
   if (retrievalError) {
     console.error("knowledge retrieval failed:", retrievalError);
-    evidence = await fallbackSearchApprovedKnowledge(supabase, productId, question);
-  } else if (evidence.length === 0) {
     evidence = await fallbackSearchApprovedKnowledge(supabase, productId, question);
   }
 
@@ -314,19 +258,25 @@ ${product.disclaimer_text ? `MANDATORY DISCLAIMER (always applies): ${product.di
     );
   }
 
+  if (!process.env.OPENAI_API_KEY) {
+    return NextResponse.json(buildExtractiveKnowledgeAnswer(question, evidence));
+  }
+
   let rawResult: {
     answer: string;
     citations: RawKnowledgeCitation[];
     not_found: boolean;
   };
   try {
-    rawResult = process.env.OPENAI_API_KEY
-      ? await answerWithOpenAI({ system, question })
-      : buildExtractiveKnowledgeAnswer(question, evidence);
+    rawResult = await answerWithOpenAI({
+      system,
+      question,
+    });
   } catch (error) {
     console.error("knowledge answer failed:", error);
-    rawResult = buildExtractiveKnowledgeAnswer(question, evidence);
+    return NextResponse.json(buildExtractiveKnowledgeAnswer(question, evidence));
   }
+
   const citations = verifyKnowledgeCitations(rawResult.citations ?? [], evidence);
   const result = finalizeKnowledgeAnswer({
     answer: rawResult.answer,
@@ -334,14 +284,30 @@ ${product.disclaimer_text ? `MANDATORY DISCLAIMER (always applies): ${product.di
     citations,
   });
 
-  await logKnowledgeQuery(supabase, {
-    userId: user.id,
-    productId,
-    question,
-    notFound: result.not_found ?? false,
-    answer: result.answer ?? "",
-    citations: result.citations ?? [],
-  });
+  // Log the query for usage analytics + audit trail. Best-effort: a logging
+  // failure must never block the answer the user came for.
+  try {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("org_id")
+      .eq("id", user.id)
+      .single();
+    if (profile?.org_id) {
+      const { error: logError } = await supabase.from("knowledge_queries").insert({
+        org_id: profile.org_id,
+        product_id: productId,
+        user_id: user.id,
+        question,
+        not_found: result.not_found ?? false,
+        citation_count: result.citations?.length ?? 0,
+        answer: result.answer ?? "",
+        citations: result.citations ?? [],
+      });
+      if (logError) console.warn("knowledge query audit log failed:", logError);
+    }
+  } catch (logError) {
+    console.warn("knowledge query audit log failed:", logError);
+  }
 
   return NextResponse.json(result);
 }
@@ -349,17 +315,31 @@ ${product.disclaimer_text ? `MANDATORY DISCLAIMER (always applies): ${product.di
 async function saveAndReturnNotFound(
   supabase: Awaited<ReturnType<typeof createClient>>,
   userId: string,
-  productId: string | null,
+  productId: string,
   question: string,
   answer: string
 ) {
-  await logKnowledgeQuery(supabase, {
-    userId,
-    productId,
-    question,
-    answer,
-    notFound: true,
-    citations: [],
-  });
+  try {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("org_id")
+      .eq("id", userId)
+      .single();
+    if (profile?.org_id) {
+      const { error: logError } = await supabase.from("knowledge_queries").insert({
+        org_id: profile.org_id,
+        product_id: productId,
+        user_id: userId,
+        question,
+        not_found: true,
+        citation_count: 0,
+        answer,
+        citations: [],
+      });
+      if (logError) console.warn("knowledge query audit log failed:", logError);
+    }
+  } catch (logError) {
+    console.warn("knowledge query audit log failed:", logError);
+  }
   return NextResponse.json({ answer, citations: [], not_found: true });
 }

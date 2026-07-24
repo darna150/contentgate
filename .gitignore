@@ -46,5 +46,8 @@ next-env.d.ts
 
 # manual review/debug artifacts (not app assets)
 /*.png
+/_import_nimbus.mjs
+/public/fonts/DelaGothicOne-Regular.ttf
+/public/fonts/GeistMono-Regular.ttf
 /.playwright-mcp/
 /.template-bundles/

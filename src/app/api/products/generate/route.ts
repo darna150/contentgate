@@ -9,9 +9,7 @@ import {
   templateFieldIssues,
 } from "@/lib/template-fields";
 import { isProductLifecycleActive } from "@/lib/product-workspace";
-import {
-  evidenceSourceIsApproved,
-} from "@/lib/evidence-validation";
+import { evidenceSourceIsApproved } from "@/lib/evidence-validation";
 import {
   aiEditableTemplateFields,
   composeStructuredFieldsForGeneration,
@@ -714,7 +712,7 @@ export async function POST(req: Request) {
         ...formatGeneratedCopyQualityIssues(qualityIssues),
       ];
       if (!retryReasons.length) {
-        out = { fields: generatedFields, evidence: lastCandidateEvidence };
+        out = { fields: structured, evidence: lastCandidateEvidence };
       }
     }
 
@@ -741,7 +739,7 @@ export async function POST(req: Request) {
     );
     const rejectedEvidenceCount = rawEvidence.length - evidence.length;
     const evidenceGate = evidenceGateForGeneratedFields({
-      fields: generatedFields,
+      fields: structured,
       requiredEvidenceFields: evidenceRequiredFields,
       evidence,
       approvedSources: approvedEvidenceSources,
