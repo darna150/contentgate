@@ -103,6 +103,17 @@ async function expectStudioDraftState(
   ).toHaveAttribute("aria-pressed", "true", { timeout });
 }
 
+async function expectNimbusReviewMode(page: Page) {
+  await expect(page.getByText(/Awaiting your review/i)).toBeVisible({
+    timeout: 30_000,
+  });
+  await expect(
+    page.getByRole("button", {
+      name: new RegExp(`${escapeRegExp(OUTPUT_SIZE_LABEL)}\\s+1080×1080`, "i"),
+    })
+  ).toHaveAttribute("aria-pressed", "true");
+}
+
 async function openNimbusTemplate(page: Page) {
   await page.goto("/products");
   await expect(page).toHaveURL(/\/products/);
@@ -404,8 +415,7 @@ test.describe("Nimbus live generation QA", () => {
     const contentId = await generateNimbusDraft(page);
 
     await page.getByRole("button", { name: /Submit for review/i }).click();
-    await expectStudioDraftState(page, "In review");
-    await expect(page.getByText(/Awaiting your review/i)).toBeVisible();
+    await expectNimbusReviewMode(page);
 
     await page.getByRole("button", { name: /^Approve$/i }).click();
     await expectStudioDraftState(page, "Approved");
@@ -495,7 +505,7 @@ test.describe("Nimbus live generation QA", () => {
     await generateNimbusDraft(page);
 
     await page.getByRole("button", { name: /Submit for review/i }).click();
-    await expectStudioDraftState(page, "In review");
+    await expectNimbusReviewMode(page);
 
     await page.getByRole("button", { name: /^Reject$/i }).click();
     await page.getByPlaceholder(/What needs to change/i).fill(rejectionNote);
