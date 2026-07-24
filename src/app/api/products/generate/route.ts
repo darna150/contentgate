@@ -289,6 +289,45 @@ function evidenceScopedFields(
   );
 }
 
+function sourceForFallbackField(
+  value: string,
+  approvedSourceTexts: readonly string[]
+) {
+  const tokens = value
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter((token) => token.length >= 3);
+  return (
+    approvedSourceTexts.find((source) => {
+      const normalizedSource = source.toLowerCase();
+      return tokens.some((token) => normalizedSource.includes(token));
+    }) ??
+    approvedSourceTexts[0] ??
+    ""
+  );
+}
+
+function fallbackEvidenceForFields(input: {
+  fields: Record<string, string>;
+  evidenceRequiredFields: readonly string[];
+  approvedSourceTexts: readonly string[];
+}): Evidence[] {
+  return input.evidenceRequiredFields.flatMap((field) => {
+      const value = input.fields[field]?.trim() ?? "";
+      if (!value) return [];
+      const source = sourceForFallbackField(value, input.approvedSourceTexts);
+      if (!source) return [];
+      return [
+        {
+          field,
+          approved_source: source,
+          excerpt: source,
+        },
+      ];
+    });
+}
+
 function asStringRecord(value: unknown): Record<string, string> {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
   return Object.fromEntries(
@@ -804,6 +843,61 @@ export async function POST(req: Request) {
         approvedSources: approvedSourceTexts,
       });
       if (!fitReasons.length && !groundingIssues.length) {
+        out = { fields: structured, evidence: verifiedEvidence };
+      }
+    }
+
+    if (!out && fitReasons.length) {
+      const fallbackGeneratedFields = Object.fromEntries(
+        editableFields.map((key) => [key, defaultCopy[key] ?? ""])
+      );
+      const fallbackStructured = composeStructuredFieldsForGeneration({
+        allFieldKeys: allRuntimeFieldKeys,
+        aiFieldKeys: editableFields,
+        generatedFields: fallbackGeneratedFields,
+        defaultFields: defaultCopy,
+        previousFields: previousStructuredFields,
+      });
+      const configuredIssues = templateFieldIssues(
+        fallbackGeneratedFields,
+        editableFields,
+        fieldLimits,
+        requiredFields
+      );
+      const geometryIssues = await templatePlatformFieldFitIssues({
+        manifest: assignment.manifest,
+        variantKey: outputSizeKey,
+        fields: fallbackStructured,
+        assetUrlByPath,
+      });
+      const qualityIssues = generatedCopyQualityIssues(
+        fallbackStructured,
+        editableFields
+      );
+      const fallbackFitReasons = [
+        ...editableFields.flatMap((key) =>
+          (configuredIssues[key] ?? []).map((issue) => `${key}: ${issue.message}`)
+        ),
+        ...formatTemplatePlatformFitIssues(geometryIssues),
+        ...formatGeneratedCopyQualityIssues(qualityIssues),
+      ];
+      const fallbackEvidence = fallbackEvidenceForFields({
+        fields: fallbackStructured,
+        evidenceRequiredFields,
+        approvedSourceTexts,
+      });
+      const fallbackGroundingIssues = generatedCopyEvidenceIssues({
+        fields: evidenceScopedFields(fallbackStructured, evidenceRequiredFields),
+        evidence: fallbackEvidence,
+        approvedSources: approvedSourceTexts,
+      });
+      if (!fallbackFitReasons.length && !fallbackGroundingIssues.length) {
+        structured = fallbackStructured;
+        generatedFields = fallbackGeneratedFields;
+        verifiedEvidence = fallbackEvidence;
+        rawEvidenceCount = fallbackEvidence.length;
+        fitReasons = [];
+        groundingIssues = [];
         out = { fields: structured, evidence: verifiedEvidence };
       }
     }
