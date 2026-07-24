@@ -25,7 +25,7 @@ const nextConfig: NextConfig = {
   // Keep this config file deploy-visible so PR QA changes still receive Vercel checks.
   serverExternalPackages: ["officeparser"],
   outputFileTracingExcludes: {
-    "/api/*": [
+    "/*": [
       "public/assets/**/*",
       "public/template-packages/**/*",
     ],
