@@ -1,8 +1,7 @@
 import "server-only";
 
-import { TEMPLATE_BUNDLE_STORAGE_BUCKET } from "./importer";
+import { TEMPLATE_BUNDLE_STORAGE_BUCKET, templateBundleStoragePrefix } from "./importer";
 import type { TemplateBundleManifest } from "./manifest";
-import { isPublicContentGateBundle } from "./public-contentgate-assets";
 
 const TEMPLATE_BUNDLE_URL_TTL_SECONDS = 60 * 60;
 
@@ -22,39 +21,37 @@ type StorageClient = {
   };
 };
 
+// Must match exactly where importTemplateBundle uploads each asset — an
+// org-scoped prefix ({orgId}/template-bundles/{family}/{version}) built by the
+// same helper the importer uses. Reconstructing a non-org-scoped path here (as
+// this once did) signs objects that don't exist, so the URL map comes back
+// empty and the renderer falls through to broken relative asset paths.
 export function templateBundleStoragePath(
+  orgId: string,
   manifest: TemplateBundleManifest,
   assetPath: string
 ) {
-  return [
-    "template-bundles",
-    manifest.family.key,
-    manifest.version.name,
-    assetPath,
-  ].join("/");
+  return `${templateBundleStoragePrefix({ orgId, manifest })}/${assetPath}`;
 }
 
 // Includes "font" alongside "background"/"reference": renderer image fonts
 // (loadTemplateBundleImageFonts) and the fit engine (loadTemplateBundleFontData)
-// both resolve fonts through this same URL map, falling back to public/fonts
-// only for ContentGate. Excluding "font" here meant every non-public bundle
-// font had no signed URL to load from, in fit checks and in live Satori
-// rendering alike.
-const SIGNED_ASSET_KINDS = new Set(["background", "font", "reference"]);
+// both resolve fonts through this same URL map. Excluding "font" here meant
+// every bundle font had no signed URL to load from, in fit checks and in live
+// Satori rendering alike.
+const SIGNED_ASSET_KINDS = new Set(["background", "font", "image", "reference"]);
 
 export async function createTemplateBundleAssetUrlMap(
   supabase: StorageClient,
+  orgId: string,
   manifests: readonly TemplateBundleManifest[]
 ) {
-  const privateManifests = manifests.filter(
-    (manifest) => !isPublicContentGateBundle(manifest)
-  );
   const paths = Array.from(
     new Set(
-      privateManifests.flatMap((manifest) =>
+      manifests.flatMap((manifest) =>
         manifest.assets
           .filter((asset) => SIGNED_ASSET_KINDS.has(asset.kind))
-          .map((asset) => templateBundleStoragePath(manifest, asset.path))
+          .map((asset) => templateBundleStoragePath(orgId, manifest, asset.path))
       )
     )
   );
@@ -75,11 +72,11 @@ export async function createTemplateBundleAssetUrlMap(
   );
 
   return new Map(
-    privateManifests.flatMap((manifest) =>
+    manifests.flatMap((manifest) =>
       manifest.assets
         .filter((asset) => SIGNED_ASSET_KINDS.has(asset.kind))
         .flatMap((asset) => {
-          const storagePath = templateBundleStoragePath(manifest, asset.path);
+          const storagePath = templateBundleStoragePath(orgId, manifest, asset.path);
           const signedUrl = signedByStoragePath.get(storagePath);
           return signedUrl ? [[asset.path, signedUrl] as const] : [];
         })

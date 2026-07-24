@@ -63,7 +63,7 @@ export async function GET(req: Request) {
   const { data: content } = await supabase
     .from("generated_content")
     .select(
-      "id, title, structured_fields, template_versions(manifest), template_variants(variant_key), products!generated_content_product_id_fkey(name)"
+      "id, org_id, title, structured_fields, template_versions(manifest), template_variants(variant_key), products!generated_content_product_id_fkey(name)"
     )
     .eq("id", contentId)
     .single();
@@ -96,7 +96,7 @@ export async function GET(req: Request) {
   }
 
   const assetUrlByPath = Object.fromEntries(
-    await createTemplateBundleAssetUrlMap(supabase, [manifest])
+    await createTemplateBundleAssetUrlMap(supabase, content.org_id, [manifest])
   );
   const fields = (content.structured_fields ?? {}) as Record<string, string>;
   const textLayoutByField = await resolveTemplatePlatformVariantLayout({

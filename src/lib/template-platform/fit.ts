@@ -276,6 +276,14 @@ export async function templatePlatformFieldFitIssues(
         { assetUrlByPath: input.assetUrlByPath, assetDataByPath: input.assetDataByPath }
       );
       const issues: TemplatePlatformFitIssue[] = [];
+      const value = cleanText(input.fields[slot.field]);
+      if (slot.maxChars && value.length > slot.maxChars) {
+        issues.push({
+          field: slot.field,
+          type: "lines",
+          message: `${slot.field.replace(/_/g, " ")} is ${value.length} characters; maximum is ${slot.maxChars}.`,
+        });
+      }
       if (layout.overlongWords.length) {
         issues.push({
           field: slot.field,

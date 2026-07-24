@@ -30,9 +30,6 @@ import {
   templatePlatformFitInstructions,
 } from "@/lib/template-platform/fit";
 import { createTemplateBundleAssetUrlMap } from "@/lib/template-platform/storage-urls";
-import { buildContentGateTemplateBundle } from "@/lib/template-platform/contentgate-bundle";
-import type { TemplatePlatformAssignmentRuntime } from "@/lib/template-platform/assignments";
-import { aerformDemoProductName } from "@/lib/aerform-demo-display";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -75,14 +72,6 @@ const AERFORM_SOURCE_ENTRIES: SourceEntry[] = [
   },
 ];
 
-const AERFORM_DEFAULT_COPY: Record<string, string> = {
-  headline: "Carry lighter. Move quieter.",
-  subheadline: "Technical carry for commute, studio, and travel.",
-  cta: "Explore",
-  product_specs:
-    "24L daily / 32L expanded\nFits up to 16-inch laptop\nQuick side pocket\nRecycled nylon shell",
-};
-
 type Body = {
   productTemplateId?: string;
   platformAssignmentId?: string;
@@ -94,33 +83,6 @@ type Body = {
   replaceContentId?: string; // when revising, update this draft in place
   sourceContentId?: string; // when adapting another size, preserve the same campaign idea
 };
-
-async function aerformAssignmentOverride(
-  assignment: TemplatePlatformAssignmentRuntime
-): Promise<TemplatePlatformAssignmentRuntime> {
-  if (
-    assignment.familyKey !== "contentgate-local-friendly" &&
-    assignment.familyKey !== "contentgate-local-premium"
-  ) {
-    return assignment;
-  }
-  const bundle = await buildContentGateTemplateBundle(
-    assignment.familyKey === "contentgate-local-premium"
-      ? "contentgate_local_premium"
-      : "contentgate_local_friendly"
-  );
-  const supportedSizes = bundle.manifest.variants.map((variant) => variant.key);
-  return {
-    ...assignment,
-    familyKey: bundle.manifest.family.key,
-    familyName: bundle.manifest.family.name,
-    supportedSizes,
-    defaultVariantKey: supportedSizes.includes(assignment.defaultVariantKey)
-      ? assignment.defaultVariantKey
-      : supportedSizes[0],
-    manifest: bundle.manifest,
-  };
-}
 
 const ALLOWED_LANGUAGES = new Set([
   "English",
@@ -389,7 +351,7 @@ export async function POST(req: Request) {
         { status: 409 }
       );
     }
-    const assignment = await aerformAssignmentOverride(normalizedAssignment);
+    const assignment = normalizedAssignment;
     const runtimeVariant = resolveTemplateBundleRuntimeVariant(
       assignment.manifest,
       outputSizeKey
@@ -486,7 +448,7 @@ export async function POST(req: Request) {
         { status: 409 }
       );
     }
-    const productDisplayName = aerformDemoProductName(product.name);
+    const productDisplayName = product.name;
 
     const [{ data: claims }, { data: docs }] = await Promise.all([
       supabase.from("product_claims").select("claim_text").eq("product_id", product.id).eq("status", "approved"),
@@ -505,16 +467,15 @@ export async function POST(req: Request) {
       outputSizeKey
     );
     const assetUrlByPath = Object.fromEntries(
-      await createTemplateBundleAssetUrlMap(supabase, [assignment.manifest])
+      await createTemplateBundleAssetUrlMap(supabase, profile.org_id, [assignment.manifest])
     );
     const typographyInstructions = templatePlatformFitInstructions({
       manifest: assignment.manifest,
       variantKey: outputSizeKey,
     });
-    const defaultCopy =
-      assignment.familyKey === "aerform-air01-campaign"
-        ? AERFORM_DEFAULT_COPY
-        : asStringRecord((assignmentRow as TemplatePlatformAssignmentRow).default_payload);
+    const defaultCopy = asStringRecord(
+      (assignmentRow as TemplatePlatformAssignmentRow).default_payload
+    );
     let approvedClaims = (claims ?? []).map((c) => c.claim_text);
     const sourceDocs = docs ?? [];
     let sourceEntries: SourceEntry[] = sourceDocs

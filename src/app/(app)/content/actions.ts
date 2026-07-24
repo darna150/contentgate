@@ -28,6 +28,21 @@ const PRODUCT_VARIANT_FIELD = "__productVariantKey";
 
 type FitStorageClient = Awaited<ReturnType<typeof createClient>>;
 
+// The signed-asset URL map is org-scoped; resolve the caller's org from their
+// session so fit checks load the right bundle fonts/backgrounds.
+async function resolveOrgId(supabase: FitStorageClient): Promise<string | null> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return null;
+  const { data } = await supabase
+    .from("profiles")
+    .select("org_id")
+    .eq("id", user.id)
+    .single();
+  return (data?.org_id as string | undefined) ?? null;
+}
+
 type ActionResult =
   | {
       ok: true;
@@ -125,9 +140,12 @@ async function validateStoredTemplateFields(
     if (firstIssue) {
       return `${firstIssue[0]}: ${firstIssue[1].map((issue) => issue.message).join(", ")}`;
     }
-    const assetUrlByPath = Object.fromEntries(
-      await createTemplateBundleAssetUrlMap(supabase, [version.manifest])
-    );
+    const orgId = await resolveOrgId(supabase);
+    const assetUrlByPath = orgId
+      ? Object.fromEntries(
+          await createTemplateBundleAssetUrlMap(supabase, orgId, [version.manifest])
+        )
+      : {};
     const geometryIssues = await templatePlatformFieldFitIssues({
       manifest: version.manifest,
       variantKey: variant.variant_key,
@@ -255,11 +273,14 @@ export async function updateStructuredFields(
       })();
   if (validationError) return { error: validationError };
   if (!template) {
-    const assetUrlByPath = Object.fromEntries(
-      await createTemplateBundleAssetUrlMap(ctx.supabase, [
-        version!.manifest as TemplateBundleManifest,
-      ])
-    );
+    const orgId = await resolveOrgId(ctx.supabase);
+    const assetUrlByPath = orgId
+      ? Object.fromEntries(
+          await createTemplateBundleAssetUrlMap(ctx.supabase, orgId, [
+            version!.manifest as TemplateBundleManifest,
+          ])
+        )
+      : {};
     const geometryIssues = await templatePlatformFieldFitIssues({
       manifest: version!.manifest as TemplateBundleManifest,
       variantKey: variant!.variant_key,
@@ -352,9 +373,12 @@ export async function checkDraftStructuredFieldsFit(
       order.map((key) => [key, String(fields[key] ?? "")])
     );
     const configuredIssues = templateFieldIssues(cleaned, order, limits, requiredFields);
-    const assetUrlByPath = Object.fromEntries(
-      await createTemplateBundleAssetUrlMap(ctx.supabase, [version.manifest])
-    );
+    const orgId = await resolveOrgId(ctx.supabase);
+    const assetUrlByPath = orgId
+      ? Object.fromEntries(
+          await createTemplateBundleAssetUrlMap(ctx.supabase, orgId, [version.manifest])
+        )
+      : {};
     const [geometryIssues, textLayoutByField] = await Promise.all([
       templatePlatformFieldFitIssues({
         manifest: version.manifest,

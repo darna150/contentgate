@@ -450,6 +450,10 @@ export function StudioWorkspace({
       initialContentsBySize[nextSize] ?? initialContents[0] ?? null;
     const nextFields = nextContent?.structured_fields ?? selectedTemplate.default_copy;
 
+    // This effect is a route/server-state reset boundary: when the selected
+    // template's initial payload changes, the Studio draft state must reset
+    // together. Phase 6 should replace this cluster with a reducer.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSize(nextSize);
     setContentsBySize(initialContentsBySize);
     setCampaignSourceContentId(nextContent?.id ?? null);
@@ -1176,6 +1180,7 @@ export function StudioWorkspace({
                 manifest={selectedTemplate.platformManifest}
                 variantKey={size}
                 fields={previewFields}
+                assetUrlByPath={selectedTemplate.platformAssetUrlByPath}
                 textLayoutByField={textLayoutByField}
                 width={dims.w}
                 height={dims.h}

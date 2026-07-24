@@ -142,6 +142,19 @@ function variantChannel(size: TemplateSizeKey): TemplateBundleVariant["channel"]
 }
 
 function toTextSlot(slot: PublishedTextSlot): TemplateBundleTextSlot {
+  const maxLines =
+    slot.field === "headline" || slot.field === "subheadline"
+      ? Math.max(slot.maxLines, 2)
+      : slot.maxLines;
+  const maxChars =
+    slot.field === "headline"
+      ? Math.max(slot.maxChars, 56)
+      : slot.field === "subheadline"
+        ? Math.max(slot.maxChars, 96)
+        : slot.field === "cta"
+          ? Math.max(slot.maxChars, 24)
+          : slot.maxChars;
+  const height = Math.max(slot.h, slot.fontSize * slot.lineHeight * maxLines);
   return {
     key: assetKey(slot.field, "slot"),
     field: slot.field,
@@ -149,7 +162,7 @@ function toTextSlot(slot: PublishedTextSlot): TemplateBundleTextSlot {
     x: slot.x,
     y: slot.y,
     width: slot.w,
-    height: slot.h,
+    height,
     fontKey: fontKeyForWeight(slot.weight),
     fontSize: slot.fontSize,
     lineHeight: slot.lineHeight,
@@ -157,8 +170,8 @@ function toTextSlot(slot: PublishedTextSlot): TemplateBundleTextSlot {
     color: slot.color,
     align: slot.align ?? "left",
     verticalAlign: slot.verticalAlign === "center" ? "middle" : slot.verticalAlign ?? "top",
-    maxChars: slot.maxChars,
-    maxLines: slot.maxLines,
+    maxChars,
+    maxLines,
     lineChars: slot.lineChars,
     minFontSize: Math.max(8, Math.floor(slot.fontSize * 0.72)),
     fit: "shrink_to_fit",
@@ -232,6 +245,7 @@ async function readBundleAsset(input: {
   key: string;
   kind: TemplateBundleAsset["kind"];
   path: string;
+  bundlePath?: string;
   width?: number;
   height?: number;
 }): Promise<{
@@ -239,7 +253,7 @@ async function readBundleAsset(input: {
   source: TemplateBundleAssetSource;
 }> {
   const data = await readFile(publicPathToFilePath(input.path));
-  const bundlePath = publicPathToBundlePath(input.path);
+  const bundlePath = input.bundlePath ?? publicPathToBundlePath(input.path);
   const contentType = contentTypeForPath(bundlePath);
   const checksum = sha256(data);
 
@@ -291,6 +305,27 @@ async function buildFontAssets(): Promise<{
   return {
     assets: entries.map((entry) => entry.asset),
     fonts: entries.map((entry) => entry.font),
+    sources: entries.map((entry) => entry.source),
+  };
+}
+
+async function buildProductAssets(): Promise<{
+  assets: TemplateBundleAsset[];
+  sources: TemplateBundleAssetSource[];
+}> {
+  const entries = await Promise.all(
+    ["charcoal", "stone", "ivory", "charcoal-expanded"].map((key) =>
+      readBundleAsset({
+        key: `product-${key}`,
+        kind: "image",
+        path: `/template-packages/contentgate/products/${key}.png`,
+        bundlePath: `products/${key}.png`,
+      })
+    )
+  );
+
+  return {
+    assets: entries.map((entry) => entry.asset),
     sources: entries.map((entry) => entry.source),
   };
 }
@@ -389,13 +424,15 @@ async function buildVariantAssets(input: {
       key: assetKey(input.size, "reference"),
       kind: "reference",
       path: input.frame.referenceImage,
+      bundlePath: `variants/${input.size}/reference.png`,
       width: dimensions.w,
       height: dimensions.h,
     }),
     readBundleAsset({
-      key: assetKey(input.size, "background"),
+      key: assetKey(`variants/${input.size}/background-classic-cream.png`, "background"),
       kind: "background",
       path: generatedImage,
+      bundlePath: `variants/${input.size}/background.png`,
       width: dimensions.w,
       height: dimensions.h,
     }),
@@ -403,9 +440,10 @@ async function buildVariantAssets(input: {
   const alternateBackgrounds = await Promise.all(
     BACKGROUND_OPTIONS.filter((option) => option.key !== "classic-cream").map((option) =>
       readBundleAsset({
-        key: assetKey(input.size, option.key, "background"),
+        key: assetKey(`variants/${input.size}/background-${option.key}.png`, "background"),
         kind: "background",
         path: backgroundOptionPath(generatedImage, option.key),
+        bundlePath: `variants/${input.size}/background-${option.key}.png`,
         width: dimensions.w,
         height: dimensions.h,
       }).then((entry) => ({ ...entry, option }))
@@ -458,6 +496,7 @@ export async function buildContentGateTemplateBundle(
     return [size, frame] as [TemplateSizeKey, PublishedFrame];
   });
   const fontAssets = await buildFontAssets();
+  const productAssets = await buildProductAssets();
   const variantAssetEntries = await Promise.all(
     frameEntries.map(([size, frame]) =>
       buildVariantAssets({ packageKey: pkg.packageKey, size, frame })
@@ -497,6 +536,7 @@ export async function buildContentGateTemplateBundle(
     fonts: fontAssets.fonts,
     assets: [
       ...fontAssets.assets,
+      ...productAssets.assets,
       ...variantAssetEntries.flatMap((entry) => entry.assets),
     ],
     variants,
@@ -506,6 +546,7 @@ export async function buildContentGateTemplateBundle(
     manifest,
     assets: [
       ...fontAssets.sources,
+      ...productAssets.sources,
       ...variantAssetEntries.flatMap((entry) => entry.sources),
     ],
   };

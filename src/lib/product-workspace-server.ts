@@ -20,13 +20,7 @@ import {
   normalizeTemplatePlatformAssignment,
   type TemplatePlatformAssignmentRow,
 } from "@/lib/template-platform/assignments";
-import { buildContentGateTemplateBundle } from "@/lib/template-platform/contentgate-bundle";
-import { publicContentGateBundleAssetPath } from "@/lib/template-platform/public-contentgate-assets";
 import { cursorFromOffset, offsetFromCursor } from "@/lib/content-listing-shared";
-import {
-  aerformDemoProductDescription,
-  aerformDemoProductName,
-} from "@/lib/aerform-demo-display";
 
 type Joined<T> = T | T[] | null;
 type ClaimSourceDocument = { id: string; title: string };
@@ -162,31 +156,6 @@ type ProductWorkspaceView =
 type NormalizedPlatformTemplate = NonNullable<
   ReturnType<typeof normalizeTemplatePlatformAssignment>
 >;
-
-async function aerformTemplateOverride(template: NormalizedPlatformTemplate) {
-  if (
-    template.familyKey !== "contentgate-local-friendly" &&
-    template.familyKey !== "contentgate-local-premium"
-  ) {
-    return template;
-  }
-  const layoutKey =
-    template.familyKey === "contentgate-local-premium"
-      ? "contentgate_local_premium"
-      : "contentgate_local_friendly";
-  const bundle = await buildContentGateTemplateBundle(layoutKey);
-  const supportedSizes = bundle.manifest.variants.map((variant) => variant.key);
-  return {
-    ...template,
-    familyKey: bundle.manifest.family.key,
-    familyName: bundle.manifest.family.name,
-    supportedSizes,
-    defaultVariantKey: supportedSizes.includes(template.defaultVariantKey)
-      ? template.defaultVariantKey
-      : supportedSizes[0],
-    manifest: bundle.manifest,
-  };
-}
 
 type AssetRow = {
   id: string;
@@ -492,12 +461,11 @@ export async function getProductWorkspace(
       sourceExcerpt: claim.source_excerpt ?? null,
     };
   });
-  const normalizedPlatformTemplates = await Promise.all(
-    ((platformTemplateResult.data ?? []) as TemplatePlatformAssignmentRow[])
-      .map(normalizeTemplatePlatformAssignment)
-      .filter((template): template is NormalizedPlatformTemplate => Boolean(template))
-      .map(aerformTemplateOverride)
-  );
+  const normalizedPlatformTemplates = (
+    (platformTemplateResult.data ?? []) as TemplatePlatformAssignmentRow[]
+  )
+    .map(normalizeTemplatePlatformAssignment)
+    .filter((template): template is NormalizedPlatformTemplate => Boolean(template));
   const platformTemplates = normalizedPlatformTemplates.map((template) => {
       const fieldsBySize = Object.fromEntries(
         template.supportedSizes.map((size) => {
@@ -527,12 +495,7 @@ export async function getProductWorkspace(
           const asset = variant
             ? template.manifest.assets.find((item) => item.key === variant.referenceAsset)
             : null;
-          return [
-            size,
-            asset
-              ? (publicContentGateBundleAssetPath(template.manifest, asset.path) ?? asset.path)
-              : "",
-          ];
+          return [size, asset ? asset.path : ""];
         })
       );
       const backgroundAssetBySize = Object.fromEntries(
@@ -541,12 +504,7 @@ export async function getProductWorkspace(
           const asset = variant
             ? template.manifest.assets.find((item) => item.key === variant.backgroundAsset)
             : null;
-          return [
-            size,
-            asset
-              ? (publicContentGateBundleAssetPath(template.manifest, asset.path) ?? asset.path)
-              : "",
-          ];
+          return [size, asset ? asset.path : ""];
         })
       );
       return {
@@ -640,8 +598,8 @@ export async function getProductWorkspace(
     product: {
       id: product.id,
       orgId: product.org_id,
-      name: aerformDemoProductName(product.name),
-      description: aerformDemoProductDescription(product.description),
+      name: product.name,
+      description: product.description,
       disclaimerText: product.disclaimer_text,
       status: product.status,
       createdAt: product.created_at,

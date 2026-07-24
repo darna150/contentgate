@@ -8,9 +8,6 @@ import {
 } from "@/lib/content-governance";
 import { createClient } from "@/lib/supabase/server";
 import type { TemplateBundleManifest } from "@/lib/template-platform/manifest";
-import { buildContentGateTemplateBundle } from "@/lib/template-platform/contentgate-bundle";
-import { publicContentGateBundleVariantAssetPath } from "@/lib/template-platform/public-contentgate-assets";
-import { aerformDemoProductName } from "@/lib/aerform-demo-display";
 import {
   getTemplateBundleSupportedSizes,
   getTemplateBundleVariantDimensions,
@@ -142,14 +139,6 @@ const CONTENT_SELECT =
 
 const ACTIVE_CONTENT_STATUSES = ["draft", "rejected", "in_review", "approved"];
 
-const AERFORM_DEFAULT_COPY: Record<string, string> = {
-  headline: "Carry lighter. Move quieter.",
-  subheadline: "Technical carry for commute, studio, and travel.",
-  cta: "Explore",
-  product_specs:
-    "24L daily / 32L expanded\nFits up to 16-inch laptop\nQuick side pocket\nRecycled nylon shell",
-};
-
 function one<T>(value: T | T[] | null | undefined): T | null {
   if (Array.isArray(value)) return value[0] ?? null;
   return value ?? null;
@@ -211,65 +200,32 @@ function toStudioContent(row: GeneratedContentRow, userId?: string): StudioConte
   };
 }
 
-async function aerformManifestOverride(input: {
-  familyKey: string;
-  familyName: string;
-  manifest: TemplateBundleManifest;
-}) {
-  if (
-    input.familyKey !== "contentgate-local-friendly" &&
-    input.familyKey !== "contentgate-local-premium"
-  ) {
-    return input;
-  }
-  const bundle = await buildContentGateTemplateBundle(
-    input.familyKey === "contentgate-local-premium"
-      ? "contentgate_local_premium"
-      : "contentgate_local_friendly"
-  );
-  return {
-    familyKey: bundle.manifest.family.key,
-    familyName: bundle.manifest.family.name,
-    manifest: bundle.manifest,
-  };
-}
-
 async function platformAssignmentsToTemplates(rows: PlatformAssignmentRow[]): Promise<StudioTemplate[]> {
-  const templates = await Promise.all(rows.map(async (row) => {
+  const templates = rows.map((row) => {
     if (row.status !== "active") return [];
     const family = one(row.template_families);
     const version = one(row.template_versions);
     if (!family || !version || version.status !== "published") return [];
-    const override = await aerformManifestOverride({
-      familyKey: family.family_key,
-      familyName: family.name,
-      manifest: version.manifest,
-    });
-    const supportedSizes = getTemplateBundleSupportedSizes(override.manifest);
+    const manifest = version.manifest;
+    const supportedSizes = getTemplateBundleSupportedSizes(manifest);
     const defaultVariantKey = row.default_variant_key ?? supportedSizes[0];
     if (!defaultVariantKey) return [];
-    const runtime = resolveTemplateBundleRuntimeVariant(override.manifest, defaultVariantKey);
+    const runtime = resolveTemplateBundleRuntimeVariant(manifest, defaultVariantKey);
     if (!runtime) return [];
-    const referenceAssetBySize = Object.fromEntries(
-      supportedSizes.map((size) => [
-        size,
-        publicContentGateBundleVariantAssetPath(override.manifest, size, "reference") ?? "",
-      ])
-    );
-    const defaultCopy =
-      override.familyKey === "aerform-air01-campaign"
-        ? AERFORM_DEFAULT_COPY
-        : row.default_payload ?? {};
+    // Reference previews resolve through the generic server-side preview
+    // endpoint (platformTemplatePreviewUrl); no per-size override paths.
+    const referenceAssetBySize: Record<string, string> = {};
+    const defaultCopy = row.default_payload ?? {};
     return [
       {
         id: row.id,
         product_id: row.product_id,
         category: "social",
-        variant: override.familyName,
-        layout_key: `template-platform:${override.familyKey}`,
+        variant: family.name,
+        layout_key: `template-platform:${family.family_key}`,
         platformAssignmentId: row.id,
         templateVersionId: version.id,
-        platformManifest: override.manifest,
+        platformManifest: manifest,
         referenceAssetBySize,
         editable_fields: runtime.fields.map((field) => field.key),
         required_fields: runtime.fields
@@ -287,7 +243,7 @@ async function platformAssignmentsToTemplates(rows: PlatformAssignmentRow[]): Pr
         },
       },
     ];
-  }));
+  });
   return templates.flat();
 }
 
@@ -440,16 +396,13 @@ export async function loadStudioState(input: {
     listActiveAssignments(),
     supabase.from("organizations").select("name").single(),
     user
-      ? supabase.from("profiles").select("role").eq("id", user.id).single()
+      ? supabase.from("profiles").select("role, org_id").eq("id", user.id).single()
       : Promise.resolve({ data: null }),
   ]);
 
   const canReview = canReviewContent((profile?.role as ContentRole) ?? "member");
   const canDownloadDraftPreviews = profile?.role === "admin";
-  const products = ((productRows ?? []) as StudioProduct[]).map((product) => ({
-    ...product,
-    name: aerformDemoProductName(product.name),
-  }));
+  const products = (productRows ?? []) as StudioProduct[];
   const templates = await platformAssignmentsToTemplates(assignmentRows);
   const requestedProductId = requestedContentContext?.product.id ?? input.productId;
   const requestedAssignmentId =
@@ -464,11 +417,13 @@ export async function loadStudioState(input: {
     productTemplates[0] ??
     null;
 
-  if (selectedTemplate?.platformManifest) {
+  if (selectedTemplate?.platformManifest && profile?.org_id) {
     selectedTemplate = {
       ...selectedTemplate,
       platformAssetUrlByPath: Object.fromEntries(
-        await createTemplateBundleAssetUrlMap(supabase, [selectedTemplate.platformManifest])
+        await createTemplateBundleAssetUrlMap(supabase, profile.org_id, [
+          selectedTemplate.platformManifest,
+        ])
       ),
     };
   }

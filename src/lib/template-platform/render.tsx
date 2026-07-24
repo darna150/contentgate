@@ -10,7 +10,10 @@ import {
   templateBundleFontStyle,
   templateBundleFontWeight,
 } from "./fonts";
-import { publicContentGateBundleAssetPath } from "./public-contentgate-assets";
+import {
+  isPublicContentGateBundle,
+  publicContentGateBundleAssetPath,
+} from "./public-contentgate-assets";
 import {
   BACKGROUND_CHOICE_FIELD,
   resolveTemplateBundleRuntimeVariant,
@@ -84,6 +87,10 @@ function renderTextSlot(
     : fallbackFontSizeForUnresolvedText(slot, content, scale);
   const horizontalAlign =
     slot.align === "center" ? "center" : slot.align === "right" ? "flex-end" : "flex-start";
+  const lineHeight =
+    slot.field === "headline" && slot.maxLines > 1
+      ? Math.max(slot.lineHeight, 1.2400000095367432)
+      : slot.lineHeight;
 
   return (
     <div
@@ -105,7 +112,7 @@ function renderTextSlot(
         fontSize,
         fontWeight: templateBundleFontWeight(manifest, slot),
         fontStyle: templateBundleFontStyle(manifest, slot),
-        lineHeight: slot.lineHeight,
+        lineHeight,
         letterSpacing: scaledNumber(slot.letterSpacing ?? 0, scale),
         textAlign: slot.align ?? "left",
         whiteSpace: "pre-wrap",
@@ -144,33 +151,51 @@ function renderTextSlot(
 
 const PRODUCT_VARIANT_FIELD = "__productVariantKey";
 
-const PRODUCT_VARIANT_ASSETS: Record<string, string> = {
-  charcoal: "/template-packages/contentgate/products/charcoal.png",
-  stone: "/template-packages/contentgate/products/stone.png",
-  ivory: "/template-packages/contentgate/products/ivory.png",
-  "charcoal-expanded": "/template-packages/contentgate/products/charcoal-expanded.png",
-};
-
 const DARK_BACKGROUND_KEYS = new Set(["terracotta-edge", "night-threshold", "dark-performance"]);
 
-function selectedProductAsset(fields: Record<string, unknown>, assetOrigin?: string) {
+// Resolve the selected product-variant image from the manifest's registered
+// image assets (path convention `products/<key>.png`, or a matching asset key),
+// signed through assetUrlByPath like every other bundle asset. Bundles that
+// declare no product variants simply have no matching asset and render nothing.
+function selectedProductAsset(
+  manifest: TemplateBundleManifest,
+  fields: Record<string, unknown>,
+  assetUrlByPath?: Record<string, string>,
+  assetOrigin?: string
+) {
+  const field = manifest.fields.find((item) => item.key === PRODUCT_VARIANT_FIELD);
+  const selected = fields[PRODUCT_VARIANT_FIELD];
   const key =
-    typeof fields[PRODUCT_VARIANT_FIELD] === "string"
-      ? String(fields[PRODUCT_VARIANT_FIELD])
-      : "charcoal";
-  const assetPath = PRODUCT_VARIANT_ASSETS[key] ?? PRODUCT_VARIANT_ASSETS.charcoal;
-  return assetOrigin ? new URL(assetPath, assetOrigin).toString() : assetPath;
+    (typeof selected === "string" && selected) ||
+    (typeof field?.defaultValue === "string" ? field.defaultValue : undefined) ||
+    field?.options?.[0];
+  if (!key) return null;
+  const asset = manifest.assets.find(
+    (item) =>
+      item.kind === "image" &&
+      (item.key === `product-${key}` ||
+        item.path === `products/${key}.png` ||
+        item.path.endsWith(`/${key}.png`))
+  );
+  if (!asset) return null;
+  if (isPublicContentGateBundle(manifest) && asset.path === `products/${key}.png`) {
+    const publicProductPath = `/template-packages/contentgate/products/${key}.png`;
+    return assetOrigin ? new URL(publicProductPath, assetOrigin).toString() : publicProductPath;
+  }
+  return resolveImageSource(manifest, asset.path, assetUrlByPath, assetOrigin);
 }
 
 function renderImageSlot(
   slot: TemplateBundleImageSlot,
+  manifest: TemplateBundleManifest,
   fields: Record<string, unknown>,
+  assetUrlByPath?: Record<string, string>,
   scale = 1,
   assetOrigin?: string
 ) {
   const src =
     slot.field === PRODUCT_VARIANT_FIELD
-      ? selectedProductAsset(fields, assetOrigin)
+      ? selectedProductAsset(manifest, fields, assetUrlByPath, assetOrigin)
       : cleanText(fields[slot.field]);
   if (!src) return null;
   const shadowWidth = scaledNumber(slot.width * 0.68, scale);
@@ -220,14 +245,16 @@ function resolveImageSource(
   assetOrigin?: string
 ) {
   const signedUrl = assetUrlByPath?.[path];
-  if (signedUrl && manifest.version.name !== "figwright-v1") return signedUrl;
+  if (signedUrl && !isPublicContentGateBundle(manifest)) return signedUrl;
   const publicPath = publicContentGateBundleAssetPath(manifest, path);
   if (publicPath) {
     return assetOrigin ? new URL(publicPath, assetOrigin).toString() : publicPath;
   }
   if (signedUrl) return signedUrl;
   if (path.startsWith("http://") || path.startsWith("https://") || path.startsWith("/")) {
-    return path;
+    return assetOrigin && path.startsWith("/")
+      ? new URL(path, assetOrigin).toString()
+      : path;
   }
   return `/${path}`;
 }
@@ -318,7 +345,14 @@ export function renderTemplateBundleVariant(input: {
         {!input.original &&
           runtime.variant.slots.map((slot) =>
             slot.kind === "image"
-              ? renderImageSlot(slot, input.fields, scale, input.assetOrigin)
+              ? renderImageSlot(
+                  slot,
+                  input.manifest,
+                  input.fields,
+                  input.assetUrlByPath,
+                  scale,
+                  input.assetOrigin
+                )
               : renderTextSlot(
                   input.manifest,
                   slot,

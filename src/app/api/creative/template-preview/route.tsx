@@ -125,7 +125,7 @@ export async function GET(req: Request) {
       return new Response("Unsupported size for this template", { status: 400 });
     }
     const assetUrlByPath = Object.fromEntries(
-      await createTemplateBundleAssetUrlMap(supabase, [manifest])
+      await createTemplateBundleAssetUrlMap(supabase, profile.org_id, [manifest])
     );
     const rendered = renderTemplateBundleVariant({
       manifest,
