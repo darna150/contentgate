@@ -13,6 +13,7 @@ import {
 } from "@/lib/product-workspace";
 import { createClient } from "@/lib/supabase/server";
 import { createProductAssetPreviewUrlMap } from "@/lib/product-assets-server";
+import { platformTemplatePreviewUrl } from "@/lib/creative";
 import {
   documentIndexStatus,
   type DocumentIndexStatus,
@@ -513,13 +514,10 @@ export async function getProductWorkspace(
         })
       );
       const referenceAssetBySize = Object.fromEntries(
-        template.supportedSizes.map((size) => {
-          const variant = template.manifest.variants.find((item) => item.key === size);
-          const asset = variant
-            ? template.manifest.assets.find((item) => item.key === variant.referenceAsset)
-            : null;
-          return [size, asset ? asset.path : ""];
-        })
+        template.supportedSizes.map((size) => [
+          size,
+          platformTemplatePreviewUrl(template.assignmentId, size),
+        ])
       );
       const backgroundAssetBySize = Object.fromEntries(
         template.supportedSizes.map((size) => {

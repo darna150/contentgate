@@ -71,7 +71,7 @@ function TemplateCard({
       </div>
 
       <p className="px-0.5 text-[12.5px] leading-5 text-ink-muted">
-        Realistic background scenes, grounded Aerform product assets, and
+        Approved brand assets, locked campaign composition, and
         format-specific layouts for finished client materials.
       </p>
 
@@ -124,9 +124,9 @@ export function TemplatesView({ workspace }: { workspace: ProductWorkspace }) {
         </p>
       ) : (
         <p className="text-[13px] text-ink-muted">
-          Pick a finished Aerform campaign format, then generate copy inside
-          Studio. Background, product, shadows, print detail, and layout stay
-          compliant by construction.
+          Pick a finished campaign format, then generate copy inside Studio.
+          Background, product, brand assets, and layout stay compliant by
+          construction.
           {!canGenerate &&
             " Generation is unavailable until an active template is configured."}
         </p>
