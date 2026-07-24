@@ -4,7 +4,7 @@ const E2E_EMAIL = process.env.CONTENTGATE_E2E_EMAIL;
 const E2E_PASSWORD = process.env.CONTENTGATE_E2E_PASSWORD;
 const TEMPLATE_NAME = "Nimbus Air Campaign";
 const PLATFORM_ASSIGNMENT_ID =
-  process.env.CONTENTGATE_E2E_ASSIGNMENT_ID ??
+  process.env.NIMBUS_E2E_ASSIGNMENT_ID ??
   "6433194b-789e-4ca6-afd4-79a42ae54d7e";
 const OUTPUT_SIZE = "instagram-square";
 const OUTPUT_SIZE_LABEL = "Instagram Square";
