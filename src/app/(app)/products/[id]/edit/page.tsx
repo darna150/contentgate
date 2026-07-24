@@ -87,7 +87,7 @@ export default async function EditProductPage({
     supabase
       .from("product_assets")
       .select(
-        "id, product_id, asset_type, storage_path, title, description, alt_text, tags, approval_status, original_file_name, mime_type, file_size_bytes, width_pixels, height_pixels, created_at, updated_at"
+        "id, product_id, asset_type, storage_path, title, description, alt_text, tags, approval_status, original_file_name, mime_type, file_size_bytes, width_pixels, height_pixels, created_at, updated_at, media_kind, checksum_sha256, duration_seconds, aspect_ratio, poster_storage_path, category, download_count, last_downloaded_at"
       )
       .eq("product_id", id)
       .order("created_at", { ascending: true }),
@@ -117,6 +117,14 @@ export default async function EditProductPage({
     createdAt: asset.created_at,
     updatedAt: asset.updated_at,
     previewUrl: assetPreviewUrls.get(asset.storage_path) ?? "",
+    mediaKind: asset.media_kind ?? (asset.mime_type?.startsWith("video/") ? "video" : "image"),
+    checksumSha256: asset.checksum_sha256,
+    durationSeconds: asset.duration_seconds === null ? null : Number(asset.duration_seconds),
+    aspectRatio: asset.aspect_ratio === null ? null : Number(asset.aspect_ratio),
+    posterStoragePath: asset.poster_storage_path,
+    category: asset.category,
+    downloadCount: asset.download_count ?? 0,
+    lastDownloadedAt: asset.last_downloaded_at,
   }));
 
   return (

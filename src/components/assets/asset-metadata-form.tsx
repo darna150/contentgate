@@ -90,6 +90,17 @@ export function AssetMetadataForm({ asset, onSaved, onCancel }: Props) {
       </label>
 
       <label className="flex flex-col gap-1.5">
+        <span className={FIELD_LABEL}>Category</span>
+        <Input
+          name="category"
+          maxLength={80}
+          defaultValue={asset.category ?? ""}
+          placeholder="Campaign, brand, social"
+          className="bg-page"
+        />
+      </label>
+
+      <label className="flex flex-col gap-1.5">
         <span className={FIELD_LABEL}>Status</span>
         <select
           name="approval_status"

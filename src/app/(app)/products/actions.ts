@@ -1,5 +1,6 @@
 "use server";
 
+import { createHash } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import sharp from "sharp";
@@ -13,6 +14,7 @@ import {
   isProductAssetStoragePath,
   isProductAssetType,
   parseProductAssetTags,
+  productAssetMediaKindForMimeType,
   validateProductAssetFile,
 } from "@/lib/product-assets";
 
@@ -24,6 +26,8 @@ const SHARP_IMAGE_MIME_TYPES: Record<string, string> = {
   png: "image/png",
   webp: "image/webp",
 };
+
+const VIDEO_ASSET_MIME_TYPES = new Set(["video/mp4", "video/quicktime", "video/webm"]);
 
 type SourceParagraph = { n: number; text: string };
 
@@ -216,7 +220,7 @@ export async function uploadProductAsset(productId: string, formData: FormData) 
   const assetType = String(formData.get("asset_type") ?? "");
   const file = formData.get("file");
   if (!isProductAssetType(assetType)) throw new Error("Choose a valid asset type.");
-  if (!(file instanceof File) || file.size === 0) throw new Error("Choose an image.");
+  if (!(file instanceof File) || file.size === 0) throw new Error("Choose an asset.");
   validateProductAssetFile(file);
 
   if (assetProductId) {
@@ -235,23 +239,47 @@ export async function uploadProductAsset(productId: string, formData: FormData) 
     cleanProductAssetText(formData.get("title"), 120) ??
     defaultProductAssetTitle(file.name);
   const fileBytes = Buffer.from(await file.arrayBuffer());
+  const checksumSha256 = createHash("sha256").update(fileBytes).digest("hex");
+  const mediaKind = productAssetMediaKindForMimeType(file.type);
+  if (!mediaKind) throw new Error("Unsupported asset media type.");
+  if (assetType === "video" && mediaKind !== "video") {
+    throw new Error("Video assets require an MP4, MOV, or WebM file.");
+  }
+  if (assetType !== "video" && mediaKind === "video") {
+    throw new Error("Choose Video as the asset type for video files.");
+  }
   let widthPixels: number | null = null;
   let heightPixels: number | null = null;
+  let aspectRatio: number | null = null;
+  let durationSeconds: number | null = null;
   let detectedMimeType: string | null = null;
-  try {
-    const metadata = await sharp(fileBytes).metadata();
-    detectedMimeType = metadata.format
-      ? SHARP_IMAGE_MIME_TYPES[metadata.format] ?? null
-      : null;
-    if (metadata.width && metadata.height) {
-      widthPixels = metadata.width;
-      heightPixels = metadata.height;
+  if (mediaKind === "image") {
+    try {
+      const metadata = await sharp(fileBytes).metadata();
+      detectedMimeType = metadata.format
+        ? SHARP_IMAGE_MIME_TYPES[metadata.format] ?? null
+        : null;
+      if (metadata.width && metadata.height) {
+        widthPixels = metadata.width;
+        heightPixels = metadata.height;
+        aspectRatio = Math.round((metadata.width / metadata.height) * 1_000_000) / 1_000_000;
+      }
+    } catch {
+      throw new Error("The selected file is not a readable image.");
     }
-  } catch {
-    throw new Error("The selected file is not a readable image.");
-  }
-  if (!detectedMimeType || detectedMimeType !== file.type) {
-    throw new Error("The image contents do not match the selected file type.");
+    if (!detectedMimeType || detectedMimeType !== file.type) {
+      throw new Error("The image contents do not match the selected file type.");
+    }
+  } else {
+    if (!VIDEO_ASSET_MIME_TYPES.has(file.type)) {
+      throw new Error("Use an MP4, MOV, or WebM video.");
+    }
+    detectedMimeType = file.type;
+    const durationRaw = cleanProductAssetText(formData.get("duration_seconds"), 24);
+    const parsedDuration = durationRaw ? Number(durationRaw) : NaN;
+    if (Number.isFinite(parsedDuration) && parsedDuration >= 0) {
+      durationSeconds = Math.round(parsedDuration * 1000) / 1000;
+    }
   }
   const storagePath = buildProductAssetStoragePath(orgId, assetProductId, file.name);
   const { error: uploadError } = await supabase.storage
@@ -274,6 +302,11 @@ export async function uploadProductAsset(productId: string, formData: FormData) 
       file_size_bytes: file.size,
       width_pixels: widthPixels,
       height_pixels: heightPixels,
+      media_kind: mediaKind,
+      checksum_sha256: checksumSha256,
+      duration_seconds: durationSeconds,
+      aspect_ratio: aspectRatio,
+      category: cleanProductAssetText(formData.get("category"), 80),
       tags: parseProductAssetTags(formData.get("tags")),
       approval_status: "approved",
       uploaded_by: userId,
@@ -300,6 +333,9 @@ export async function uploadProductAsset(productId: string, formData: FormData) 
       file_size_bytes: file.size,
       width_pixels: widthPixels,
       height_pixels: heightPixels,
+      media_kind: mediaKind,
+      checksum_sha256: checksumSha256,
+      duration_seconds: durationSeconds,
     },
   });
   revalidatePath("/assets");
@@ -341,6 +377,7 @@ export async function updateProductAssetMetadata(
     description: cleanProductAssetText(formData.get("description"), 500),
     alt_text: cleanProductAssetText(formData.get("alt_text"), 300),
     tags: parseProductAssetTags(formData.get("tags")),
+    category: cleanProductAssetText(formData.get("category"), 80),
     approval_status: approvalStatus,
   };
   const updateQuery = supabase
@@ -430,4 +467,64 @@ export async function deleteProductAsset(assetId: string, productId: string | nu
     revalidatePath(`/products/${productId}`);
     revalidatePath(`/products/${productId}/edit`);
   }
+}
+
+export async function createProductAssetDownloadUrl(assetId: string) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Unauthorized");
+
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("org_id, role")
+    .eq("id", user.id)
+    .single();
+  if (profileError || !profile) throw new Error("Profile not found");
+
+  const { data: asset, error: assetError } = await supabase
+    .from("product_assets")
+    .select("id, org_id, product_id, title, storage_path, original_file_name, approval_status, download_count")
+    .eq("id", assetId)
+    .eq("org_id", profile.org_id)
+    .maybeSingle();
+  if (assetError) throw assetError;
+  if (!asset) throw new Error("Asset not found.");
+  if (asset.approval_status !== "approved" && profile.role !== "admin") {
+    throw new Error("This asset can be downloaded after approval.");
+  }
+
+  const { data, error } = await supabase.storage
+    .from("product-assets")
+    .createSignedUrl(asset.storage_path, 60 * 10, {
+      download: asset.original_file_name || asset.title,
+    });
+  if (error || !data?.signedUrl) {
+    throw new Error(`Could not create download URL: ${error?.message ?? "Unknown error"}`);
+  }
+
+  await supabase
+    .from("product_assets")
+    .update({
+      download_count: (asset.download_count ?? 0) + 1,
+      last_downloaded_at: new Date().toISOString(),
+    })
+    .eq("id", asset.id)
+    .eq("org_id", profile.org_id);
+
+  await writeAudit({
+    org_id: profile.org_id,
+    actor_id: user.id,
+    action: "product_asset.downloaded",
+    entity_type: "product_asset",
+    entity_id: asset.id,
+    detail: {
+      product_id: asset.product_id,
+      title: asset.title,
+      storage_path: asset.storage_path,
+    },
+  });
+
+  return data.signedUrl;
 }

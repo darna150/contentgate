@@ -6,7 +6,9 @@ import {
   defaultProductAssetTitle,
   isProductAssetStoragePath,
   parseProductAssetTags,
+  productAssetMediaKindForMimeType,
   sanitizeProductAssetFileName,
+  validateProductAssetFile,
 } from "./product-assets.ts";
 
 test("builds an organization and product scoped storage path", () => {
@@ -46,4 +48,21 @@ test("normalizes, deduplicates, and limits tags", () => {
     parseProductAssetTags("Launch, Social, launch,  Hero Image  "),
     ["launch", "social", "hero image"]
   );
+});
+
+test("detects supported asset media kinds", () => {
+  assert.equal(productAssetMediaKindForMimeType("image/png"), "image");
+  assert.equal(productAssetMediaKindForMimeType("video/mp4"), "video");
+  assert.equal(productAssetMediaKindForMimeType("application/pdf"), null);
+});
+
+test("accepts supported video assets and rejects oversized videos", () => {
+  const video = new File([new Uint8Array(1024)], "launch.mp4", { type: "video/mp4" });
+  assert.doesNotThrow(() => validateProductAssetFile(video));
+
+  const tooLargeVideo = new File([new Blob([], { type: "video/mp4" })], "large.mp4", {
+    type: "video/mp4",
+  });
+  Object.defineProperty(tooLargeVideo, "size", { value: 100 * 1024 * 1024 + 1 });
+  assert.throws(() => validateProductAssetFile(tooLargeVideo), /100 MB/);
 });
