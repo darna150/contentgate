@@ -2,17 +2,17 @@ import { expect, test, type Page, type TestInfo } from "@playwright/test";
 
 const E2E_EMAIL = process.env.CONTENTGATE_E2E_EMAIL;
 const E2E_PASSWORD = process.env.CONTENTGATE_E2E_PASSWORD;
-const TEMPLATE_NAME = "ContentGate Local Friendly";
+const TEMPLATE_NAME = "Nimbus Air Campaign";
 const PLATFORM_ASSIGNMENT_ID =
   process.env.CONTENTGATE_E2E_ASSIGNMENT_ID ??
-  "3a6cbcb0-23b4-476b-8deb-ad2e48d20516";
-const OUTPUT_SIZE = "leaderboard";
-const OUTPUT_SIZE_LABEL = "Leaderboard";
+  "6433194b-789e-4ca6-afd4-79a42ae54d7e";
+const OUTPUT_SIZE = "instagram-square";
+const OUTPUT_SIZE_LABEL = "Instagram Square";
 const LIVE_EDIT_TEXT = `QA Live ${Date.now().toString().slice(-5)}`;
 const BASE_URL = process.env.CONTENTGATE_E2E_BASE_URL ?? "";
 
 const OUTPUT_SIZE_DIMENSIONS: Record<string, { width: number; height: number }> = {
-  leaderboard: { width: 728, height: 90 },
+  "instagram-square": { width: 1080, height: 1080 },
 };
 
 type BrowserIssue = {
@@ -89,9 +89,7 @@ async function openContentGateTemplate(page: Page) {
   await expect(page).toHaveURL(/\/products/);
   await expect(page.getByRole("heading", { name: /Products/i })).toBeVisible();
 
-  const productLink = page
-    .getByRole("link", { name: /ContentGate/i })
-    .first();
+  const productLink = page.getByRole("link", { name: /Nimbus 1/i }).first();
   await expect(productLink).toBeVisible();
   await productLink.click();
   await page.waitForURL(/\/products\//, { timeout: 45_000 });

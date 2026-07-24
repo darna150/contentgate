@@ -112,7 +112,7 @@ test.describe("Knowledge Hub live QA", () => {
       `Ask textarea clips wrapped placeholder/text: ${JSON.stringify(inputBox)}`
     ).not.toBe("hidden");
 
-    await input.fill("Who is ContentGate for?");
+    await input.fill("What is Nimbus 1?");
     await page.getByRole("button", { name: /^Ask$/ }).click();
 
     await expect(page.getByText(/From approved sources/i).first()).toBeVisible({
@@ -121,7 +121,7 @@ test.describe("Knowledge Hub live QA", () => {
     await expect(
       page
         .locator("main")
-        .getByText(/distributed organizations|brand-content management platform/i)
+        .getByText(/Run on Air|cloud-soft cushioning|real-world speed/i)
         .first()
     ).toBeVisible();
     await expect(page.getByText(/Something went wrong/i)).toHaveCount(0);
