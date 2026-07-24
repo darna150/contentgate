@@ -111,7 +111,7 @@ export function StudioGeneratePanel({
         disabled={busy || generationPaused}
         className="h-[50px] rounded-[7px] bg-ink text-[14px] font-bold text-white hover:bg-ink/90"
       >
-        {generationPaused ? retryLabel : busy ? "Generating preview…" : buttonLabel}
+        {generationPaused ? retryLabel : busy ? "Generating…" : buttonLabel}
       </Button>
       {error && <p className="text-[12.5px] text-reject">{error}</p>}
       {!error && warning && (

@@ -269,6 +269,17 @@ async function findEditableTextArea(page: Page) {
   throw new Error("Could not find a populated editable text field in Studio.");
 }
 
+async function readGeneratedTextFields(page: Page) {
+  return page.locator("[data-template-field]").evaluateAll((nodes) =>
+    nodes
+      .map((node) => ({
+        field: node.getAttribute("data-template-field") ?? "",
+        text: (node.textContent ?? "").replace(/\s+/g, " ").trim(),
+      }))
+      .filter((item) => item.field && item.text)
+  );
+}
+
 function readPngDimensions(bytes: number[]) {
   const signature = [137, 80, 78, 71, 13, 10, 26, 10];
   expect(bytes.slice(0, signature.length), "Downloaded export is not a PNG file.").toEqual(
@@ -573,10 +584,14 @@ test.describe("Nimbus live generation QA", () => {
       await expect(refineBtn).toBeVisible({ timeout: 10_000 });
       await refineBtn.click();
       await expect(refineBtn).toHaveAttribute("aria-pressed", "true");
+      const beforeFields = await readGeneratedTextFields(page);
 
-      const applyBtn = page.getByRole("button", { name: /Apply refinement to draft/i });
+      const applyBtn = page.getByRole("button", { name: /^Generate$/i });
       await expect(applyBtn).toBeVisible();
       await applyBtn.click();
+      await expect(page.getByRole("button", { name: /^Generating/i })).toBeVisible({
+        timeout: 5_000,
+      });
 
       // Wait for the generation to complete: the draft status returns and the
       // preview is available again. Grounding failure surfaces as an error banner.
@@ -585,6 +600,18 @@ test.describe("Nimbus live generation QA", () => {
       });
       await expectStudioDraftState(page, "Draft", 120_000);
       await assertPreviewIsAvailable(page);
+      await expect
+        .poll(
+          async () => JSON.stringify(await readGeneratedTextFields(page)),
+          {
+            timeout: 120_000,
+            message: `${label} refinement completed but did not visibly change generated copy.`,
+          }
+        )
+        .not.toBe(JSON.stringify(beforeFields));
+      await expect(page.getByRole("button", { name: /^Generate$/i })).toBeEnabled({
+        timeout: 10_000,
+      });
 
       await testInfo.attach(`refine-${label.toLowerCase().replace(/\s+/g, "-")}.png`, {
         contentType: "image/png",

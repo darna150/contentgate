@@ -1044,11 +1044,7 @@ export function StudioWorkspace({
               busy={busy}
               generationPaused={generationBlocked}
               retryLabel={generationPauseLabel}
-              buttonLabel={
-                selectedRevision
-                  ? `Generate ${activeSizeLabel} with refinement`
-                  : `Generate ${activeSizeLabel} draft`
-              }
+              buttonLabel="Generate"
               error={error}
               warning={truncationWarning}
             />
@@ -1064,7 +1060,7 @@ export function StudioWorkspace({
               busy={busy}
               generationPaused={generationBlocked}
               retryLabel={generationPauseLabel}
-              buttonLabel={selectedRevision ? "Apply refinement to draft" : "Regenerate draft"}
+              buttonLabel="Generate"
               error={error}
               warning={truncationWarning}
             />
@@ -1080,11 +1076,7 @@ export function StudioWorkspace({
               busy={busy}
               generationPaused={generationBlocked}
               retryLabel={generationPauseLabel}
-              buttonLabel={
-                selectedRevision
-                  ? `Create new ${activeSizeLabel} draft with refinement`
-                  : `Create new ${activeSizeLabel} draft`
-              }
+              buttonLabel="Generate"
               error={error}
               warning={truncationWarning}
             />

@@ -369,6 +369,25 @@ function formatCampaignSource(input: {
   ].join("\n");
 }
 
+function normalizedCopyValue(value: string | undefined) {
+  return String(value ?? "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+function unchangedGeneratedFields(input: {
+  editableFields: string[];
+  generatedFields: Record<string, string>;
+  previousFields: Record<string, string>;
+}) {
+  return input.editableFields.filter((key) => {
+    const next = normalizedCopyValue(input.generatedFields[key]);
+    const previous = normalizedCopyValue(input.previousFields[key]);
+    return previous.length > 0 && next === previous;
+  });
+}
+
 export async function POST(req: Request) {
   const startedAt = Date.now();
   const supabase = await createClient();
@@ -638,6 +657,7 @@ export async function POST(req: Request) {
       .map(revisionInstruction)
       .filter(Boolean)
       .join(" ");
+    const isRegeneration = Boolean(replaceContent);
     const generationProfile =
       (assignmentRow as TemplatePlatformAssignmentRow).generation_profile &&
       typeof (assignmentRow as TemplatePlatformAssignmentRow).generation_profile === "object"
@@ -674,6 +694,9 @@ export async function POST(req: Request) {
           ].join("\n")
         : ``,
       extraInstructions ? `\nADDITIONAL DIRECTION: ${extraInstructions}` : ``,
+      isRegeneration
+        ? `\nREGENERATION REQUIREMENT: Produce a visibly different alternate copy draft. Keep the approved facts and campaign idea, but do not return the same wording for any AI-editable field unless the field is a fixed product name.`
+        : ``,
       `\nSELECTED OUTPUT SIZE: ${runtimeVariant.variant.label} (${runtimeVariant.variant.width}x${runtimeVariant.variant.height}). Generate copy only for this size and stay inside its field limits.`,
       ``,
       `Produce exactly these AI-editable fields and no other fields: ${editableFields.join(", ")}.`,
@@ -708,6 +731,7 @@ export async function POST(req: Request) {
     let rawEvidenceCount = 0;
     let fitReasons: string[] = [];
     let groundingIssues: string[] = [];
+    let variationIssues: string[] = [];
     const generationMode = "ai";
 
     for (let attempt = 0; attempt < PLATFORM_GENERATION_ATTEMPTS; attempt += 1) {
@@ -717,6 +741,13 @@ export async function POST(req: Request) {
               `REWRITE REQUIRED: the previous draft failed the locked template fit check:`,
               ...fitReasons.map((reason) => `- ${reason}`),
               `Return a shorter, complete rewrite. Do not truncate a sentence and do not repeat the failed wording.`,
+            ].join("\n")
+          : ``,
+        variationIssues.length
+          ? [
+              `REWRITE REQUIRED: the previous draft reused the same wording instead of creating an alternate:`,
+              ...variationIssues.map((reason) => `- ${reason}`),
+              `Return a materially different rewrite for those fields. Keep the approved facts, but change the wording, rhythm, and angle enough that the user can see a real alternate copy option.`,
             ].join("\n")
           : ``,
         groundingIssues.length ? groundingRepairInstruction(groundingIssues) : ``,
@@ -749,6 +780,16 @@ export async function POST(req: Request) {
               .replace(/\r\n?/g, "\n")
               .trim(),
           ])
+        );
+        const unchangedFields = isRegeneration
+          ? unchangedGeneratedFields({
+              editableFields,
+              generatedFields,
+              previousFields: previousStructuredFields,
+            })
+          : [];
+        variationIssues = unchangedFields.map(
+          (key) => `${key}: generated copy matched the current draft`
         );
         structured = composeStructuredFieldsForGeneration({
           allFieldKeys: allRuntimeFieldKeys,
@@ -790,7 +831,7 @@ export async function POST(req: Request) {
           approvedSources: approvedSourceTexts,
         });
 
-        if (!fitReasons.length && !groundingIssues.length) {
+        if (!fitReasons.length && !groundingIssues.length && !variationIssues.length) {
           out = { fields: structured, evidence: verifiedEvidence };
           break;
         }
@@ -808,7 +849,12 @@ export async function POST(req: Request) {
     // Only attempt when grounding already passed — coercion cannot fix an
     // ungrounded claim, and it only removes words, so the verified citations
     // from the last attempt still hold.
-    if (!out && !groundingIssues.length && Object.values(structured).some(Boolean)) {
+    if (
+      !out &&
+      !groundingIssues.length &&
+      !variationIssues.length &&
+      Object.values(structured).some(Boolean)
+    ) {
       const coerceResult = await coerceTemplatePlatformFieldsToFit({
         manifest: assignment.manifest,
         variantKey: outputSizeKey,
@@ -847,7 +893,13 @@ export async function POST(req: Request) {
       }
     }
 
-    if (!out && fitReasons.length) {
+    if (
+      !out &&
+      fitReasons.length &&
+      !variationIssues.length &&
+      !isRegeneration &&
+      revisions.length === 0
+    ) {
       const fallbackGeneratedFields = Object.fromEntries(
         editableFields.map((key) => [key, defaultCopy[key] ?? ""])
       );
@@ -913,6 +965,20 @@ export async function POST(req: Request) {
           {
             error:
               "ContentGate could not produce copy that safely fits this size. Please try again.",
+          },
+          { status: 422 }
+        );
+      }
+      if (variationIssues.length) {
+        console.error("platform generated copy failed variation validation:", {
+          platformAssignmentId,
+          outputSize: outputSizeKey,
+          reasons: variationIssues,
+        });
+        return Response.json(
+          {
+            error:
+              "ContentGate could not produce a meaningfully different alternate. Please try Generate again.",
           },
           { status: 422 }
         );
