@@ -1,6 +1,6 @@
 # ContentGate Build Handoff
 
-Last updated: July 17, 2026
+Last updated: July 21, 2026
 
 This file is a full orientation guide for continuing ContentGate work from a new Codex/Claude/account session without needing the original chat history.
 
@@ -9,7 +9,7 @@ This file is a full orientation guide for continuing ContentGate work from a new
 Local repo:
 
 ```text
-/Users/debbiemelgarejo/Documents/Content Gate/contentgate
+/Users/debbiemelgarejo/Documents/Animal-Health-Hub/contentgate
 ```
 
 GitHub repo:
@@ -27,15 +27,7 @@ https://contentgate-delta.vercel.app/
 Main active branch for the current work:
 
 ```text
-codex/template-background-options
-```
-
-Latest pushed commits on this branch:
-
-```text
-680c3ba Add template background options
-9437d57 Add Figma-sourced background options
-1ec9aa2 Test ContentGate background option dimensions
+main
 ```
 
 ## Product goal

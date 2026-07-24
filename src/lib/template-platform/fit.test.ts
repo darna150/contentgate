@@ -96,7 +96,7 @@ test("templatePlatformFieldFitIssues still flags copy no size in range can hold"
 });
 
 test("coerceTemplatePlatformFieldsToFit shrinks before truncating", async () => {
-  const coerced = await coerceTemplatePlatformFieldsToFit({
+  const result = await coerceTemplatePlatformFieldsToFit({
     manifest,
     variantKey: "square",
     fields: { headline: overflowsAtMaxOnly },
@@ -104,16 +104,18 @@ test("coerceTemplatePlatformFieldsToFit shrinks before truncating", async () => 
   // Shrinking alone resolves it, so the stored copy must be untouched —
   // this is the behavior QA previously flagged as "copy incomplete because
   // it was being forced too hard to fit."
-  assert.equal(coerced.headline, overflowsAtMaxOnly);
+  assert.equal(result.fields.headline, overflowsAtMaxOnly);
+  assert.deepEqual(result.truncatedFields, []);
 });
 
 test("coerceTemplatePlatformFieldsToFit still trims when even minFontSize can't hold the copy", async () => {
-  const coerced = await coerceTemplatePlatformFieldsToFit({
+  const result = await coerceTemplatePlatformFieldsToFit({
     manifest,
     variantKey: "square",
     fields: { headline: overflowsEvenAtMin },
   });
-  assert.ok(coerced.headline.length < overflowsEvenAtMin.length);
-  const resolved = await resolveTemplatePlatformTextSlotLayout(manifest, coerced.headline, headlineSlot);
+  assert.ok(result.fields.headline.length < overflowsEvenAtMin.length);
+  const resolved = await resolveTemplatePlatformTextSlotLayout(manifest, result.fields.headline, headlineSlot);
   assert.equal(resolved.fits, true);
+  assert.deepEqual(result.truncatedFields, ["headline"]);
 });

@@ -52,10 +52,10 @@ export function StudioBackgroundPicker({
     <div className="flex flex-col gap-5 border-t border-edge pt-6">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <span className="text-label text-ink-faint">Background scene</span>
+          <span className="text-label text-ink-faint">Background style</span>
           <p className="mt-2 text-[14px] leading-6 text-ink-muted">
-            Choose the finished campaign setting. Product placement, shadows,
-            and type stay locked to the template while copy regenerates.
+            Swaps the locked background design only — your headline, CTA, and other copy stay
+            exactly as written.
           </p>
         </div>
         {!editable && <Badge variant="neutral">Locked</Badge>}
@@ -83,7 +83,7 @@ export function StudioBackgroundPicker({
               aria-checked={selected}
               title={option.label}
               className={cn(
-                "group relative flex size-11 overflow-hidden rounded-[8px] border-2 text-left transition",
+                "group relative flex size-[60px] overflow-hidden rounded-[8px] border-2 text-left transition",
                 selected
                   ? "border-brand shadow-sm"
                   : "border-transparent ring-1 ring-inset ring-edge",

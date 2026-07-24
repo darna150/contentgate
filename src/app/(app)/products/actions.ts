@@ -28,7 +28,6 @@ const SHARP_IMAGE_MIME_TYPES: Record<string, string> = {
 };
 
 const VIDEO_ASSET_MIME_TYPES = new Set(["video/mp4", "video/quicktime", "video/webm"]);
-
 type SourceParagraph = { n: number; text: string };
 
 function normalizeSourceParagraphs(value: unknown): SourceParagraph[] {
@@ -202,8 +201,15 @@ export async function addClaim(productId: string, formData: FormData) {
 }
 
 export async function setClaimStatus(claimId: string, productId: string, status: string) {
+  if (status !== "approved" && status !== "inactive") {
+    throw new Error(`Unsupported claim status: ${status}`);
+  }
   const { supabase } = await getAdminOrgId();
-  await supabase.from("product_claims").update({ status }).eq("id", claimId);
+  const { error } = await supabase
+    .from("product_claims")
+    .update({ status })
+    .eq("id", claimId);
+  if (error) throw new Error(`Could not update claim status: ${error.message}`);
   revalidatePath(`/products/${productId}/edit`);
 }
 

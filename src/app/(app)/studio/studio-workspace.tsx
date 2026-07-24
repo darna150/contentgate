@@ -36,6 +36,7 @@ import {
   getTemplateBundleVariantDimensions,
   getTemplateBundleVariantLabel,
 } from "@/lib/template-platform/runtime";
+import { fieldLabel } from "@/lib/templates";
 import type { TemplateBundleTextLayout } from "@/lib/template-platform/render";
 import { fieldIssues } from "@/lib/template-fields";
 import {
@@ -54,7 +55,7 @@ import { StudioFields } from "./studio-fields";
 import { StudioGeneratePanel } from "./studio-generate-panel";
 import { resolveStudioMode } from "./studio-mode";
 import { StudioReviewActions } from "./studio-review-actions";
-import { StudioExportBar, type ExportFormat, type ExportScale } from "./studio-toolbar";
+import { StudioExportBar, StudioToolbar, type ExportFormat, type ExportScale } from "./studio-toolbar";
 import { StudioVersions } from "./studio-versions";
 import type {
   StudioContent,
@@ -268,6 +269,7 @@ export function StudioWorkspace({
   >("idle");
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [overflowFields, setOverflowFields] = useState<string[]>([]);
+  const [truncatedFields, setTruncatedFields] = useState<string[]>([]);
   const [textLayoutByField, setTextLayoutByField] = useState<
     Record<string, TemplateBundleTextLayout> | undefined
   >(undefined);
@@ -406,6 +408,10 @@ export function StudioWorkspace({
     [activeEditableFields, activeFieldLimits, draftFields, requiredFieldSet]
   );
   const hasIssues = activeEditableFields.some((key) => issuesByField[key].length > 0);
+  const truncationWarning =
+    truncatedFields.length > 0
+      ? `Some copy was shortened to fit the template (${truncatedFields.map(fieldLabel).join(", ")}). Review the draft and regenerate if the meaning changed.`
+      : null;
   const hasLayoutOverflow = overflowFields.length > 0;
   const fitCheckSignature = useMemo(
     () =>
@@ -700,6 +706,7 @@ export function StudioWorkspace({
     saveSequence.current += 1;
     setBusy(true);
     setError(null);
+    setTruncatedFields([]);
     try {
       const assetChoices = Object.fromEntries(
         activeAssetChoiceFieldKeys.flatMap((key) => {
@@ -769,6 +776,9 @@ export function StudioWorkspace({
       setSavedAt(new Date().toISOString());
       setHasManualEdits(false);
       setSelectedRevision(null);
+      setTruncatedFields(
+        Array.isArray(result.truncatedFields) ? (result.truncatedFields as string[]) : []
+      );
       setShowOriginal(false);
       router.replace(studioContentUrl(nextContent.id, nextContentSize), { scroll: false });
     } catch {
@@ -1059,6 +1069,7 @@ export function StudioWorkspace({
                   : `Generate ${activeSizeLabel} draft`
               }
               error={error}
+              warning={truncationWarning}
             />
           )}
 
@@ -1074,6 +1085,7 @@ export function StudioWorkspace({
               retryLabel={generationPauseLabel}
               buttonLabel={selectedRevision ? "Apply refinement to draft" : "Regenerate draft"}
               error={error}
+              warning={truncationWarning}
             />
           )}
 
@@ -1093,6 +1105,7 @@ export function StudioWorkspace({
                   : `Create new ${activeSizeLabel} draft`
               }
               error={error}
+              warning={truncationWarning}
             />
           )}
 
@@ -1189,43 +1202,33 @@ export function StudioWorkspace({
         </aside>
 
         <section className="flex min-h-0 min-w-0 flex-col bg-page">
-          <div className="flex min-h-[80px] items-center justify-between gap-5 border-b border-edge bg-surface px-10 py-5">
-            <div className="flex min-w-0 flex-wrap items-center gap-2">
-              <span className="rounded-full bg-page px-4 py-2 text-[13px] font-bold text-ink">
-                {selectedProduct.name} · {selectedTemplate.variant}
-              </span>
-              <span className="text-ink-faint">|</span>
-              <span className="rounded-full bg-page px-4 py-2 text-[13px] font-bold text-ink">
-                {activeSizeLabel}
-              </span>
-              <span className="text-[13px] font-semibold text-ink-faint">
-                {dims.w}×{dims.h}
-              </span>
-            </div>
-
-            {hasAnyGeneratedDraft && content && (
-              <div className="flex shrink-0 items-center gap-1 rounded-full bg-page p-1">
-                <button
-                  type="button"
-                  onClick={() => setShowOriginal(false)}
-                  className={`rounded-full px-5 py-2 text-[13px] font-bold transition-colors ${
-                    !showOriginal ? "bg-surface text-ink shadow-sm" : "text-ink-faint"
-                  }`}
-                >
-                  Your draft
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowOriginal(true)}
-                  className={`rounded-full px-5 py-2 text-[13px] font-bold transition-colors ${
-                    showOriginal ? "bg-surface text-ink shadow-sm" : "text-ink-faint"
-                  }`}
-                >
-                  Brand reference
-                </button>
-              </div>
-            )}
-          </div>
+          <StudioToolbar
+            sizes={sizes}
+            activeSize={size}
+            sizeLabel={(key) =>
+              selectedTemplate.platformManifest
+                ? getTemplateBundleVariantLabel(selectedTemplate.platformManifest, key)
+                : sizeLabel(key)
+            }
+            sizeDims={(key) =>
+              (selectedTemplate.platformManifest
+                ? getTemplateBundleVariantDimensions(selectedTemplate.platformManifest, key)
+                : knownSizeDimensions(key)) ?? undefined
+            }
+            sizeStatus={(key) => {
+              const item = contentsBySize[key];
+              if (!item) return "empty";
+              if (item.status === "approved") return "approved";
+              if (item.status === "in_review") return "in_review";
+              return "draft";
+            }}
+            onSelectSize={selectSize}
+            viewToggle={
+              hasAnyGeneratedDraft && content
+                ? { showOriginal, onShowOriginalChange: setShowOriginal }
+                : undefined
+            }
+          />
 
           <div className="relative min-h-0 flex-1 overflow-hidden bg-page">
             {busy && <GenerationLoader />}
@@ -1237,7 +1240,7 @@ export function StudioWorkspace({
                 busy={busy}
                 onGenerate={generate}
               />
-            ) : selectedTemplate.platformManifest && !showOriginal ? (
+            ) : content && !isBrandReferenceView && selectedTemplate.platformManifest ? (
               <LiveTemplatePreviewFrame
                 manifest={selectedTemplate.platformManifest}
                 variantKey={size}

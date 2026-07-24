@@ -75,7 +75,7 @@ export async function getTemplateExportHistory({
   let query = supabase
     .from("render_jobs")
     .select(
-      "id, status, output_format, output_storage_path, created_at, completed_at, template_version_id, template_variant_id, generated_content!render_jobs_generated_content_id_fkey(title, created_by, creator:profiles!generated_content_created_by_fkey(full_name)), template_variants(variant_key, label)"
+      "id, status, output_format, output_storage_path, created_at, completed_at, template_version_id, template_variant_id, generated_content!render_jobs_generated_content_id_fkey(title, created_by, creator:profiles!generated_content_created_by_fkey(full_name)), template_variants!render_jobs_template_variant_id_fkey(variant_key, label)"
     )
     .order("created_at", { ascending: false })
     .range(from, to);
@@ -104,7 +104,9 @@ export async function getTemplateVersionsPage({
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("template_versions")
-    .select("id, version_label, status, created_at, manifest, template_families(name, family_key)")
+    .select(
+      "id, version_label, status, created_at, manifest, template_families!template_versions_family_id_fkey(name, family_key)"
+    )
     .order("created_at", { ascending: false })
     .range(from, to);
 
@@ -123,7 +125,9 @@ export async function getProductTemplateAssignmentsPage({
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("product_template_assignments")
-    .select("id, status, default_variant_key, products(name), template_families!product_template_assignments_template_family_id_fkey(name), template_versions!product_template_assignments_template_version_id_fkey(version_label)")
+    .select(
+      "id, status, default_variant_key, products!product_template_assignments_product_id_fkey(name), template_families!product_template_assignments_template_family_id_fkey(name), template_versions!product_template_assignments_template_version_id_fkey(version_label)"
+    )
     .order("created_at", { ascending: false })
     .range(from, to);
 

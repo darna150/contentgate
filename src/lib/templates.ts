@@ -52,4 +52,14 @@ export function flattenFields(
     .join("\n\n");
 }
 
-export type Evidence = { field: string; approved_source: string };
+// A grounding citation. `excerpt` is the verbatim quote the model pulled from
+// an approved source (the verification key); `approved_source` is the fuller
+// source text, kept for display and backward compatibility. `source_id` is the
+// prompt-local id (e.g. "C2", "P4") the model referenced — useful for repair
+// prompts but not stored, since ids are not stable across generations.
+export type Evidence = {
+  field: string;
+  approved_source: string;
+  excerpt?: string;
+  source_id?: string;
+};

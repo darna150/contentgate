@@ -55,7 +55,7 @@ test("renders platform bundle with signed asset URLs when provided", async () =>
   const html = renderToStaticMarkup(rendered.element);
   assert.match(
     html,
-    /https:\/\/contentgate\.example\/template-packages\/contentgate\/set-a\/backgrounds\/leaderboard\.png\?v=aerform-campaign-/
+    /https:\/\/contentgate\.example\/template-packages\/contentgate\/set-a\/backgrounds\/leaderboard\.png\?v=vector-figwright-/
   );
 });
 
@@ -154,7 +154,7 @@ test("ContentGate figwright bundles use versioned public assets for browser and 
   assert.ok(browserRendered);
   assert.match(
     renderToStaticMarkup(browserRendered.element),
-    /\/template-packages\/contentgate\/set-a\/backgrounds\/leaderboard\.png\?v=aerform-campaign-/
+    /\/template-packages\/contentgate\/set-a\/backgrounds\/leaderboard\.png\?v=vector-figwright-/
   );
 
   const exportRendered = renderTemplateBundleVariant({
@@ -166,7 +166,7 @@ test("ContentGate figwright bundles use versioned public assets for browser and 
   assert.ok(exportRendered);
   assert.match(
     renderToStaticMarkup(exportRendered.element),
-    /https:\/\/contentgate\.example\/template-packages\/contentgate\/set-a\/backgrounds\/leaderboard\.png\?v=aerform-campaign-/
+    /https:\/\/contentgate\.example\/template-packages\/contentgate\/set-a\/backgrounds\/leaderboard\.png\?v=vector-figwright-/
   );
 });
 
@@ -202,7 +202,7 @@ test("ContentGate figwright bundles render true 2x exports with high-density ass
   const html = renderToStaticMarkup(rendered.element);
   assert.match(
     html,
-    /https:\/\/contentgate\.example\/template-packages\/contentgate\/set-a\/backgrounds\/medium-rectangle@2x\.png\?v=aerform-campaign-/
+    /https:\/\/contentgate\.example\/template-packages\/contentgate\/set-a\/backgrounds\/medium-rectangle@2x\.png\?v=vector-figwright-/
   );
   assert.match(html, /font-size:\d+(?:\.\d+)?px/);
 });
@@ -231,7 +231,7 @@ test("ContentGate figwright bundles also support legacy public package asset pat
   const html = renderToStaticMarkup(rendered.element);
   assert.match(
     html,
-    /\/template-packages\/contentgate\/set-a\/backgrounds\/leaderboard\.png\?v=aerform-campaign-/
+    /\/template-packages\/contentgate\/set-a\/backgrounds\/leaderboard\.png\?v=vector-figwright-/
   );
   assert.doesNotMatch(html, /storage\.example\.test/);
 });
@@ -266,7 +266,7 @@ test("generated bundle renders with absolute assets for ImageResponse consumptio
   const html = renderToStaticMarkup(rendered.element);
   assert.match(
     html,
-    /https:\/\/contentgate\.example\/template-packages\/contentgate\/set-a\/backgrounds\/link-ad\.png\?v=aerform-campaign-/
+    /https:\/\/contentgate\.example\/template-packages\/contentgate\/set-a\/backgrounds\/link-ad\.png\?v=vector-figwright-/
   );
   assert.match(
     html,

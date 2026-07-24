@@ -28,3 +28,100 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+
+  # Two orgs, zero cross-reads, storage denial — replayed on a fresh local
+  # Supabase stack so migration history must also apply cleanly from scratch.
+  # This test never gets deleted (PLAN.md).
+  tenant-isolation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.109.1
+      - name: Start local Supabase stack (replays all migrations)
+        run: supabase start -x studio,inbucket,imgproxy,analytics,edge-runtime,functions,meta,realtime,vector
+      - name: Run tenant-isolation test
+        run: |
+          eval "$(supabase status -o env)"
+          export API_URL ANON_KEY SERVICE_ROLE_KEY DB_URL
+          node --test scripts/tenant-isolation.test.mjs
+
+  # Runs Playwright E2E against the PR's Vercel Preview deployment.
+  # Blocks merge on failure so regressions never reach production.
+  # Only fires on pull_request events — push-to-main targets production and
+  # is intentionally excluded (live-e2e.yml handles targeted manual runs).
+  e2e-preview:
+    if: github.event_name == 'pull_request'
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      deployments: read
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Discover Vercel preview URL
+        id: preview
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          sha="${{ github.event.pull_request.head.sha }}"
+          echo "Waiting for Vercel preview deployment for ${sha}..."
+          for i in $(seq 1 36); do
+            statuses_url=$(gh api \
+              "repos/${{ github.repository }}/deployments?sha=${sha}" \
+              --jq '[.[] | select(.environment | startswith("Preview")) | .statuses_url] | first' \
+              2>/dev/null)
+            if [ -n "$statuses_url" ] && [ "$statuses_url" != "null" ]; then
+              env_url=$(gh api "$statuses_url" \
+                --jq '[.[] | select(.state == "success") | .environment_url] | first' \
+                2>/dev/null)
+              if [ -n "$env_url" ] && [ "$env_url" != "null" ]; then
+                echo "preview_url=${env_url}" >> "$GITHUB_OUTPUT"
+                echo "Preview URL: ${env_url}"
+                break
+              fi
+            fi
+            echo "Attempt ${i}/36: deployment not ready, retrying in 10s..."
+            sleep 10
+          done
+          if ! grep -q "^preview_url=" "$GITHUB_OUTPUT" 2>/dev/null; then
+            echo "Timed out waiting for Vercel preview deployment (6 min)" >&2
+            exit 1
+          fi
+      - name: Refuse to run against production
+        run: |
+          case "${{ steps.preview.outputs.preview_url }}" in
+            https://contentgate-delta.vercel.app*)
+              echo "E2E preview gate must not target production." >&2
+              exit 1
+              ;;
+          esac
+      - name: Run Playwright E2E against preview
+        env:
+          CONTENTGATE_E2E_BASE_URL: ${{ steps.preview.outputs.preview_url }}
+          CONTENTGATE_E2E_EMAIL: ${{ secrets.CONTENTGATE_E2E_EMAIL }}
+          CONTENTGATE_E2E_PASSWORD: ${{ secrets.CONTENTGATE_E2E_PASSWORD }}
+          CONTENTGATE_E2E_ASSIGNMENT_ID: ${{ secrets.CONTENTGATE_E2E_ASSIGNMENT_ID }}
+        run: npm run test:e2e
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: e2e-preview-report
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore

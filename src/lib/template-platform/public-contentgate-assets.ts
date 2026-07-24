@@ -1,6 +1,6 @@
 import type { TemplateBundleManifest } from "./manifest";
 
-export const CONTENTGATE_PUBLIC_ASSET_VERSION = "aerform-campaign-2026-07-23-01";
+export const CONTENTGATE_PUBLIC_ASSET_VERSION = "vector-figwright-2026-07-19-01";
 
 type ContentGateAssetKind = "reference" | "background";
 

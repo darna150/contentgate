@@ -1,4 +1,7 @@
-const ACTION_FIELD_PATTERN = /\b(cta|call[_ -]?to[_ -]?action|button|action)\b/i;
+// Fields that carry a command/label rather than a factual claim. Shared with
+// evidence grounding so a field named `button`/`action` isn't held to a
+// different standard by the two checks.
+export const ACTION_FIELD_PATTERN = /\b(cta|call[_ -]?to[_ -]?action|button|action)\b/i;
 
 const DANGLING_END_WORDS = new Set([
   "a",
@@ -44,6 +47,12 @@ function hasBalancedPairs(value: string, open: string, close: string) {
   return value.split(open).length === value.split(close).length;
 }
 
+// Catches literal, unfilled merge-tag/template syntax the model sometimes
+// echoes instead of substituting a real value (e.g. "Updates from
+// {{Market Name}}"). Double-brace mustache syntax essentially never appears
+// in legitimate marketing copy, so this is safe to flag unconditionally.
+const UNRESOLVED_PLACEHOLDER_PATTERN = /\{\{[^{}]*\}\}/;
+
 export function generatedCopyQualityIssues(
   fields: Record<string, unknown>,
   fieldOrder: readonly string[]
@@ -68,6 +77,9 @@ export function generatedCopyQualityIssues(
         }
         if (!hasBalancedPairs(text, "(", ")") || !hasBalancedPairs(text, "[", "]")) {
           issues.push("has an unclosed phrase");
+        }
+        if (UNRESOLVED_PLACEHOLDER_PATTERN.test(text)) {
+          issues.push("contains an unresolved placeholder token");
         }
 
         const lastWord = terminalWord(text);

@@ -9,11 +9,14 @@ import {
   templateFieldIssues,
 } from "@/lib/template-fields";
 import { isProductLifecycleActive } from "@/lib/product-workspace";
-import { evidenceSourceIsApproved } from "@/lib/evidence-validation";
+import {
+  citationQuote,
+  findGroundingSource,
+  generatedCopyEvidenceIssues,
+} from "@/lib/evidence-validation";
 import {
   aiEditableTemplateFields,
   composeStructuredFieldsForGeneration,
-  evidenceGateForGeneratedFields,
   localeIsAllowedForGeneration,
   requiredEvidenceFieldKeys,
 } from "@/lib/generation-evidence";
@@ -177,7 +180,9 @@ async function generateWithOpenAI(input: {
             "Return ONLY valid JSON matching this shape:",
             JSON.stringify({
               fields: Object.fromEntries(input.editableFields.map((field) => [field, ""])),
-              evidence: [{ field: input.editableFields[0] ?? "field", approved_source: "" }],
+              evidence: [
+                { field: input.editableFields[0] ?? "field", source_id: "C1", excerpt: "" },
+              ],
             }),
             "Do not wrap it in Markdown.",
           ].join("\n"),
@@ -204,17 +209,75 @@ async function generateWithOpenAI(input: {
   return parseGeneratedCopy(JSON.parse(text));
 }
 
-function filterApprovedEvidence(
+type GroundingSource = { id: string; label: string; text: string };
+
+// Assign stable, prompt-local ids to every approved claim and source paragraph
+// so the model can cite exactly which one backs each field.
+function buildGroundingSources(
+  claims: readonly string[],
+  paragraphs: readonly SourceEntry[]
+): GroundingSource[] {
+  return [
+    ...claims.map((text, i) => ({
+      id: `C${i + 1}`,
+      label: `Approved claim ${i + 1}`,
+      text,
+    })),
+    ...paragraphs.map((entry, i) => ({
+      id: `P${i + 1}`,
+      label: entry.label,
+      text: entry.text,
+    })),
+  ];
+}
+
+// Resolve each model citation to a real approved source and keep only those
+// whose quote appears verbatim in an approved source. The stored citation
+// carries the verbatim excerpt (the verification key) plus the fuller source
+// text for display; ids are prompt-local and not persisted.
+function resolveApprovedEvidence(
   evidence: Evidence[],
   editableFields: string[],
-  approvedSources: string[]
-) {
+  approvedSourceTexts: string[]
+): Evidence[] {
   const validFields = new Set(editableFields);
-  return evidence.filter((item) => {
-    if (!validFields.has(item.field)) return false;
-    if (typeof item.approved_source !== "string") return false;
-    return evidenceSourceIsApproved(item.approved_source, approvedSources);
-  });
+  const resolved: Evidence[] = [];
+  for (const item of evidence) {
+    if (!item || typeof item.field !== "string" || !validFields.has(item.field)) {
+      continue;
+    }
+    const quote = citationQuote({
+      field: item.field,
+      approved_source:
+        typeof item.approved_source === "string" ? item.approved_source : "",
+      excerpt: typeof item.excerpt === "string" ? item.excerpt : undefined,
+    });
+    const source = findGroundingSource(quote, approvedSourceTexts);
+    if (!source) continue;
+    resolved.push({
+      field: item.field,
+      approved_source: source,
+      excerpt: quote,
+    });
+  }
+  return resolved;
+}
+
+// Human-readable repair block appended to the next attempt when some field is
+// not yet backed by a verbatim approved quote.
+function groundingRepairInstruction(issues: string[]): string {
+  const fields = issues
+    .map((issue) => issue.split(":")[0]?.trim())
+    .filter(Boolean);
+  return [
+    `GROUNDING REQUIRED: every field that makes a factual or benefit claim must be backed by evidence.`,
+    fields.length
+      ? `Fix these fields: ${fields.join(", ")}.`
+      : ``,
+    `For each, add an evidence entry with the source id (e.g. C1 or P2) and an "excerpt" copied WORD-FOR-WORD from that approved source. Do not assert anything that is not directly supported by an approved claim or source sentence.`,
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 function asStringRecord(value: unknown): Record<string, string> {
@@ -507,15 +570,11 @@ export async function POST(req: Request) {
         }))
       )
       .slice(0, MAX_GENERATION_SOURCE_PARAGRAPHS);
-    const sourceText = sourceEntries
-      .map((entry) => `[${entry.label}] ${entry.text}`)
-      .join("\n");
-    const approvedEvidenceSources = [
-      ...approvedClaims,
-      ...sourceEntries.map((entry) => entry.text),
-      ...sourceEntries.map((entry) => `[${entry.label}] ${entry.text}`),
-    ];
-    if (approvedEvidenceSources.length === 0) {
+    const groundingSources = buildGroundingSources(approvedClaims, sourceEntries);
+    // The raw source strings a cited quote is verified against (verbatim
+    // containment). Labeled/id'd variants are for the prompt only.
+    const approvedSourceTexts = groundingSources.map((source) => source.text);
+    if (approvedSourceTexts.length === 0) {
       return Response.json(
         {
           error:
@@ -524,6 +583,9 @@ export async function POST(req: Request) {
         { status: 409 }
       );
     }
+    const approvedEvidenceBlock = groundingSources
+      .map((source) => `[${source.id}] (${source.label}) ${source.text}`)
+      .join("\n");
     const extraInstructions = revisions
       .map(revisionInstruction)
       .filter(Boolean)
@@ -551,11 +613,8 @@ export async function POST(req: Request) {
     ].join(" ");
 
     const userPrompt = [
-      `APPROVED CLAIMS (the only claims you may make):`,
-      approvedClaims.map((c, i) => `${i + 1}. ${c}`).join("\n"),
-      ``,
-      `APPROVED SOURCE TEXT:`,
-      sourceText,
+      `APPROVED EVIDENCE — the only facts you may use. Each item has an id (C… = approved claim, P… = approved source paragraph):`,
+      approvedEvidenceBlock,
       ``,
       `TASK: Create copy for ${assignment.familyName}.`,
       generationProfile ? `GENERATION PROFILE: ${generationProfile}` : ``,
@@ -581,7 +640,8 @@ export async function POST(req: Request) {
       ``,
       `The existing template copy below is a length and tone reference only. Do not repeat unsupported facts from it:`,
       editableFields.map((key) => `${key}: ${defaultCopy[key] ?? ""}`).join("\n"),
-      `For every field that makes a factual or benefit claim, add an evidence entry naming the approved claim or approved source sentence it rests on.`,
+      ``,
+      `EVIDENCE: for every field that makes a factual or benefit claim, add an evidence entry with { field, source_id, excerpt } where source_id is the id (e.g. C2 or P1) of the approved item it rests on and excerpt is a short phrase copied WORD-FOR-WORD from that item. The excerpt must appear exactly, verbatim, in the cited approved item. You may reword the field copy freely, but the excerpt proves the claim is grounded. Command/label fields (CTA, button) do not need evidence.`,
     ].join("\n");
 
     try {
@@ -596,19 +656,25 @@ export async function POST(req: Request) {
     let out: { fields: Record<string, string>; evidence: Evidence[] } | null = null;
     let generatedFields: Record<string, string> = {};
     let structured: Record<string, string> = {};
-    let lastCandidateEvidence: Evidence[] = [];
-    let retryReasons: string[] = [];
+    let verifiedEvidence: Evidence[] = [];
+    let rawEvidenceCount = 0;
+    let fitReasons: string[] = [];
+    let groundingIssues: string[] = [];
     const generationMode = "ai";
 
     for (let attempt = 0; attempt < PLATFORM_GENERATION_ATTEMPTS; attempt += 1) {
-      const attemptPrompt = retryReasons.length
-        ? [
-            userPrompt,
-            ``,
-            `REWRITE REQUIRED: The previous draft failed the locked template fit check:`,
-            ...retryReasons.map((reason) => `- ${reason}`),
-            `Return a shorter, complete rewrite. Do not truncate a sentence and do not repeat the failed wording.`,
-          ].join("\n")
+      const repairBlocks = [
+        fitReasons.length
+          ? [
+              `REWRITE REQUIRED: the previous draft failed the locked template fit check:`,
+              ...fitReasons.map((reason) => `- ${reason}`),
+              `Return a shorter, complete rewrite. Do not truncate a sentence and do not repeat the failed wording.`,
+            ].join("\n")
+          : ``,
+        groundingIssues.length ? groundingRepairInstruction(groundingIssues) : ``,
+      ].filter(Boolean);
+      const attemptPrompt = repairBlocks.length
+        ? [userPrompt, ``, ...repairBlocks].join("\n")
         : userPrompt;
 
       if (provider === "fallback") {
@@ -625,7 +691,7 @@ export async function POST(req: Request) {
           editableFields,
         });
 
-        lastCandidateEvidence = Array.isArray(candidate.evidence)
+        const candidateEvidence = Array.isArray(candidate.evidence)
           ? candidate.evidence
           : [];
         generatedFields = Object.fromEntries(
@@ -656,7 +722,7 @@ export async function POST(req: Request) {
           assetUrlByPath,
         });
         const qualityIssues = generatedCopyQualityIssues(structured, editableFields);
-        retryReasons = [
+        fitReasons = [
           ...editableFields.flatMap((key) =>
             (configuredIssues[key] ?? []).map((issue) => `${key}: ${issue.message}`)
           ),
@@ -664,8 +730,20 @@ export async function POST(req: Request) {
           ...formatGeneratedCopyQualityIssues(qualityIssues),
         ];
 
-        if (!retryReasons.length) {
-          out = candidate;
+        verifiedEvidence = resolveApprovedEvidence(
+          candidateEvidence,
+          editableFields,
+          approvedSourceTexts
+        );
+        rawEvidenceCount = candidateEvidence.length;
+        groundingIssues = generatedCopyEvidenceIssues({
+          fields: structured,
+          evidence: verifiedEvidence,
+          approvedSources: approvedSourceTexts,
+        });
+
+        if (!fitReasons.length && !groundingIssues.length) {
+          out = { fields: structured, evidence: verifiedEvidence };
           break;
         }
       } catch (err) {
@@ -677,20 +755,20 @@ export async function POST(req: Request) {
       }
     }
 
-    if (!out && Object.values(structured).some(Boolean)) {
-      generatedFields = await coerceTemplatePlatformFieldsToFit({
+    let coercedTruncatedFields: string[] = [];
+    // Fit-only coercion fallback: shrink/trim to satisfy the geometry gate.
+    // Only attempt when grounding already passed — coercion cannot fix an
+    // ungrounded claim, and it only removes words, so the verified citations
+    // from the last attempt still hold.
+    if (!out && !groundingIssues.length && Object.values(structured).some(Boolean)) {
+      const coerceResult = await coerceTemplatePlatformFieldsToFit({
         manifest: assignment.manifest,
         variantKey: outputSizeKey,
         fields: generatedFields,
         assetUrlByPath,
       });
-      structured = composeStructuredFieldsForGeneration({
-        allFieldKeys: allRuntimeFieldKeys,
-        aiFieldKeys: editableFields,
-        generatedFields,
-        defaultFields: defaultCopy,
-        previousFields: previousStructuredFields,
-      });
+      structured = coerceResult.fields;
+      coercedTruncatedFields = coerceResult.truncatedFields;
       const configuredIssues = templateFieldIssues(
         structured,
         editableFields,
@@ -704,61 +782,58 @@ export async function POST(req: Request) {
         assetUrlByPath,
       });
       const qualityIssues = generatedCopyQualityIssues(structured, editableFields);
-      retryReasons = [
+      fitReasons = [
         ...editableFields.flatMap((key) =>
           (configuredIssues[key] ?? []).map((issue) => `${key}: ${issue.message}`)
         ),
         ...formatTemplatePlatformFitIssues(geometryIssues),
         ...formatGeneratedCopyQualityIssues(qualityIssues),
       ];
-      if (!retryReasons.length) {
-        out = { fields: structured, evidence: lastCandidateEvidence };
+      groundingIssues = generatedCopyEvidenceIssues({
+        fields: structured,
+        evidence: verifiedEvidence,
+        approvedSources: approvedSourceTexts,
+      });
+      if (!fitReasons.length && !groundingIssues.length) {
+        out = { fields: structured, evidence: verifiedEvidence };
       }
     }
 
     if (!out) {
-      console.error("platform generated copy failed template fit validation:", {
+      if (fitReasons.length) {
+        console.error("platform generated copy failed template fit validation:", {
+          platformAssignmentId,
+          outputSize: outputSizeKey,
+          reasons: fitReasons,
+        });
+        return Response.json(
+          {
+            error:
+              "ContentGate could not produce copy that safely fits this size. Please try again.",
+          },
+          { status: 422 }
+        );
+      }
+      const ungroundedFields = groundingIssues
+        .map((issue) => issue.split(":")[0]?.trim())
+        .filter(Boolean);
+      console.error("platform generated copy failed evidence validation:", {
         platformAssignmentId,
         outputSize: outputSizeKey,
-        reasons: retryReasons,
+        reasons: groundingIssues,
       });
       return Response.json(
         {
-          error:
-            "ContentGate could not produce copy that safely fits this size. Please try again.",
+          error: ungroundedFields.length
+            ? `ContentGate could not ground ${ungroundedFields.join(", ")} in an approved claim or source. Add an approved claim or source that supports this copy, then try again.`
+            : "ContentGate could not verify that every generated claim is grounded in approved sources.",
         },
         { status: 422 }
       );
     }
 
-    const rawEvidence = Array.isArray(out.evidence) ? out.evidence : [];
-    const evidence = filterApprovedEvidence(
-      rawEvidence,
-      editableFields,
-      approvedEvidenceSources
-    );
-    const rejectedEvidenceCount = rawEvidence.length - evidence.length;
-    const evidenceGate = evidenceGateForGeneratedFields({
-      fields: structured,
-      requiredEvidenceFields: evidenceRequiredFields,
-      evidence,
-      approvedSources: approvedEvidenceSources,
-    });
-    if (!evidenceGate.ok) {
-      console.warn("platform generated copy failed evidence validation:", {
-        platformAssignmentId,
-        outputSize: outputSizeKey,
-        reasons: evidenceGate.issues,
-      });
-      return Response.json(
-        {
-          error:
-            "ContentGate could not verify the generated copy against approved evidence. Please add stronger approved sources or try a shorter generation.",
-          issues: evidenceGate.issues,
-        },
-        { status: 422 }
-      );
-    }
+    const evidence = out.evidence;
+    const rejectedEvidenceCount = Math.max(0, rawEvidenceCount - evidence.length);
     const inheritedBackgroundChoice =
       (typeof backgroundChoice === "string" && backgroundChoice.length > 0
         ? backgroundChoice
@@ -821,7 +896,7 @@ export async function POST(req: Request) {
       evidence_validation: {
         accepted: evidence.length,
         rejected: rejectedEvidenceCount,
-        warnings: evidenceGate.warnings,
+        warnings: groundingIssues,
         required_fields: evidenceRequiredFields,
         enforcement: "fail_closed",
       },
@@ -892,6 +967,7 @@ export async function POST(req: Request) {
       evidence,
       title,
       platform: true,
+      truncatedFields: coercedTruncatedFields,
     });
   }
 

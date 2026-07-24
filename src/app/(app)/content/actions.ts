@@ -6,6 +6,7 @@ import { flattenFields } from "@/lib/templates";
 import { studioEditableTemplateFields } from "@/lib/generation-evidence";
 import { templateFieldIssues, type FieldLimits } from "@/lib/template-fields";
 import { validateTemplateContentFit } from "@/lib/template-content-fit";
+import { validateStoredContentEvidence } from "@/lib/evidence-lifecycle";
 import type { TemplateBundleManifest } from "@/lib/template-platform/manifest";
 import {
   formatTemplatePlatformFitIssues,
@@ -206,7 +207,7 @@ export async function updateStructuredFields(
   const { data: content } = await ctx.supabase
     .from("generated_content")
     .select(
-      "structured_fields, prompt_context, product_templates(layout_key, category, editable_fields, field_limits, locked_fields, template_definition, status), template_versions(manifest), template_variants(variant_key)"
+      "structured_fields, prompt_context, product_templates!generated_content_product_template_id_fkey(layout_key, category, editable_fields, field_limits, locked_fields, template_definition, status), template_versions!generated_content_template_version_id_fkey(manifest), template_variants!generated_content_template_variant_id_fkey(variant_key)"
     )
     .eq("id", id)
     .single();
@@ -362,7 +363,7 @@ export async function checkDraftStructuredFieldsFit(
   const { data: content } = await ctx.supabase
     .from("generated_content")
     .select(
-      "structured_fields, prompt_context, product_templates(layout_key, category, editable_fields, field_limits, locked_fields, template_definition, status), template_versions(manifest), template_variants(variant_key)"
+      "structured_fields, prompt_context, product_templates!generated_content_product_template_id_fkey(layout_key, category, editable_fields, field_limits, locked_fields, template_definition, status), template_versions!generated_content_template_version_id_fkey(manifest), template_variants!generated_content_template_variant_id_fkey(variant_key)"
     )
     .eq("id", id)
     .single();
@@ -467,7 +468,7 @@ export async function approveContent(id: string): Promise<ActionResult> {
   const { data: row } = await ctx.supabase
     .from("generated_content")
     .select(
-      "status, structured_fields, prompt_context, product_templates(layout_key, category, editable_fields, field_limits, locked_fields, template_definition, status), template_versions(manifest), template_variants(variant_key)"
+      "status, structured_fields, prompt_context, product_templates!generated_content_product_template_id_fkey(layout_key, category, editable_fields, field_limits, locked_fields, template_definition, status), template_versions!generated_content_template_version_id_fkey(manifest), template_variants!generated_content_template_variant_id_fkey(variant_key)"
     )
     .eq("id", id)
     .single();
@@ -480,6 +481,10 @@ export async function approveContent(id: string): Promise<ActionResult> {
   const validationError = await validateStoredTemplateFields(row, ctx.supabase);
   if (validationError) {
     return { error: `Content no longer fits its template: ${validationError}` };
+  }
+  const evidenceError = await validateStoredContentEvidence(ctx.supabase, id);
+  if (evidenceError) {
+    return { error: evidenceError };
   }
 
   const { error } = await ctx.supabase.rpc("transition_generated_content", {
@@ -522,7 +527,7 @@ export async function submitForReview(id: string): Promise<ActionResult> {
   const { data: current } = await ctx.supabase
     .from("generated_content")
     .select(
-      "created_by, status, structured_fields, prompt_context, product_templates(layout_key, category, editable_fields, field_limits, locked_fields, template_definition, status), template_versions(manifest), template_variants(variant_key)"
+      "created_by, status, structured_fields, prompt_context, product_templates!generated_content_product_template_id_fkey(layout_key, category, editable_fields, field_limits, locked_fields, template_definition, status), template_versions!generated_content_template_version_id_fkey(manifest), template_variants!generated_content_template_variant_id_fkey(variant_key)"
     )
     .eq("id", id)
     .single();
@@ -545,6 +550,10 @@ export async function submitForReview(id: string): Promise<ActionResult> {
   const validationError = await validateStoredTemplateFields(current, ctx.supabase);
   if (validationError) {
     return { error: `Content does not fit its template: ${validationError}` };
+  }
+  const evidenceError = await validateStoredContentEvidence(ctx.supabase, id);
+  if (evidenceError) {
+    return { error: evidenceError };
   }
 
   const { error } = await ctx.supabase.rpc("transition_generated_content", {

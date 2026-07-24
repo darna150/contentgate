@@ -173,7 +173,9 @@ export async function GET(req: Request) {
 
   const { data: tpl } = await supabase
     .from("product_templates")
-    .select("id, variant, category, layout_key, editable_fields, default_copy, template_definition, status, product_id, products(name, disclaimer_text)")
+    .select(
+      "id, variant, category, layout_key, editable_fields, default_copy, template_definition, status, product_id, products!product_templates_product_id_fkey(name, disclaimer_text)"
+    )
     .eq("id", templateId)
     .single();
   if (!tpl) return new Response("Not found", { status: 404 });

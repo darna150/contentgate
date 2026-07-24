@@ -486,9 +486,7 @@ export async function getProductWorkspace(
       sourceExcerpt: claim.source_excerpt ?? null,
     };
   });
-  const normalizedPlatformTemplates = (
-    (platformTemplateResult.data ?? []) as TemplatePlatformAssignmentRow[]
-  )
+  const normalizedPlatformTemplates = ((platformTemplateResult.data ?? []) as TemplatePlatformAssignmentRow[])
     .map(normalizeTemplatePlatformAssignment)
     .filter((template): template is NormalizedPlatformTemplate => Boolean(template));
   const platformTemplates = normalizedPlatformTemplates.map((template) => {

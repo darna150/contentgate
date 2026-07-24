@@ -10,7 +10,7 @@ The Knowledge Hub answers product questions from approved organization knowledge
 
 - A user must be authenticated and the requested product must be active and visible through organization RLS.
 - Only admin-controlled `documents` rows explicitly assigned to that product are eligible for AI retrieval.
-- A legacy document with `product_id = null` is not global evidence and must never enter an answer automatically.
+- A document with `product_id = null` is treated as org-wide evidence: `search_product_knowledge` includes it for any product query in that organization. This is intentional — admins use null-product docs for shared brand knowledge that applies across all products.
 - Cross-organization and inactive-product retrieval must return no rows.
 
 ## Retrieval

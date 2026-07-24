@@ -94,7 +94,7 @@ async function openContentGateTemplate(page: Page) {
     .first();
   await expect(productLink).toBeVisible();
   await productLink.click();
-  await page.waitForURL(/\/products\//);
+  await page.waitForURL(/\/products\//, { timeout: 45_000 });
 
   const templatesLink = page.getByRole("link", { name: /Templates/i });
   if (await templatesLink.isVisible()) {
@@ -251,7 +251,10 @@ function readPngDimensions(bytes: number[]) {
 }
 
 test.describe("ContentGate live generation QA", () => {
-  test.describe.configure({ mode: "serial" });
+  // Serial so each test can reuse state from the previous; 5-minute per-test
+  // budget accommodates OpenAI generation latency plus SSR cold starts on a
+  // Vercel preview deployment.
+  test.describe.configure({ mode: "serial", timeout: 300_000 });
 
   test("generates a sharp draft preview and updates it after text edits", async ({
     page,
@@ -513,6 +516,71 @@ test.describe("ContentGate live generation QA", () => {
     expect(
       issues.filter((issue) => issue.kind !== "console" && !isBenignBrowserIssue(issue)),
       `Browser/network issues: ${JSON.stringify(issues, null, 2)}`
+    ).toEqual([]);
+  });
+
+  test("refine buttons complete without a grounding error across key revision types", async ({
+    page,
+  }, testInfo) => {
+    const issues: BrowserIssue[] = [];
+    page.on("pageerror", (error) => issues.push({ kind: "pageerror", message: error.message }));
+    page.on("requestfailed", (request) => {
+      issues.push({
+        kind: "requestfailed",
+        message: `${request.method()} ${request.url()} — ${
+          request.failure()?.errorText ?? "unknown"
+        }`,
+      });
+    });
+    page.on("response", (response) => {
+      const status = response.status();
+      const url = response.url();
+      if (status >= 500 || (status === 422 && url.includes("/api/products/generate"))) {
+        issues.push({
+          kind: "http",
+          message: `${status} ${response.request().method()} ${url}`,
+        });
+      }
+    });
+
+    await signIn(page);
+    await generateLeaderboardDraft(page);
+    await assertPreviewIsAvailable(page);
+
+    // "More strategic" is the refine option that triggered the Phase 1 grounding bug —
+    // it is the primary regression guard and must run first.
+    const refineOptions = ["More strategic", "Shorter", "More playful"] as const;
+
+    for (const label of refineOptions) {
+      const refineBtn = page.getByRole("button", { name: label });
+      await expect(refineBtn).toBeVisible({ timeout: 10_000 });
+      await refineBtn.click();
+      await expect(refineBtn).toHaveAttribute("aria-pressed", "true");
+
+      const applyBtn = page.getByRole("button", { name: /Apply refinement to draft/i });
+      await expect(applyBtn).toBeVisible();
+      await applyBtn.click();
+
+      // Wait for the generation to complete: the draft status returns and the
+      // preview is available again. Grounding failure surfaces as an error banner.
+      await expect(page.getByText(/could not verify|grounding required/i)).toHaveCount(0, {
+        timeout: 120_000,
+      });
+      await expect(
+        page.getByText(new RegExp(`DRAFT\\s*·\\s*${OUTPUT_SIZE_LABEL}`, "i"))
+      ).toBeVisible({ timeout: 120_000 });
+      await assertPreviewIsAvailable(page);
+
+      await testInfo.attach(`refine-${label.toLowerCase().replace(/\s+/g, "-")}.png`, {
+        contentType: "image/png",
+        body: await page.screenshot({ fullPage: true }),
+      });
+    }
+
+    await attachBrowserIssues(testInfo, issues);
+    expect(
+      issues.filter((issue) => issue.kind !== "console" && !isBenignBrowserIssue(issue)),
+      `Browser/network issues during refine: ${JSON.stringify(issues, null, 2)}`
     ).toEqual([]);
   });
 

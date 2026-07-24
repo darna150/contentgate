@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { validateStoredContentEvidence } from "@/lib/evidence-lifecycle";
 import {
   canExportContent,
   isContentExportFormat,
@@ -56,6 +57,10 @@ export async function GET(
       status: 403,
     });
   }
+  const evidenceError = await validateStoredContentEvidence(supabase, content.id);
+  if (evidenceError) {
+    return new Response(evidenceError, { status: 403 });
+  }
 
   const { error: eventError } = await recordExport(
     supabase,
@@ -110,6 +115,10 @@ export async function POST(
   const surface = body.surface;
   const size =
     typeof body.size === "string" && body.size.length <= 50 ? body.size : null;
+  const evidenceError = await validateStoredContentEvidence(supabase, id);
+  if (evidenceError) {
+    return Response.json({ error: evidenceError }, { status: 403 });
+  }
   const { data, error } = await recordExport(
     supabase,
     id,

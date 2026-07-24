@@ -330,14 +330,22 @@ export function templatePlatformFitInstructions(input: {
   );
 }
 
+export type CoerceTemplatePlatformFieldsResult = {
+  fields: Record<string, string>;
+  /** Fields where coercion removed words to make the copy fit. Non-empty means
+   * meaning-lossy truncation happened; callers should warn the user to review. */
+  truncatedFields: string[];
+};
+
 export async function coerceTemplatePlatformFieldsToFit(
   input: {
     manifest: TemplateBundleManifest;
     variantKey: string;
     fields: Record<string, string>;
   } & TemplatePlatformFontSource
-): Promise<Record<string, string>> {
+): Promise<CoerceTemplatePlatformFieldsResult> {
   const coerced = { ...input.fields };
+  const truncatedFields: string[] = [];
   const fontSource: TemplatePlatformFontSource = {
     assetUrlByPath: input.assetUrlByPath,
     assetDataByPath: input.assetDataByPath,
@@ -346,6 +354,8 @@ export async function coerceTemplatePlatformFieldsToFit(
   for (const slot of textSlots(input.manifest, input.variantKey)) {
     let value = cleanText(coerced[slot.field]);
     if (!value) continue;
+    const original = value;
+
     if (slot.maxChars && value.length > slot.maxChars) {
       value = value.slice(0, slot.maxChars).trim();
     }
@@ -367,7 +377,8 @@ export async function coerceTemplatePlatformFieldsToFit(
     }
 
     coerced[slot.field] = value.replace(/[,;:]\s*$/, ".");
+    if (value !== original) truncatedFields.push(slot.field);
   }
 
-  return coerced;
+  return { fields: coerced, truncatedFields };
 }
