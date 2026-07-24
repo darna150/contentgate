@@ -457,24 +457,6 @@ export function StudioWorkspace({
     (selectedTemplate.platformAssignmentId
       ? platformTemplatePreviewUrl(selectedTemplate.platformAssignmentId, size)
       : templatePreviewUrl(selectedTemplate.id, size));
-  const referencePreviewUrls = useMemo(
-    () =>
-      Object.fromEntries(
-        sizes.map((key) => [
-          key,
-          selectedTemplate.referenceAssetBySize?.[key] ||
-            (selectedTemplate.platformAssignmentId
-              ? platformTemplatePreviewUrl(selectedTemplate.platformAssignmentId, key)
-              : templatePreviewUrl(selectedTemplate.id, key)),
-        ])
-      ),
-    [
-      selectedTemplate.id,
-      selectedTemplate.platformAssignmentId,
-      selectedTemplate.referenceAssetBySize,
-      sizes,
-    ]
-  );
   const [showOriginal, setShowOriginal] = useState(false);
   const isBrandReferenceView = showOriginal || (!content && !hasAnyGeneratedDraft);
   const generatedPreviewUrl = content
@@ -528,7 +510,7 @@ export function StudioWorkspace({
     );
     setHasManualEdits(nextContent?.manuallyEdited ?? false);
     setSelectedRevision(null);
-    setShowOriginal(false);
+    setShowOriginal(!nextContent);
     setError(null);
     setCopied(false);
     setOverflowFields([]);
@@ -609,18 +591,6 @@ export function StudioWorkspace({
   }, [retryUntil]);
 
   useEffect(() => {
-    if (typeof window === "undefined") return undefined;
-    const timer = window.setTimeout(() => {
-      for (const src of Object.values(referencePreviewUrls)) {
-        const image = new Image();
-        image.decoding = "async";
-        image.src = src;
-      }
-    }, 600);
-    return () => window.clearTimeout(timer);
-  }, [referencePreviewUrls]);
-
-  useEffect(() => {
     if (!dirty || !content || mode !== "edit") return undefined;
     if (hasIssues || hasLayoutOverflow) return undefined;
 
@@ -674,6 +644,7 @@ export function StudioWorkspace({
       String(nextFields[PRODUCT_VARIANT_FIELD] ?? "")
     );
     setHasManualEdits(nextContent?.manuallyEdited ?? false);
+    setShowOriginal(true);
     setError(null);
     setCopied(false);
     setOverflowFields([]);
@@ -725,6 +696,8 @@ export function StudioWorkspace({
             : [];
         })
       );
+      const regenerateCurrentDraft =
+        !!content && ["draft", "rejected"].includes(content.status);
       const response = await fetch("/api/products/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -736,9 +709,9 @@ export function StudioWorkspace({
           productVariantChoice: selectedProductVariantKey,
           assetChoices,
           revisions: selectedRevision ? [selectedRevision] : [],
-          replaceContentId: mode === "edit" && content ? content.id : undefined,
+          replaceContentId: regenerateCurrentDraft ? content.id : undefined,
           sourceContentId:
-            mode === "edit" && content
+            regenerateCurrentDraft
               ? undefined
               : (content?.id ?? campaignSourceContentId ?? undefined),
         }),
@@ -789,7 +762,13 @@ export function StudioWorkspace({
         Array.isArray(result.truncatedFields) ? (result.truncatedFields as string[]) : []
       );
       setShowOriginal(false);
-      router.replace(studioContentUrl(nextContent.id, nextContentSize), { scroll: false });
+      if (!regenerateCurrentDraft) {
+        window.history.replaceState(
+          window.history.state,
+          "",
+          studioContentUrl(nextContent.id, nextContentSize)
+        );
+      }
     } catch {
       setError("Generation failed. Try again.");
     } finally {
@@ -1218,17 +1197,12 @@ export function StudioWorkspace({
                 height={dims.h}
                 updating={saveState === "saving"}
               />
-            ) : isBrandReferenceView && selectedTemplate.platformManifest ? (
-              <LiveTemplatePreviewFrame
-                manifest={selectedTemplate.platformManifest}
-                variantKey={size}
-                fields={previewFields}
-                assetUrlByPath={selectedTemplate.platformAssetUrlByPath}
-                damAssetUrlById={selectedTemplate.damAssetUrlById}
+            ) : isBrandReferenceView ? (
+              <ServerPreviewFrame
+                src={originalPreviewUrl}
                 width={dims.w}
                 height={dims.h}
                 updating={false}
-                original
               />
             ) : (
               <ServerPreviewFrame
