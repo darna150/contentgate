@@ -270,12 +270,12 @@ function resolveImageSource(
 function highDensityImageSource(src: string) {
   if (src.startsWith("http://") || src.startsWith("https://")) {
     const url = new URL(src);
-    // Signed storage URLs include authorization in the query string. Rewriting
-    // only the pathname from background.png to background@2x.png reuses a token
-    // for a different object, which can surface as a blocked/invalid cross-
-    // origin image response in browsers. Only synthesize @2x URLs for stable
-    // public assets without query-bound signatures.
-    if (url.search) return null;
+    // Supabase signed storage URLs include object authorization in a token
+    // query parameter. Rewriting only the pathname from background.png to
+    // background@2x.png reuses a token for a different object, which can
+    // surface as a blocked/invalid cross-origin image response in browsers.
+    // Public versioned assets may still use benign cache-busting query params.
+    if (url.searchParams.has("token")) return null;
     if (!url.pathname.toLowerCase().endsWith(".png")) return null;
     url.pathname = url.pathname.replace(/\.png$/i, "@2x.png");
     return url.toString();
