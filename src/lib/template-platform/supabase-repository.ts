@@ -31,6 +31,7 @@ type SupabaseTemplatePlatformClient = {
       options?: { onConflict?: string; ignoreDuplicates?: boolean }
     ): Promise<SupabaseWriteResult>;
   };
+  rpc(fn: string, args: Record<string, unknown>): Promise<SupabaseWriteResult>;
   storage: {
     from(bucket: string): {
       upload(
@@ -69,34 +70,21 @@ export function createSupabaseTemplateBundleRepository(
         .from(input.bucket)
         .upload(input.path, input.data, {
           contentType: input.contentType ?? undefined,
-          upsert: options.uploadUpsert ?? false,
+          upsert: options.uploadUpsert ?? true,
         });
       throwOnSupabaseError(result, `Upload template asset ${input.path}`);
     },
 
     async insertCompiledTemplateBundle(rows: CompiledTemplateBundleImport["rows"]) {
       throwOnSupabaseError(
-        await client.from("template_families").upsert(rows.family, {
-          onConflict: "org_id,family_key",
-          ignoreDuplicates: true,
+        await client.rpc("commit_template_bundle_import", {
+          p_family: rows.family,
+          p_version: rows.version,
+          p_variants: rows.variants,
+          p_assets: rows.assets,
+          p_import_run: rows.importRun,
         }),
-        "Upsert template family"
-      );
-      throwOnSupabaseError(
-        await client.from("template_versions").insert(rows.version),
-        "Insert template version"
-      );
-      throwOnSupabaseError(
-        await client.from("template_variants").insert(rows.variants),
-        "Insert template variants"
-      );
-      throwOnSupabaseError(
-        await client.from("template_assets").insert(rows.assets),
-        "Insert template assets"
-      );
-      throwOnSupabaseError(
-        await client.from("template_import_runs").insert(rows.importRun),
-        "Insert template import run"
+        "Commit template bundle import"
       );
     },
 

@@ -140,6 +140,10 @@ test("uploads every verified asset before inserting compiled template rows", asy
       TEMPLATE_BUNDLE_STORAGE_BUCKET,
     ]
   );
+  assert.equal(
+    repo.uploads.every((upload) => /\/assets\/[a-f0-9]{64}\//.test(upload.path)),
+    true
+  );
 });
 
 test("reuses an existing template family id when importing a new version", async () => {
