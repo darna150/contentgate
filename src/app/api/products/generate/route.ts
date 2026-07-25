@@ -842,6 +842,21 @@ export async function POST(req: Request) {
       }
     }
 
+    if (!out && variationIssues.length && !fitReasons.length && !groundingIssues.length) {
+      const deterministicFields = deterministicRevisionVariation({
+        revision: revisions[0],
+        editableFields,
+        fields: structured,
+        previousFields: previousStructuredFields,
+        fieldLimits,
+      });
+      if (deterministicFields) {
+        structured = { ...structured, ...deterministicFields };
+        generatedFields = { ...generatedFields, ...deterministicFields };
+        out = { fields: structured, evidence: verifiedEvidence };
+      }
+    }
+
     if (!out) {
       if (fitReasons.length) {
         console.error("platform generated copy failed template fit validation:", {
