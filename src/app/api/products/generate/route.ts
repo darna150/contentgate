@@ -4,10 +4,7 @@ import {
   formatGeneratedCopyQualityIssues,
   generatedCopyQualityIssues,
 } from "@/lib/generated-copy-quality";
-import {
-  fieldLimitInstruction,
-  templateFieldIssues,
-} from "@/lib/template-fields";
+import { fieldLimitInstruction } from "@/lib/template-fields";
 import { isProductLifecycleActive } from "@/lib/product-workspace";
 import {
   citationQuote,
@@ -289,45 +286,6 @@ function evidenceScopedFields(
   );
 }
 
-function sourceForFallbackField(
-  value: string,
-  approvedSourceTexts: readonly string[]
-) {
-  const tokens = value
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, " ")
-    .split(/\s+/)
-    .filter((token) => token.length >= 3);
-  return (
-    approvedSourceTexts.find((source) => {
-      const normalizedSource = source.toLowerCase();
-      return tokens.some((token) => normalizedSource.includes(token));
-    }) ??
-    approvedSourceTexts[0] ??
-    ""
-  );
-}
-
-function fallbackEvidenceForFields(input: {
-  fields: Record<string, string>;
-  evidenceRequiredFields: readonly string[];
-  approvedSourceTexts: readonly string[];
-}): Evidence[] {
-  return input.evidenceRequiredFields.flatMap((field) => {
-      const value = input.fields[field]?.trim() ?? "";
-      if (!value) return [];
-      const source = sourceForFallbackField(value, input.approvedSourceTexts);
-      if (!source) return [];
-      return [
-        {
-          field,
-          approved_source: source,
-          excerpt: source,
-        },
-      ];
-    });
-}
-
 function asStringRecord(value: unknown): Record<string, string> {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
   return Object.fromEntries(
@@ -374,18 +332,6 @@ function normalizedCopyValue(value: string | undefined) {
     .replace(/\s+/g, " ")
     .trim()
     .toLowerCase();
-}
-
-function unchangedGeneratedFields(input: {
-  editableFields: string[];
-  generatedFields: Record<string, string>;
-  previousFields: Record<string, string>;
-}) {
-  return input.editableFields.filter((key) => {
-    const next = normalizedCopyValue(input.generatedFields[key]);
-    const previous = normalizedCopyValue(input.previousFields[key]);
-    return previous.length > 0 && next === previous;
-  });
 }
 
 function allGeneratedFieldsUnchanged(input: {
@@ -657,9 +603,6 @@ export async function POST(req: Request) {
         { status: 409 }
       );
     }
-    const requiredFields = runtimeVariant.fields
-      .filter((field) => field.source === "ai" && field.required !== false)
-      .map((field) => field.key);
     const fieldLimits = getTemplateBundleVariantFieldLimits(
       assignment.manifest,
       outputSizeKey

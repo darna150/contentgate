@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { flattenFields } from "@/lib/templates";
 import { studioEditableTemplateFields } from "@/lib/generation-evidence";
-import { templateFieldIssues, type FieldLimits } from "@/lib/template-fields";
+import { type FieldLimits } from "@/lib/template-fields";
 import { validateTemplateContentFit } from "@/lib/template-content-fit";
 import { validateStoredContentEvidence } from "@/lib/evidence-lifecycle";
 import type { TemplateBundleManifest } from "@/lib/template-platform/manifest";
@@ -17,7 +17,6 @@ import {
 } from "@/lib/template-platform/fit";
 import {
   BACKGROUND_CHOICE_FIELD,
-  getTemplateBundleVariantFieldLimits,
   getTemplateBundleVariantFields,
   getTemplateBundleVariantPersistedFields,
 } from "@/lib/template-platform/runtime";
@@ -133,10 +132,6 @@ async function validateStoredTemplateFields(
     : content.template_variants;
   if (!template && version?.manifest && variant?.variant_key) {
     const platformFields = getTemplateBundleVariantFields(version.manifest, variant.variant_key);
-    const order = platformFields.map((field) => field.key);
-    const requiredFields = platformFields
-      .filter((field) => field.required !== false)
-      .map((field) => field.key);
     const fields = (content.structured_fields ?? {}) as Record<string, unknown>;
     const issues = templatePlatformRequiredFieldIssues(
       version.manifest,
@@ -240,16 +235,6 @@ export async function updateStructuredFields(
     ? ((template.editable_fields ?? []) as string[])
     : editablePlatformFields.map((field) => field.key);
   const fullOrder = template ? order : platformFields.map((field) => field.key);
-  const requiredFields = template
-    ? order
-    : editablePlatformFields
-        .filter((field) => field.required !== false)
-        .map((field) => field.key);
-  const fullRequiredFields = template
-    ? requiredFields
-    : platformFields
-        .filter((field) => field.required !== false)
-        .map((field) => field.key);
   const existingFields = (content?.structured_fields ?? {}) as Record<string, string>;
   const cleaned = Object.fromEntries(
     (template ? order : fullOrder).map((key) => [
@@ -391,9 +376,6 @@ export async function checkDraftStructuredFieldsFit(
     const editableFields = studioEditableTemplateFields(platformFields);
     const order = editableFields.map((field) => field.key);
     const fullOrder = platformFields.map((field) => field.key);
-    const fullRequiredFields = platformFields
-      .filter((field) => field.required !== false)
-      .map((field) => field.key);
     const existingFields = (content.structured_fields ?? {}) as Record<string, string>;
     const cleaned = Object.fromEntries(
       fullOrder.map((key) => [

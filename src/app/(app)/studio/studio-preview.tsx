@@ -347,7 +347,9 @@ export function LiveTemplatePreviewFrame({
       })
       .filter((item): item is { font: TemplateBundleManifest["fonts"][number]; src: string } => Boolean(item.src));
     if (!bundleFonts.length || typeof FontFace === "undefined") {
-      setFontsReady(true);
+      queueMicrotask(() => {
+        if (!disposed) setFontsReady(true);
+      });
       return;
     }
     void Promise.all(
