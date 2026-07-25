@@ -270,6 +270,7 @@ export function LiveTemplatePreviewFrame({
 }) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0.72);
+  const [fontsReady, setFontsReady] = useState(false);
   const renderScale = 2;
   const rendered = renderTemplateBundleVariant({
     manifest,
@@ -295,6 +296,45 @@ export function LiveTemplatePreviewFrame({
     observer.observe(viewport);
     return () => observer.disconnect();
   }, [height, width]);
+
+  // The editable canvas must use the same embedded font files as the fit
+  // service and ImageResponse export. A CSS family name by itself falls back
+  // to the operating-system font on most machines, which makes a measured
+  // line wrap differently from both Figma and the PNG export.
+  useEffect(() => {
+    let disposed = false;
+    setFontsReady(false);
+    const bundleFonts = manifest.fonts
+      .map((font) => {
+        const assetPath = manifest.assets.find((asset) => asset.key === font.asset)?.path;
+        return { font, src: assetPath ? assetUrlByPath?.[assetPath] : undefined };
+      })
+      .filter((item): item is { font: TemplateBundleManifest["fonts"][number]; src: string } => Boolean(item.src));
+    if (!bundleFonts.length || typeof FontFace === "undefined") {
+      setFontsReady(true);
+      return;
+    }
+    void Promise.all(
+      bundleFonts.map(async ({ font, src }) => {
+        const face = new FontFace(font.family, `url(${src})`, {
+          weight: String(font.weight),
+          style: font.style,
+        });
+        const loaded = await face.load();
+        document.fonts.add(loaded);
+      })
+    )
+      .catch(() => {
+        // Keep the canvas available if a signed asset has just expired. The
+        // subsequent render/fit request will refresh the signed URL.
+      })
+      .finally(() => {
+        if (!disposed) setFontsReady(true);
+      });
+    return () => {
+      disposed = true;
+    };
+  }, [assetUrlByPath, manifest.fonts]);
 
   if (!rendered) {
     return (
@@ -337,6 +377,10 @@ export function LiveTemplatePreviewFrame({
             height: rendered.height,
             transform: `scale(${scale / renderScale})`,
             transformOrigin: "top left",
+            // Do not flash a system-font layout before the bundle fonts are
+            // present; that flash was being mistaken for generated copy
+            // overflowing the locked Figma slots.
+            visibility: fontsReady ? "visible" : "hidden",
           }}
         >
           {rendered.element}
