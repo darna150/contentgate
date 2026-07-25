@@ -17,7 +17,6 @@ import {
 } from "@/lib/template-platform/fit";
 import {
   BACKGROUND_CHOICE_FIELD,
-  getTemplateBundleVariantFields,
   getTemplateBundleVariantPersistedFields,
 } from "@/lib/template-platform/runtime";
 import { createTemplateBundleAssetUrlMap } from "@/lib/template-platform/storage-urls";
@@ -131,7 +130,6 @@ async function validateStoredTemplateFields(
     ? content.template_variants[0]
     : content.template_variants;
   if (!template && version?.manifest && variant?.variant_key) {
-    const platformFields = getTemplateBundleVariantFields(version.manifest, variant.variant_key);
     const fields = (content.structured_fields ?? {}) as Record<string, unknown>;
     const issues = templatePlatformRequiredFieldIssues(
       version.manifest,

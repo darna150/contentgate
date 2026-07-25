@@ -107,7 +107,6 @@ type PackageDefinition = {
 };
 
 const GREEN = "#12312B";
-const FOREST = "#0B2A24";
 const TEAL = "#0E5F58";
 const MINT = "#DDEDE5";
 const WARM = "#F7F2E8";
@@ -546,6 +545,8 @@ function frame(
   return { size, background, layers, textSlots, imageSlots, ...options };
 }
 
+// Legacy Content Gate package retained temporarily for fixture compatibility.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function friendlyPackage(): PublishedTemplatePackage {
   return {
     packageVersion: 1,
@@ -661,111 +662,6 @@ function friendlyPackage(): PublishedTemplatePackage {
         {
           referenceImage: "/template-packages/contentgate/set-a/medium-rectangle.png",
           generatedImage: "/template-packages/contentgate/set-a/backgrounds/medium-rectangle.png",
-        }
-      ),
-    },
-  };
-}
-
-function premiumPackage(): PublishedTemplatePackage {
-  const pkg = friendlyPackage();
-  return {
-    ...pkg,
-    packageKey: "contentgate-localized-ads-set-b-v1",
-    publicName: "Set B - Local Content Premium",
-    frames: {
-      ...pkg.frames,
-      square: frame(
-        "square",
-        WARM,
-        [
-          { kind: "rect", x: 0, y: 0, w: 1080, h: 1080, color: FOREST },
-          { kind: "rect", x: 62, y: 62, w: 956, h: 956, color: WARM, radius: 34 },
-          { kind: "brand", x: 100, y: 102, scale: 1.18 },
-          { kind: "dashboard", x: 550, y: 220, w: 390, h: 310, dark: true },
-          { kind: "rule", x: 100, y: 430, w: 116, h: 12, color: RUST },
-          { kind: "rect", x: 72.36, y: 912.6, w: 324, h: 59.4, color: GREEN, radius: 999 },
-        ],
-        [
-          { field: "headline", x: 72, y: 591, w: 864, h: 151.2, fontSize: 62.64, lineHeight: 0.96, weight: 700, color: GREEN, maxChars: 64, maxLines: 2, lineChars: 27, family: "Inter" },
-          { field: "subheadline", x: 72.36, y: 772.2, w: 723.6, h: 86.4, fontSize: 24.84, lineHeight: 1.22, weight: 400, color: MUTED, maxChars: 132, maxLines: 2, lineChars: 48, family: "Inter" },
-          { field: "cta", x: 72.36, y: 912.6, w: 324, h: 59.4, fontSize: 21.6, lineHeight: 1.04, weight: 600, color: WHITE, maxChars: 30, maxLines: 1, align: "center", family: "Inter" },
-          { field: "proof_note", x: 432, y: 912.6, w: 496.8, h: 59.4, fontSize: 19.44, lineHeight: 1.12, weight: 500, color: TEAL, maxChars: 64, maxLines: 1, lineChars: 44, family: "Inter" },
-        ],
-        [],
-        {
-          referenceImage: "/template-packages/contentgate/set-b/square.png",
-          generatedImage: "/template-packages/contentgate/set-b/backgrounds/square.png",
-        }
-      ),
-      portrait: frame(
-        "portrait",
-        WARM,
-        [
-          { kind: "rect", x: 0, y: 0, w: 1080, h: 1350, color: FOREST },
-          { kind: "brand", x: 82, y: 80, scale: 1.3, light: true },
-          { kind: "dashboard", x: 82, y: 210, w: 916, h: 500, dark: true },
-          { kind: "rule", x: 82, y: 780, w: 112, h: 12, color: RUST },
-          { kind: "rect", x: 81, y: 1140.75, w: 432, h: 70.2, color: GREEN, radius: 999 },
-        ],
-        [
-          { field: "headline", x: 81, y: 742.5, w: 842.4, h: 189, fontSize: 64.8, lineHeight: 0.96, weight: 700, color: GREEN, maxChars: 64, maxLines: 3, lineChars: 22, family: "Inter" },
-          { field: "subheadline", x: 81, y: 965.25, w: 799.2, h: 108, fontSize: 27, lineHeight: 1.22, weight: 400, color: MUTED, maxChars: 132, maxLines: 3, lineChars: 46, family: "Inter" },
-          { field: "cta", x: 81, y: 1140.75, w: 432, h: 70.2, fontSize: 21.6, lineHeight: 1.04, weight: 600, color: WHITE, maxChars: 30, maxLines: 1, align: "center", family: "Inter" },
-          { field: "proof_note", x: 550.8, y: 1140.75, w: 399.6, h: 70.2, fontSize: 19.44, lineHeight: 1.12, weight: 500, color: TEAL, maxChars: 64, maxLines: 2, lineChars: 34, family: "Inter" },
-        ],
-        [],
-        {
-          referenceImage: "/template-packages/contentgate/set-b/portrait.png",
-          generatedImage: "/template-packages/contentgate/set-b/backgrounds/portrait.png",
-        }
-      ),
-      story: frame(
-        "story",
-        WARM,
-        [],
-        [
-          { field: "headline", x: 86.4, y: 1171.2, w: 885.6, h: 249.6, fontSize: 79.92, lineHeight: 0.94, weight: 700, color: GREEN, maxChars: 64, maxLines: 3, lineChars: 20, family: "Inter" },
-          { field: "subheadline", x: 86.4, y: 1468.8, w: 842.4, h: 144, fontSize: 35.64, lineHeight: 1.22, weight: 400, color: MUTED, maxChars: 132, maxLines: 3, lineChars: 40, family: "Inter" },
-          { field: "cta", x: 86.4, y: 1680, w: 907.2, h: 103.68, fontSize: 32.4, lineHeight: 1.04, weight: 600, color: WHITE, maxChars: 30, maxLines: 1, align: "center", family: "Inter" },
-          { field: "proof_note", x: 86.4, y: 1814.4, w: 907.2, h: 48, fontSize: 23.76, lineHeight: 1.1, weight: 500, color: TEAL, maxChars: 64, maxLines: 1, lineChars: 46, align: "center", family: "Inter" },
-        ],
-        [],
-        {
-          referenceImage: "/template-packages/contentgate/set-b/story.png",
-          generatedImage: "/template-packages/contentgate/set-b/backgrounds/story.png",
-        }
-      ),
-      link_ad: frame(
-        "link_ad",
-        WARM,
-        [],
-        [
-          { field: "headline", x: 66, y: 176, w: 528, h: 126, fontSize: 50, lineHeight: 1.04, weight: 700, color: GREEN, maxChars: 58, maxLines: 2, lineChars: 23, family: "Inter" },
-          { field: "subheadline", x: 66, y: 332, w: 480, h: 75.36, fontSize: 21.98, lineHeight: 1.22, weight: 400, color: MUTED, maxChars: 112, maxLines: 2, lineChars: 40, family: "Inter" },
-          { field: "cta", x: 66, y: 461.58, w: 264, h: 53.38, fontSize: 18.84, lineHeight: 1.04, weight: 600, color: WHITE, maxChars: 28, maxLines: 1, align: "center", family: "Inter" },
-          { field: "proof_note", x: 360, y: 461.58, w: 264, h: 53.38, fontSize: 15.7, lineHeight: 1.12, weight: 500, color: TEAL, maxChars: 64, maxLines: 2, lineChars: 32, family: "Inter" },
-        ],
-        [],
-        {
-          referenceImage: "/template-packages/contentgate/set-b/link-ad.png",
-          generatedImage: "/template-packages/contentgate/set-b/backgrounds/link-ad.png",
-        }
-      ),
-      medium_rectangle: frame(
-        "medium_rectangle",
-        WARM,
-        [],
-        [
-          { field: "headline", x: 22, y: 76, w: 156, h: 62, fontSize: 27, lineHeight: 0.95, weight: 700, color: GREEN, maxChars: 34, maxLines: 2, lineChars: 9, family: "Inter" },
-          { field: "subheadline", x: 22, y: 151, w: 244, h: 34, fontSize: 13, lineHeight: 1.16, weight: 400, color: MUTED, maxChars: 54, maxLines: 2, lineChars: 29, family: "Inter" },
-          { field: "cta", x: 22, y: 198, w: 98, h: 31, fontSize: 13, lineHeight: 1.04, weight: 600, color: WHITE, maxChars: 18, maxLines: 1, align: "center", family: "Inter" },
-          { field: "proof_note", x: 132, y: 198, w: 134, h: 31, fontSize: 10, lineHeight: 1.1, weight: 500, color: TEAL, maxChars: 24, maxLines: 1, family: "Inter" },
-        ],
-        [],
-        {
-          referenceImage: "/template-packages/contentgate/set-b/medium-rectangle.png",
-          generatedImage: "/template-packages/contentgate/set-b/backgrounds/medium-rectangle.png",
         }
       ),
     },
