@@ -246,10 +246,15 @@ async function main() {
     // Brand reference is never an approximation of another format. It is the
     // actual Figma export for this exact frame, so selecting a size is a cheap
     // static-image swap and cannot inherit another canvas's crop.
+    // These are Figma frame exports at 2×, validated against each frame's
+    // exact dimensions. They are intentionally not screenshots or raw source
+    // layers; Studio serves this file directly for the Brand reference view.
+    const referenceSource = join(sourceRoot, "figma-exports-2x", `${frame.key}.png`);
     const referenceHash = await copyAsset(
-      join(sourceRoot, "figma-references", `${frame.key}.png`),
+      referenceSource,
       join(outputRoot, referencePath)
     );
+    const referenceMeta = await sharp(referenceSource).metadata();
     const backgroundHash = await writeImage(
       baseBackgroundPath,
       join(outputRoot, backgroundPath),
@@ -261,8 +266,8 @@ async function main() {
       kind: "reference",
       path: referencePath,
       sha256: referenceHash,
-      width: frame.width,
-      height: frame.height,
+      width: referenceMeta.width,
+      height: referenceMeta.height,
       mimeType: "image/png",
     });
     assets.push({
@@ -305,7 +310,7 @@ async function main() {
       // A bundle version is immutable after import. Bump this whenever the
       // checked-in Figma reference exports or locked layout contract changes,
       // otherwise the importer correctly reuses stale storage assets.
-      name: "figma-full-v2",
+      name: "figma-full-v3",
       source: "figma",
       sourceFileKey: source.sourceFileKey,
       sourcePageNodeId: source.sourcePageNodeId,
