@@ -561,10 +561,15 @@ export async function loadStudioState(input: {
     const runtime = activeSize
       ? resolveTemplateBundleRuntimeVariant(manifest, activeSize)
       : null;
-    // Reference images are fetched directly by the reference endpoint. Studio
-    // only needs the selected draft's background/product/font files; signing
-    // all 42 reference assets made every entry and size switch unnecessarily
-    // slow.
+    // Reference URLs are signed once with the Studio payload, then used as
+    // direct image sources in the browser. This removes the per-size
+    // auth → assignment lookup → signing → redirect waterfall.
+    const referencePathsBySize = Object.fromEntries(
+      manifest.variants.flatMap((variant) => {
+        const asset = manifest.assets.find((item) => item.key === variant.referenceAsset);
+        return asset ? [[variant.key, asset.path] as const] : [];
+      })
+    );
     const requiredPaths = [
       runtime?.backgroundAssetPath,
       ...manifest.fonts.flatMap((font) => {
@@ -574,13 +579,20 @@ export async function loadStudioState(input: {
       ...manifest.assets
         .filter((asset) => asset.kind === "image")
         .map((asset) => asset.path),
+      ...Object.values(referencePathsBySize),
     ].filter((path): path is string => Boolean(path));
+    const signedUrls = Object.fromEntries(
+      await createTemplateBundleAssetUrlMap(supabase, profile.org_id, [manifest], {
+        assetPaths: requiredPaths,
+      })
+    );
     selectedTemplate = {
       ...selectedTemplate,
-      platformAssetUrlByPath: Object.fromEntries(
-        await createTemplateBundleAssetUrlMap(supabase, profile.org_id, [manifest], {
-          assetPaths: requiredPaths,
-        })
+      platformAssetUrlByPath: signedUrls,
+      referenceAssetBySize: Object.fromEntries(
+        Object.entries(referencePathsBySize).flatMap(([size, path]) =>
+          signedUrls[path] ? [[size, signedUrls[path]] as const] : []
+        )
       ),
     };
   }

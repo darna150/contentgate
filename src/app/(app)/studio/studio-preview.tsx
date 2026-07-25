@@ -116,7 +116,39 @@ export function ServerPreviewFrame({
   const [scale, setScale] = useState(0.72);
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
   const displaySrc = highDensityPreviewSrc(src);
+  const [loadedSrc, setLoadedSrc] = useState(displaySrc);
+  const [loadingNext, setLoadingNext] = useState(false);
   const imageFailed = failedSrc === displaySrc;
+
+  // Decode the next reference off-screen and keep the previous one in place
+  // until it is paint-ready. Size changes therefore never expose a blank or
+  // half-loaded canvas, even on a cold 2× Figma export.
+  useEffect(() => {
+    if (displaySrc === loadedSrc) return;
+    let cancelled = false;
+    const image = new Image();
+    setLoadingNext(true);
+    const reveal = () => {
+      if (cancelled) return;
+      setLoadedSrc(displaySrc);
+      setLoadingNext(false);
+      setFailedSrc(null);
+    };
+    image.onload = () => {
+      const decode = image.decode ? image.decode() : Promise.resolve();
+      void decode.catch(() => undefined).then(reveal);
+    };
+    image.onerror = () => {
+      if (!cancelled) {
+        setFailedSrc(displaySrc);
+        setLoadingNext(false);
+      }
+    };
+    image.src = displaySrc;
+    return () => {
+      cancelled = true;
+    };
+  }, [displaySrc, loadedSrc]);
 
   useEffect(() => {
     const viewport = viewportRef.current;
@@ -137,9 +169,9 @@ export function ServerPreviewFrame({
       ref={viewportRef}
       className="relative flex h-full min-h-0 w-full items-center justify-center overflow-hidden bg-[#f5f5f2] p-4"
     >
-      {updating && (
+      {(updating || loadingNext) && (
         <div className="absolute right-4 top-4 z-10 rounded-full bg-surface/90 px-3 py-1.5 text-[11px] font-semibold text-ink-muted shadow-sm">
-          Updating preview…
+          {loadingNext ? "Loading reference…" : "Updating preview…"}
         </div>
       )}
       {imageFailed ? (
@@ -165,8 +197,8 @@ export function ServerPreviewFrame({
       ) : (
         /* eslint-disable-next-line @next/next/no-img-element */
         <img
-          key={displaySrc}
-          src={displaySrc}
+          key={loadedSrc}
+          src={loadedSrc}
           alt="Generated template preview"
           className="block rounded-[3px] shadow-elevated"
           onError={() => setFailedSrc(displaySrc)}
