@@ -130,6 +130,11 @@ function renderTextSlot(
         data-template-content
         style={{
           display: resolved ? "block" : "-webkit-box",
+          // Keep the text measure box identical in the browser and Satori.
+          // With centered/right-aligned flex children, an auto-width span
+          // shrink-wrapped to its text in ImageResponse, so Satori re-wrapped
+          // lines that the fit engine had already approved for the slot width.
+          width: "100%",
           maxWidth: "100%",
           minWidth: 0,
           flexShrink: 0,

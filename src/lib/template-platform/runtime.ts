@@ -126,13 +126,10 @@ export function getTemplateBundleVariantFieldLimits(
 
   const limits: FieldLimits = {};
   for (const slot of textSlots(variant)) {
-    // A text box is governed by its actual font metrics and geometry, not a
-    // character estimate. Keeping maxChars here created a second, stricter
-    // gate than the renderer: Studio could say a field fit while generation
-    // rejected it (or vice versa). The measured layout in fit.ts is the
-    // canonical constraint for platform templates.
     limits[slot.field] = {
+      max_chars: slot.maxChars,
       max_words: slot.maxWords,
+      max_lines: slot.maxLines,
     };
   }
   return limits;

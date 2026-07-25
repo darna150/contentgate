@@ -10,7 +10,9 @@ import { validateStoredContentEvidence } from "@/lib/evidence-lifecycle";
 import type { TemplateBundleManifest } from "@/lib/template-platform/manifest";
 import {
   formatTemplatePlatformFitIssues,
+  resolveTemplatePlatformVariantLayout,
   templatePlatformFieldFitIssues,
+  type TemplatePlatformResolvedTextLayout,
 } from "@/lib/template-platform/fit";
 import {
   BACKGROUND_CHOICE_FIELD,
@@ -58,6 +60,7 @@ type DraftFitResult =
       ok: true;
       overflowFields: string[];
       message?: string;
+      textLayoutByField?: Record<string, TemplatePlatformResolvedTextLayout>;
     }
   | { error: string };
 
@@ -401,12 +404,20 @@ export async function checkDraftStructuredFieldsFit(
           await createTemplateBundleAssetUrlMap(ctx.supabase, orgId, [version.manifest])
         )
       : {};
-    const geometryIssues = await templatePlatformFieldFitIssues({
-      manifest: version.manifest,
-      variantKey: variant.variant_key,
-      fields: cleaned,
-      assetUrlByPath,
-    });
+    const [geometryIssues, textLayoutByField] = await Promise.all([
+      templatePlatformFieldFitIssues({
+        manifest: version.manifest,
+        variantKey: variant.variant_key,
+        fields: cleaned,
+        assetUrlByPath,
+      }),
+      resolveTemplatePlatformVariantLayout({
+        manifest: version.manifest,
+        variantKey: variant.variant_key,
+        fields: cleaned,
+        assetUrlByPath,
+      }),
+    ]);
     return {
       ok: true,
       overflowFields: [
@@ -416,6 +427,7 @@ export async function checkDraftStructuredFieldsFit(
         ]),
       ],
       message: formatTemplatePlatformFitIssues(geometryIssues)[0],
+      textLayoutByField,
     };
   }
 

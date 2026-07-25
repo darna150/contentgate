@@ -33,6 +33,7 @@
     "contentgate:contact-sheets": "node .tools/render-contact-sheet.mjs",
     "template-platform:write-contentgate-bundles": "tsx scripts/template-platform/write-contentgate-bundles.ts",
     "template-platform:generate-nimbus-bundle": "node scripts/template-platform/generate-nimbus-bundle.mjs",
+    "template-platform:extract-nimbus-figma": "node scripts/template-platform/extract-nimbus-figma.mjs",
     "template-platform:write-figma-publisher-bundle": "tsx scripts/template-platform/write-figma-publisher-bundle.ts",
     "template-platform:preflight-bundle": "tsx scripts/template-platform/preflight-bundle.ts",
     "template-platform:onboard-client": "tsx scripts/template-platform/onboard-client-template.ts",
