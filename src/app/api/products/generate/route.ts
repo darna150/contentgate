@@ -33,10 +33,10 @@ import {
   resolveTemplateBundleRuntimeVariant,
 } from "@/lib/template-platform/runtime";
 import {
-  coerceTemplatePlatformFieldsToFit,
   formatTemplatePlatformFitIssues,
   templatePlatformFieldFitIssues,
   templatePlatformFitInstructions,
+  templatePlatformRequiredFieldIssues,
 } from "@/lib/template-platform/fit";
 import { createTemplateBundleAssetUrlMap } from "@/lib/template-platform/storage-urls";
 import {
@@ -52,8 +52,8 @@ const OPENAI_GENERATION_MODEL =
   process.env.OPENAI_MODEL ??
   "gpt-5.6-terra";
 const PLATFORM_GENERATION_ATTEMPTS = Math.max(
-  1,
-  Number(process.env.PLATFORM_GENERATION_ATTEMPTS ?? "2")
+  2,
+  Number(process.env.PLATFORM_GENERATION_ATTEMPTS ?? "4")
 );
 const MAX_GENERATION_SOURCE_PARAGRAPHS = 24;
 
@@ -829,16 +829,16 @@ export async function POST(req: Request) {
               .trim(),
           ])
         );
-        const unchangedFields = isRegeneration
-          ? unchangedGeneratedFields({
-              editableFields,
-              generatedFields,
-              previousFields: previousStructuredFields,
-            })
+        const comparisonFields = isRegeneration
+          ? previousStructuredFields
+          : defaultCopy;
+        variationIssues = allGeneratedFieldsUnchanged({
+          editableFields,
+          generatedFields,
+          previousFields: comparisonFields,
+        })
+          ? ["generated copy did not visibly change from the current template copy"]
           : [];
-        variationIssues = unchangedFields.map(
-          (key) => `${key}: generated copy matched the current draft`
-        );
         structured = composeStructuredFieldsForGeneration({
           allFieldKeys: allRuntimeFieldKeys,
           aiFieldKeys: editableFields,
@@ -846,11 +846,10 @@ export async function POST(req: Request) {
           defaultFields: defaultCopy,
           previousFields: previousStructuredFields,
         });
-        const configuredIssues = templateFieldIssues(
-          generatedFields,
-          editableFields,
-          fieldLimits,
-          requiredFields
+        const configuredIssues = templatePlatformRequiredFieldIssues(
+          assignment.manifest,
+          outputSizeKey,
+          structured
         );
         const geometryIssues = await templatePlatformFieldFitIssues({
           manifest: assignment.manifest,
@@ -889,131 +888,6 @@ export async function POST(req: Request) {
           { error: "Generation is temporarily unavailable. Please try again." },
           { status: 503 }
         );
-      }
-    }
-
-    let coercedTruncatedFields: string[] = [];
-    // Fit-only coercion fallback: shrink/trim to satisfy the geometry gate.
-    // Only attempt when grounding already passed — coercion cannot fix an
-    // ungrounded claim, and it only removes words, so the verified citations
-    // from the last attempt still hold.
-    if (
-      !out &&
-      !groundingIssues.length &&
-      !variationIssues.length &&
-      Object.values(structured).some(Boolean)
-    ) {
-      const coerceResult = await coerceTemplatePlatformFieldsToFit({
-        manifest: assignment.manifest,
-        variantKey: outputSizeKey,
-        fields: generatedFields,
-        assetUrlByPath,
-      });
-      structured = coerceResult.fields;
-      coercedTruncatedFields = coerceResult.truncatedFields;
-      const coercedGeneratedFields = Object.fromEntries(
-        editableFields.map((key) => [key, structured[key] ?? ""])
-      );
-      if (
-        isRegeneration &&
-        allGeneratedFieldsUnchanged({
-          editableFields,
-          generatedFields: coercedGeneratedFields,
-          previousFields: previousStructuredFields,
-        })
-      ) {
-        variationIssues = [
-          "fit coercion collapsed the alternate back to the current visible copy",
-        ];
-      }
-      const configuredIssues = templateFieldIssues(
-        structured,
-        editableFields,
-        fieldLimits,
-        requiredFields
-      );
-      const geometryIssues = await templatePlatformFieldFitIssues({
-        manifest: assignment.manifest,
-        variantKey: outputSizeKey,
-        fields: structured,
-        assetUrlByPath,
-      });
-      const qualityIssues = generatedCopyQualityIssues(structured, editableFields);
-      fitReasons = [
-        ...editableFields.flatMap((key) =>
-          (configuredIssues[key] ?? []).map((issue) => `${key}: ${issue.message}`)
-        ),
-        ...formatTemplatePlatformFitIssues(geometryIssues),
-        ...formatGeneratedCopyQualityIssues(qualityIssues),
-      ];
-      groundingIssues = generatedCopyEvidenceIssues({
-        fields: evidenceScopedFields(structured, evidenceRequiredFields),
-        evidence: verifiedEvidence,
-        approvedSources: approvedSourceTexts,
-      });
-      if (!fitReasons.length && !groundingIssues.length && !variationIssues.length) {
-        out = { fields: structured, evidence: verifiedEvidence };
-      }
-    }
-
-    if (
-      !out &&
-      fitReasons.length &&
-      !variationIssues.length &&
-      !isRegeneration &&
-      revisions.length === 0
-    ) {
-      const fallbackGeneratedFields = Object.fromEntries(
-        editableFields.map((key) => [key, defaultCopy[key] ?? ""])
-      );
-      const fallbackStructured = composeStructuredFieldsForGeneration({
-        allFieldKeys: allRuntimeFieldKeys,
-        aiFieldKeys: editableFields,
-        generatedFields: fallbackGeneratedFields,
-        defaultFields: defaultCopy,
-        previousFields: previousStructuredFields,
-      });
-      const configuredIssues = templateFieldIssues(
-        fallbackGeneratedFields,
-        editableFields,
-        fieldLimits,
-        requiredFields
-      );
-      const geometryIssues = await templatePlatformFieldFitIssues({
-        manifest: assignment.manifest,
-        variantKey: outputSizeKey,
-        fields: fallbackStructured,
-        assetUrlByPath,
-      });
-      const qualityIssues = generatedCopyQualityIssues(
-        fallbackStructured,
-        editableFields
-      );
-      const fallbackFitReasons = [
-        ...editableFields.flatMap((key) =>
-          (configuredIssues[key] ?? []).map((issue) => `${key}: ${issue.message}`)
-        ),
-        ...formatTemplatePlatformFitIssues(geometryIssues),
-        ...formatGeneratedCopyQualityIssues(qualityIssues),
-      ];
-      const fallbackEvidence = fallbackEvidenceForFields({
-        fields: fallbackStructured,
-        evidenceRequiredFields,
-        approvedSourceTexts,
-      });
-      const fallbackGroundingIssues = generatedCopyEvidenceIssues({
-        fields: evidenceScopedFields(fallbackStructured, evidenceRequiredFields),
-        evidence: fallbackEvidence,
-        approvedSources: approvedSourceTexts,
-      });
-      if (!fallbackFitReasons.length && !fallbackGroundingIssues.length) {
-        structured = fallbackStructured;
-        generatedFields = fallbackGeneratedFields;
-        verifiedEvidence = fallbackEvidence;
-        rawEvidenceCount = fallbackEvidence.length;
-        fitReasons = [];
-        groundingIssues = [];
-        out = { fields: structured, evidence: verifiedEvidence };
       }
     }
 
@@ -1115,6 +989,53 @@ export async function POST(req: Request) {
       }
       structured = { ...structured, ...deterministicFields };
       generatedFields = { ...generatedFields, ...deterministicFields };
+    }
+
+    // This is the final persistence gate. Asset-choice inheritance and the
+    // deterministic refinement fallback happen after the model-attempt loop,
+    // so validate the exact fields that will be saved rather than trusting an
+    // earlier candidate check.
+    const finalGeometryIssues = await templatePlatformFieldFitIssues({
+      manifest: assignment.manifest,
+      variantKey: outputSizeKey,
+      fields: structured,
+      assetUrlByPath,
+    });
+    const finalGeometryReasons = formatTemplatePlatformFitIssues(finalGeometryIssues);
+    const finalQualityReasons = formatGeneratedCopyQualityIssues(
+      generatedCopyQualityIssues(structured, editableFields)
+    );
+    const finalGroundingIssues = generatedCopyEvidenceIssues({
+      fields: evidenceScopedFields(structured, evidenceRequiredFields),
+      evidence,
+      approvedSources: approvedSourceTexts,
+    });
+    const finalUnchanged = allGeneratedFieldsUnchanged({
+        editableFields,
+        generatedFields: structured,
+        previousFields: isRegeneration ? previousStructuredFields : defaultCopy,
+      });
+    if (finalUnchanged || finalGeometryReasons.length || finalQualityReasons.length || finalGroundingIssues.length) {
+      const reasons = [
+        ...(finalUnchanged ? ["generated copy did not change from the current draft"] : []),
+        ...finalGeometryReasons,
+        ...finalQualityReasons,
+        ...finalGroundingIssues,
+      ];
+      console.error("platform generation final contract validation failed:", {
+        platformAssignmentId,
+        outputSize: outputSizeKey,
+        reasons,
+      });
+      return Response.json(
+        {
+          error: finalUnchanged
+            ? "ContentGate could not produce a meaningfully different alternate. Please try Generate again."
+            : "ContentGate could not produce copy that safely fits this size. Please try again.",
+          reasons,
+        },
+        { status: 422 }
+      );
     }
     const title = `${productDisplayName} · ${assignment.familyName}`;
     const body = flattenFields(structured, editableFields);
@@ -1229,7 +1150,7 @@ export async function POST(req: Request) {
       evidence,
       title,
       platform: true,
-      truncatedFields: coercedTruncatedFields,
+      truncatedFields: [],
     });
   }
 

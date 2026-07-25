@@ -12,6 +12,7 @@ import {
   formatTemplatePlatformFitIssues,
   resolveTemplatePlatformVariantLayout,
   templatePlatformFieldFitIssues,
+  templatePlatformRequiredFieldIssues,
   type TemplatePlatformResolvedTextLayout,
 } from "@/lib/template-platform/fit";
 import {
@@ -136,9 +137,12 @@ async function validateStoredTemplateFields(
     const requiredFields = platformFields
       .filter((field) => field.required !== false)
       .map((field) => field.key);
-    const limits = getTemplateBundleVariantFieldLimits(version.manifest, variant.variant_key);
     const fields = (content.structured_fields ?? {}) as Record<string, unknown>;
-    const issues = templateFieldIssues(fields, order, limits, requiredFields);
+    const issues = templatePlatformRequiredFieldIssues(
+      version.manifest,
+      variant.variant_key,
+      fields
+    );
     const firstIssue = Object.entries(issues)[0];
     if (firstIssue) {
       return `${firstIssue[0]}: ${firstIssue[1].map((issue) => issue.message).join(", ")}`;
@@ -278,11 +282,11 @@ export async function updateStructuredFields(
         promptContext,
       })
     : (() => {
-        const limits = getTemplateBundleVariantFieldLimits(
+        const issues = templatePlatformRequiredFieldIssues(
           version!.manifest as TemplateBundleManifest,
-          variant!.variant_key
+          variant!.variant_key,
+          cleaned
         );
-        const issues = templateFieldIssues(cleaned, fullOrder, limits, fullRequiredFields);
         const firstIssue = Object.entries(issues)[0];
         return firstIssue
           ? `${firstIssue[0]}: ${firstIssue[1].map((issue) => issue.message).join(", ")}`
@@ -390,7 +394,6 @@ export async function checkDraftStructuredFieldsFit(
     const fullRequiredFields = platformFields
       .filter((field) => field.required !== false)
       .map((field) => field.key);
-    const limits = getTemplateBundleVariantFieldLimits(version.manifest, variant.variant_key);
     const existingFields = (content.structured_fields ?? {}) as Record<string, string>;
     const cleaned = Object.fromEntries(
       fullOrder.map((key) => [
@@ -400,7 +403,11 @@ export async function checkDraftStructuredFieldsFit(
           : String(existingFields[key] ?? ""),
       ])
     );
-    const configuredIssues = templateFieldIssues(cleaned, fullOrder, limits, fullRequiredFields);
+    const configuredIssues = templatePlatformRequiredFieldIssues(
+      version.manifest,
+      variant.variant_key,
+      cleaned
+    );
     const orgId = await resolveOrgId(ctx.supabase);
     const assetUrlByPath = orgId
       ? Object.fromEntries(

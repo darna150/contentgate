@@ -127,7 +127,9 @@ export function ServerPreviewFrame({
     if (displaySrc === loadedSrc) return;
     let cancelled = false;
     const image = new Image();
-    setLoadingNext(true);
+    queueMicrotask(() => {
+      if (!cancelled) setLoadingNext(true);
+    });
     const reveal = () => {
       if (cancelled) return;
       setLoadedSrc(displaySrc);
@@ -335,7 +337,9 @@ export function LiveTemplatePreviewFrame({
   // line wrap differently from both Figma and the PNG export.
   useEffect(() => {
     let disposed = false;
-    setFontsReady(false);
+    queueMicrotask(() => {
+      if (!disposed) setFontsReady(false);
+    });
     const bundleFonts = manifest.fonts
       .map((font) => {
         const assetPath = manifest.assets.find((asset) => asset.key === font.asset)?.path;
@@ -366,7 +370,7 @@ export function LiveTemplatePreviewFrame({
     return () => {
       disposed = true;
     };
-  }, [assetUrlByPath, manifest.fonts]);
+  }, [assetUrlByPath, manifest.assets, manifest.fonts]);
 
   if (!rendered) {
     return (
