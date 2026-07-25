@@ -79,9 +79,9 @@ async function requireUser() {
   return { supabase, user, profile };
 }
 
-function revalidateContentSurfaces(id: string) {
+function revalidateContentSurfaces(id: string, options: { studio?: boolean } = {}) {
   revalidatePath(`/content/${id}`);
-  revalidatePath(`/studio/${id}`);
+  if (options.studio !== false) revalidatePath(`/studio/${id}`);
   revalidatePath("/content");
   revalidatePath("/approvals");
 }
@@ -344,7 +344,10 @@ export async function updateStructuredFields(
     return { error: `Could not save: ${error?.message ?? "not found"}` };
   }
 
-  revalidateContentSurfaces(id);
+  // Studio owns its in-progress draft locally. Revalidating it from this
+  // autosave Server Action causes Next to rehydrate the original payload over
+  // the just-saved fields, making live edits appear to revert.
+  revalidateContentSurfaces(id, { studio: false });
   return {
     ok: true,
     status: row.status,
