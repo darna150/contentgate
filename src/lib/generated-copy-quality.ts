@@ -53,6 +53,20 @@ function hasBalancedPairs(value: string, open: string, close: string) {
 // in legitimate marketing copy, so this is safe to flag unconditionally.
 const UNRESOLVED_PLACEHOLDER_PATTERN = /\{\{[^{}]*\}\}/;
 
+// These phrases are not compliance errors, but they are a strong signal that
+// the model has fallen back to generic AI marketing language rather than the
+// product's approved voice. Keep this deliberately small and unambiguous:
+// source-backed product language must never be rejected merely for being
+// concise or aspirational.
+const GENERIC_AI_MARKETING_PATTERNS = [
+  /\bunlock\b/i,
+  /\belevate\b/i,
+  /\bgame[- ]?changer\b/i,
+  /\brevolutionary\b/i,
+  /\bseamlessly\b/i,
+  /\bnext[- ]level\b/i,
+];
+
 export function generatedCopyQualityIssues(
   fields: Record<string, unknown>,
   fieldOrder: readonly string[]
@@ -69,6 +83,9 @@ export function generatedCopyQualityIssues(
         if (/[—–-]\s*$/.test(text)) {
           issues.push("ends with a dangling dash");
         }
+        if (/[—–]/.test(text)) {
+          issues.push("uses an em dash or en dash; use a period, comma, or parentheses instead");
+        }
         if (/[,;:]\s*$/.test(text)) {
           issues.push("ends with punctuation that implies more copy should follow");
         }
@@ -80,6 +97,9 @@ export function generatedCopyQualityIssues(
         }
         if (UNRESOLVED_PLACEHOLDER_PATTERN.test(text)) {
           issues.push("contains an unresolved placeholder token");
+        }
+        if (GENERIC_AI_MARKETING_PATTERNS.some((pattern) => pattern.test(text))) {
+          issues.push("uses generic AI marketing language; rewrite in a specific human brand voice");
         }
 
         const lastWord = terminalWord(text);

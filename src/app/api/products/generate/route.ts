@@ -667,6 +667,8 @@ export async function POST(req: Request) {
     const system = [
       `You write compliant brand-content and localized marketing copy for "${productDisplayName}".`,
       `Use ONLY the approved claims and approved source text provided. Never invent features, integrations, pricing, customer guarantees, legal claims, or workflow capabilities. If a benefit is not supported by an approved claim or source, do not make it.`,
+      `Use sources as factual constraints, not copy to paste. Express supported facts in fresh, natural language that sounds like a thoughtful human brand writer. Favor concrete verbs, varied sentence rhythm, and one clear idea per field. Avoid generic AI marketing language such as "unlock", "elevate", "revolutionary", "seamlessly", "game-changing", and "next-level".`,
+      `Never use em dashes or en dashes. Use a period, comma, colon, or parentheses when punctuation is needed.`,
       `Write in ${language}.`,
       `Return structured content only in the requested machine-readable format.`,
     ].join(" ");
@@ -698,6 +700,7 @@ export async function POST(req: Request) {
       typographyInstructions.length
         ? `These rendered-line limits are strict. Prefer shorter, complete wording rather than filling the character allowance.`
         : ``,
+      `HUMAN COPY STANDARD: Do not copy source sentences verbatim unless the wording is an explicitly approved campaign line or fixed product name. Make the copy sound authored, not extracted. Use no em dashes or en dashes, and avoid generic AI-marketing phrases such as unlock, elevate, revolutionary, seamless/seamlessly, game-changing, and next-level.`,
       `Every generated field must read like a complete thought. Short fragments are okay for CTAs and headlines, but never end a field with a dangling connector, broken hyphenated word, comma, colon, or dash.`,
       ``,
       `The existing template copy below is a length and tone reference only. Do not repeat unsupported facts from it:`,
