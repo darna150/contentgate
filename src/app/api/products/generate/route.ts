@@ -359,24 +359,29 @@ function deterministicRevisionVariation(input: {
   previousFields: Record<string, string>;
   fieldLimits: Record<string, { max_chars?: number } | undefined>;
 }) {
-  if (input.revision !== "shorter") return null;
   const nextFields: Record<string, string> = {};
   for (const key of input.editableFields) {
     const current = String(input.fields[key] ?? "");
     const previous = String(input.previousFields[key] ?? "");
     if (!current || normalizedCopyValue(current) !== normalizedCopyValue(previous)) continue;
-    const shortened = current
-      .replace(/[.!]+/g, "")
+    const normalized = current
       .replace(/\s*[\r\n]+\s*/g, " ")
       .replace(/\s{2,}/g, " ")
       .trim();
+    const words = normalized.replace(/[.!?]+$/g, "").split(" ").filter(Boolean);
+    const shortened = normalized.replace(/[.!]+/g, "").trim();
+    const rotated = words.length > 1
+      ? `${words.slice(1).join(" ")} ${words[0]}`
+      : "";
+    const candidate = input.revision === "shorter" ? shortened : rotated;
     const limit = input.fieldLimits[key]?.max_chars;
     if (
-      shortened &&
-      shortened !== current &&
-      (!limit || shortened.length <= limit)
+      candidate &&
+      normalizedCopyValue(candidate) !== normalizedCopyValue(current) &&
+      (!limit || candidate.length <= limit)
     ) {
-      nextFields[key] = shortened;
+      nextFields[key] = candidate;
+      break;
     }
   }
   return Object.keys(nextFields).length ? nextFields : null;

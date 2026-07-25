@@ -37,6 +37,26 @@ async function signIn(page: Page) {
 }
 
 async function assertNoBrokenImages(page: Page) {
+  await expect
+    .poll(
+      () => page.locator("img").evaluateAll((images) =>
+        images
+          .filter((image) => {
+            const img = image as HTMLImageElement;
+            return (
+              img.getClientRects().length > 0 &&
+              window.getComputedStyle(img).visibility !== "hidden"
+            );
+          })
+          .every((image) => {
+            const img = image as HTMLImageElement;
+            return img.complete && img.naturalWidth > 0 && img.naturalHeight > 0;
+          })
+      ),
+      { timeout: 30_000, message: "Visible Asset Library images did not finish loading." }
+    )
+    .toBe(true);
+
   const brokenImages = await page.locator("img").evaluateAll((images) =>
     images
       .map((image) => {
