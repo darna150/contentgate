@@ -571,7 +571,14 @@ export async function loadStudioState(input: {
       })
     );
     const requiredPaths = [
+      // Draft can be generated for any selected size without a navigation.
+      // Sign every background (small render dependency) up front; reference
+      // exports remain direct URLs and are never downloaded until selected.
       runtime?.backgroundAssetPath,
+      ...manifest.variants.flatMap((variant) => {
+        const resolved = resolveTemplateBundleRuntimeVariant(manifest, variant.key);
+        return resolved ? [resolved.backgroundAssetPath] : [];
+      }),
       ...manifest.fonts.flatMap((font) => {
         const asset = manifest.assets.find((item) => item.key === font.asset);
         return asset ? [asset.path] : [];
