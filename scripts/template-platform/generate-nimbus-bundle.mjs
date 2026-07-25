@@ -302,7 +302,10 @@ async function main() {
         "Nimbus 1 running-shoe campaign templates. Locked sky/product design with editable, governed copy; swappable product and background pickers.",
     },
     version: {
-      name: "figma-full-v1",
+      // A bundle version is immutable after import. Bump this whenever the
+      // checked-in Figma reference exports or locked layout contract changes,
+      // otherwise the importer correctly reuses stale storage assets.
+      name: "figma-full-v2",
       source: "figma",
       sourceFileKey: source.sourceFileKey,
       sourcePageNodeId: source.sourcePageNodeId,
