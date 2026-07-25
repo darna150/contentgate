@@ -37,7 +37,6 @@ import {
   getTemplateBundleVariantLabel,
 } from "@/lib/template-platform/runtime";
 import { fieldLabel } from "@/lib/templates";
-import type { TemplateBundleTextLayout } from "@/lib/template-platform/render";
 import { fieldIssues } from "@/lib/template-fields";
 import {
   checkDraftStructuredFieldsFit,
@@ -46,7 +45,6 @@ import {
 } from "../content/actions";
 import {
   GenerationLoader,
-  LiveTemplatePreviewFrame,
   MissingDraftFrame,
   ServerPreviewFrame,
 } from "./studio-preview";
@@ -280,9 +278,6 @@ export function StudioWorkspace({
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [overflowFields, setOverflowFields] = useState<string[]>([]);
   const [truncatedFields, setTruncatedFields] = useState<string[]>([]);
-  const [textLayoutByField, setTextLayoutByField] = useState<
-    Record<string, TemplateBundleTextLayout> | undefined
-  >(undefined);
   const saveSequence = useRef(0);
   const retrySecondsRemaining = retryUntil
     ? Math.max(0, Math.ceil((retryUntil - now) / 1000))
@@ -514,7 +509,6 @@ export function StudioWorkspace({
     setError(null);
     setCopied(false);
     setOverflowFields([]);
-    setTextLayoutByField(undefined);
     setSaveState("idle");
     setSavedAt(null);
   }, [
@@ -540,7 +534,6 @@ export function StudioWorkspace({
       timer = window.setTimeout(() => {
         if (!cancelled) {
           setOverflowFields([]);
-          setTextLayoutByField(undefined);
         }
       }, 0);
       return () => {
@@ -560,7 +553,6 @@ export function StudioWorkspace({
         if (showOverflowAdvisory) setOverflowFields(["layout"]);
         return;
       }
-      setTextLayoutByField(result.textLayoutByField);
       if (showOverflowAdvisory) setOverflowFields(result.overflowFields);
       else if (mode === "edit") setOverflowFields([]);
     }, 900);
@@ -648,7 +640,6 @@ export function StudioWorkspace({
     setError(null);
     setCopied(false);
     setOverflowFields([]);
-    setTextLayoutByField(undefined);
     setSaveState("idle");
     setSavedAt(null);
   }
@@ -662,7 +653,6 @@ export function StudioWorkspace({
     );
     setSaveState(nextDirty ? "unsaved" : "saved");
     setHasManualEdits(nextDirty ? true : (content?.manuallyEdited ?? false));
-    if (key !== BACKGROUND_CHOICE_FIELD) setTextLayoutByField(undefined);
     setDraftFields(nextFields);
   }
 
@@ -681,7 +671,6 @@ export function StudioWorkspace({
       setSaveState("saved");
       setSavedAt(null);
       setOverflowFields([]);
-      setTextLayoutByField(undefined);
     }
     saveSequence.current += 1;
     setBusy(true);
@@ -753,7 +742,6 @@ export function StudioWorkspace({
       setSavedFields(nextContent.structured_fields);
       setSelectedBackgroundOverride(selectedBackgroundKey);
       setSelectedProductVariantOverride(selectedProductVariantKey);
-      setTextLayoutByField(undefined);
       setSaveState("saved");
       setSavedAt(new Date().toISOString());
       setHasManualEdits(false);
@@ -1186,16 +1174,11 @@ export function StudioWorkspace({
                 onGenerate={generate}
               />
             ) : content && !isBrandReferenceView && selectedTemplate.platformManifest ? (
-              <LiveTemplatePreviewFrame
-                manifest={selectedTemplate.platformManifest}
-                variantKey={size}
-                fields={previewFields}
-                assetUrlByPath={selectedTemplate.platformAssetUrlByPath}
-                damAssetUrlById={selectedTemplate.damAssetUrlById}
-                textLayoutByField={textLayoutByField}
+              <ServerPreviewFrame
+                src={generatedPreviewUrl ?? previewUrl}
                 width={dims.w}
                 height={dims.h}
-                updating={saveState === "saving"}
+                updating={saveState === "saving" || dirty}
               />
             ) : isBrandReferenceView ? (
               <ServerPreviewFrame

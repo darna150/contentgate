@@ -43,13 +43,19 @@ const SIGNED_ASSET_KINDS = new Set(["background", "font", "image", "reference"])
 export async function createTemplateBundleAssetUrlMap(
   supabase: StorageClient,
   orgId: string,
-  manifests: readonly TemplateBundleManifest[]
+  manifests: readonly TemplateBundleManifest[],
+  options: { assetPaths?: readonly string[] } = {}
 ) {
+  const requestedPaths = options.assetPaths ? new Set(options.assetPaths) : null;
   const paths = Array.from(
     new Set(
       manifests.flatMap((manifest) =>
         manifest.assets
-          .filter((asset) => SIGNED_ASSET_KINDS.has(asset.kind))
+          .filter(
+            (asset) =>
+              SIGNED_ASSET_KINDS.has(asset.kind) &&
+              (!requestedPaths || requestedPaths.has(asset.path))
+          )
           .map((asset) => templateBundleStoragePath(orgId, manifest, asset))
       )
     )
@@ -73,7 +79,11 @@ export async function createTemplateBundleAssetUrlMap(
   return new Map(
     manifests.flatMap((manifest) =>
       manifest.assets
-        .filter((asset) => SIGNED_ASSET_KINDS.has(asset.kind))
+        .filter(
+          (asset) =>
+            SIGNED_ASSET_KINDS.has(asset.kind) &&
+            (!requestedPaths || requestedPaths.has(asset.path))
+        )
         .flatMap((asset) => {
           const storagePath = templateBundleStoragePath(orgId, manifest, asset);
           const signedUrl = signedByStoragePath.get(storagePath);
