@@ -458,7 +458,12 @@ export function StudioWorkspace({
       ? platformTemplatePreviewUrl(selectedTemplate.platformAssignmentId, size)
       : templatePreviewUrl(selectedTemplate.id, size));
   const [showOriginal, setShowOriginal] = useState(false);
-  const isBrandReferenceView = showOriginal || (!content && !hasAnyGeneratedDraft);
+  // A size switch is always a reference-first operation. Keeping the size
+  // key separately prevents an old draft renderer from flashing while React
+  // reconciles the newly selected dimensions.
+  const [referenceLockedSize, setReferenceLockedSize] = useState<string | null>(null);
+  const isBrandReferenceView =
+    showOriginal || referenceLockedSize === size || (!content && !hasAnyGeneratedDraft);
   const generatedPreviewUrl = content
     ? draftPreviewUrl(content.id, size, savedAt ?? content.id)
     : null;
@@ -511,6 +516,7 @@ export function StudioWorkspace({
     setHasManualEdits(nextContent?.manuallyEdited ?? false);
     setSelectedRevision(null);
     setShowOriginal(!nextContent);
+    setReferenceLockedSize(!nextContent ? nextSize : null);
     setError(null);
     setCopied(false);
     setOverflowFields([]);
@@ -636,6 +642,7 @@ export function StudioWorkspace({
       [PRODUCT_VARIANT_FIELD]: selectedProductVariantKey,
     };
     setSize(nextSize);
+    setReferenceLockedSize(nextSize);
     if (nextContent) setCampaignSourceContentId(nextContent.id);
     setDraftFields(nextFields);
     setSavedFields(nextFields);
@@ -760,6 +767,7 @@ export function StudioWorkspace({
         Array.isArray(result.truncatedFields) ? (result.truncatedFields as string[]) : []
       );
       setShowOriginal(false);
+      setReferenceLockedSize(null);
       if (!regenerateCurrentDraft) {
         window.history.replaceState(
           window.history.state,
@@ -1168,7 +1176,13 @@ export function StudioWorkspace({
             onSelectSize={selectSize}
             viewToggle={
               hasAnyGeneratedDraft
-                ? { showOriginal, onShowOriginalChange: setShowOriginal }
+                ? {
+                    showOriginal: isBrandReferenceView,
+                    onShowOriginalChange: (nextShowOriginal) => {
+                      setShowOriginal(nextShowOriginal);
+                      setReferenceLockedSize(nextShowOriginal ? size : null);
+                    },
+                  }
                 : undefined
             }
           />

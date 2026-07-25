@@ -133,7 +133,16 @@ export async function GET(req: Request) {
       });
       const referenceUrl = assets.get(runtime.referenceAssetPath);
       if (!referenceUrl) return new Response("Reference asset is unavailable.", { status: 404 });
-      return Response.redirect(referenceUrl, 307);
+      return new Response(null, {
+        status: 307,
+        headers: {
+          Location: referenceUrl,
+          // Reference exports are immutable for a published bundle version.
+          // Let the browser retain the selected Figma image rather than
+          // re-signing and downloading it on every Studio state change.
+          "Cache-Control": "private, max-age=300",
+        },
+      });
     }
     const assetUrlByPath = Object.fromEntries(
       await createTemplateBundleAssetUrlMap(supabase, profile.org_id, [manifest])

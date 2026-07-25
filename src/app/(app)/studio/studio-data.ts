@@ -496,11 +496,6 @@ export async function loadStudioState(input: {
   if (selectedTemplate?.platformManifest && profile?.org_id) {
     selectedTemplate = {
       ...selectedTemplate,
-      platformAssetUrlByPath: Object.fromEntries(
-        await createTemplateBundleAssetUrlMap(supabase, profile.org_id, [
-          selectedTemplate.platformManifest,
-        ])
-      ),
       ...(await resolveTemplateDamOptions({
         supabase,
         productId: selectedTemplate.product_id,
@@ -559,6 +554,36 @@ export async function loadStudioState(input: {
   const initialContents = [...initialContentsBySize.values()];
   const initialSize =
     requestedContentContext?.variantKey ?? input.size ?? initialContents[0]?.outputSize ?? null;
+
+  if (selectedTemplate?.platformManifest && profile?.org_id) {
+    const manifest = selectedTemplate.platformManifest;
+    const activeSize = initialSize ?? manifest.variants[0]?.key;
+    const runtime = activeSize
+      ? resolveTemplateBundleRuntimeVariant(manifest, activeSize)
+      : null;
+    // Reference images are fetched directly by the reference endpoint. Studio
+    // only needs the selected draft's background/product/font files; signing
+    // all 42 reference assets made every entry and size switch unnecessarily
+    // slow.
+    const requiredPaths = [
+      runtime?.backgroundAssetPath,
+      ...manifest.fonts.flatMap((font) => {
+        const asset = manifest.assets.find((item) => item.key === font.asset);
+        return asset ? [asset.path] : [];
+      }),
+      ...manifest.assets
+        .filter((asset) => asset.kind === "image")
+        .map((asset) => asset.path),
+    ].filter((path): path is string => Boolean(path));
+    selectedTemplate = {
+      ...selectedTemplate,
+      platformAssetUrlByPath: Object.fromEntries(
+        await createTemplateBundleAssetUrlMap(supabase, profile.org_id, [manifest], {
+          assetPaths: requiredPaths,
+        })
+      ),
+    };
+  }
 
   return {
     products,
