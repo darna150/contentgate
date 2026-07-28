@@ -2,7 +2,6 @@ import {
   generatedCopyEvidenceIssues,
   type GeneratedFieldEvidence,
 } from "./evidence-validation.ts";
-import { BACKGROUND_CHOICE_FIELD } from "./template-platform/runtime.ts";
 
 type DocumentParagraph = { n: number; text: string };
 
@@ -38,7 +37,7 @@ export function contentEvidenceIssues(input: {
 }) {
   const copyFields = Object.fromEntries(
     Object.entries(input.fields).filter(
-      ([key]) => key !== BACKGROUND_CHOICE_FIELD
+      ([key]) => !key.startsWith("__")
     )
   );
   return generatedCopyEvidenceIssues({

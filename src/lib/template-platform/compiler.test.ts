@@ -78,7 +78,7 @@ test("assigns reference and background assets to their variant and fonts to the 
   assert.equal(assetsByKey["square-background"].variant_id, fixedIds.variantIds.square);
   assert.equal(
     assetsByKey["square-background"].storage_path,
-    "template-bundles/contentgate-local-friendly/v1/variants/square/background.png"
+    `template-bundles/contentgate-local-friendly/v1/assets/${"c".repeat(64)}/background.png`
   );
 });
 

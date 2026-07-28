@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { PreviewImage } from "@/components/preview-image";
 import { AssetStatusBadge } from "./asset-status-badge";
 import { ASSET_TYPE_LABELS, type AssetItem } from "./types";
-import { formatDimensions, formatFileSize, fileTypeLabel } from "./format";
+import { formatDimensions, formatDuration, formatFileSize, fileTypeLabel } from "./format";
 import { EyeIcon, PencilIcon, TrashIcon } from "./icons";
 
 type Props = {
@@ -26,6 +26,7 @@ export function AssetCard({
   onDelete,
 }: Props) {
   const dims = formatDimensions(asset.widthPixels, asset.heightPixels);
+  const duration = formatDuration(asset.durationSeconds);
 
   return (
     <div className="flex flex-col gap-2.5 rounded-control border border-edge bg-surface p-2.5">
@@ -35,11 +36,20 @@ export function AssetCard({
         aria-label={`Preview ${asset.title}`}
         className="group relative aspect-square w-full overflow-hidden rounded-[6px] border border-edge bg-page focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
       >
-        <PreviewImage
-          src={asset.previewUrl}
-          alt={asset.altText || asset.title}
-          className="p-2"
-        />
+        {asset.mediaKind === "video" ? (
+          <>
+            <video src={asset.previewUrl} className="h-full w-full object-cover" muted preload="metadata" />
+            <span className="absolute left-2 top-2 rounded-full bg-ink/75 px-2 py-1 text-[10.5px] font-bold text-white">
+              Video{duration ? ` · ${duration}` : ""}
+            </span>
+          </>
+        ) : (
+          <PreviewImage
+            src={asset.previewUrl}
+            alt={asset.altText || asset.title}
+            className="p-2"
+          />
+        )}
         <span className="absolute inset-0 flex items-center justify-center bg-ink/0 opacity-0 transition-all group-hover:bg-ink/5 group-hover:opacity-100">
           <span className="flex items-center gap-1.5 rounded-full bg-surface px-3 py-1.5 text-[11.5px] font-semibold text-ink shadow-sm">
             <EyeIcon className="h-3.5 w-3.5" /> Preview
@@ -62,7 +72,7 @@ export function AssetCard({
         )}
         <p className="truncate text-[11px] text-ink-faint">
           {ASSET_TYPE_LABELS[asset.assetType]}
-          {dims ? ` · ${dims}` : ""} · {fileTypeLabel(asset.mimeType)} ·{" "}
+          {duration ? ` · ${duration}` : dims ? ` · ${dims}` : ""} · {fileTypeLabel(asset.mimeType)} ·{" "}
           {formatFileSize(asset.fileSizeBytes)}
         </p>
       </div>

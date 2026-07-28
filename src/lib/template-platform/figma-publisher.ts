@@ -43,6 +43,12 @@ export type FigmaPublisherFrame = {
   height: number;
   referenceAssetPath: string;
   backgroundAssetPath: string;
+  backgroundOptions?: Array<{
+    key: string;
+    label: string;
+    assetPath: string;
+    thumbnailAssetPath?: string;
+  }>;
   layers: FigmaPublisherLayer[];
 };
 
@@ -343,7 +349,7 @@ export function compileFigmaPublisherInput(input: FigmaPublisherInput): FigmaPub
             label: fieldLabel(slot.field, annotation),
             type: inferredFieldType(layer, annotation),
             source: annotation.source ?? "ai",
-            required: true,
+            required: layer.kind === "text",
             localizable: layer.kind === "text",
           },
           issues,
@@ -381,6 +387,23 @@ export function compileFigmaPublisherInput(input: FigmaPublisherInput): FigmaPub
       issues,
       `frames.${frameIndex}.backgroundAssetPath`
     );
+    const backgroundOptions =
+      frame.backgroundOptions?.map((option, optionIndex) => {
+        const optionAsset = imageAsset(
+          input,
+          option.assetPath,
+          "background",
+          frame,
+          issues,
+          `frames.${frameIndex}.backgroundOptions.${optionIndex}.assetPath`
+        );
+        assets.push(optionAsset);
+        return {
+          key: option.key,
+          label: option.label,
+          asset: optionAsset.key,
+        };
+      }) ?? [];
     assets.push(reference, background);
     variants.push({
       key: frame.key,
@@ -390,6 +413,7 @@ export function compileFigmaPublisherInput(input: FigmaPublisherInput): FigmaPub
       height: frame.height,
       referenceAsset: reference.key,
       backgroundAsset: background.key,
+      backgroundOptions: backgroundOptions.length ? backgroundOptions : undefined,
       slots,
     });
   }

@@ -23,11 +23,15 @@ const EXPECTED_RATIOS = {
   square: 1,
   portrait: 1080 / 1350,
   story: 9 / 16,
+  linkedin_square: 1,
   feed: 1200 / 630,
   link_ad: 1200 / 628,
   leaderboard: 728 / 90,
   medium_rectangle: 300 / 250,
   a4: 1 / Math.SQRT2,
+  us_letter: 816 / 1056,
+  poster: 900 / 1350,
+  rack_card: 440 / 864,
 } as const;
 
 test("renders worst-case copy for every active layout and output size", async () => {

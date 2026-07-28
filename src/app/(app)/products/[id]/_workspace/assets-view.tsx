@@ -29,6 +29,14 @@ function toAssetItem(
     createdAt: asset.createdAt,
     updatedAt: asset.updatedAt,
     previewUrl: asset.previewUrl,
+    mediaKind: asset.mediaKind,
+    checksumSha256: asset.checksumSha256,
+    durationSeconds: asset.durationSeconds,
+    aspectRatio: asset.aspectRatio,
+    posterStoragePath: asset.posterStoragePath,
+    category: asset.category,
+    downloadCount: asset.downloadCount,
+    lastDownloadedAt: asset.lastDownloadedAt,
   };
 }
 

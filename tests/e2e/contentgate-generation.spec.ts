@@ -2,17 +2,17 @@ import { expect, test, type Page, type TestInfo } from "@playwright/test";
 
 const E2E_EMAIL = process.env.CONTENTGATE_E2E_EMAIL;
 const E2E_PASSWORD = process.env.CONTENTGATE_E2E_PASSWORD;
-const TEMPLATE_NAME = "ContentGate Local Friendly";
+const TEMPLATE_NAME = "Nimbus Air Campaign";
 const PLATFORM_ASSIGNMENT_ID =
-  process.env.CONTENTGATE_E2E_ASSIGNMENT_ID ??
-  "3a6cbcb0-23b4-476b-8deb-ad2e48d20516";
-const OUTPUT_SIZE = "leaderboard";
-const OUTPUT_SIZE_LABEL = "Leaderboard";
+  process.env.NIMBUS_E2E_ASSIGNMENT_ID ??
+  "6433194b-789e-4ca6-afd4-79a42ae54d7e";
+const OUTPUT_SIZE = "instagram-post-square";
+const OUTPUT_SIZE_LABEL = "Instagram Post (Square)";
 const LIVE_EDIT_TEXT = `QA Live ${Date.now().toString().slice(-5)}`;
 const BASE_URL = process.env.CONTENTGATE_E2E_BASE_URL ?? "";
 
 const OUTPUT_SIZE_DIMENSIONS: Record<string, { width: number; height: number }> = {
-  leaderboard: { width: 728, height: 90 },
+  "instagram-post-square": { width: 1080, height: 1080 },
 };
 
 type BrowserIssue = {
@@ -84,14 +84,39 @@ async function signIn(page: Page) {
   await expect(page).not.toHaveURL(/\/login/);
 }
 
-async function openContentGateTemplate(page: Page) {
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+async function expectStudioDraftState(
+  page: Page,
+  status: "Draft" | "In review" | "Approved" | "Rejected",
+  timeout = 30_000
+) {
+  await expect(page.getByText(new RegExp(`^${escapeRegExp(status)}$`, "i")).first()).toBeVisible({
+    timeout,
+  });
+  await expect(page.getByLabel("Size and format")).toContainText(
+    new RegExp(`${escapeRegExp(OUTPUT_SIZE_LABEL)}\\s+·\\s+1080×1080`, "i"),
+    { timeout }
+  );
+}
+
+async function expectNimbusReviewMode(page: Page) {
+  await expect(page.getByText(/Awaiting your review/i)).toBeVisible({
+    timeout: 30_000,
+  });
+  await expect(page.getByLabel("Size and format")).toContainText(
+    new RegExp(`${escapeRegExp(OUTPUT_SIZE_LABEL)}\\s+·\\s+1080×1080`, "i")
+  );
+}
+
+async function openNimbusTemplate(page: Page) {
   await page.goto("/products");
   await expect(page).toHaveURL(/\/products/);
   await expect(page.getByRole("heading", { name: /Products/i })).toBeVisible();
 
-  const productLink = page
-    .getByRole("link", { name: /ContentGate/i })
-    .first();
+  const productLink = page.getByRole("link", { name: /Nimbus 1/i }).first();
   await expect(productLink).toBeVisible();
   await productLink.click();
   await page.waitForURL(/\/products\//, { timeout: 45_000 });
@@ -106,7 +131,7 @@ async function openContentGateTemplate(page: Page) {
   await expect(page.getByText(TEMPLATE_NAME)).toBeVisible();
 }
 
-async function generateLeaderboardDraft(page: Page) {
+async function generateNimbusDraft(page: Page) {
   let result: {
     ok: boolean;
     status: number;
@@ -164,9 +189,7 @@ async function generateLeaderboardDraft(page: Page) {
       (result?.json.outputSize as string | undefined) ?? OUTPUT_SIZE
     }`
   );
-  await expect(page.getByText(new RegExp(`DRAFT\\s*·\\s*${OUTPUT_SIZE_LABEL}`, "i"))).toBeVisible({
-    timeout: 60_000,
-  });
+  await expectStudioDraftState(page, "Draft", 60_000);
 
   return result?.json.contentId as string;
 }
@@ -212,10 +235,25 @@ async function assertPreviewIsAvailable(page: Page) {
   });
 }
 
+async function expectNimbusStudioPickers(page: Page) {
+  await expect(page.getByLabel("Size and format")).toContainText(
+    new RegExp(`${escapeRegExp(OUTPUT_SIZE_LABEL)}\\s+·\\s+1080×1080`, "i")
+  );
+  const productPicker = page.getByTestId("studio-asset-choice-__productVariantKey");
+  await expect(productPicker).toBeVisible();
+  await expect(productPicker).toContainText("Nimbus 1");
+  await expect(productPicker).toContainText("1 option");
+
+  const backgroundPicker = page.getByTestId("studio-background-picker");
+  await expect(backgroundPicker).toBeVisible();
+  await expect(backgroundPicker).toContainText("Sky");
+  await expect(backgroundPicker).toContainText("1 option");
+}
+
 async function findFieldTextarea(page: Page, labelPattern: RegExp) {
-  const label = page.locator("label").filter({ hasText: labelPattern }).first();
-  await expect(label).toBeVisible();
-  return label.locator("xpath=following-sibling::textarea").first();
+  const textarea = page.getByLabel(labelPattern).first();
+  await expect(textarea).toBeVisible();
+  return textarea;
 }
 
 async function findEditableTextArea(page: Page) {
@@ -224,11 +262,22 @@ async function findEditableTextArea(page: Page) {
   for (let index = 0; index < count; index += 1) {
     const textarea = textareas.nth(index);
     const value = await textarea.inputValue();
-    if (/local|content|brand|get started|see how|approved/i.test(value)) {
+    if (value.trim().length > 0) {
       return textarea;
     }
   }
   throw new Error("Could not find a populated editable text field in Studio.");
+}
+
+async function readGeneratedTextFields(page: Page) {
+  return page.locator("[data-template-field]").evaluateAll((nodes) =>
+    nodes
+      .map((node) => ({
+        field: node.getAttribute("data-template-field") ?? "",
+        text: (node.textContent ?? "").replace(/\s+/g, " ").trim(),
+      }))
+      .filter((item) => item.field && item.text)
+  );
 }
 
 function readPngDimensions(bytes: number[]) {
@@ -250,7 +299,7 @@ function readPngDimensions(bytes: number[]) {
   };
 }
 
-test.describe("ContentGate live generation QA", () => {
+test.describe("Nimbus live generation QA", () => {
   // Serial so each test can reuse state from the previous; 5-minute per-test
   // budget accommodates OpenAI generation latency plus SSR cold starts on a
   // Vercel preview deployment.
@@ -292,12 +341,13 @@ test.describe("ContentGate live generation QA", () => {
     });
 
     await signIn(page);
-    await openContentGateTemplate(page);
+    await openNimbusTemplate(page);
     await attachScreenshot(page, testInfo, "01-template-picker");
 
-    await generateLeaderboardDraft(page);
+    await generateNimbusDraft(page);
     await attachScreenshot(page, testInfo, "02-generated-studio");
     await assertPreviewIsAvailable(page);
+    await expectNimbusStudioPickers(page);
 
     const initialMetrics = await getPreviewMetrics(page);
     await testInfo.attach("initial-preview-metrics.json", {
@@ -321,20 +371,7 @@ test.describe("ContentGate live generation QA", () => {
       expect(initialMetrics.text, "Live preview rendered no editable text.").not.toEqual("");
     }
 
-    await page.getByRole("button", { name: /Square\s+1080×1080/i }).click();
-    await expect(page.getByText(/No draft for Square yet/i)).toBeVisible({
-      timeout: 20_000,
-    });
-    await expect(
-      page.getByRole("button", { name: /Generate Square draft/i }).first()
-    ).toBeVisible();
-    await expect(page.getByText("Preview unavailable")).toHaveCount(0);
-    await attachScreenshot(page, testInfo, "03-missing-size-draft");
-
-    await page.getByRole("button", { name: /Leaderboard\s+728×90/i }).click();
-    await expect(page.getByText(new RegExp(`DRAFT\\s*·\\s*${OUTPUT_SIZE_LABEL}`, "i"))).toBeVisible({
-      timeout: 20_000,
-    });
+    await expectStudioDraftState(page, "Draft", 20_000);
     await assertPreviewIsAvailable(page);
 
     const editableField = await findEditableTextArea(page);
@@ -399,18 +436,13 @@ test.describe("ContentGate live generation QA", () => {
     });
 
     await signIn(page);
-    const contentId = await generateLeaderboardDraft(page);
+    const contentId = await generateNimbusDraft(page);
 
     await page.getByRole("button", { name: /Submit for review/i }).click();
-    await expect(page.getByText(new RegExp(`IN REVIEW\\s*·\\s*${OUTPUT_SIZE_LABEL}`, "i"))).toBeVisible({
-      timeout: 30_000,
-    });
-    await expect(page.getByText(/Awaiting your review/i)).toBeVisible();
+    await expectNimbusReviewMode(page);
 
     await page.getByRole("button", { name: /^Approve$/i }).click();
-    await expect(page.getByText(new RegExp(`APPROVED\\s*·\\s*${OUTPUT_SIZE_LABEL}`, "i"))).toBeVisible({
-      timeout: 30_000,
-    });
+    await expectStudioDraftState(page, "Approved");
     await expect(page.getByText(/Approved snapshot/i)).toBeVisible();
 
     const exportResult = await page.evaluate(
@@ -494,20 +526,16 @@ test.describe("ContentGate live generation QA", () => {
     });
 
     await signIn(page);
-    await generateLeaderboardDraft(page);
+    await generateNimbusDraft(page);
 
     await page.getByRole("button", { name: /Submit for review/i }).click();
-    await expect(page.getByText(new RegExp(`IN REVIEW\\s*·\\s*${OUTPUT_SIZE_LABEL}`, "i"))).toBeVisible({
-      timeout: 30_000,
-    });
+    await expectNimbusReviewMode(page);
 
     await page.getByRole("button", { name: /^Reject$/i }).click();
     await page.getByPlaceholder(/What needs to change/i).fill(rejectionNote);
     await page.getByRole("button", { name: /Reject with note/i }).click();
 
-    await expect(page.getByText(new RegExp(`REJECTED\\s*·\\s*${OUTPUT_SIZE_LABEL}`, "i"))).toBeVisible({
-      timeout: 30_000,
-    });
+    await expectStudioDraftState(page, "Rejected");
     await expect(page.getByText("Changes requested")).toBeVisible();
     await expect(page.getByText(rejectionNote)).toBeVisible();
     await attachScreenshot(page, testInfo, "rejection-note-visible");
@@ -544,7 +572,7 @@ test.describe("ContentGate live generation QA", () => {
     });
 
     await signIn(page);
-    await generateLeaderboardDraft(page);
+    await generateNimbusDraft(page);
     await assertPreviewIsAvailable(page);
 
     // "More strategic" is the refine option that triggered the Phase 1 grounding bug —
@@ -556,20 +584,34 @@ test.describe("ContentGate live generation QA", () => {
       await expect(refineBtn).toBeVisible({ timeout: 10_000 });
       await refineBtn.click();
       await expect(refineBtn).toHaveAttribute("aria-pressed", "true");
+      const beforeFields = await readGeneratedTextFields(page);
 
-      const applyBtn = page.getByRole("button", { name: /Apply refinement to draft/i });
+      const applyBtn = page.getByRole("button", { name: /^Generate$/i });
       await expect(applyBtn).toBeVisible();
       await applyBtn.click();
+      await expect(page.getByRole("button", { name: /^Generating/i })).toBeVisible({
+        timeout: 5_000,
+      });
 
       // Wait for the generation to complete: the draft status returns and the
       // preview is available again. Grounding failure surfaces as an error banner.
       await expect(page.getByText(/could not verify|grounding required/i)).toHaveCount(0, {
         timeout: 120_000,
       });
-      await expect(
-        page.getByText(new RegExp(`DRAFT\\s*·\\s*${OUTPUT_SIZE_LABEL}`, "i"))
-      ).toBeVisible({ timeout: 120_000 });
+      await expectStudioDraftState(page, "Draft", 120_000);
       await assertPreviewIsAvailable(page);
+      await expect
+        .poll(
+          async () => JSON.stringify(await readGeneratedTextFields(page)),
+          {
+            timeout: 120_000,
+            message: `${label} refinement completed but did not visibly change generated copy.`,
+          }
+        )
+        .not.toBe(JSON.stringify(beforeFields));
+      await expect(page.getByRole("button", { name: /^Generate$/i })).toBeEnabled({
+        timeout: 10_000,
+      });
 
       await testInfo.attach(`refine-${label.toLowerCase().replace(/\s+/g, "-")}.png`, {
         contentType: "image/png",
@@ -599,7 +641,7 @@ test.describe("ContentGate live generation QA", () => {
     });
 
     await signIn(page);
-    await generateLeaderboardDraft(page);
+    await generateNimbusDraft(page);
     await assertPreviewIsAvailable(page);
 
     const headlineField = await findFieldTextarea(page, /^Headline/i);

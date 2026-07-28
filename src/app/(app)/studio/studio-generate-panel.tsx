@@ -80,7 +80,7 @@ export function StudioGeneratePanel({
           )}
         </div>
         <div className="flex flex-wrap gap-2">
-          {REVISION_OPTIONS.map((option) => (
+          {REVISION_OPTIONS.slice(0, 4).map((option) => (
             <button
               key={option.key}
               type="button"
@@ -101,6 +101,14 @@ export function StudioGeneratePanel({
             </button>
           ))}
         </div>
+        <details className="group">
+          <summary className="cursor-pointer text-[12px] font-semibold text-ink-muted hover:text-brand">More directions</summary>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {REVISION_OPTIONS.slice(4).map((option) => (
+              <button key={option.key} type="button" onClick={() => onRevisionChange(selectedRevision === option.key ? null : option.key)} disabled={busy} aria-pressed={selectedRevision === option.key} title={option.instruction} className={cn("rounded-full border px-3.5 py-2 text-[13px] font-semibold transition-colors disabled:opacity-50", selectedRevision === option.key ? "border-brand bg-brand-tint text-brand" : "border-edge-strong bg-surface text-ink-muted hover:border-brand hover:text-brand")}>{option.label}</button>
+            ))}
+          </div>
+        </details>
         <p className="sr-only text-[11px] leading-relaxed text-ink-faint">
           Optional. Choose one direction before generating or refining the current draft.
         </p>
@@ -111,7 +119,7 @@ export function StudioGeneratePanel({
         disabled={busy || generationPaused}
         className="h-[50px] rounded-[7px] bg-ink text-[14px] font-bold text-white hover:bg-ink/90"
       >
-        {generationPaused ? retryLabel : busy ? "Generating preview…" : buttonLabel}
+        {generationPaused ? retryLabel : busy ? "Making every word earn its place…" : selectedRevision ? `Apply “${REVISION_OPTIONS.find((option) => option.key === selectedRevision)?.label ?? "direction"}”` : buttonLabel}
       </Button>
       {error && <p className="text-[12.5px] text-reject">{error}</p>}
       {!error && warning && (

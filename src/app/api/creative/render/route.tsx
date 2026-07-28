@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { ImageResponse } from "next/og";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createTemplateDamAssetUrlMap } from "@/lib/product-assets-server";
 import { validateStoredContentEvidence } from "@/lib/evidence-lifecycle";
 import { SIZES, type SizeKey } from "@/lib/creative";
 import { AssetLayout } from "@/lib/creative-layout";
@@ -27,6 +28,7 @@ import { renderTemplateBundleVariant } from "@/lib/template-platform/render";
 import { resolveTemplatePlatformVariantLayout } from "@/lib/template-platform/fit";
 import { resolveTemplateBundleRuntimeVariant } from "@/lib/template-platform/runtime";
 import { createTemplateBundleAssetUrlMap } from "@/lib/template-platform/storage-urls";
+import { getTemplateVariantRenderAssetPaths } from "@/lib/template-platform/live-preview-assets";
 import { loadTemplateBundleImageFonts } from "@/lib/template-platform/server-fonts";
 import {
   convertServerRenderedPng,
@@ -132,8 +134,17 @@ export async function GET(req: Request) {
       return new Response("Unsupported size for this template", { status: 400 });
     }
     const assetUrlByPath = Object.fromEntries(
-      await createTemplateBundleAssetUrlMap(supabase, [manifest])
+      await createTemplateBundleAssetUrlMap(supabase, content.org_id, [manifest], {
+        assetPaths: getTemplateVariantRenderAssetPaths(manifest, variantKey),
+      })
     );
+    const damAssetUrlById = await createTemplateDamAssetUrlMap({
+      supabase,
+      orgId: content.org_id,
+      productId: content.product_id,
+      manifest,
+      fields,
+    });
     const textLayoutByField = await resolveTemplatePlatformVariantLayout({
       manifest,
       variantKey,
@@ -146,6 +157,7 @@ export async function GET(req: Request) {
       fields,
       assetOrigin: new URL(req.url).origin,
       assetUrlByPath,
+      damAssetUrlById,
       textLayoutByField,
       scale,
     });

@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { flattenFields } from "@/lib/templates";
-import { templateFieldIssues, type FieldLimits } from "@/lib/template-fields";
+import { studioEditableTemplateFields } from "@/lib/generation-evidence";
+import { type FieldLimits } from "@/lib/template-fields";
 import { validateTemplateContentFit } from "@/lib/template-content-fit";
 import { validateStoredContentEvidence } from "@/lib/evidence-lifecycle";
 import type { TemplateBundleManifest } from "@/lib/template-platform/manifest";
@@ -11,12 +12,12 @@ import {
   formatTemplatePlatformFitIssues,
   resolveTemplatePlatformVariantLayout,
   templatePlatformFieldFitIssues,
+  templatePlatformRequiredFieldIssues,
   type TemplatePlatformResolvedTextLayout,
 } from "@/lib/template-platform/fit";
 import {
   BACKGROUND_CHOICE_FIELD,
-  getTemplateBundleVariantFieldLimits,
-  getTemplateBundleVariantFields,
+  getTemplateBundleVariantPersistedFields,
 } from "@/lib/template-platform/runtime";
 import { createTemplateBundleAssetUrlMap } from "@/lib/template-platform/storage-urls";
 import {
@@ -25,7 +26,24 @@ import {
   type ContentStatus,
 } from "@/lib/content-governance";
 
+const PRODUCT_VARIANT_FIELD = "__productVariantKey";
+
 type FitStorageClient = Awaited<ReturnType<typeof createClient>>;
+
+// The signed-asset URL map is org-scoped; resolve the caller's org from their
+// session so fit checks load the right bundle fonts/backgrounds.
+async function resolveOrgId(supabase: FitStorageClient): Promise<string | null> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return null;
+  const { data } = await supabase
+    .from("profiles")
+    .select("org_id")
+    .eq("id", user.id)
+    .single();
+  return (data?.org_id as string | undefined) ?? null;
+}
 
 type ActionResult =
   | {
@@ -60,9 +78,9 @@ async function requireUser() {
   return { supabase, user, profile };
 }
 
-function revalidateContentSurfaces(id: string) {
+function revalidateContentSurfaces(id: string, options: { studio?: boolean } = {}) {
   revalidatePath(`/content/${id}`);
-  revalidatePath(`/studio/${id}`);
+  if (options.studio !== false) revalidatePath(`/studio/${id}`);
   revalidatePath("/content");
   revalidatePath("/approvals");
 }
@@ -112,21 +130,22 @@ async function validateStoredTemplateFields(
     ? content.template_variants[0]
     : content.template_variants;
   if (!template && version?.manifest && variant?.variant_key) {
-    const platformFields = getTemplateBundleVariantFields(version.manifest, variant.variant_key);
-    const order = platformFields.map((field) => field.key);
-    const requiredFields = platformFields
-      .filter((field) => field.required !== false)
-      .map((field) => field.key);
-    const limits = getTemplateBundleVariantFieldLimits(version.manifest, variant.variant_key);
     const fields = (content.structured_fields ?? {}) as Record<string, unknown>;
-    const issues = templateFieldIssues(fields, order, limits, requiredFields);
+    const issues = templatePlatformRequiredFieldIssues(
+      version.manifest,
+      variant.variant_key,
+      fields
+    );
     const firstIssue = Object.entries(issues)[0];
     if (firstIssue) {
       return `${firstIssue[0]}: ${firstIssue[1].map((issue) => issue.message).join(", ")}`;
     }
-    const assetUrlByPath = Object.fromEntries(
-      await createTemplateBundleAssetUrlMap(supabase, [version.manifest])
-    );
+    const orgId = await resolveOrgId(supabase);
+    const assetUrlByPath = orgId
+      ? Object.fromEntries(
+          await createTemplateBundleAssetUrlMap(supabase, orgId, [version.manifest])
+        )
+      : {};
     const geometryIssues = await templatePlatformFieldFitIssues({
       manifest: version.manifest,
       variantKey: variant.variant_key,
@@ -177,15 +196,19 @@ export async function updateContentBody(
 
 export async function updateStructuredFields(
   id: string,
-  fields: Record<string, string>
+  fields: Record<string, string>,
+  expectedUpdatedAt: string | null
 ): Promise<ActionResult> {
   const ctx = await requireUser();
   if (!ctx) return { error: "Your session expired — sign in again." };
+  if (!expectedUpdatedAt) {
+    return { error: "This draft is out of date. Refresh Studio before saving." };
+  }
 
   const { data: content } = await ctx.supabase
     .from("generated_content")
     .select(
-      "structured_fields, prompt_context, product_templates!generated_content_product_template_id_fkey(layout_key, category, editable_fields, field_limits, locked_fields, template_definition, status), template_versions!generated_content_template_version_id_fkey(manifest), template_variants!generated_content_template_variant_id_fkey(variant_key)"
+      "structured_fields, prompt_context, updated_at, product_templates!generated_content_product_template_id_fkey(layout_key, category, editable_fields, field_limits, locked_fields, template_definition, status), template_versions!generated_content_template_version_id_fkey(manifest), template_variants!generated_content_template_variant_id_fkey(variant_key)"
     )
     .eq("id", id)
     .single();
@@ -202,25 +225,32 @@ export async function updateStructuredFields(
     return { error: "Template configuration was not found." };
   }
 
+  const platformFields =
+    !template && version?.manifest && variant?.variant_key
+      ? getTemplateBundleVariantPersistedFields(
+          version.manifest as TemplateBundleManifest,
+          variant.variant_key
+        )
+      : [];
+  const editablePlatformFields = studioEditableTemplateFields(platformFields);
   const order = template
     ? ((template.editable_fields ?? []) as string[])
-    : getTemplateBundleVariantFields(
-        version!.manifest as TemplateBundleManifest,
-        variant!.variant_key
-      ).map((field) => field.key);
-  const requiredFields = template
-    ? order
-    : getTemplateBundleVariantFields(
-        version!.manifest as TemplateBundleManifest,
-        variant!.variant_key
-      )
-        .filter((field) => field.required !== false)
-        .map((field) => field.key);
+    : editablePlatformFields.map((field) => field.key);
+  const fullOrder = template ? order : platformFields.map((field) => field.key);
+  const existingFields = (content?.structured_fields ?? {}) as Record<string, string>;
   const cleaned = Object.fromEntries(
-    order.map((key) => [key, String(fields[key] ?? "")])
+    (template ? order : fullOrder).map((key) => [
+      key,
+      order.includes(key)
+        ? String(fields[key] ?? "")
+        : String(existingFields[key] ?? ""),
+    ])
   );
   if (!template && typeof fields[BACKGROUND_CHOICE_FIELD] === "string") {
     cleaned[BACKGROUND_CHOICE_FIELD] = fields[BACKGROUND_CHOICE_FIELD];
+  }
+  if (!template && typeof fields[PRODUCT_VARIANT_FIELD] === "string") {
+    cleaned[PRODUCT_VARIANT_FIELD] = fields[PRODUCT_VARIANT_FIELD];
   }
   const promptContext =
     content?.prompt_context && typeof content.prompt_context === "object"
@@ -239,11 +269,11 @@ export async function updateStructuredFields(
         promptContext,
       })
     : (() => {
-        const limits = getTemplateBundleVariantFieldLimits(
+        const issues = templatePlatformRequiredFieldIssues(
           version!.manifest as TemplateBundleManifest,
-          variant!.variant_key
+          variant!.variant_key,
+          cleaned
         );
-        const issues = templateFieldIssues(cleaned, order, limits, requiredFields);
         const firstIssue = Object.entries(issues)[0];
         return firstIssue
           ? `${firstIssue[0]}: ${firstIssue[1].map((issue) => issue.message).join(", ")}`
@@ -251,11 +281,14 @@ export async function updateStructuredFields(
       })();
   if (validationError) return { error: validationError };
   if (!template) {
-    const assetUrlByPath = Object.fromEntries(
-      await createTemplateBundleAssetUrlMap(ctx.supabase, [
-        version!.manifest as TemplateBundleManifest,
-      ])
-    );
+    const orgId = await resolveOrgId(ctx.supabase);
+    const assetUrlByPath = orgId
+      ? Object.fromEntries(
+          await createTemplateBundleAssetUrlMap(ctx.supabase, orgId, [
+            version!.manifest as TemplateBundleManifest,
+          ])
+        )
+      : {};
     const geometryIssues = await templatePlatformFieldFitIssues({
       manifest: version!.manifest as TemplateBundleManifest,
       variantKey: variant!.variant_key,
@@ -266,7 +299,7 @@ export async function updateStructuredFields(
     if (firstGeometryIssue) return { error: firstGeometryIssue };
   }
 
-  const body = flattenFields(cleaned, order);
+  const body = flattenFields(cleaned, template ? order : fullOrder);
   if (!body) return { error: "Content cannot be empty." };
 
   const generatedFields =
@@ -296,17 +329,24 @@ export async function updateStructuredFields(
       updated_at: savedAt,
     })
     .eq("id", id)
-    .select("id, status")
+    .eq("updated_at", expectedUpdatedAt)
+    .select("id, status, updated_at")
     .single();
   if (error || !row) {
+    if (!row && (!error || error.code === "PGRST116")) {
+      return { error: "This draft changed elsewhere. Refresh Studio before saving." };
+    }
     return { error: `Could not save: ${error?.message ?? "not found"}` };
   }
 
-  revalidateContentSurfaces(id);
+  // Studio owns its in-progress draft locally. Revalidating it from this
+  // autosave Server Action causes Next to rehydrate the original payload over
+  // the just-saved fields, making live edits appear to revert.
+  revalidateContentSurfaces(id, { studio: false });
   return {
     ok: true,
     status: row.status,
-    savedAt,
+    savedAt: row.updated_at,
     manuallyEdited: manuallyEditedFields.length > 0,
   };
 }
@@ -338,19 +378,30 @@ export async function checkDraftStructuredFieldsFit(
     : content.template_variants;
 
   if (!template && version?.manifest && variant?.variant_key) {
-    const platformFields = getTemplateBundleVariantFields(version.manifest, variant.variant_key);
-    const order = platformFields.map((field) => field.key);
-    const requiredFields = platformFields
-      .filter((field) => field.required !== false)
-      .map((field) => field.key);
-    const limits = getTemplateBundleVariantFieldLimits(version.manifest, variant.variant_key);
+    const platformFields = getTemplateBundleVariantPersistedFields(version.manifest, variant.variant_key);
+    const editableFields = studioEditableTemplateFields(platformFields);
+    const order = editableFields.map((field) => field.key);
+    const fullOrder = platformFields.map((field) => field.key);
+    const existingFields = (content.structured_fields ?? {}) as Record<string, string>;
     const cleaned = Object.fromEntries(
-      order.map((key) => [key, String(fields[key] ?? "")])
+      fullOrder.map((key) => [
+        key,
+        order.includes(key)
+          ? String(fields[key] ?? "")
+          : String(existingFields[key] ?? ""),
+      ])
     );
-    const configuredIssues = templateFieldIssues(cleaned, order, limits, requiredFields);
-    const assetUrlByPath = Object.fromEntries(
-      await createTemplateBundleAssetUrlMap(ctx.supabase, [version.manifest])
+    const configuredIssues = templatePlatformRequiredFieldIssues(
+      version.manifest,
+      variant.variant_key,
+      cleaned
     );
+    const orgId = await resolveOrgId(ctx.supabase);
+    const assetUrlByPath = orgId
+      ? Object.fromEntries(
+          await createTemplateBundleAssetUrlMap(ctx.supabase, orgId, [version.manifest])
+        )
+      : {};
     const [geometryIssues, textLayoutByField] = await Promise.all([
       templatePlatformFieldFitIssues({
         manifest: version.manifest,

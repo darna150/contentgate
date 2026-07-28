@@ -88,6 +88,41 @@ async function fallbackSearchApprovedKnowledge(
   return ranked.length > 0 ? ranked : normalized.slice(0, 12);
 }
 
+async function logKnowledgeQuery(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  input: {
+    userId: string;
+    productId: string | null;
+    question: string;
+    answer: string;
+    notFound: boolean;
+    citations: unknown[];
+  }
+) {
+  try {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("org_id")
+      .eq("id", input.userId)
+      .single();
+    if (profile?.org_id) {
+      const { error: logError } = await supabase.from("knowledge_queries").insert({
+        org_id: profile.org_id,
+        product_id: input.productId,
+        user_id: input.userId,
+        question: input.question,
+        not_found: input.notFound,
+        citation_count: input.citations.length,
+        answer: input.answer,
+        citations: input.citations,
+      });
+      if (logError) console.warn("knowledge query audit log failed:", logError);
+    }
+  } catch (logError) {
+    console.warn("knowledge query audit log failed:", logError);
+  }
+}
+
 function openAIOutputText(response: OpenAIResponse) {
   if (typeof response.output_text === "string") return response.output_text;
   return (
@@ -125,12 +160,9 @@ async function answerWithOpenAI(input: {
 
   const body: Record<string, unknown> = {
     model: OPENAI_ASK_MODEL,
-    max_output_tokens: 1400,
+    max_output_tokens: 1024,
     input: [
-      {
-        role: "system",
-        content: input.system,
-      },
+      { role: "system", content: input.system },
       {
         role: "user",
         content: [
@@ -182,41 +214,6 @@ async function answerWithOpenAI(input: {
   const text = openAIOutputText(json).trim();
   if (!text) throw new Error("OpenAI returned no Ask text output.");
   return parseKnowledgeAnswer(JSON.parse(text));
-}
-
-async function logKnowledgeQuery(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  input: {
-    userId: string;
-    productId: string | null;
-    question: string;
-    answer: string;
-    notFound: boolean;
-    citations: unknown[];
-  }
-) {
-  try {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("org_id")
-      .eq("id", input.userId)
-      .single();
-    if (profile?.org_id) {
-      const { error: logError } = await supabase.from("knowledge_queries").insert({
-        org_id: profile.org_id,
-        product_id: input.productId,
-        user_id: input.userId,
-        question: input.question,
-        not_found: input.notFound,
-        citation_count: input.citations.length,
-        answer: input.answer,
-        citations: input.citations,
-      });
-      if (logError) console.warn("knowledge query audit log failed:", logError);
-    }
-  } catch (logError) {
-    console.warn("knowledge query audit log failed:", logError);
-  }
 }
 
 export async function POST(req: Request) {

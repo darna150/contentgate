@@ -43,6 +43,7 @@ export function UploadAssetDialog({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
+  const [durationSeconds, setDurationSeconds] = useState<number | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -55,6 +56,7 @@ export function UploadAssetDialog({
   function handleFiles(files: FileList | null) {
     const file = files?.[0] ?? null;
     setFileError(null);
+    setDurationSeconds(null);
     setSuccess(false);
     if (!file) {
       setSelectedFile(null);
@@ -150,7 +152,7 @@ export function UploadAssetDialog({
 
           <div className="flex flex-col gap-1.5">
             <span className={FIELD_LABEL}>
-              Image <span className="text-reject">*</span>
+              File <span className="text-reject">*</span>
             </span>
             <label
               onDragOver={(event) => {
@@ -175,21 +177,37 @@ export function UploadAssetDialog({
                 </span>
               ) : (
                 <span className="text-[12.5px] text-ink-muted">
-                  Drag an image here, or click to choose a file
+                  Drag an image or video here, or click to choose a file
                 </span>
               )}
               <input
                 ref={fileInputRef}
                 type="file"
                 name="file"
-                accept="image/png,image/jpeg,image/webp,image/gif,image/avif"
+                accept="image/png,image/jpeg,image/webp,image/gif,image/avif,video/mp4,video/quicktime,video/webm"
                 required
                 className="sr-only"
                 onChange={(event) => handleFiles(event.target.files)}
               />
             </label>
+            {selectedFile?.type.startsWith("video/") && (
+              <video
+                src={URL.createObjectURL(selectedFile)}
+                className="hidden"
+                preload="metadata"
+                onLoadedMetadata={(event) => {
+                  const seconds = event.currentTarget.duration;
+                  setDurationSeconds(Number.isFinite(seconds) ? seconds : null);
+                }}
+              />
+            )}
+            <input
+              type="hidden"
+              name="duration_seconds"
+              value={durationSeconds === null ? "" : String(durationSeconds)}
+            />
             <span className="text-[11.5px] text-ink-faint">
-              PNG, JPEG, WebP, GIF, or AVIF. Maximum 10 MB.
+              Images up to 10 MB. MP4, MOV, or WebM videos up to 100 MB.
             </span>
             {fileError && (
               <p role="alert" className="text-[12.5px] text-reject">
@@ -211,6 +229,11 @@ export function UploadAssetDialog({
           <label className="flex flex-col gap-1.5">
             <span className={FIELD_LABEL}>Tags</span>
             <Input name="tags" placeholder="launch, social, hero" className="bg-page" />
+          </label>
+
+          <label className="flex flex-col gap-1.5">
+            <span className={FIELD_LABEL}>Category</span>
+            <Input name="category" maxLength={80} placeholder="Campaign, brand, social" className="bg-page" />
           </label>
 
           {error && (

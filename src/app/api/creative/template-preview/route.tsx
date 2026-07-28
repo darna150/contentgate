@@ -124,8 +124,28 @@ export async function GET(req: Request) {
     if (!runtime) {
       return new Response("Unsupported size for this template", { status: 400 });
     }
+    // The Brand reference view is the authored Figma export for this one
+    // selected size. Serve that image directly instead of signing every one
+    // of the bundle's assets and rebuilding it through ImageResponse.
+    if (format === "png" && !download) {
+      const assets = await createTemplateBundleAssetUrlMap(supabase, profile.org_id, [manifest], {
+        assetPaths: [runtime.referenceAssetPath],
+      });
+      const referenceUrl = assets.get(runtime.referenceAssetPath);
+      if (!referenceUrl) return new Response("Reference asset is unavailable.", { status: 404 });
+      return new Response(null, {
+        status: 307,
+        headers: {
+          Location: referenceUrl,
+          // Reference exports are immutable for a published bundle version.
+          // Let the browser retain the selected Figma image rather than
+          // re-signing and downloading it on every Studio state change.
+          "Cache-Control": "private, max-age=300",
+        },
+      });
+    }
     const assetUrlByPath = Object.fromEntries(
-      await createTemplateBundleAssetUrlMap(supabase, [manifest])
+      await createTemplateBundleAssetUrlMap(supabase, profile.org_id, [manifest])
     );
     const rendered = renderTemplateBundleVariant({
       manifest,

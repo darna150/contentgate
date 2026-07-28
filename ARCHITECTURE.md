@@ -53,8 +53,13 @@ Current template architecture:
 
 - `product_templates.layout_key` dispatches to a renderer.
 - `editable_fields`, `field_limits`, `locked_fields`, and `template_definition` describe the editing contract.
-- New ContentGate client templates use `src/lib/published-template-package.tsx`: locked frames, exact text slots, optional image slots, and client-safe package metadata.
-- Product-specific renderers in `src/lib/*-render.tsx` are legacy/special-case implementations and should not be the default path for monthly client template refreshes.
+- New client templates use portable Template Platform bundles: `manifest.json`,
+  private `template-bundles` assets, manifest-declared fields, optional DAM
+  bindings, and active platform assignments pinned to immutable published
+  versions.
+- Product-specific renderers and product-template generation are legacy
+  read/export compatibility paths. They should not be used for new clients or
+  monthly client template refreshes.
 - `src/lib/render-copy.ts` and `src/lib/template-fields.ts` handle fitting and limits.
 
 ### Approval Workflow

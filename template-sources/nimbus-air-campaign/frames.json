@@ -1,0 +1,72 @@
+{
+  "sourceFileKey": "KLhc0HHyyVOtYRiNnB6VY8",
+  "sourceFileName": "Content Gate Template Paste Frames",
+  "sourcePageNodeId": "0:1",
+  "sourcePageName": "Paste Frames by Category",
+  "defaultBackgroundKey": "sky",
+  "defaultProductVariantKey": "nimbus-1",
+  "backgroundOptions": [
+    {
+      "key": "sky",
+      "label": "Sky"
+    }
+  ],
+  "productVariants": [
+    {
+      "key": "nimbus-1",
+      "label": "Nimbus 1"
+    }
+  ],
+  "frames": [
+    { "key": "instagram-post-square", "label": "Instagram post (square)", "channel": "instagram", "figmaNodeId": "2:6", "width": 1080, "height": 1080 },
+    { "key": "instagram-post-portrait", "label": "Instagram post (portrait)", "channel": "instagram", "figmaNodeId": "2:8", "width": 1080, "height": 1350 },
+    { "key": "instagram-post-tall-portrait", "label": "Instagram post (tall portrait)", "channel": "instagram", "figmaNodeId": "2:10", "width": 1080, "height": 1440 },
+    { "key": "instagram-story", "label": "Instagram story", "channel": "instagram", "figmaNodeId": "2:12", "width": 1080, "height": 1920 },
+    { "key": "instagram-ad-square", "label": "Instagram ad (square)", "channel": "instagram", "figmaNodeId": "2:14", "width": 1440, "height": 1440 },
+    { "key": "instagram-ad-portrait", "label": "Instagram ad (portrait)", "channel": "instagram", "figmaNodeId": "2:16", "width": 1440, "height": 1800 },
+    { "key": "instagram-reel-cover", "label": "Instagram Reel cover", "channel": "instagram", "figmaNodeId": "2:18", "width": 1080, "height": 1920 },
+
+    { "key": "facebook-post-landscape", "label": "Facebook post (landscape)", "channel": "facebook", "figmaNodeId": "2:21", "width": 1200, "height": 630 },
+    { "key": "facebook-post-square", "label": "Facebook post (square)", "channel": "facebook", "figmaNodeId": "2:23", "width": 1080, "height": 1080 },
+    { "key": "facebook-post-portrait", "label": "Facebook post (portrait)", "channel": "facebook", "figmaNodeId": "2:25", "width": 1080, "height": 1350 },
+    { "key": "facebook-story", "label": "Facebook Story", "channel": "facebook", "figmaNodeId": "2:27", "width": 1080, "height": 1920 },
+    { "key": "facebook-cover-photo", "label": "Facebook cover photo", "channel": "facebook", "figmaNodeId": "2:29", "width": 851, "height": 315 },
+    { "key": "facebook-event-cover", "label": "Facebook event cover", "channel": "facebook", "figmaNodeId": "2:31", "width": 1920, "height": 1005 },
+    { "key": "facebook-ad-portrait", "label": "Facebook ad (portrait)", "channel": "facebook", "figmaNodeId": "2:33", "width": 1440, "height": 1800 },
+    { "key": "facebook-ad-square", "label": "Facebook ad (square)", "channel": "facebook", "figmaNodeId": "2:35", "width": 1440, "height": 1440 },
+
+    { "key": "x-post-landscape", "label": "X post (landscape)", "channel": "x", "figmaNodeId": "2:38", "width": 1200, "height": 675 },
+    { "key": "x-post-square", "label": "X post (square)", "channel": "x", "figmaNodeId": "2:40", "width": 1080, "height": 1080 },
+    { "key": "x-banner", "label": "X banner", "channel": "x", "figmaNodeId": "2:42", "width": 1500, "height": 500 },
+
+    { "key": "linkedin-post-square", "label": "LinkedIn post (square)", "channel": "linkedin", "figmaNodeId": "2:45", "width": 1080, "height": 1080 },
+    { "key": "linkedin-post-portrait", "label": "LinkedIn post (portrait)", "channel": "linkedin", "figmaNodeId": "2:47", "width": 626, "height": 1200 },
+    { "key": "linkedin-post-landscape", "label": "LinkedIn post (landscape)", "channel": "linkedin", "figmaNodeId": "2:49", "width": 1200, "height": 626 },
+    { "key": "linkedin-profile-banner", "label": "LinkedIn profile banner", "channel": "linkedin", "figmaNodeId": "2:51", "width": 1584, "height": 396 },
+    { "key": "linkedin-article-banner", "label": "LinkedIn article banner", "channel": "linkedin", "figmaNodeId": "2:53", "width": 1920, "height": 1080 },
+    { "key": "linkedin-ad-landscape", "label": "LinkedIn ad (landscape)", "channel": "linkedin", "figmaNodeId": "2:55", "width": 1200, "height": 628 },
+    { "key": "linkedin-ad-square", "label": "LinkedIn ad (square)", "channel": "linkedin", "figmaNodeId": "2:57", "width": 1200, "height": 1200 },
+    { "key": "linkedin-ad-vertical", "label": "LinkedIn ad (vertical)", "channel": "linkedin", "figmaNodeId": "2:59", "width": 720, "height": 900 },
+
+    { "key": "youtube-thumbnail", "label": "YouTube thumbnail", "channel": "youtube", "figmaNodeId": "2:62", "width": 1280, "height": 720 },
+    { "key": "youtube-banner", "label": "YouTube banner", "channel": "youtube", "figmaNodeId": "2:64", "width": 2560, "height": 1440 },
+    { "key": "youtube-ad-companion", "label": "YouTube ad (companion)", "channel": "youtube", "figmaNodeId": "2:66", "width": 300, "height": 60 },
+
+    { "key": "pinterest-pin-standard", "label": "Pinterest pin (standard)", "channel": "pinterest", "figmaNodeId": "2:69", "width": 1000, "height": 1500 },
+    { "key": "pinterest-pin-square", "label": "Pinterest pin (square)", "channel": "pinterest", "figmaNodeId": "2:71", "width": 1000, "height": 1000 },
+    { "key": "pinterest-ad-portrait", "label": "Pinterest ad (portrait)", "channel": "pinterest", "figmaNodeId": "2:73", "width": 1000, "height": 1500 },
+    { "key": "pinterest-ad-square", "label": "Pinterest ad (square)", "channel": "pinterest", "figmaNodeId": "2:75", "width": 1000, "height": 1000 },
+
+    { "key": "tiktok-post", "label": "TikTok post", "channel": "tiktok", "figmaNodeId": "2:78", "width": 1080, "height": 1920 },
+
+    { "key": "card-landscape", "label": "Card (landscape)", "channel": "card", "figmaNodeId": "2:81", "width": 504, "height": 360 },
+    { "key": "card-portrait", "label": "Card (portrait)", "channel": "card", "figmaNodeId": "2:83", "width": 360, "height": 504 },
+
+    { "key": "print-us-letter", "label": "Print (US Letter)", "channel": "print", "figmaNodeId": "2:86", "width": 612, "height": 792 },
+    { "key": "print-a4", "label": "Print (A4)", "channel": "print", "figmaNodeId": "2:88", "width": 595, "height": 842 },
+    { "key": "poster", "label": "Poster", "channel": "print", "figmaNodeId": "2:90", "width": 648, "height": 864 },
+    { "key": "banner-standard", "label": "Banner (Standard)", "channel": "print", "figmaNodeId": "2:92", "width": 576, "height": 288 },
+    { "key": "banner-wide", "label": "Banner (Wide)", "channel": "print", "figmaNodeId": "2:94", "width": 576, "height": 192 },
+    { "key": "banner-ultrawide", "label": "Banner (Ultrawide)", "channel": "print", "figmaNodeId": "2:96", "width": 576, "height": 144 }
+  ]
+}

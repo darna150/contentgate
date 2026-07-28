@@ -2,7 +2,7 @@ import { EmptyState } from "@/components/empty-state";
 import { StudioWorkspace } from "./studio-workspace";
 import type { StudioState } from "./studio-data";
 
-export function StudioPageView({ state }: { state: StudioState }) {
+export function StudioPageView({ state, returnTo }: { state: StudioState; returnTo?: string }) {
   const {
     selectedProduct,
     selectedTemplate,
@@ -17,7 +17,9 @@ export function StudioPageView({ state }: { state: StudioState }) {
     <div className="flex min-h-screen flex-col bg-page">
       {selectedProduct && selectedTemplate ? (
         <StudioWorkspace
-          key={selectedTemplate.id}
+          key={`${selectedTemplate.id}:${initialSize ?? "new"}:${initialContents
+            .map((content) => content.id)
+            .join(",")}`}
           selectedProduct={selectedProduct}
           selectedTemplate={selectedTemplate}
           initialContents={initialContents}
@@ -25,6 +27,7 @@ export function StudioPageView({ state }: { state: StudioState }) {
           versionsBySize={versionsBySize}
           canReview={canReview}
           canDownloadDraftPreviews={canDownloadDraftPreviews}
+          returnTo={returnTo?.startsWith("/") ? returnTo : undefined}
         />
       ) : (
         <EmptyState
