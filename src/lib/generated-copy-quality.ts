@@ -44,7 +44,7 @@ function terminalWord(value: string) {
 }
 
 export function trimDanglingCopyEnd(value: string) {
-  let trimmed = value.trim();
+  let trimmed = value.trim().replace(/[,;:—–-]+\s*$/u, "").trim();
   while (trimmed.split(/\s+/).length > 1) {
     const lastWord = terminalWord(trimmed);
     if (!lastWord || !DANGLING_END_WORDS.has(lastWord)) break;

@@ -164,3 +164,25 @@ test("coercion removes a dangling connector created by truncation", async () => 
   assert.equal(result.fields.headline, "Cloud cushioning built");
   assert.deepEqual(result.truncatedFields, ["headline"]);
 });
+
+test("coercion removes punctuation that implies truncated copy continues", async () => {
+  const constrained: TemplateBundleManifest = {
+    ...manifest,
+    variants: [
+      {
+        ...manifest.variants[0],
+        slots: manifest.variants[0].slots.map((slot) =>
+          slot.kind === "text" ? { ...slot, maxChars: 17 } : slot
+        ),
+      },
+    ],
+  };
+  const result = await coerceTemplatePlatformFieldsToFit({
+    manifest: constrained,
+    variantKey: "square",
+    fields: { headline: "Cloud cushioning, ready for every road" },
+  });
+
+  assert.equal(result.fields.headline, "Cloud cushioning");
+  assert.deepEqual(result.truncatedFields, ["headline"]);
+});
