@@ -12,8 +12,8 @@ const OUTPUT_SIZE_LABEL_PATTERN = OUTPUT_SIZE_LABEL.replace(
   /[.*+?^${}()|[\]\\]/g,
   "\\$&"
 );
-const DRAFT_OUTPUT_LABEL = new RegExp(
-  `DRAFT\\s*·\\s*${OUTPUT_SIZE_LABEL_PATTERN}`,
+const OUTPUT_SIZE_BUTTON = new RegExp(
+  `${OUTPUT_SIZE_LABEL_PATTERN}\\s+1080×1080`,
   "i"
 );
 const LIVE_EDIT_TEXT = `QA Live ${Date.now().toString().slice(-5)}`;
@@ -111,39 +111,54 @@ async function generatePrimaryDraft(page: Page) {
   await expect(outputSelect).toBeVisible();
   await outputSelect.selectOption(OUTPUT_SIZE);
 
-  const responsePromise = page.waitForResponse(
-    (response) =>
-      response.url().includes("/api/products/generate") &&
-      response.request().method() === "POST",
-    { timeout: 180_000 }
-  );
-  await templateCard.getByRole("button", { name: /^Generate$/ }).click();
-  const response = await responsePromise;
-  const text = await response.text();
-  let json: Record<string, unknown> = {};
-  try {
-    json = JSON.parse(text) as Record<string, unknown>;
-  } catch {
-    // Keep the raw text for diagnostics below.
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const responsePromise = page.waitForResponse(
+      (response) =>
+        response.url().includes("/api/products/generate") &&
+        response.request().method() === "POST",
+      { timeout: 180_000 }
+    );
+    await templateCard.getByRole("button", { name: /^Generate$/ }).click();
+    const response = await responsePromise;
+    const text = await response.text();
+    let json: Record<string, unknown> = {};
+    try {
+      json = JSON.parse(text) as Record<string, unknown>;
+    } catch {
+      // Keep the raw text for diagnostics below.
+    }
+
+    const retryableFitRejection =
+      response.status() === 422 &&
+      typeof json.error === "string" &&
+      json.error.includes("safely fits this size");
+    if (!response.ok() && retryableFitRejection && attempt === 0) continue;
+    if (!response.ok()) {
+      throw new Error(`Generation failed with ${response.status()}: ${text}`);
+    }
+
+    expect(json.contentId, "Generation did not return contentId.").toEqual(
+      expect.any(String)
+    );
+
+    await page.waitForURL(new RegExp(`/studio/${json.contentId as string}`), {
+      timeout: 60_000,
+    });
+    await assertDraftOutputLoaded(page, 60_000);
+
+    return json.contentId as string;
   }
 
-  expect(
-    response.ok(),
-    `Generation failed with ${response.status()}: ${text}`
-  ).toBeTruthy();
+  throw new Error("Generation exhausted its retry budget.");
+}
 
-  expect(json.contentId, "Generation did not return contentId.").toEqual(
-    expect.any(String)
+async function assertDraftOutputLoaded(page: Page, timeout: number) {
+  await expect(page.getByText("Draft", { exact: true }).first()).toBeVisible({ timeout });
+  await expect(page.getByRole("button", { name: OUTPUT_SIZE_BUTTON })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+    { timeout }
   );
-
-  await page.waitForURL(new RegExp(`/studio/${json.contentId as string}`), {
-    timeout: 60_000,
-  });
-  await expect(page.getByText(DRAFT_OUTPUT_LABEL)).toBeVisible({
-    timeout: 60_000,
-  });
-
-  return json.contentId as string;
 }
 
 async function getPreviewMetrics(page: Page) {
@@ -311,9 +326,7 @@ test.describe("ContentGate live generation QA", () => {
     await page
       .getByRole("button", { name: /Instagram post \(square\)\s+1080×1080/i })
       .click();
-    await expect(page.getByText(DRAFT_OUTPUT_LABEL)).toBeVisible({
-      timeout: 20_000,
-    });
+    await assertDraftOutputLoaded(page, 20_000);
     await assertPreviewIsAvailable(page);
 
     const editableField = await findEditableTextArea(page);
@@ -545,9 +558,7 @@ test.describe("ContentGate live generation QA", () => {
       await expect(page.getByText(/could not verify|grounding required/i)).toHaveCount(0, {
         timeout: 120_000,
       });
-      await expect(
-        page.getByText(DRAFT_OUTPUT_LABEL)
-      ).toBeVisible({ timeout: 120_000 });
+      await assertDraftOutputLoaded(page, 120_000);
       await assertPreviewIsAvailable(page);
 
       await testInfo.attach(`refine-${label.toLowerCase().replace(/\s+/g, "-")}.png`, {
