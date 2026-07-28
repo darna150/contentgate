@@ -14,8 +14,6 @@ const layoutsPath = join(sourceRoot, "figma-layouts.json");
 const baseAssetRoot = join(sourceRoot, "base-assets");
 const outputRoot = join(projectRoot, ".template-bundles", "nimbus-air-campaign");
 
-const baseBackgroundPath = join(baseAssetRoot, "background.png");
-const baseProductPath = join(baseAssetRoot, "nimbus-1.png");
 
 function sha256(buffer) {
   return createHash("sha256").update(buffer).digest("hex");
@@ -103,17 +101,23 @@ async function main() {
     assets.push({ key: asset.key, kind: asset.kind, path: asset.path, sha256: hash, mimeType: asset.mimeType });
   }
 
-  const productMeta = await sharp(baseProductPath).metadata();
-  const productHash = await copyAsset(baseProductPath, join(outputRoot, "products", "nimbus-1.png"));
-  assets.push({
-    key: "product-nimbus-1",
-    kind: "image",
-    path: "products/nimbus-1.png",
-    sha256: productHash,
-    width: productMeta.width,
-    height: productMeta.height,
-    mimeType: "image/png",
-  });
+  for (const productVariant of source.productVariants) {
+    const productPath = join(baseAssetRoot, productVariant.asset);
+    const productMeta = await sharp(productPath).metadata();
+    const productHash = await copyAsset(
+      productPath,
+      join(outputRoot, "products", `${productVariant.key}.png`)
+    );
+    assets.push({
+      key: `product-${productVariant.key}`,
+      kind: "image",
+      path: `products/${productVariant.key}.png`,
+      sha256: productHash,
+      width: productMeta.width,
+      height: productMeta.height,
+      mimeType: "image/png",
+    });
+  }
 
   const variants = [];
   for (const frame of source.frames) {
@@ -123,7 +127,6 @@ async function main() {
     }
     const variantDir = join("variants", frame.key);
     const referencePath = join(variantDir, "reference.png");
-    const backgroundPath = join(variantDir, "background.png");
     // Brand reference is never an approximation of another format. It is the
     // actual Figma export for this exact frame, so selecting a size is a cheap
     // static-image swap and cannot inherit another canvas's crop.
@@ -136,12 +139,6 @@ async function main() {
       join(outputRoot, referencePath)
     );
     const referenceMeta = await sharp(referenceSource).metadata();
-    const backgroundHash = await writeImage(
-      baseBackgroundPath,
-      join(outputRoot, backgroundPath),
-      frame.width,
-      frame.height
-    );
     assets.push({
       key: `${frame.key}-reference`,
       kind: "reference",
@@ -151,15 +148,31 @@ async function main() {
       height: referenceMeta.height,
       mimeType: "image/png",
     });
-    assets.push({
-      key: `${frame.key}-background`,
-      kind: "background",
-      path: backgroundPath,
-      sha256: backgroundHash,
-      width: frame.width,
-      height: frame.height,
-      mimeType: "image/png",
-    });
+    const backgroundOptions = [];
+    for (const backgroundOption of source.backgroundOptions) {
+      const backgroundPath = join(variantDir, "backgrounds", `${backgroundOption.key}.png`);
+      const backgroundHash = await writeImage(
+        join(baseAssetRoot, backgroundOption.asset),
+        join(outputRoot, backgroundPath),
+        frame.width,
+        frame.height
+      );
+      const assetKey = `${frame.key}-${backgroundOption.key}-background`;
+      assets.push({
+        key: assetKey,
+        kind: "background",
+        path: backgroundPath,
+        sha256: backgroundHash,
+        width: frame.width,
+        height: frame.height,
+        mimeType: "image/png",
+      });
+      backgroundOptions.push({
+        key: backgroundOption.key,
+        label: backgroundOption.label,
+        asset: assetKey,
+      });
+    }
     variants.push({
       key: frame.key,
       label: frame.label,
@@ -168,12 +181,8 @@ async function main() {
       height: frame.height,
       sourceNodeId: frame.figmaNodeId,
       referenceAsset: `${frame.key}-reference`,
-      backgroundAsset: `${frame.key}-background`,
-      backgroundOptions: source.backgroundOptions.map((option) => ({
-        key: option.key,
-        label: option.label,
-        asset: `${frame.key}-background`,
-      })),
+      backgroundAsset: `${frame.key}-${source.defaultBackgroundKey}-background`,
+      backgroundOptions,
       slots: layout?.slots ?? canonicalNimbusSlots(frame),
     });
   }
@@ -191,7 +200,7 @@ async function main() {
       // A bundle version is immutable after import. Bump this whenever the
       // checked-in Figma reference exports or locked layout contract changes,
       // otherwise the importer correctly reuses stale storage assets.
-      name: "figma-full-v3",
+      name: "figma-full-v7",
       source: "figma",
       sourceFileKey: source.sourceFileKey,
       sourcePageNodeId: source.sourcePageNodeId,

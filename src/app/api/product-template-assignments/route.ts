@@ -2,6 +2,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { TemplateBundleManifest } from "@/lib/template-platform/manifest";
 import { buildProductTemplateAssignmentUpsert } from "@/lib/template-platform/publishing";
+import {
+  decideTemplateVersionStorageIntegrity,
+  type TemplateVersionStorageIntegrity,
+} from "@/lib/template-platform/storage-integrity";
 
 export const runtime = "nodejs";
 
@@ -84,6 +88,28 @@ export async function POST(req: Request) {
   if (version.status !== "published") {
     return Response.json(
       { error: "Template version must be published before assignment." },
+      { status: 409 }
+    );
+  }
+
+  const { data: integrityRows, error: integrityError } = await supabase.rpc(
+    "template_version_storage_integrity",
+    {
+      p_template_version_id: version.id,
+      p_org_id: admin.value.orgId,
+    }
+  );
+  const integrity = decideTemplateVersionStorageIntegrity(
+    (Array.isArray(integrityRows) ? integrityRows[0] : integrityRows) as
+      | TemplateVersionStorageIntegrity
+      | null
+  );
+  if (integrityError || !integrity.ok) {
+    return Response.json(
+      {
+        error: "Template version storage is incomplete and cannot be assigned.",
+        missingAssetKeys: integrity.ok ? [] : integrity.missingAssetKeys,
+      },
       { status: 409 }
     );
   }

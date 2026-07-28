@@ -15,6 +15,7 @@ function formatDate(iso: string) {
 export function ApprovalsView({ workspace }: { workspace: ProductWorkspace }) {
   const { approvals, permissions, sections } = workspace;
   const canReview = permissions.canReviewContent;
+  const returnTo = `/products/${workspace.product.id}?view=approvals`;
 
   if (approvals.length === 0) {
     return <SectionEmpty code="queue_clear" />;
@@ -40,7 +41,7 @@ export function ApprovalsView({ workspace }: { workspace: ProductWorkspace }) {
             href={sections.approvals.actionHref}
             className="text-[13px] font-semibold text-brand hover:underline"
           >
-            Open Approval Queue →
+            Open Reviews →
           </Link>
         )}
       </div>
@@ -56,7 +57,7 @@ export function ApprovalsView({ workspace }: { workspace: ProductWorkspace }) {
           return (
             <Link
               key={item.id}
-              href={studioContentUrl(item.id)}
+              href={studioContentUrl(item.id, undefined, returnTo)}
               className="flex items-center gap-3.5 rounded-control px-3.5 py-3 transition-colors hover:bg-page"
             >
               <span className="flex min-w-0 flex-1 flex-col">

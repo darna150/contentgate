@@ -43,6 +43,10 @@ export function AssetCard({
               Video{duration ? ` · ${duration}` : ""}
             </span>
           </>
+        ) : asset.mediaKind === "document" ? (
+          <span className="flex h-full w-full items-center justify-center bg-page px-4 text-center text-[11px] font-semibold text-ink-muted">
+            Download-only document
+          </span>
         ) : (
           <PreviewImage
             src={asset.previewUrl}

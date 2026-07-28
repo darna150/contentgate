@@ -90,6 +90,7 @@ export default async function EditProductPage({
         "id, product_id, asset_type, storage_path, title, description, alt_text, tags, approval_status, original_file_name, mime_type, file_size_bytes, width_pixels, height_pixels, created_at, updated_at, media_kind, checksum_sha256, duration_seconds, aspect_ratio, poster_storage_path, category, download_count, last_downloaded_at"
       )
       .eq("product_id", id)
+      .is("archived_at", null)
       .order("created_at", { ascending: true }),
   ]);
 
@@ -269,7 +270,7 @@ export default async function EditProductPage({
         )}
 
         <div className="rounded-[10px] border border-dashed border-edge-strong bg-page px-4 py-3 text-[12.5px] text-ink-muted">
-          To add or improve knowledge, upload source documents from Source Documents. The AI will
+          To add or improve knowledge, upload sources in Brand knowledge. The AI will
           scan numbered paragraphs and cite them in Ask, Studio, and review flows.
         </div>
       </div>

@@ -1,0 +1,22 @@
+# Long-lived worker image for the durable asset media queue. Deploy this image
+# to an always-on container service; do not run it as a Next.js route.
+FROM node:24-bookworm-slim
+
+RUN apt-get update \
+  && apt-get install --no-install-recommends -y ffmpeg \
+  && rm -rf /var/lib/apt/lists/* \
+  && useradd --create-home --uid 10001 contentgate
+
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci --include=dev --ignore-scripts
+
+COPY --chown=contentgate:contentgate . .
+RUN npm rebuild sharp
+
+USER contentgate
+ENV NODE_ENV=production
+
+# Required at runtime: NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY.
+# Optional: MEDIA_WORKER_ID, set to a stable deployment-specific value.
+CMD ["npm", "run", "assets:process-media"]

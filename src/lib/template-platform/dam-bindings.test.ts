@@ -94,3 +94,14 @@ test("builds Studio picker options from DAM assets and preserves manifest fallba
     [{ key: "charcoal", label: "Charcoal" }]
   );
 });
+
+test("pins new Studio selections to the immutable asset version", () => {
+  assert.equal(
+    buildTemplateAssetChoiceOptions({
+      field,
+      productId: "product-1",
+      assets: [{ ...matchingAsset, current_version_id: "version-7" }],
+    })[0]?.key,
+    "version-7"
+  );
+});

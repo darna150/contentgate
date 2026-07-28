@@ -3,6 +3,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
+const ASSET_MEDIA_PROCESSING_SLO_MS = Number(
+  process.env.ASSET_MEDIA_PROCESSING_SLO_MS ?? 60_000
+);
+
 export async function GET() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -45,6 +49,34 @@ export async function GET() {
         }`
       );
     }
+    const { data: worker, error: workerError } = await admin
+      .from("asset_media_worker_heartbeats")
+      .select("worker_id, last_seen_at, status")
+      .eq("status", "healthy")
+      .gte("last_seen_at", new Date(Date.now() - 2 * 60 * 1_000).toISOString())
+      .order("last_seen_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (workerError || !worker) {
+      throw new Error(`Asset media worker unavailable: ${workerError?.message ?? "no recent heartbeat"}`);
+    }
+    const processingCutoff = new Date(
+      Date.now() - Math.max(1_000, ASSET_MEDIA_PROCESSING_SLO_MS)
+    ).toISOString();
+    const { data: overdueMediaJob, error: overdueMediaJobError } = await admin
+      .from("asset_media_jobs")
+      .select("id, job_type, started_at")
+      .eq("status", "running")
+      .lt("started_at", processingCutoff)
+      .order("started_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (overdueMediaJobError || overdueMediaJob) {
+      throw new Error(
+        overdueMediaJobError?.message ??
+          `Asset media job ${overdueMediaJob?.id} (${overdueMediaJob?.job_type}) exceeded ${ASSET_MEDIA_PROCESSING_SLO_MS}ms.`
+      );
+    }
 
     return NextResponse.json(
       {
@@ -53,6 +85,8 @@ export async function GET() {
           supabase: "ok",
           renderedAssetsBucket: "ok",
           templateBundlesBucket: "ok",
+          assetMediaWorker: "ok",
+          assetMediaProcessingSlo: "ok",
         },
       },
       { headers: { "Cache-Control": "no-store" } }

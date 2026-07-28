@@ -59,7 +59,9 @@ function manifestWithRealAssetHashes() {
 
 function fakeRepository(options: {
   existingFamilyId?: string | null;
+  existingVersionId?: string | null;
   failInsert?: boolean;
+  failUploadAt?: number;
 } = {}) {
   const calls: string[] = [];
   const uploads: Array<{
@@ -79,8 +81,15 @@ function fakeRepository(options: {
       calls.push("find-family");
       return options.existingFamilyId ?? null;
     },
+    async findTemplateVersionId() {
+      calls.push("find-version");
+      return options.existingVersionId ?? null;
+    },
     async uploadTemplateAsset(input) {
       calls.push(`upload:${input.path}`);
+      if (options.failUploadAt === uploads.length + 1) {
+        throw new Error("storage upload failed");
+      }
       uploads.push({
         bucket: input.bucket,
         path: input.path,
@@ -177,6 +186,25 @@ test("reuses an existing template family id when importing a new version", async
   assert.equal(repo.inserted[0].version.family_id, "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
 });
 
+test("rejects a duplicate version before uploading any storage objects", async () => {
+  const { manifest, sources } = manifestWithRealAssetHashes();
+  const repo = fakeRepository({
+    existingFamilyId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    existingVersionId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+  });
+
+  const result = await importTemplateBundle(
+    { ...baseRequest, manifest, assets: sources },
+    repo.repository
+  );
+
+  assert.equal(result.ok, false);
+  assert.equal(repo.uploads.length, 0);
+  assert.equal(repo.inserted.length, 0);
+  assert.equal(repo.failed.length, 1);
+  assert.match(repo.failed[0].report.issues[0]?.message ?? "", /already exists/);
+});
+
 test("records a failed import and skips uploads when an asset checksum is wrong", async () => {
   const { manifest, sources } = manifestWithRealAssetHashes();
   const repo = fakeRepository();
@@ -244,6 +272,59 @@ test("removes uploaded assets when the atomic database import commit fails", asy
     [...repo.removals[0].paths].sort(),
     repo.uploads.map((upload) => upload.path).sort()
   );
+  assert.equal(repo.failed.length, 1);
+});
+
+test("removes only the assets uploaded by this attempt when storage fails partway through", async () => {
+  const { manifest, sources } = manifestWithRealAssetHashes();
+  const repo = fakeRepository({ failUploadAt: 3 });
+
+  await assert.rejects(
+    importTemplateBundle({ ...baseRequest, manifest, assets: sources }, repo.repository),
+    /storage upload failed/
+  );
+
+  assert.equal(repo.inserted.length, 0);
+  assert.equal(repo.uploads.length, 2);
+  assert.equal(repo.removals.length, 1);
+  assert.deepEqual(repo.removals[0].paths, repo.uploads.map((upload) => upload.path));
+  assert.equal(repo.failed.length, 1);
+});
+
+test("uploads a shared content-addressed storage object once while retaining every asset row", async () => {
+  const { manifest, sources } = manifestWithRealAssetHashes();
+  const sharedAsset = manifest.assets.find((asset) => asset.key === "square-background");
+  assert.ok(sharedAsset);
+  const sharedSource = sources.find((source) => source.path === sharedAsset.path);
+  assert.ok(sharedSource);
+  const manifestWithSharedObject = {
+    ...manifest,
+    assets: [
+      ...manifest.assets,
+      {
+        ...sharedAsset,
+        key: "shared-background",
+        path: "variants/other/backgrounds/background.png",
+      },
+    ],
+  };
+  const sourcesWithSharedObject = [
+    ...sources,
+    {
+      ...sharedSource,
+      path: "variants/other/backgrounds/background.png",
+    },
+  ];
+  const repo = fakeRepository();
+
+  const result = await importTemplateBundle(
+    { ...baseRequest, manifest: manifestWithSharedObject, assets: sourcesWithSharedObject },
+    repo.repository
+  );
+
+  assert.equal(result.ok, true);
+  assert.equal(repo.inserted[0].assets.length, manifestWithSharedObject.assets.length);
+  assert.equal(repo.uploads.length, manifestWithSharedObject.assets.length - 1);
 });
 
 test("builds org-scoped template bundle storage prefixes", () => {

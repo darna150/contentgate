@@ -309,10 +309,11 @@ async function resolveTemplateDamOptions(input: {
     ? await input.supabase
         .from("product_assets")
         .select(
-          "id, product_id, asset_type, title, storage_path, mime_type, media_kind, category, tags, approval_status"
+          "id, current_version_id, product_id, asset_type, title, storage_path, mime_type, media_kind, category, tags, approval_status"
         )
         .or(`product_id.eq.${input.productId},product_id.is.null`)
         .eq("approval_status", "approved")
+        .is("archived_at", null)
     : { data: [] };
   const assets = (data ?? []) as ProductAssetBindingRow[];
   const previewUrls = await createProductAssetPreviewUrlMap(
@@ -335,7 +336,12 @@ async function resolveTemplateDamOptions(input: {
     damAssetUrlById: Object.fromEntries(
       assets.flatMap((asset) => {
         const url = previewUrls.get(asset.storage_path);
-        return url ? [[asset.id, url] as const] : [];
+        return url
+          ? [
+              [asset.id, url] as const,
+              ...(asset.current_version_id ? [[asset.current_version_id, url] as const] : []),
+            ]
+          : [];
       })
     ),
   };

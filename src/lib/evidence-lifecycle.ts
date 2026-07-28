@@ -108,6 +108,7 @@ export async function validateStoredContentEvidence(
     supabase
       .from("documents")
       .select("title, paragraphs")
+      .eq("approval_status", "approved")
       .or(`product_id.eq.${content.product_id},product_id.is.null`),
   ]);
 

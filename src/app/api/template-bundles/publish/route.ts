@@ -5,6 +5,10 @@ import {
   templatePipelineDuration,
 } from "@/lib/template-platform/observability";
 import { decideTemplateVersionPublish } from "@/lib/template-platform/publishing";
+import {
+  decideTemplateVersionStorageIntegrity,
+  type TemplateVersionStorageIntegrity,
+} from "@/lib/template-platform/storage-integrity";
 
 export const runtime = "nodejs";
 
@@ -72,6 +76,38 @@ export async function POST(req: Request) {
   const decision = decideTemplateVersionPublish(version.status);
   if (!decision.ok) {
     return Response.json({ error: decision.reason }, { status: 409 });
+  }
+
+  const { data: integrityRows, error: integrityError } = await supabase.rpc(
+    "template_version_storage_integrity",
+    {
+      p_template_version_id: version.id,
+      p_org_id: admin.value.orgId,
+    }
+  );
+  const integrity = decideTemplateVersionStorageIntegrity(
+    (Array.isArray(integrityRows) ? integrityRows[0] : integrityRows) as
+      | TemplateVersionStorageIntegrity
+      | null
+  );
+  if (integrityError || !integrity.ok) {
+    logTemplatePipelineEvent({
+      event: "template.publish",
+      ok: false,
+      orgId: admin.value.orgId,
+      userId: admin.value.userId,
+      templateVersionId: version.id,
+      templateFamilyId: version.family_id,
+      durationMs: templatePipelineDuration(startedAt),
+      reason: integrityError ? "integrity_check_failed" : "storage_incomplete",
+    });
+    return Response.json(
+      {
+        error: "Template version storage is incomplete and cannot be published.",
+        missingAssetKeys: integrity.ok ? [] : integrity.missingAssetKeys,
+      },
+      { status: 409 }
+    );
   }
 
   const { data: publishedRows, error: publishError } = await supabase.rpc(

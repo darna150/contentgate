@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { createProductAssetDownloadUrl } from "@/app/(app)/products/actions";
+import { createProductAssetDownloadUrl, retryProductAssetMedia } from "@/app/(app)/products/actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -24,6 +24,7 @@ export function AssetPreviewDialog({ asset, isAdmin, onClose, onEdit, onDelete }
   const [imageFailed, setImageFailed] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
+  const [retrying, setRetrying] = useState(false);
   const canDownload = asset.approvalStatus === "approved" || isAdmin;
 
   async function handleDownload() {
@@ -36,6 +37,19 @@ export function AssetPreviewDialog({ asset, isAdmin, onClose, onEdit, onDelete }
       setDownloadError(err instanceof Error ? err.message : "Could not create download link.");
     } finally {
       setDownloading(false);
+    }
+  }
+
+  async function handleRetryProcessing() {
+    setDownloadError(null);
+    setRetrying(true);
+    try {
+      await retryProductAssetMedia(asset.id);
+      onClose();
+    } catch (err) {
+      setDownloadError(err instanceof Error ? err.message : "Could not retry processing.");
+    } finally {
+      setRetrying(false);
     }
   }
 
@@ -54,6 +68,10 @@ export function AssetPreviewDialog({ asset, isAdmin, onClose, onEdit, onDelete }
                 controls
                 preload="metadata"
               />
+            ) : asset.mediaKind === "document" ? (
+              <div className="px-6 text-center text-sm text-ink-muted">
+                This file has no inline preview. Download it to view the original.
+              </div>
             ) : imageFailed ? (
               <div className="flex flex-col items-center gap-1.5 text-center">
                 <span className="flex size-8 items-center justify-center rounded-full bg-edge text-[13px] text-ink-faint">
@@ -136,6 +154,11 @@ export function AssetPreviewDialog({ asset, isAdmin, onClose, onEdit, onDelete }
             )}
 
             <div className="mt-auto flex flex-wrap gap-2 border-t border-edge pt-3.5">
+              {isAdmin && asset.approvalStatus === "rejected" && (
+                <Button type="button" variant="outline" onClick={handleRetryProcessing} disabled={retrying}>
+                  {retrying ? "Retrying…" : "Retry processing"}
+                </Button>
+              )}
               {canDownload && asset.previewUrl && (
                 <Button type="button" variant="secondary" onClick={handleDownload} disabled={downloading}>
                   {downloading ? "Preparing…" : "Download asset"}
@@ -161,7 +184,7 @@ export function AssetPreviewDialog({ asset, isAdmin, onClose, onEdit, onDelete }
                     onClick={onDelete}
                     className="border-reject-border text-reject hover:border-reject-border hover:bg-reject-tint hover:text-reject"
                   >
-                    <TrashIcon className="h-3.5 w-3.5" /> Delete
+                    <TrashIcon className="h-3.5 w-3.5" /> Archive
                   </Button>
                 </>
               )}

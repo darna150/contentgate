@@ -41,6 +41,10 @@ export function AssetRow({
           Video
         </span>
       </div>
+    ) : asset.mediaKind === "document" ? (
+      <div className="flex h-full w-full items-center justify-center bg-page text-[9px] font-bold uppercase text-ink-faint">
+        File
+      </div>
     ) : (
       <PreviewImage
         src={asset.previewUrl}

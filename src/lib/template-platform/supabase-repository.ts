@@ -49,8 +49,7 @@ function throwOnSupabaseError(result: SupabaseWriteResult, action: string) {
 }
 
 export function createSupabaseTemplateBundleRepository(
-  client: SupabaseTemplatePlatformClient = createAdminClient() as unknown as SupabaseTemplatePlatformClient,
-  options: { uploadUpsert?: boolean } = {}
+  client: SupabaseTemplatePlatformClient = createAdminClient() as unknown as SupabaseTemplatePlatformClient
 ): TemplateBundleImportRepository {
   return {
     async findTemplateFamilyId(input) {
@@ -66,12 +65,28 @@ export function createSupabaseTemplateBundleRepository(
       return result.data?.id ?? null;
     },
 
+    async findTemplateVersionId(input) {
+      const result = await client
+        .from("template_versions")
+        .select("id")
+        .eq("org_id", input.orgId)
+        .eq("family_id", input.familyId)
+        .eq("version_label", input.versionLabel)
+        .maybeSingle();
+      if (result.error) {
+        throw new Error(`Find template version: ${result.error.message}`);
+      }
+      return result.data?.id ?? null;
+    },
+
     async uploadTemplateAsset(input) {
       const result = await client.storage
         .from(input.bucket)
         .upload(input.path, input.data, {
           contentType: input.contentType ?? undefined,
-          upsert: options.uploadUpsert ?? true,
+          // Import cleanup may only remove objects created by the current
+          // attempt. Preventing replacement makes that statement true.
+          upsert: false,
         });
       throwOnSupabaseError(result, `Upload template asset ${input.path}`);
     },

@@ -2,6 +2,7 @@ import type { TemplateBundleField } from "./manifest.ts";
 
 export type TemplateDamAssetRow = {
   id: string;
+  current_version_id?: string | null;
   product_id: string | null;
   asset_type: string;
   title: string | null;
@@ -88,7 +89,9 @@ export function buildTemplateAssetChoiceOptions(input: {
       })
     )
     .map((asset) => ({
-      key: asset.id,
+      // New content stores the immutable version ID. Existing content that
+      // stored the logical asset ID remains resolvable by the server mapper.
+      key: asset.current_version_id ?? asset.id,
       label: asset.title ?? asset.id,
       previewUrl: input.previewUrlByStoragePath?.get(asset.storage_path),
       storagePath: asset.storage_path,

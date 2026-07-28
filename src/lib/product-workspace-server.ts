@@ -321,6 +321,7 @@ export async function getProductWorkspace(
     )
     .eq("org_id", profile.org_id)
     .eq("product_id", productId)
+    .is("archived_at", null)
     .order("created_at", { ascending: false });
   let contentQuery = supabase
     .from("generated_content")

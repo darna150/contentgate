@@ -40,6 +40,7 @@ export const ASSET_TYPE_LABELS: Record<ProductAssetType, string> = {
   background: "Background",
   image: "Supporting image",
   video: "Video",
+  document: "Document",
 };
 
 export const ASSET_STATUS_LABELS: Record<ProductAssetApprovalStatus, string> = {

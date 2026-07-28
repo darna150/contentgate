@@ -6,8 +6,8 @@ import test from "node:test";
 type NimbusFrameSource = {
   defaultBackgroundKey: string;
   defaultProductVariantKey: string;
-  backgroundOptions: Array<{ key: string; label: string }>;
-  productVariants: Array<{ key: string; label: string }>;
+  backgroundOptions: Array<{ key: string; label: string; asset: string }>;
+  productVariants: Array<{ key: string; label: string; asset: string }>;
   frames: Array<{
     key: string;
     label: string;
@@ -32,8 +32,24 @@ test("Nimbus source keeps the full Figma frame inventory and picker defaults", a
 
   assert.equal(source.defaultBackgroundKey, "sky");
   assert.equal(source.defaultProductVariantKey, "nimbus-1");
-  assert.deepEqual(source.backgroundOptions.map((option) => option.key), ["sky"]);
-  assert.deepEqual(source.productVariants.map((option) => option.key), ["nimbus-1"]);
+  assert.deepEqual(source.backgroundOptions.map((option) => option.key), [
+    "sky",
+    "warm-pavement",
+    "blush-speed",
+    "light-road",
+  ]);
+  for (const option of source.backgroundOptions) {
+    assert.match(option.asset, /^background(?:-[a-z-]+)?\.png$/);
+  }
+  assert.deepEqual(source.productVariants.map((option) => option.key), [
+    "nimbus-1",
+    "chalk-bone",
+    "volt-lime",
+    "electric-cobalt",
+  ]);
+  for (const variant of source.productVariants) {
+    assert.match(variant.asset, /^nimbus-1(?:-[a-z-]+)?\.png$/);
+  }
   assert.equal(source.frames.length, 42);
   assert.equal(frameKeys.size, source.frames.length);
 

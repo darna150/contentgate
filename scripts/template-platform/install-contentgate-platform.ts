@@ -79,10 +79,21 @@ function createCliTemplateBundleRepository(
       if (error) throw new Error(`Find template family: ${error.message}`);
       return asIdRow(data)?.id ?? null;
     },
+    async findTemplateVersionId(input) {
+      const { data, error } = await client
+        .from("template_versions")
+        .select("id")
+        .eq("org_id", input.orgId)
+        .eq("family_id", input.familyId)
+        .eq("version_label", input.versionLabel)
+        .maybeSingle();
+      if (error) throw new Error(`Find template version: ${error.message}`);
+      return asIdRow(data)?.id ?? null;
+    },
     async uploadTemplateAsset(input) {
       const result = await client.storage.from(input.bucket).upload(input.path, input.data, {
         contentType: input.contentType ?? undefined,
-        upsert: true,
+        upsert: false,
       });
       throwOnSupabaseError(result, `Upload template asset ${input.path}`);
     },

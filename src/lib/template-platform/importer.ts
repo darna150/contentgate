@@ -16,6 +16,9 @@ import {
 } from "./manifest.ts";
 
 export const TEMPLATE_BUNDLE_STORAGE_BUCKET = "template-bundles" as const;
+// Keep imports comfortably inside serverless request limits without creating a
+// storage stampede. Each object is immutable and independently addressable.
+export const TEMPLATE_BUNDLE_IMPORT_UPLOAD_CONCURRENCY = 6;
 
 export type TemplateBundleAssetSource = {
   path: string;
@@ -45,6 +48,11 @@ export type TemplateBundleImportRepository = {
   findTemplateFamilyId(input: {
     orgId: string;
     familyKey: string;
+  }): Promise<string | null>;
+  findTemplateVersionId(input: {
+    orgId: string;
+    familyId: string;
+    versionLabel: string;
   }): Promise<string | null>;
   uploadTemplateAsset(input: {
     bucket: typeof TEMPLATE_BUNDLE_STORAGE_BUCKET;
@@ -208,6 +216,34 @@ export async function importTemplateBundle(
     return compileResult;
   }
 
+  // Storage paths are derived from the family/version label and asset hash. A
+  // duplicate version can therefore target objects that belong to an already
+  // imported bundle. Reject it before the first upload: retrying an import
+  // must never overwrite, or later clean up, a previously valid bundle.
+  if (existingFamilyId) {
+    const existingVersionId = await repository.findTemplateVersionId({
+      orgId: request.orgId,
+      familyId: existingFamilyId,
+      versionLabel: request.manifest.version.name,
+    });
+    if (existingVersionId) {
+      const issues = [
+        issue(
+          "version.name",
+          `Template version "${request.manifest.version.name}" already exists (${existingVersionId}). Import a new version label instead.`,
+          "value"
+        ),
+      ];
+      await recordFailedImport({
+        repository,
+        request,
+        manifestSha256: compileResult.value.manifestSha256,
+        issues,
+      });
+      return { ok: false, issues };
+    }
+  }
+
   const payloadIssues = validateTemplateBundleAssetPayloads(request.manifest.assets, request.assets);
   if (payloadIssues.length > 0) {
     await recordFailedImport({
@@ -221,6 +257,14 @@ export async function importTemplateBundle(
 
   const sourcesByPath = assetSourceByPath(request.assets);
   const uploadedPaths: string[] = [];
+  const uploadPlan = new Map<
+    string,
+    {
+      asset: CompiledTemplateBundleImport["rows"]["assets"][number];
+      source: TemplateBundleAssetSource;
+    }
+  >();
+
   for (const asset of compileResult.value.rows.assets) {
     const manifestAsset = request.manifest.assets.find(
       (candidate) => candidate.key === asset.asset_key
@@ -229,25 +273,70 @@ export async function importTemplateBundle(
     if (!source) {
       throw new Error(`Missing already validated asset payload for ${asset.asset_key}.`);
     }
-    await repository.uploadTemplateAsset({
-      bucket: TEMPLATE_BUNDLE_STORAGE_BUCKET,
-      path: asset.storage_path,
-      data: source.data,
-      contentType: source.contentType ?? asset.mime_type,
-    });
-    uploadedPaths.push(asset.storage_path);
+
+    // Several rows can intentionally reference one content-addressed object
+    // (for example the same background across sizes). Upload that object once
+    // while retaining every relational asset row.
+    if (!uploadPlan.has(asset.storage_path)) {
+      uploadPlan.set(asset.storage_path, { asset, source });
+    }
   }
 
   try {
+    const uploadItems = [...uploadPlan.values()];
+    let nextUploadIndex = 0;
+    let uploadFailure: unknown = null;
+    async function uploadWorker() {
+      while (uploadFailure === null) {
+        const item = uploadItems[nextUploadIndex++];
+        if (!item) return;
+        try {
+          await repository.uploadTemplateAsset({
+            bucket: TEMPLATE_BUNDLE_STORAGE_BUCKET,
+            path: item.asset.storage_path,
+            data: item.source.data,
+            contentType: item.source.contentType ?? item.asset.mime_type,
+          });
+          uploadedPaths.push(item.asset.storage_path);
+        } catch (error) {
+          uploadFailure = error;
+        }
+      }
+    }
+    await Promise.all(
+      Array.from(
+        { length: Math.min(TEMPLATE_BUNDLE_IMPORT_UPLOAD_CONCURRENCY, uploadItems.length) },
+        () => uploadWorker()
+      )
+    );
+    if (uploadFailure !== null) throw uploadFailure;
+
     await repository.insertCompiledTemplateBundle(compileResult.value.rows);
   } catch (error) {
+    // uploadTemplateAsset is non-overwriting. Every path in uploadedPaths was
+    // therefore created by this attempt and can be safely compensated for.
+    // Preserve the original failure even if the best-effort cleanup/reporting
+    // path has an independent problem.
     if (uploadedPaths.length > 0) {
       await repository.removeTemplateAssets({
         bucket: TEMPLATE_BUNDLE_STORAGE_BUCKET,
         paths: uploadedPaths,
-      });
+      }).catch(() => undefined);
     }
+    await recordFailedImport({
+      repository,
+      request,
+      manifestSha256: compileResult.value.manifestSha256,
+      issues: [
+        issue(
+          "import",
+          error instanceof Error ? error.message : "Template bundle import failed.",
+          "value"
+        ),
+      ],
+    }).catch(() => undefined);
     throw error;
   }
+
   return compileResult;
 }

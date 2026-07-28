@@ -6,16 +6,16 @@
   "defaultBackgroundKey": "sky",
   "defaultProductVariantKey": "nimbus-1",
   "backgroundOptions": [
-    {
-      "key": "sky",
-      "label": "Sky"
-    }
+    { "key": "sky", "label": "Sky", "asset": "background.png" },
+    { "key": "warm-pavement", "label": "Warm Pavement", "asset": "background-warm-pavement.png" },
+    { "key": "blush-speed", "label": "Blush Speed Streaks", "asset": "background-blush-speed.png" },
+    { "key": "light-road", "label": "Light Road", "asset": "background-light-road.png" }
   ],
   "productVariants": [
-    {
-      "key": "nimbus-1",
-      "label": "Nimbus 1"
-    }
+    { "key": "nimbus-1", "label": "Nimbus 1", "asset": "nimbus-1.png" },
+    { "key": "chalk-bone", "label": "Chalk / Bone", "asset": "nimbus-1-chalk-bone.png" },
+    { "key": "volt-lime", "label": "Volt Lime", "asset": "nimbus-1-volt-lime.png" },
+    { "key": "electric-cobalt", "label": "Electric Cobalt", "asset": "nimbus-1-electric-cobalt.png" }
   ],
   "frames": [
     { "key": "instagram-post-square", "label": "Instagram post (square)", "channel": "instagram", "figmaNodeId": "2:6", "width": 1080, "height": 1080 },

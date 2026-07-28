@@ -105,6 +105,13 @@ export default async function ApprovalsPage({
     return query ? `/approvals?${query}` : "/approvals";
   }
 
+  const campaigns = new Map<string, QueueRow[]>();
+  for (const row of rows) {
+    const group = campaigns.get(row.title) ?? [];
+    group.push(row);
+    campaigns.set(row.title, group);
+  }
+
   return (
     <div className="mx-auto flex max-w-[1280px] flex-col gap-6 px-4 py-9 sm:px-10">
       <div className="flex flex-col gap-1.5">
@@ -117,7 +124,7 @@ export default async function ApprovalsPage({
           </Link>
         )}
         <PageHeader
-          title="Approval Queue"
+          title="Reviews"
           description={
             productName
               ? `Content for ${productName} waiting for review.`
@@ -143,20 +150,26 @@ export default async function ApprovalsPage({
           description="When someone submits content for review, it lands here."
         />
       ) : (
-        <Card className="gap-1 p-3">
-          {rows.map((row) => {
+        <div className="flex flex-col gap-3">
+          {Array.from(campaigns.entries()).map(([campaignTitle, campaignRows]) => (
+            <Card key={campaignTitle} className="gap-1 p-3">
+              <div className="flex items-center justify-between gap-3 px-3.5 py-2">
+                <div><h2 className="text-[14px] font-bold text-ink">{campaignTitle}</h2><p className="text-[13px] text-ink-faint">{campaignRows.length} {campaignRows.length === 1 ? "format" : "formats"} awaiting individual decisions</p></div>
+                <span className="text-[13px] font-semibold text-brand">Campaign package</span>
+              </div>
+          {campaignRows.map((row) => {
             const urgency = approvalUrgency(row.created_at);
             return (
               <Link
                 key={row.id}
-                href={studioContentUrl(row.id)}
+                href={studioContentUrl(row.id, undefined, buildHref({}))}
                 className={`flex items-center gap-3.5 rounded-control border-l-4 px-3.5 py-3 transition-colors hover:bg-page ${URGENCY_BORDER[urgency.tone]}`}
               >
                 <span className="flex min-w-0 flex-1 flex-col">
                   <span className="truncate text-[13.5px] font-semibold">
                     {row.title}
                   </span>
-                  <span className="text-[11.5px] text-ink-faint">
+                  <span className="text-[13px] text-ink-faint">
                     {row.templateName ?? "Custom"} · {row.target_language}
                     {row.audience ? ` · ${row.audience}` : ""} · submitted by{" "}
                     {row.creatorName ?? "a teammate"} · {formatDate(row.created_at)}
@@ -164,13 +177,13 @@ export default async function ApprovalsPage({
                 </span>
                 <span className="flex flex-col items-end gap-0.5">
                   <span
-                    className={`text-[11.5px] ${urgency.tone === "urgent" ? "font-bold text-reject" : "text-ink-faint"}`}
+                    className={`text-[13px] ${urgency.tone === "urgent" ? "font-bold text-reject" : "text-ink-faint"}`}
                   >
                     {urgency.waitingLabel}
                   </span>
                   {urgency.tone === "urgent" && (
                     <span className="rounded-[5px] bg-reject-tint px-[6px] py-0.5 text-[9.5px] font-bold uppercase tracking-[0.05em] text-reject">
-                      Blocked on you
+                      Overdue for review
                     </span>
                   )}
                 </span>
@@ -181,12 +194,14 @@ export default async function ApprovalsPage({
               </Link>
             );
           })}
+            </Card>
+          ))}
           {nextCursor && (
             <Button asChild variant="ghost" className="mt-1 justify-center">
               <Link href={buildHref({ cursor: nextCursor })}>Load more approvals</Link>
             </Button>
           )}
-        </Card>
+        </div>
       )}
     </div>
   );

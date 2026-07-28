@@ -10,6 +10,7 @@ import {
   productAssetMediaKindForMimeType,
   sanitizeProductAssetFileName,
   validateProductAssetFile,
+  validateProductAssetTransparency,
 } from "./product-assets.ts";
 
 test("builds an organization and product scoped storage path", () => {
@@ -54,7 +55,8 @@ test("normalizes, deduplicates, and limits tags", () => {
 test("detects supported asset media kinds", () => {
   assert.equal(productAssetMediaKindForMimeType("image/png"), "image");
   assert.equal(productAssetMediaKindForMimeType("video/mp4"), "video");
-  assert.equal(productAssetMediaKindForMimeType("application/pdf"), null);
+  assert.equal(productAssetMediaKindForMimeType("application/pdf"), "document");
+  assert.equal(productAssetMediaKindForMimeType("application/zip"), null);
 });
 
 test("accepts supported video assets and rejects oversized videos", () => {
@@ -94,4 +96,17 @@ test("detects video containers from bytes instead of trusting MIME alone", () =>
     ),
     null
   );
+});
+
+test("requires verified transparent pixels for packshots without constraining other asset types", () => {
+  assert.doesNotThrow(() => validateProductAssetTransparency("packshot", true, false));
+  assert.throws(
+    () => validateProductAssetTransparency("packshot", false, true),
+    /transparent pixels/
+  );
+  assert.throws(
+    () => validateProductAssetTransparency("packshot", true, true),
+    /transparent pixels/
+  );
+  assert.doesNotThrow(() => validateProductAssetTransparency("background", false, true));
 });
