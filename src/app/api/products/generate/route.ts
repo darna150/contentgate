@@ -483,7 +483,7 @@ export async function POST(req: Request) {
       outputSizeKey
     );
     const assetUrlByPath = Object.fromEntries(
-      await createTemplateBundleAssetUrlMap(supabase, [assignment.manifest])
+      await createTemplateBundleAssetUrlMap(supabase, profile.org_id, [assignment.manifest])
     );
     const typographyInstructions = templatePlatformFitInstructions({
       manifest: assignment.manifest,

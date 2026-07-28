@@ -394,7 +394,7 @@ export async function loadStudioState(input: {
     listActiveAssignments(),
     supabase.from("organizations").select("name").single(),
     user
-      ? supabase.from("profiles").select("role").eq("id", user.id).single()
+      ? supabase.from("profiles").select("role, org_id").eq("id", user.id).single()
       : Promise.resolve({ data: null }),
   ]);
 
@@ -415,11 +415,13 @@ export async function loadStudioState(input: {
     productTemplates[0] ??
     null;
 
-  if (selectedTemplate?.platformManifest) {
+  if (selectedTemplate?.platformManifest && profile?.org_id) {
     selectedTemplate = {
       ...selectedTemplate,
       platformAssetUrlByPath: Object.fromEntries(
-        await createTemplateBundleAssetUrlMap(supabase, [selectedTemplate.platformManifest])
+        await createTemplateBundleAssetUrlMap(supabase, profile.org_id, [
+          selectedTemplate.platformManifest,
+        ])
       ),
     };
   }
