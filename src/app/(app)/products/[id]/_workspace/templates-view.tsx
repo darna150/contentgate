@@ -95,10 +95,26 @@ function TemplateCard({
           </div>
 
           <div className="grid gap-x-6 sm:grid-cols-2">
-            {Array.from(formatsByChannel.entries()).map(([channel, sizes]) => (
-              <section key={channel} className="border-t border-edge py-4 first:sm:border-t">
-                <h3 className="text-label text-ink-faint">{channel}</h3>
-                <ul className="mt-2 divide-y divide-edge/70">
+            {Array.from(formatsByChannel.entries()).map(([channel, sizes]) => {
+              const started = sizes.filter((size) => (sizeStatus[size] ?? "empty") !== "empty").length;
+              const approved = sizes.filter((size) => sizeStatus[size] === "approved").length;
+              return (
+              <details key={channel} className="group border-t border-edge py-1.5">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-[8px] px-2 py-2.5 transition-colors hover:bg-page focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
+                  <div>
+                    <h3 className="text-label text-ink-faint">{channel}</h3>
+                    <p className="mt-1 text-[12px] text-ink-muted">
+                      {sizes.length} formats · {started ? `${started} started` : "None started"}
+                      {approved ? ` · ${approved} approved` : ""}
+                    </p>
+                  </div>
+                  <span className="flex items-center gap-2 text-[12px] font-semibold text-brand">
+                    <span className="group-open:hidden">Choose format</span>
+                    <span className="hidden group-open:inline">Hide formats</span>
+                    <span className="text-[16px] leading-none transition-transform group-open:rotate-45" aria-hidden>+</span>
+                  </span>
+                </summary>
+                <ul className="mt-1 divide-y divide-edge/70">
                   {sizes.map((size) => {
                     const meta = template.variantMetaBySize[size];
                     const item = contentBySize[size];
@@ -133,8 +149,9 @@ function TemplateCard({
                     );
                   })}
                 </ul>
-              </section>
-            ))}
+              </details>
+            );
+            })}
           </div>
         </div>
       </div>
