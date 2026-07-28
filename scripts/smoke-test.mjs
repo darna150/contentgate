@@ -28,14 +28,30 @@ if (healthBody.status !== "ok") {
 
 const login = await request("/login");
 if (login.status !== 200) throw new Error(`/login returned ${login.status}`);
-
-const protectedPage = await request("/dashboard");
-if (![302, 303, 307, 308].includes(protectedPage.status)) {
-  throw new Error(`/dashboard did not redirect (${protectedPage.status})`);
+for (const header of ["content-security-policy", "x-content-type-options", "x-frame-options"]) {
+  if (!login.headers.get(header)) throw new Error(`/login is missing ${header}`);
 }
-const location = protectedPage.headers.get("location") || "";
-if (!location.includes("/login")) {
-  throw new Error(`/dashboard redirected to an unexpected location: ${location}`);
+
+for (const path of ["/dashboard", "/ask", "/ask/quality"]) {
+  const protectedPage = await request(path);
+  if (![302, 303, 307, 308].includes(protectedPage.status)) {
+    throw new Error(`${path} did not redirect (${protectedPage.status})`);
+  }
+  const location = protectedPage.headers.get("location") || "";
+  if (!location.includes("/login")) {
+    throw new Error(`${path} redirected to an unexpected location: ${location}`);
+  }
+}
+
+for (const path of ["/api/products/ask", "/api/products/ask/feedback"]) {
+  const protectedApi = await request(path, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: "{}",
+  });
+  if (protectedApi.status !== 401) {
+    throw new Error(`${path} did not reject an unauthenticated request (${protectedApi.status})`);
+  }
 }
 
 console.log(`Production smoke checks passed for ${baseUrl}.`);
