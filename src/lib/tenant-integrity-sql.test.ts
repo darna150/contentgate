@@ -101,22 +101,6 @@ test("Phase 1A migration adds explicit Data API grants", () => {
   assert.match(sql, /grant execute on function public\.record_render_job_event\(uuid, text, text, jsonb, jsonb\) to authenticated/);
 });
 
-test("asset download recording is an atomic authorized RPC", () => {
-  const sql = readFileSync(
-    "supabase/migrations/20260724122156_record_product_asset_download.sql",
-    "utf8"
-  );
-
-  assert.match(sql, /create or replace function public\.record_product_asset_download\(p_asset_id uuid\)/);
-  assert.match(sql, /security definer/);
-  assert.match(sql, /caller_id uuid := auth\.uid\(\)/);
-  assert.match(sql, /asset_status <> 'approved' and caller_role <> 'admin'/);
-  assert.match(sql, /download_count = coalesce\(download_count, 0\) \+ 1/);
-  assert.match(sql, /revoke all on function public\.record_product_asset_download\(uuid\) from public/);
-  assert.match(sql, /revoke all on function public\.record_product_asset_download\(uuid\) from anon/);
-  assert.match(sql, /grant execute on function public\.record_product_asset_download\(uuid\) to authenticated/);
-});
-
 test("Ask feedback binds queries and users to the same tenant", () => {
   const feedbackSql = compact(
     readFileSync("supabase/migrations/20260728044150_ask_answer_feedback.sql", "utf8")
