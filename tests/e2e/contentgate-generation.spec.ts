@@ -203,9 +203,9 @@ async function assertPreviewIsAvailable(page: Page) {
 }
 
 async function findFieldTextarea(page: Page, labelPattern: RegExp) {
-  const label = page.locator("label").filter({ hasText: labelPattern }).first();
-  await expect(label).toBeVisible();
-  return label.locator("xpath=following-sibling::textarea").first();
+  const textarea = page.getByLabel(labelPattern).first();
+  await expect(textarea).toBeVisible();
+  return textarea;
 }
 
 async function findEditableTextArea(page: Page) {
