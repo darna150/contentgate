@@ -392,13 +392,18 @@ test.describe("ContentGate live generation QA", () => {
     const contentId = await generatePrimaryDraft(page);
 
     await page.getByRole("button", { name: /Submit for review/i }).click();
-    await expect(page.getByText(new RegExp(`IN REVIEW\\s*·\\s*${OUTPUT_SIZE_LABEL}`, "i"))).toBeVisible({
+    await expect(page.getByText("In review", { exact: true }).first()).toBeVisible({
       timeout: 30_000,
     });
+    await expect(page.getByRole("button", { name: OUTPUT_SIZE_BUTTON })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+      { timeout: 30_000 }
+    );
     await expect(page.getByText(/Awaiting your review/i)).toBeVisible();
 
     await page.getByRole("button", { name: /^Approve$/i }).click();
-    await expect(page.getByText(new RegExp(`APPROVED\\s*·\\s*${OUTPUT_SIZE_LABEL}`, "i"))).toBeVisible({
+    await expect(page.getByText("Approved", { exact: true }).first()).toBeVisible({
       timeout: 30_000,
     });
     await expect(page.getByText(/Approved snapshot/i)).toBeVisible();
@@ -487,7 +492,7 @@ test.describe("ContentGate live generation QA", () => {
     await generatePrimaryDraft(page);
 
     await page.getByRole("button", { name: /Submit for review/i }).click();
-    await expect(page.getByText(new RegExp(`IN REVIEW\\s*·\\s*${OUTPUT_SIZE_LABEL}`, "i"))).toBeVisible({
+    await expect(page.getByText("In review", { exact: true }).first()).toBeVisible({
       timeout: 30_000,
     });
 
@@ -495,7 +500,7 @@ test.describe("ContentGate live generation QA", () => {
     await page.getByPlaceholder(/What needs to change/i).fill(rejectionNote);
     await page.getByRole("button", { name: /Reject with note/i }).click();
 
-    await expect(page.getByText(new RegExp(`REJECTED\\s*·\\s*${OUTPUT_SIZE_LABEL}`, "i"))).toBeVisible({
+    await expect(page.getByText("Rejected", { exact: true }).first()).toBeVisible({
       timeout: 30_000,
     });
     await expect(page.getByText("Changes requested")).toBeVisible();
