@@ -39,7 +39,7 @@ const SURFACES: Surface[] = [
   {
     name: "Product approvals",
     path: `/products/${DEMO_PRODUCT_ID}?view=approvals`,
-    expectedText: /Approval|Open Approval Queue|The queue is clear/i,
+    expectedText: /Reviews|Content waiting for your review|The queue is clear/i,
   },
   {
     name: "Product knowledge",

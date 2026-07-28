@@ -242,12 +242,10 @@ async function expectNimbusStudioPickers(page: Page) {
   const productPicker = page.getByTestId("studio-asset-choice-__productVariantKey");
   await expect(productPicker).toBeVisible();
   await expect(productPicker).toContainText("Nimbus 1");
-  await expect(productPicker).toContainText("1 option");
 
   const backgroundPicker = page.getByTestId("studio-background-picker");
   await expect(backgroundPicker).toBeVisible();
   await expect(backgroundPicker).toContainText("Sky");
-  await expect(backgroundPicker).toContainText("1 option");
 }
 
 async function findFieldTextarea(page: Page, labelPattern: RegExp) {

@@ -109,6 +109,16 @@ body {
 
 :focus-visible { outline: 3px solid var(--color-brand); outline-offset: 3px; }
 
+/* A wrapped mobile placeholder must remain legible before anyone types. Keep
+   the compact desktop treatment, but reserve two touch-friendly lines below
+   the small breakpoint. This explicit rule also avoids utility-order changes
+   accidentally collapsing the composer during production builds. */
+.ask-composer-input { min-height: 64px; }
+
+@media (min-width: 640px) {
+  .ask-composer-input { min-height: 44px; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
