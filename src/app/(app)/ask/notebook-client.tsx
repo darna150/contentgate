@@ -339,8 +339,11 @@ export function NotebookClient({
     const q = (questionOverride ?? question).trim();
     if (!q || loading) return;
 
-    if (!activeSession) return;
-    const productId = activeSession.product_id;
+    const productId =
+      activeSession?.product_id ??
+      (selectedProductId && selectedProductId !== WORKSPACE_NOTEBOOK_ID
+        ? selectedProductId
+        : null);
 
     let sessionId = activeId;
 
@@ -919,7 +922,7 @@ export function NotebookClient({
         </div>
 
         {/* Input */}
-        {activeSession && (
+        {(activeSession || selectedProduct) && (
           <div className="border-t border-edge bg-surface px-6 py-4">
             <div className="mx-auto max-w-[740px]">
               <form

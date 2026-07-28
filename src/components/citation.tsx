@@ -39,7 +39,7 @@ export function CitationChip({ citation, defaultOpen = false }: { citation: Cita
               href={paragraphN != null ? `/knowledge/${documentId}#p-${paragraphN}` : `/knowledge/${documentId}`}
               className="text-[11.5px] font-semibold text-brand hover:underline"
             >
-              View in Source Documents →
+              View in Brand knowledge →
             </Link>
           )}
         </div>
@@ -63,7 +63,7 @@ export function CitationList({ citations, label = "From approved sources" }: { c
 }
 
 /**
- * Full form (Source Documents detail): the ¶N badge rendered beside a
+ * Full form (Brand knowledge detail): the ¶N badge rendered beside a
  * source paragraph's text. Also usable anywhere a citation traces to a
  * specific, addressable paragraph of an approved document.
  */

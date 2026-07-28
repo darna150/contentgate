@@ -1,0 +1,10 @@
+.git
+.next
+node_modules
+npm-debug.log*
+.env
+.env.*
+supabase/.temp
+coverage
+playwright-report
+test-results

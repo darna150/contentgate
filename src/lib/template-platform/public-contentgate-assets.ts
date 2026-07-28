@@ -35,8 +35,8 @@ export function publicContentGateBundleVariantAssetPath(
 
   const assetPath =
     kind === "background"
-      ? `/template-bundles/${manifest.family.key}/figwright-v1/variants/${variantKey}/background.png`
-      : `/template-bundles/${manifest.family.key}/figwright-v1/variants/${variantKey}/reference.png`;
+      ? `/template-packages/contentgate/${packageKey}/backgrounds/${filename}`
+      : `/template-packages/contentgate/${packageKey}/${filename}`;
   return `${assetPath}?v=${CONTENTGATE_PUBLIC_ASSET_VERSION}`;
 }
 

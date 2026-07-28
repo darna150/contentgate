@@ -2,7 +2,7 @@ import { LoginForm } from "./login-form";
 
 export default function LoginPage() {
   return (
-    <div className="flex min-h-screen bg-page">
+    <main id="main-content" className="flex min-h-screen bg-page" tabIndex={-1}>
       <div className="hidden w-[44%] flex-col bg-brand-dark p-12 text-white md:flex">
         <div className="flex items-center gap-2.5">
           <span className="flex h-[26px] w-[26px] items-center justify-center rounded-[7px] bg-brand text-[15px] font-extrabold leading-none text-white">
@@ -40,6 +40,6 @@ export default function LoginPage() {
           <LoginForm />
         </div>
       </div>
-    </div>
+    </main>
   );
 }

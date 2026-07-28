@@ -1,70 +1,62 @@
 import "server-only";
 
-import type { createClient } from "@/lib/supabase/server";
-import { TEMPLATE_BUNDLE_STORAGE_BUCKET } from "./importer";
-import type { TemplateBundleManifest } from "./manifest";
-import { isPublicContentGateBundle } from "./public-contentgate-assets";
-import {
-  resolveTemplateBundleAssetStoragePath,
-  type TemplateBundleStorageAssetRow,
-} from "./storage-path";
-
-export { templateBundleStoragePath } from "./storage-path";
+import { TEMPLATE_BUNDLE_STORAGE_BUCKET, templateBundleStoragePrefix } from "./importer";
+import type { TemplateBundleAsset, TemplateBundleManifest } from "./manifest";
+import { templateBundleAssetStoragePath } from "./storage-paths";
 
 const TEMPLATE_BUNDLE_URL_TTL_SECONDS = 60 * 60;
 
-type StorageClient = Awaited<ReturnType<typeof createClient>>;
-
-export type TemplateBundleStorageSource = {
-  versionId: string;
-  manifest: TemplateBundleManifest;
+type StorageClient = {
+  storage: {
+    from(bucket: string): {
+      createSignedUrls(
+        paths: string[],
+        expiresIn: number
+      ): Promise<{
+        data:
+          | Array<{ path: string | null; signedUrl: string | null }>
+          | null;
+        error: { message: string } | null;
+      }>;
+    };
+  };
 };
+
+export function templateBundleStoragePath(
+  orgId: string,
+  manifest: TemplateBundleManifest,
+  asset: TemplateBundleAsset
+) {
+  return templateBundleAssetStoragePath(
+    templateBundleStoragePrefix({ orgId, manifest }),
+    asset
+  );
+}
 
 // Includes "font" alongside "background"/"reference": renderer image fonts
 // (loadTemplateBundleImageFonts) and the fit engine (loadTemplateBundleFontData)
-// both resolve fonts through this same URL map, falling back to public/fonts
-// only for ContentGate. Excluding "font" here meant every non-public bundle
-// font had no signed URL to load from, in fit checks and in live Satori
-// rendering alike.
-const SIGNED_ASSET_KINDS = new Set(["background", "font", "reference"]);
+// both resolve fonts through this same URL map. Excluding "font" here meant
+// every bundle font had no signed URL to load from, in fit checks and in live
+// Satori rendering alike.
+const SIGNED_ASSET_KINDS = new Set(["background", "font", "image", "reference"]);
 
 export async function createTemplateBundleAssetUrlMap(
   supabase: StorageClient,
   orgId: string,
-  sources: readonly TemplateBundleStorageSource[]
+  manifests: readonly TemplateBundleManifest[],
+  options: { assetPaths?: readonly string[] } = {}
 ) {
-  const privateSources = sources.filter(
-    ({ manifest }) => !isPublicContentGateBundle(manifest)
-  );
-  const versionIds = Array.from(new Set(privateSources.map((source) => source.versionId)));
-  if (versionIds.length === 0) return new Map<string, string>();
-
-  const { data: storedAssetRows, error: storedAssetError } = await supabase
-    .from("template_assets")
-    .select("template_version_id, asset_key, sha256, storage_path")
-    .eq("org_id", orgId)
-    .in("template_version_id", versionIds);
-  if (storedAssetError) {
-    throw new Error(`Could not load template asset records: ${storedAssetError.message}`);
-  }
-  const storedAssets = (storedAssetRows ?? []) as TemplateBundleStorageAssetRow[];
-
-  const storagePathFor = (source: TemplateBundleStorageSource, assetIndex: number) =>
-    resolveTemplateBundleAssetStoragePath({
-      orgId,
-      versionId: source.versionId,
-      manifest: source.manifest,
-      asset: source.manifest.assets[assetIndex],
-      storedAssets,
-    });
+  const requestedPaths = options.assetPaths ? new Set(options.assetPaths) : null;
   const paths = Array.from(
     new Set(
-      privateSources.flatMap((source) =>
-        source.manifest.assets.flatMap((asset, assetIndex) =>
-          SIGNED_ASSET_KINDS.has(asset.kind)
-            ? [storagePathFor(source, assetIndex)]
-            : []
-        )
+      manifests.flatMap((manifest) =>
+        manifest.assets
+          .filter(
+            (asset) =>
+              SIGNED_ASSET_KINDS.has(asset.kind) &&
+              (!requestedPaths || requestedPaths.has(asset.path))
+          )
+          .map((asset) => templateBundleStoragePath(orgId, manifest, asset))
       )
     )
   );
@@ -76,21 +68,27 @@ export async function createTemplateBundleAssetUrlMap(
   if (error) throw new Error(`Could not sign template bundle URLs: ${error.message}`);
 
   const signedByStoragePath = new Map(
-    (data ?? []).flatMap((item) =>
-      item.path && item.signedUrl
-        ? [[item.path, item.signedUrl] as const]
-        : []
-    )
+    (data ?? [])
+      .filter(
+        (item): item is { path: string; signedUrl: string } =>
+          Boolean(item.path && item.signedUrl)
+      )
+      .map((item) => [item.path, item.signedUrl] as const)
   );
 
   return new Map(
-    privateSources.flatMap((source) =>
-      source.manifest.assets.flatMap((asset, assetIndex) => {
-        if (!SIGNED_ASSET_KINDS.has(asset.kind)) return [];
-        const storagePath = storagePathFor(source, assetIndex);
-        const signedUrl = signedByStoragePath.get(storagePath);
-        return signedUrl ? [[asset.path, signedUrl] as const] : [];
-      })
+    manifests.flatMap((manifest) =>
+      manifest.assets
+        .filter(
+          (asset) =>
+            SIGNED_ASSET_KINDS.has(asset.kind) &&
+            (!requestedPaths || requestedPaths.has(asset.path))
+        )
+        .flatMap((asset) => {
+          const storagePath = templateBundleStoragePath(orgId, manifest, asset);
+          const signedUrl = signedByStoragePath.get(storagePath);
+          return signedUrl ? [[asset.path, signedUrl] as const] : [];
+        })
     )
   );
 }

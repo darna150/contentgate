@@ -9,12 +9,50 @@ import {
 } from "@/lib/template-platform/render";
 
 const GENERATION_MESSAGES = [
-  "Reading the approved brief.",
-  "Balancing the headline and layout.",
-  "Keeping every pixel inside the brand system.",
-  "Checking copy against the source material.",
-  "Polishing the preview for its close-up.",
+  "Giving every word a job…",
+  "Checking the claim before it gets the spotlight…",
+  "Making the layout earn each line break…",
+  "Turning source material into something worth approving…",
 ] as const;
+
+// FontFace instances live for the lifetime of the browser document. Reusing
+// them avoids a new signed-storage font request every time the user changes a
+// size, product colour, or background in Studio.
+const previewFontLoads = new Map<string, Promise<void>>();
+
+function previewFontLoadKey(
+  manifest: TemplateBundleManifest,
+  font: TemplateBundleManifest["fonts"][number]
+) {
+  return [manifest.family.key, manifest.version.name, font.asset, font.family, font.weight, font.style].join(":");
+}
+
+function loadPreviewFont(input: {
+  manifest: TemplateBundleManifest;
+  font: TemplateBundleManifest["fonts"][number];
+  src: string;
+}) {
+  const key = previewFontLoadKey(input.manifest, input.font);
+  const existing = previewFontLoads.get(key);
+  if (existing) return existing;
+
+  const pending = new FontFace(input.font.family, `url(${input.src})`, {
+    weight: String(input.font.weight),
+    style: input.font.style,
+  })
+    .load()
+    .then((loaded) => {
+      document.fonts.add(loaded);
+    })
+    .catch((error) => {
+      // A short-lived signed URL must not poison future attempts after a
+      // refresh or a later size switch obtains a fresh URL.
+      previewFontLoads.delete(key);
+      throw error;
+    });
+  previewFontLoads.set(key, pending);
+  return pending;
+}
 
 function previewScale(input: {
   availableWidth: number;
@@ -82,8 +120,8 @@ export function GenerationLoader() {
           </span>
         </div>
         <div className="flex flex-col gap-1.5">
-          <p className="text-[14px] font-bold text-ink">Building your preview</p>
-          <p className="min-h-5 text-[12.5px] text-ink-muted">
+          <p className="text-[14px] font-bold text-ink">Making the case, not just the copy</p>
+          <p className="min-h-5 text-[13px] text-ink-muted">
             {GENERATION_MESSAGES[messageIndex]}
           </p>
         </div>
@@ -116,14 +154,48 @@ export function ServerPreviewFrame({
   const [scale, setScale] = useState(0.72);
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
   const displaySrc = highDensityPreviewSrc(src);
+  const [loadedSrc, setLoadedSrc] = useState(displaySrc);
+  const [loadingNext, setLoadingNext] = useState(false);
   const imageFailed = failedSrc === displaySrc;
+
+  // Decode the next reference off-screen and keep the previous one in place
+  // until it is paint-ready. Size changes therefore never expose a blank or
+  // half-loaded canvas, even on a cold 2× Figma export.
+  useEffect(() => {
+    if (displaySrc === loadedSrc) return;
+    let cancelled = false;
+    const image = new Image();
+    queueMicrotask(() => {
+      if (!cancelled) setLoadingNext(true);
+    });
+    const reveal = () => {
+      if (cancelled) return;
+      setLoadedSrc(displaySrc);
+      setLoadingNext(false);
+      setFailedSrc(null);
+    };
+    image.onload = () => {
+      const decode = image.decode ? image.decode() : Promise.resolve();
+      void decode.catch(() => undefined).then(reveal);
+    };
+    image.onerror = () => {
+      if (!cancelled) {
+        setFailedSrc(displaySrc);
+        setLoadingNext(false);
+      }
+    };
+    image.src = displaySrc;
+    return () => {
+      cancelled = true;
+    };
+  }, [displaySrc, loadedSrc]);
 
   useEffect(() => {
     const viewport = viewportRef.current;
     if (!viewport) return;
     const updateScale = () => {
-      const availableWidth = Math.max(1, viewport.clientWidth - 48);
-      const availableHeight = Math.max(1, viewport.clientHeight - 48);
+      const availableWidth = Math.max(1, viewport.clientWidth - 32);
+      const availableHeight = Math.max(1, viewport.clientHeight - 32);
       setScale(previewScale({ availableWidth, availableHeight, width, height }));
     };
     updateScale();
@@ -135,11 +207,11 @@ export function ServerPreviewFrame({
   return (
     <div
       ref={viewportRef}
-      className="relative flex h-full min-h-0 w-full items-center justify-center overflow-hidden bg-page p-6"
+      className="relative flex h-full min-h-0 w-full items-center justify-center overflow-hidden bg-[#f5f5f2] p-4"
     >
-      {updating && (
+      {(updating || loadingNext) && (
         <div className="absolute right-4 top-4 z-10 rounded-full bg-surface/90 px-3 py-1.5 text-[11px] font-semibold text-ink-muted shadow-sm">
-          Updating preview…
+          {loadingNext ? "Loading reference…" : "Updating preview…"}
         </div>
       )}
       {imageFailed ? (
@@ -165,8 +237,8 @@ export function ServerPreviewFrame({
       ) : (
         /* eslint-disable-next-line @next/next/no-img-element */
         <img
-          key={displaySrc}
-          src={displaySrc}
+          key={loadedSrc}
+          src={loadedSrc}
           alt="Generated template preview"
           className="block rounded-[3px] shadow-elevated"
           onError={() => setFailedSrc(displaySrc)}
@@ -186,12 +258,14 @@ export function MissingDraftFrame({
   sizeLabel,
   busy,
   onGenerate,
+  onCopyFromCampaign,
 }: {
   width: number;
   height: number;
   sizeLabel: string;
   busy: boolean;
   onGenerate: () => void;
+  onCopyFromCampaign: () => void;
 }) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0.72);
@@ -200,8 +274,8 @@ export function MissingDraftFrame({
     const viewport = viewportRef.current;
     if (!viewport) return;
     const updateScale = () => {
-      const availableWidth = Math.max(1, viewport.clientWidth - 48);
-      const availableHeight = Math.max(1, viewport.clientHeight - 48);
+      const availableWidth = Math.max(1, viewport.clientWidth - 32);
+      const availableHeight = Math.max(1, viewport.clientHeight - 32);
       setScale(previewScale({ availableWidth, availableHeight, width, height }));
     };
     updateScale();
@@ -213,7 +287,7 @@ export function MissingDraftFrame({
   return (
     <div
       ref={viewportRef}
-      className="relative flex h-full min-h-0 w-full items-center justify-center overflow-hidden bg-page p-6"
+      className="relative flex h-full min-h-0 w-full items-center justify-center overflow-hidden bg-[#f5f5f2] p-4"
     >
       <div
         className="flex flex-col items-center justify-center rounded-[3px] border border-dashed border-edge-strong bg-surface px-6 py-8 text-center shadow-sm"
@@ -233,6 +307,15 @@ export function MissingDraftFrame({
         <Button type="button" onClick={onGenerate} disabled={busy} className="mt-4">
           {busy ? "Generating…" : `Generate ${sizeLabel} draft`}
         </Button>
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={onCopyFromCampaign}
+          disabled={busy}
+          className="mt-2"
+        >
+          Copy from campaign
+        </Button>
       </div>
     </div>
   );
@@ -243,15 +326,21 @@ export function LiveTemplatePreviewFrame({
   variantKey,
   fields,
   assetUrlByPath,
+  damAssetUrlById,
   textLayoutByField,
   width,
   height,
   updating,
+  original = false,
 }: {
   manifest: TemplateBundleManifest;
   variantKey: string;
   fields: Record<string, unknown>;
+  /** Signed storage URLs per manifest asset path, so background/product images
+   * resolve for platform bundles served from Supabase storage (not public
+   * files). Without it the renderer falls back to broken relative paths. */
   assetUrlByPath?: Record<string, string>;
+  damAssetUrlById?: Record<string, string>;
   /** Debounced, server-resolved {fontSize, lines} per field (see
    * checkDraftStructuredFieldsFit in content/actions.ts). Undefined until
    * the first resolution lands — uses a conservative local shrink estimate
@@ -260,25 +349,29 @@ export function LiveTemplatePreviewFrame({
   width: number;
   height: number;
   updating: boolean;
+  original?: boolean;
 }) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0.72);
+  const [fontsReady, setFontsReady] = useState(false);
   const renderScale = 2;
   const rendered = renderTemplateBundleVariant({
     manifest,
     variantKey,
     fields,
     assetUrlByPath,
+    damAssetUrlById,
     textLayoutByField,
     scale: renderScale,
+    original,
   });
 
   useEffect(() => {
     const viewport = viewportRef.current;
     if (!viewport) return;
     const updateScale = () => {
-      const availableWidth = Math.max(1, viewport.clientWidth - 48);
-      const availableHeight = Math.max(1, viewport.clientHeight - 48);
+      const availableWidth = Math.max(1, viewport.clientWidth - 32);
+      const availableHeight = Math.max(1, viewport.clientHeight - 32);
       setScale(previewScale({ availableWidth, availableHeight, width, height }));
     };
     updateScale();
@@ -287,15 +380,56 @@ export function LiveTemplatePreviewFrame({
     return () => observer.disconnect();
   }, [height, width]);
 
+  // The editable canvas must use the same embedded font files as the fit
+  // service and ImageResponse export. A CSS family name by itself falls back
+  // to the operating-system font on most machines, which makes a measured
+  // line wrap differently from both Figma and the PNG export.
+  useEffect(() => {
+    let disposed = false;
+    queueMicrotask(() => {
+      if (!disposed) setFontsReady(false);
+    });
+    const variant = manifest.variants.find((item) => item.key === variantKey);
+    const usedFontKeys = new Set(
+      variant?.slots.flatMap((slot) => (slot.kind === "text" ? [slot.fontKey] : [])) ?? []
+    );
+    const bundleFonts = manifest.fonts
+      .filter((font) => usedFontKeys.size === 0 || usedFontKeys.has(font.key))
+      .map((font) => {
+        const assetPath = manifest.assets.find((asset) => asset.key === font.asset)?.path;
+        return { font, src: assetPath ? assetUrlByPath?.[assetPath] : undefined };
+      })
+      .filter((item): item is { font: TemplateBundleManifest["fonts"][number]; src: string } => Boolean(item.src));
+    if (!bundleFonts.length || typeof FontFace === "undefined") {
+      queueMicrotask(() => {
+        if (!disposed) setFontsReady(true);
+      });
+      return;
+    }
+    void Promise.all(
+      bundleFonts.map(({ font, src }) => loadPreviewFont({ manifest, font, src }))
+    )
+      .catch(() => {
+        // Keep the canvas available if a signed asset has just expired. The
+        // subsequent render/fit request will refresh the signed URL.
+      })
+      .finally(() => {
+        if (!disposed) setFontsReady(true);
+      });
+    return () => {
+      disposed = true;
+    };
+  }, [assetUrlByPath, manifest, variantKey]);
+
   if (!rendered) {
     return (
-      <div className="relative flex h-full min-h-0 w-full items-center justify-center overflow-hidden bg-page p-6">
+      <div className="relative flex h-full min-h-0 w-full items-center justify-center overflow-hidden bg-[#f5f5f2] p-4">
         <div className="flex max-w-[420px] flex-col items-center gap-3 rounded-card border border-edge bg-surface px-7 py-6 text-center shadow-elevated">
           <div className="flex size-11 items-center justify-center rounded-full bg-brand-tint text-[18px] text-brand">
             !
           </div>
           <div className="flex flex-col gap-1.5">
-            <p className="text-[14px] font-bold text-ink">Template preview unavailable</p>
+          <p className="text-[14px] font-bold text-ink">Template preview unavailable</p>
             <p className="text-[12.5px] leading-5 text-ink-muted">
               This template size could not render locally. Switch sizes or refresh Studio.
             </p>
@@ -308,8 +442,19 @@ export function LiveTemplatePreviewFrame({
   return (
     <div
       ref={viewportRef}
-      className="relative flex h-full min-h-0 w-full items-center justify-center overflow-hidden bg-page p-6"
+      className="relative flex h-full min-h-0 w-full items-center justify-center overflow-hidden bg-[#f5f5f2] p-4"
+      aria-busy={!fontsReady}
     >
+      {!fontsReady && (
+        <div
+          className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-[#f5f5f2]/90 text-center"
+          role="status"
+          aria-live="polite"
+        >
+          <span className="size-7 animate-spin rounded-full border-2 border-brand/25 border-t-brand motion-reduce:animate-none" aria-hidden="true" />
+          <p className="text-[12.5px] font-semibold text-ink-muted">Loading locked preview…</p>
+        </div>
+      )}
       {updating && (
         <div className="absolute right-4 top-4 z-10 rounded-full bg-surface/90 px-3 py-1.5 text-[11px] font-semibold text-ink-muted shadow-sm">
           Saving…
@@ -328,6 +473,10 @@ export function LiveTemplatePreviewFrame({
             height: rendered.height,
             transform: `scale(${scale / renderScale})`,
             transformOrigin: "top left",
+            // Do not flash a system-font layout before the bundle fonts are
+            // present; the explicit loading state above keeps this from
+            // looking like an empty or broken preview.
+            visibility: fontsReady ? "visible" : "hidden",
           }}
         >
           {rendered.element}

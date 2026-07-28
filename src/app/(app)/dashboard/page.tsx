@@ -38,6 +38,17 @@ function greetingForNow() {
   return "Good evening";
 }
 
+function groupCampaignActivity(items: DashboardSummary["recentActivity"]) {
+  const groups = new Map<string, (typeof items)[number] & { count: number }>();
+  for (const item of items) {
+    const key = [item.productName, item.templateName, item.status].filter(Boolean).join("|");
+    const current = groups.get(key);
+    if (current) current.count += 1;
+    else groups.set(key, { ...item, count: 1 });
+  }
+  return Array.from(groups.values());
+}
+
 export default async function DashboardPage() {
   let displayName = "Preview";
   let summary: DashboardSummary = {
@@ -74,10 +85,10 @@ export default async function DashboardPage() {
     { label: "In review", value: counts.inReview, caption: "Waiting for sign-off", href: "/approvals" },
   ];
 
-  const activity = recentActivity.map((item) => ({
+  const activity = groupCampaignActivity(recentActivity).map((item) => ({
     id: item.id,
     title: item.title,
-    meta: [item.productName, item.templateName, item.targetLanguage, formatDate(item.updatedAt ?? item.createdAt)]
+    meta: [item.productName, item.templateName, item.count > 1 ? `${item.count} draft formats` : item.targetLanguage, formatDate(item.updatedAt ?? item.createdAt)]
       .filter(Boolean)
       .join(" · "),
     status: item.status,
@@ -91,7 +102,7 @@ export default async function DashboardPage() {
           {greetingForNow()}, {displayName}.
         </h1>
         <p className="text-[14px] text-ink-muted">
-          Recent content and what&apos;s waiting on approval.
+          Continue campaign work and see what&apos;s waiting on review.
         </p>
       </div>
 

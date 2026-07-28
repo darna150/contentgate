@@ -1,7 +1,13 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
-import { uploadProductAsset } from "@/app/(app)/products/actions";
+import { useEffect, useRef, useState, useTransition } from "react";
+import { Upload } from "tus-js-client";
+import {
+  cancelProductAssetUpload,
+  createProductAssetUploadIntent,
+  finalizeProductAssetUpload,
+} from "@/app/(app)/products/actions";
+import { createClient } from "@/lib/supabase/client";
 import {
   PRODUCT_ASSET_TYPES,
   validateProductAssetFile,
@@ -43,7 +49,12 @@ export function UploadAssetDialog({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
+  const [durationSeconds, setDurationSeconds] = useState<number | null>(null);
+  const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
+  const videoPreviewUrlRef = useRef<string | null>(null);
+  const [assetType, setAssetType] = useState<ProductAssetType>(defaultAssetType);
   const [dragOver, setDragOver] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -52,10 +63,84 @@ export function UploadAssetDialog({
     ? products.find((p) => p.id === fixedProductId)
     : undefined;
 
+  useEffect(
+    () => () => {
+      if (videoPreviewUrlRef.current) {
+        URL.revokeObjectURL(videoPreviewUrlRef.current);
+      }
+    },
+    []
+  );
+
+  function updateVideoPreview(file: File | null) {
+    if (videoPreviewUrlRef.current) {
+      URL.revokeObjectURL(videoPreviewUrlRef.current);
+      videoPreviewUrlRef.current = null;
+    }
+    const nextUrl = file?.type.startsWith("video/") ? URL.createObjectURL(file) : null;
+    videoPreviewUrlRef.current = nextUrl;
+    setVideoPreviewUrl(nextUrl);
+  }
+
+  function resumableEndpoint() {
+    const supabaseUrl = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL!);
+    const match = supabaseUrl.hostname.match(/^(.+)\.supabase\.(co|in|red)$/);
+    if (match) supabaseUrl.hostname = `${match[1]}.storage.supabase.${match[2]}`;
+    supabaseUrl.pathname = "/storage/v1/upload/resumable";
+    supabaseUrl.search = "";
+    return supabaseUrl.toString();
+  }
+
+  async function uploadDirectly(input: {
+    file: File;
+    storagePath: string;
+    uploadToken: string;
+  }) {
+    const supabase = createClient();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (!session?.access_token) throw new Error("Your session expired. Refresh and try again.");
+
+    await new Promise<void>((resolve, reject) => {
+      const upload = new Upload(input.file, {
+        endpoint: resumableEndpoint(),
+        chunkSize: 6 * 1024 * 1024,
+        retryDelays: [0, 3_000, 5_000, 10_000, 20_000],
+        uploadDataDuringCreation: true,
+        removeFingerprintOnSuccess: true,
+        headers: {
+          authorization: `Bearer ${session.access_token}`,
+          "x-signature": input.uploadToken,
+          "x-upsert": "false",
+        },
+        metadata: {
+          bucketName: "product-assets",
+          objectName: input.storagePath,
+          contentType: input.file.type,
+          cacheControl: "3600",
+        },
+        onError: reject,
+        onProgress: (uploaded, total) => {
+          setUploadProgress(total > 0 ? Math.round((uploaded / total) * 100) : 0);
+        },
+        onSuccess: () => resolve(),
+      });
+
+      void upload.findPreviousUploads().then((previousUploads) => {
+        if (previousUploads.length > 0) upload.resumeFromPreviousUpload(previousUploads[0]);
+        upload.start();
+      }, reject);
+    });
+  }
+
   function handleFiles(files: FileList | null) {
     const file = files?.[0] ?? null;
     setFileError(null);
+    setDurationSeconds(null);
+    setUploadProgress(null);
     setSuccess(false);
+    updateVideoPreview(file);
     if (!file) {
       setSelectedFile(null);
       return;
@@ -91,23 +176,49 @@ export function UploadAssetDialog({
       return;
     }
     startTransition(async () => {
+      let intent: Awaited<ReturnType<typeof createProductAssetUploadIntent>> | null = null;
       try {
-        await uploadProductAsset(productId, formData);
+        intent = await createProductAssetUploadIntent({
+          productId,
+          assetType: String(formData.get("asset_type") ?? ""),
+          fileName: selectedFile.name,
+          mimeType: selectedFile.type,
+          fileSizeBytes: selectedFile.size,
+          title: String(formData.get("title") ?? ""),
+          tags: String(formData.get("tags") ?? ""),
+          category: String(formData.get("category") ?? ""),
+        });
+        await uploadDirectly({
+          file: selectedFile,
+          storagePath: intent.storagePath,
+          uploadToken: intent.uploadToken,
+        });
+        await finalizeProductAssetUpload(intent.assetId);
         setSuccess(true);
         onUploaded();
       } catch (err) {
+        if (intent) {
+          await cancelProductAssetUpload(intent.assetId).catch(() => undefined);
+        }
         setError(err instanceof Error ? err.message : "Upload failed.");
+      } finally {
+        setUploadProgress(null);
       }
     });
   }
 
   return (
-    <Dialog open onOpenChange={(next) => !next && onClose()}>
+    <Dialog
+      open
+      onOpenChange={(next) => {
+        if (!next && !pending) onClose();
+      }}
+    >
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>Upload asset</DialogTitle>
           <DialogDescription>
-            Approved uploads publish immediately. Only admins can upload.
+            Uploads are inspected and processed before they appear in the library. Only admins can upload.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="flex flex-col gap-3.5">
@@ -139,7 +250,12 @@ export function UploadAssetDialog({
             <span className={FIELD_LABEL}>
               Asset type <span className="text-reject">*</span>
             </span>
-            <select name="asset_type" defaultValue={defaultAssetType} className={FIELD_INPUT}>
+            <select
+              name="asset_type"
+              value={assetType}
+              onChange={(event) => setAssetType(event.target.value as ProductAssetType)}
+              className={FIELD_INPUT}
+            >
               {PRODUCT_ASSET_TYPES.map((type) => (
                 <option key={type} value={type}>
                   {ASSET_TYPE_LABELS[type]}
@@ -147,10 +263,15 @@ export function UploadAssetDialog({
               ))}
             </select>
           </label>
+          {assetType === "packshot" && (
+            <p className="rounded-control border border-warn-border bg-warn-tint px-3 py-2 text-[11.5px] leading-5 text-warn">
+              Packshots need a real transparent alpha channel. Opaque images are blocked before upload.
+            </p>
+          )}
 
           <div className="flex flex-col gap-1.5">
             <span className={FIELD_LABEL}>
-              Image <span className="text-reject">*</span>
+              File <span className="text-reject">*</span>
             </span>
             <label
               onDragOver={(event) => {
@@ -175,22 +296,49 @@ export function UploadAssetDialog({
                 </span>
               ) : (
                 <span className="text-[12.5px] text-ink-muted">
-                  Drag an image here, or click to choose a file
+                  Drag an image or video here, or click to choose a file
                 </span>
               )}
               <input
                 ref={fileInputRef}
                 type="file"
                 name="file"
-                accept="image/png,image/jpeg,image/webp,image/gif,image/avif"
+                accept="image/png,image/jpeg,image/webp,image/gif,image/avif,video/mp4,video/quicktime,video/webm,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/plain"
                 required
                 className="sr-only"
                 onChange={(event) => handleFiles(event.target.files)}
               />
             </label>
+            {videoPreviewUrl && (
+              <video
+                src={videoPreviewUrl}
+                className="hidden"
+                preload="metadata"
+                onLoadedMetadata={(event) => {
+                  const seconds = event.currentTarget.duration;
+                  setDurationSeconds(Number.isFinite(seconds) ? seconds : null);
+                }}
+              />
+            )}
+            <input
+              type="hidden"
+              name="duration_seconds"
+              value={durationSeconds === null ? "" : String(durationSeconds)}
+            />
             <span className="text-[11.5px] text-ink-faint">
-              PNG, JPEG, WebP, GIF, or AVIF. Maximum 10 MB.
+              Images up to 10 MB, documents up to 50 MB, and videos up to 100 MB. Uploads can resume after a connection interruption.
             </span>
+            {pending && uploadProgress !== null && (
+              <div className="flex flex-col gap-1.5" aria-live="polite">
+                <div className="h-1.5 overflow-hidden rounded-full bg-edge">
+                  <div
+                    className="h-full rounded-full bg-brand transition-[width]"
+                    style={{ width: `${uploadProgress}%` }}
+                  />
+                </div>
+                <span className="text-[11.5px] text-ink-faint">Uploading {uploadProgress}%</span>
+              </div>
+            )}
             {fileError && (
               <p role="alert" className="text-[12.5px] text-reject">
                 {fileError}
@@ -213,6 +361,11 @@ export function UploadAssetDialog({
             <Input name="tags" placeholder="launch, social, hero" className="bg-page" />
           </label>
 
+          <label className="flex flex-col gap-1.5">
+            <span className={FIELD_LABEL}>Category</span>
+            <Input name="category" maxLength={80} placeholder="Campaign, brand, social" className="bg-page" />
+          </label>
+
           {error && (
             <p
               role="alert"
@@ -226,7 +379,7 @@ export function UploadAssetDialog({
               role="status"
               className="rounded-control border border-approve-border bg-approve-tint px-3.5 py-2.5 text-[13px] text-approve"
             >
-              Uploaded. It is now live in the library.
+              Uploaded. Processing has started; it will appear once its previews are ready.
             </p>
           )}
 
@@ -235,7 +388,7 @@ export function UploadAssetDialog({
               {success ? "Close" : "Cancel"}
             </Button>
             <Button type="submit" disabled={pending || !!fileError || success}>
-              {pending ? "Uploading…" : success ? "Uploaded" : "Upload asset"}
+              {pending ? (uploadProgress === null ? "Preparing…" : `Uploading ${uploadProgress}%`) : success ? "Uploaded" : "Upload asset"}
             </Button>
           </DialogFooter>
         </form>

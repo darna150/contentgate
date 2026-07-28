@@ -3,9 +3,12 @@ export const PRODUCT_ASSET_TYPES = [
   "packshot",
   "background",
   "image",
+  "video",
+  "document",
 ] as const;
 
 export const PRODUCT_ASSET_APPROVAL_STATUSES = [
+  "processing",
   "pending",
   "approved",
   "rejected",
@@ -15,8 +18,11 @@ export const PRODUCT_ASSET_APPROVAL_STATUSES = [
 export type ProductAssetType = (typeof PRODUCT_ASSET_TYPES)[number];
 export type ProductAssetApprovalStatus =
   (typeof PRODUCT_ASSET_APPROVAL_STATUSES)[number];
+export type ProductAssetMediaKind = "image" | "video" | "document";
 
-export const MAX_PRODUCT_ASSET_BYTES = 10 * 1024 * 1024;
+export const MAX_PRODUCT_IMAGE_ASSET_BYTES = 10 * 1024 * 1024;
+export const MAX_PRODUCT_VIDEO_ASSET_BYTES = 100 * 1024 * 1024;
+export const MAX_PRODUCT_DOCUMENT_ASSET_BYTES = 50 * 1024 * 1024;
 export const MAX_PRODUCT_ASSET_TAGS = 20;
 
 const ALLOWED_PRODUCT_ASSET_MIME_TYPES = new Set([
@@ -25,7 +31,48 @@ const ALLOWED_PRODUCT_ASSET_MIME_TYPES = new Set([
   "image/jpeg",
   "image/png",
   "image/webp",
+  "video/mp4",
+  "video/quicktime",
+  "video/webm",
+  "application/pdf",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "text/plain",
 ]);
+
+export function productAssetMediaKindForMimeType(mimeType: string): ProductAssetMediaKind | null {
+  if (mimeType.startsWith("image/")) return "image";
+  if (mimeType.startsWith("video/")) return "video";
+  if (ALLOWED_PRODUCT_ASSET_MIME_TYPES.has(mimeType)) return "document";
+  return null;
+}
+
+export function detectProductAssetVideoMimeType(
+  data: Uint8Array,
+  claimedMimeType: string
+) {
+  if (claimedMimeType === "video/webm") {
+    return data.length >= 4 &&
+      data[0] === 0x1a &&
+      data[1] === 0x45 &&
+      data[2] === 0xdf &&
+      data[3] === 0xa3
+      ? claimedMimeType
+      : null;
+  }
+
+  if (claimedMimeType === "video/mp4" || claimedMimeType === "video/quicktime") {
+    return data.length >= 12 &&
+      data[4] === 0x66 &&
+      data[5] === 0x74 &&
+      data[6] === 0x79 &&
+      data[7] === 0x70
+      ? claimedMimeType
+      : null;
+  }
+
+  return null;
+}
 
 export function isProductAssetType(value: string): value is ProductAssetType {
   return PRODUCT_ASSET_TYPES.includes(value as ProductAssetType);
@@ -100,13 +147,40 @@ export function isProductAssetStoragePath(
   );
 }
 
-export function validateProductAssetFile(file: File) {
-  if (file.size === 0) throw new Error("Choose an image.");
+export type ProductAssetFileMetadata = Pick<File, "size" | "type">;
+
+export function validateProductAssetFile(file: ProductAssetFileMetadata) {
+  if (file.size === 0) throw new Error("Choose an asset.");
   if (!ALLOWED_PRODUCT_ASSET_MIME_TYPES.has(file.type)) {
-    throw new Error("Use a PNG, JPEG, WebP, GIF, or AVIF image.");
+    throw new Error("Use a PNG, JPEG, WebP, GIF, AVIF, MP4, MOV, or WebM file.");
   }
-  if (file.size > MAX_PRODUCT_ASSET_BYTES) {
-    throw new Error("Images must be 10 MB or smaller.");
+  const mediaKind = productAssetMediaKindForMimeType(file.type);
+  const maxBytes =
+    mediaKind === "video"
+      ? MAX_PRODUCT_VIDEO_ASSET_BYTES
+      : mediaKind === "document"
+        ? MAX_PRODUCT_DOCUMENT_ASSET_BYTES
+        : MAX_PRODUCT_IMAGE_ASSET_BYTES;
+  if (file.size > maxBytes) {
+    throw new Error(
+      mediaKind === "video"
+        ? "Videos must be 100 MB or smaller."
+        : mediaKind === "document"
+          ? "Documents must be 50 MB or smaller."
+          : "Images must be 10 MB or smaller."
+    );
+  }
+}
+
+export function validateProductAssetTransparency(
+  assetType: ProductAssetType,
+  hasAlpha: boolean | undefined,
+  isOpaque: boolean | undefined
+) {
+  if (assetType === "packshot" && (!hasAlpha || isOpaque !== false)) {
+    throw new Error(
+      "Packshots must contain transparent pixels. Use a verified PNG, WebP, or AVIF cutout."
+    );
   }
 }
 

@@ -22,19 +22,19 @@ import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
 const NAV = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/dashboard", label: "Home", icon: LayoutDashboard },
   { href: "/products", label: "Products", icon: Sparkles },
   { href: "/content", label: "Content", icon: Rows3 },
-  { href: "/approvals", label: "Approvals", icon: CheckCircle2 },
+  { href: "/approvals", label: "Reviews", icon: CheckCircle2 },
   { href: "/assets", label: "Assets", icon: Images },
   { href: "/ask", label: "Ask", icon: MessageSquareText },
 ];
 
 // Admin-only: cross-org configuration surfaces, visually separated below.
 const ADMIN_NAV = [
-  { href: "/knowledge", label: "Source Documents", icon: FileStack },
+  { href: "/knowledge", label: "Brand knowledge", icon: FileStack },
   { href: "/templates", label: "Template Ops", icon: LayoutTemplate },
-  { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/settings", label: "Team and settings", icon: Settings },
 ];
 
 type Props = {

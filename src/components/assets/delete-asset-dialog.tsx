@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { deleteProductAsset } from "@/app/(app)/products/actions";
+import { archiveProductAsset } from "@/app/(app)/products/actions";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -26,10 +26,10 @@ export function DeleteAssetDialog({ asset, onDeleted, onClose }: Props) {
     setError(null);
     startTransition(async () => {
       try {
-        await deleteProductAsset(asset.id, asset.productId);
+        await archiveProductAsset(asset.id, asset.productId);
         onDeleted();
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Could not delete this asset.");
+        setError(err instanceof Error ? err.message : "Could not archive this asset.");
       }
     });
   }
@@ -38,12 +38,12 @@ export function DeleteAssetDialog({ asset, onDeleted, onClose }: Props) {
     <Dialog open onOpenChange={(next) => !next && onClose()}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
-          <DialogTitle>Delete asset</DialogTitle>
+          <DialogTitle>Archive asset</DialogTitle>
         </DialogHeader>
         <p className="text-[13.5px] leading-relaxed text-ink-muted">
-          Delete <span className="font-semibold text-ink">&ldquo;{asset.title}&rdquo;</span>?
-          This permanently removes its metadata and the stored file. This
-          cannot be undone.
+          Archive <span className="font-semibold text-ink">&ldquo;{asset.title}&rdquo;</span>?
+          It will no longer appear in the library or be available for new work.
+          Its stored file is retained for audit history.
         </p>
         {error && (
           <p
@@ -58,7 +58,7 @@ export function DeleteAssetDialog({ asset, onDeleted, onClose }: Props) {
             Cancel
           </Button>
           <Button type="button" variant="destructive" onClick={handleDelete} disabled={pending}>
-            {pending ? "Deleting…" : "Delete asset"}
+            {pending ? "Archiving…" : "Archive asset"}
           </Button>
         </DialogFooter>
       </DialogContent>

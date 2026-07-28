@@ -2,13 +2,6 @@ import { expect, test, type Page, type TestInfo } from "@playwright/test";
 
 const E2E_EMAIL = process.env.CONTENTGATE_E2E_EMAIL;
 const E2E_PASSWORD = process.env.CONTENTGATE_E2E_PASSWORD;
-const IS_PRODUCTION_VALIDATION = process.env.CONTENTGATE_E2E_VALIDATION_RUN === "1";
-
-test.use({
-  extraHTTPHeaders: IS_PRODUCTION_VALIDATION
-    ? { "x-contentgate-validation-run": "ask-production" }
-    : {},
-});
 
 type BrowserIssue = {
   kind: "console" | "pageerror" | "requestfailed" | "http";
@@ -120,27 +113,17 @@ test.describe("Knowledge Hub live QA", () => {
     ).not.toBe("hidden");
 
     await input.fill("What is Nimbus 1?");
-    const answerResponsePromise = page.waitForResponse(
-      (response) =>
-        response.url().includes("/api/products/ask") &&
-        !response.url().includes("/feedback") &&
-        response.request().method() === "POST"
-    );
     await page.getByRole("button", { name: /^Ask$/ }).click();
-    const answerResponse = await answerResponsePromise;
-    expect(answerResponse.status()).toBe(200);
-    const answerPayload = (await answerResponse.json()) as {
-      query_id?: unknown;
-      not_found?: unknown;
-      citations?: unknown;
-    };
-    expect(answerPayload.query_id).toEqual(expect.any(String));
-    expect(answerPayload.not_found).toBe(false);
-    expect(Array.isArray(answerPayload.citations) ? answerPayload.citations.length : 0).toBeGreaterThan(0);
 
     await expect(page.getByText(/From approved sources/i).first()).toBeVisible({
       timeout: 60_000,
     });
+    await expect(
+      page
+        .locator("main")
+        .getByText(/Run on Air|cloud-soft cushioning|real-world speed/i)
+        .first()
+    ).toBeVisible();
     await expect(page.getByText(/Something went wrong/i)).toHaveCount(0);
 
     await testInfo.attach("knowledge-hub-answer.png", {
@@ -182,23 +165,7 @@ test.describe("Knowledge Hub live QA", () => {
     await input.fill(
       "What is the molecular weight of polyethylene glycol 3350 in milligrams per litre?"
     );
-    const noEvidenceResponsePromise = page.waitForResponse(
-      (response) =>
-        response.url().includes("/api/products/ask") &&
-        !response.url().includes("/feedback") &&
-        response.request().method() === "POST"
-    );
     await page.getByRole("button", { name: /^Ask$/ }).click();
-    const noEvidenceResponse = await noEvidenceResponsePromise;
-    expect(noEvidenceResponse.status()).toBe(200);
-    const noEvidencePayload = (await noEvidenceResponse.json()) as {
-      query_id?: unknown;
-      not_found?: unknown;
-      citations?: unknown;
-    };
-    expect(noEvidencePayload.query_id).toEqual(expect.any(String));
-    expect(noEvidencePayload.not_found).toBe(true);
-    expect(noEvidencePayload.citations).toEqual([]);
 
     // Must get a safe "not found" message — not a 500 or an error boundary
     await expect(

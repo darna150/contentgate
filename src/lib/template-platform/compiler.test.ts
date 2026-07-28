@@ -24,7 +24,7 @@ const fixedIds = {
 const compileOptions = {
   orgId: "99999999-9999-4999-8999-999999999999",
   createdBy: "88888888-8888-4888-8888-888888888888",
-  storagePrefix: "template-bundles/example-campaign/v1",
+  storagePrefix: "template-bundles/test-bundle/v1",
   now: new Date("2026-07-14T10:00:00.000Z"),
   ids: fixedIds,
 };
@@ -78,7 +78,7 @@ test("assigns reference and background assets to their variant and fonts to the 
   assert.equal(assetsByKey["square-background"].variant_id, fixedIds.variantIds.square);
   assert.equal(
     assetsByKey["square-background"].storage_path,
-    "template-bundles/example-campaign/v1/variants/square/background.png"
+    `template-bundles/test-bundle/v1/assets/${"c".repeat(64)}/background.png`
   );
 });
 

@@ -2,7 +2,6 @@ import {
   generatedCopyEvidenceIssues,
   type GeneratedFieldEvidence,
 } from "./evidence-validation.ts";
-import { isTemplateSystemFieldKey } from "./template-platform/runtime.ts";
 
 type DocumentParagraph = { n: number; text: string };
 
@@ -38,7 +37,7 @@ export function contentEvidenceIssues(input: {
 }) {
   const copyFields = Object.fromEntries(
     Object.entries(input.fields).filter(
-      ([key]) => !isTemplateSystemFieldKey(key)
+      ([key]) => !key.startsWith("__")
     )
   );
   return generatedCopyEvidenceIssues({
@@ -109,6 +108,7 @@ export async function validateStoredContentEvidence(
     supabase
       .from("documents")
       .select("title, paragraphs")
+      .eq("approval_status", "approved")
       .or(`product_id.eq.${content.product_id},product_id.is.null`),
   ]);
 

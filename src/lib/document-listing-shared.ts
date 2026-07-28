@@ -8,6 +8,7 @@ export type DocumentListRow = {
   title: string;
   storage_path: string | null;
   content_text: string | null;
+  approval_status: "approved" | "inactive";
   created_at: string;
   paragraphs: unknown;
   products: { name: string } | { name: string }[] | null;
@@ -21,6 +22,7 @@ export type FlattenedDocumentRow = {
   productName: string | null;
   paragraphCount: number;
   indexStatus: DocumentIndexStatus;
+  approvalStatus: "approved" | "inactive";
 };
 
 function one<T>(value: T | T[] | null | undefined): T | null {
@@ -45,5 +47,6 @@ export function flattenDocumentRow(row: DocumentListRow): FlattenedDocumentRow {
       paragraphs: row.paragraphs,
       storagePath: row.storage_path,
     }),
+    approvalStatus: row.approval_status,
   };
 }

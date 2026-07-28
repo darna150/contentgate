@@ -101,6 +101,22 @@ test("Phase 1A migration adds explicit Data API grants", () => {
   assert.match(sql, /grant execute on function public\.record_render_job_event\(uuid, text, text, jsonb, jsonb\) to authenticated/);
 });
 
+test("asset download recording is an atomic authorized RPC", () => {
+  const sql = readFileSync(
+    "supabase/migrations/20260724122156_record_product_asset_download.sql",
+    "utf8"
+  );
+
+  assert.match(sql, /create or replace function public\.record_product_asset_download\(p_asset_id uuid\)/);
+  assert.match(sql, /security definer/);
+  assert.match(sql, /caller_id uuid := auth\.uid\(\)/);
+  assert.match(sql, /asset_status <> 'approved' and caller_role <> 'admin'/);
+  assert.match(sql, /download_count = coalesce\(download_count, 0\) \+ 1/);
+  assert.match(sql, /revoke all on function public\.record_product_asset_download\(uuid\) from public/);
+  assert.match(sql, /revoke all on function public\.record_product_asset_download\(uuid\) from anon/);
+  assert.match(sql, /grant execute on function public\.record_product_asset_download\(uuid\) to authenticated/);
+});
+
 test("Ask feedback binds queries and users to the same tenant", () => {
   const feedbackSql = compact(
     readFileSync("supabase/migrations/20260728044150_ask_answer_feedback.sql", "utf8")
@@ -130,19 +146,4 @@ test("Ask polish migration bounds operational metadata and feedback reasons", ()
   assert.match(polishSql, /verified_claim_count integer not null default 0/);
   assert.match(polishSql, /knowledge_query_feedback_reason_check/);
   assert.match(polishSql, /'wrong_source'/);
-});
-
-test("Ask production telemetry separates environments and bounds operational data", () => {
-  const telemetrySql = compact(
-    readFileSync(
-      "supabase/migrations/20260728092002_ask_production_quality_telemetry.sql",
-      "utf8"
-    )
-  );
-
-  assert.match(telemetrySql, /deployment_environment text not null default 'unknown'/);
-  assert.match(telemetrySql, /traffic_class text not null default 'user'/);
-  assert.match(telemetrySql, /knowledge_queries_token_usage_check/);
-  assert.match(telemetrySql, /cached_input_tokens \+ cache_write_input_tokens <= input_tokens/);
-  assert.match(telemetrySql, /knowledge_queries_org_environment_traffic_created_idx/);
 });

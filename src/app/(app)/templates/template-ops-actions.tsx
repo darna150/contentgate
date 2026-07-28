@@ -213,11 +213,19 @@ export function ImportBundlePanel() {
             id="import-asset-files"
             type="file"
             multiple
+            ref={(node) => {
+              // A bundle contains repeated filenames (for example every
+              // size has a `sky.png`). Preserve the directory-relative path
+              // so those assets cannot be ambiguously matched by basename.
+              // React's input typings do not yet expose this browser feature.
+              node?.setAttribute("webkitdirectory", "");
+              node?.setAttribute("directory", "");
+            }}
             onChange={(event) => setAssetFiles(Array.from(event.target.files ?? []))}
             className="rounded-control border border-edge bg-page px-3 py-2 text-[12px]"
           />
           <span className="text-[11px] text-ink-faint">
-            Selected {assetFiles.length} files.
+            Choose the bundle directory so repeated filenames retain their relative paths. Selected {assetFiles.length} files.
           </span>
         </div>
         <div className="flex flex-col gap-1.5">

@@ -43,6 +43,14 @@ export default async function ContentPage({
   const filter = FILTERS.some((f) => f.key === status) ? status! : "all";
   const activeLanguage = language && LANGUAGES.includes(language) ? language : "all";
   const activeSize = size ?? "all";
+  const returnTo = ["status", "language", "size"]
+    .map((key) => {
+      const value = ({ status, language, size } as Record<string, string | undefined>)[key];
+      return value ? `${key}=${encodeURIComponent(value)}` : null;
+    })
+    .filter(Boolean)
+    .join("&");
+  const contentReturnTo = returnTo ? `/content?${returnTo}` : "/content";
 
   let rows: FlattenedContentRow[] = [];
   let nextCursor: string | null = null;
@@ -66,6 +74,12 @@ export default async function ContentPage({
   );
   if (activeSize !== "all") sizeKeysOnPage.add(activeSize);
   const sizeOptions = Array.from(sizeKeysOnPage);
+  const campaigns = new Map<string, FlattenedContentRow[]>();
+  for (const row of rows) {
+    const group = campaigns.get(row.title) ?? [];
+    group.push(row);
+    campaigns.set(row.title, group);
+  }
 
   function buildHref(overrides: {
     status?: string;
@@ -135,14 +149,30 @@ export default async function ContentPage({
               <span className="text-label text-ink-faint">Owner</span>
               <span className="text-label text-ink-faint">Updated</span>
             </div>
-            {rows.map((row) => (
+            {Array.from(campaigns.entries()).map(([campaign, campaignRows]) => (
+              <div key={campaign} className="border-b border-edge last:border-b-0">
+                <div
+                  className="grid gap-3 bg-page/70 px-3.5 py-2"
+                  style={{ gridTemplateColumns: "2.2fr 0.8fr 0.7fr 1.3fr 1fr 0.8fr" }}
+                >
+                  <span className="truncate text-[12px] font-bold text-ink">{campaign}</span>
+                  <span className="col-span-5 text-[11.5px] text-ink-faint">
+                    {campaignRows.length} {campaignRows.length === 1 ? "format" : "formats"}
+                  </span>
+                </div>
+                {campaignRows.map((row) => (
               <Link
                 key={row.id}
-                href={studioContentUrl(row.id, row.sizeKey ?? undefined)}
+                href={studioContentUrl(row.id, row.sizeKey ?? undefined, contentReturnTo)}
                 className="grid items-center gap-3 rounded-control px-3.5 py-3 transition-colors hover:bg-page"
                 style={{ gridTemplateColumns: "2.2fr 0.8fr 0.7fr 1.3fr 1fr 0.8fr" }}
               >
-                <span className="min-w-0 truncate text-[13.5px] font-semibold">{row.title}</span>
+                <span className="flex min-w-0 flex-col">
+                  <span className="truncate text-[13.5px] font-semibold">{row.title}</span>
+                  <span className="truncate text-[11.5px] text-ink-faint">
+                    {row.templateName ?? "Custom format"}{row.sizeKey ? ` · ${sizeLabel(row.sizeKey)}` : ""}
+                  </span>
+                </span>
                 <span className="truncate text-[12.5px] text-ink-muted">{row.targetLanguage}</span>
                 <span className="truncate text-[12.5px] text-ink-muted">
                   {row.sizeKey ? sizeLabel(row.sizeKey) : "—"}
@@ -157,20 +187,30 @@ export default async function ContentPage({
                   {formatDate(row.updatedAt ?? row.createdAt)}
                 </span>
               </Link>
+                ))}
+              </div>
             ))}
           </div>
 
           {/* Mobile: stacked cards */}
           <div className="flex flex-col gap-1 md:hidden">
-            {rows.map((row) => (
+            {Array.from(campaigns.entries()).map(([campaign, campaignRows]) => (
+              <div key={campaign} className="border-b border-edge py-1 last:border-b-0">
+                <p className="px-3.5 pb-1 pt-2 text-[12px] font-bold text-ink">
+                  {campaign}
+                  <span className="ml-2 text-[11px] font-normal text-ink-faint">
+                    {campaignRows.length} {campaignRows.length === 1 ? "format" : "formats"}
+                  </span>
+                </p>
+                {campaignRows.map((row) => (
               <Link
                 key={row.id}
-                href={studioContentUrl(row.id, row.sizeKey ?? undefined)}
+                href={studioContentUrl(row.id, row.sizeKey ?? undefined, contentReturnTo)}
                 className="flex flex-col gap-1.5 rounded-control px-3.5 py-3 transition-colors hover:bg-page"
               >
                 <span className="truncate text-[13.5px] font-semibold">{row.title}</span>
                 <span className="truncate text-[11.5px] text-ink-faint">
-                  {[row.productName, row.targetLanguage, row.sizeKey ? sizeLabel(row.sizeKey) : null]
+                  {[row.productName, row.templateName ?? "Custom format", row.targetLanguage, row.sizeKey ? sizeLabel(row.sizeKey) : null]
                     .filter(Boolean)
                     .join(" · ")}
                 </span>
@@ -181,6 +221,8 @@ export default async function ContentPage({
                   </span>
                 </span>
               </Link>
+                ))}
+              </div>
             ))}
           </div>
 
