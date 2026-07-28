@@ -39,9 +39,10 @@ export function platformTemplatePreviewUrl(assignmentId: string, size: SizeKey):
   return `/api/creative/template-preview?assignment=${assignmentId}&size=${size}`;
 }
 
-export function studioContentUrl(contentId: string, size?: SizeKey | null): string {
+export function studioContentUrl(contentId: string, size?: SizeKey | null, returnTo?: string | null): string {
   const params = new URLSearchParams();
   if (size) params.set("size", size);
+  if (returnTo?.startsWith("/")) params.set("returnTo", returnTo);
   const query = params.toString();
   return `/studio/${contentId}${query ? `?${query}` : ""}`;
 }
