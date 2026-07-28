@@ -1,0 +1,76 @@
+name: Ask production validation
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+  workflow_dispatch:
+
+concurrency:
+  group: ask-production-validation
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  deployments: read
+
+jobs:
+  validate:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CONTENTGATE_E2E_BASE_URL: https://contentgate-delta.vercel.app
+      CONTENTGATE_E2E_EMAIL: ${{ secrets.CONTENTGATE_E2E_EMAIL }}
+      CONTENTGATE_E2E_PASSWORD: ${{ secrets.CONTENTGATE_E2E_PASSWORD }}
+      CONTENTGATE_E2E_VALIDATION_RUN: "1"
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Wait for the matching production deployment
+        env:
+          TARGET_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          echo "Waiting for production deployment of ${TARGET_SHA}..."
+          for i in $(seq 1 36); do
+            statuses_url=$(gh api \
+              "repos/${{ github.repository }}/deployments?sha=${TARGET_SHA}" \
+              --jq '[.[] | select(.environment == "Production") | .statuses_url] | first' \
+              2>/dev/null)
+            if [ -n "$statuses_url" ] && [ "$statuses_url" != "null" ]; then
+              state=$(gh api "$statuses_url" --jq '.[0].state' 2>/dev/null)
+              if [ "$state" = "success" ]; then
+                echo "Matching production deployment is ready."
+                exit 0
+              fi
+              if [ "$state" = "failure" ] || [ "$state" = "error" ]; then
+                echo "Production deployment failed with state ${state}." >&2
+                exit 1
+              fi
+            fi
+            echo "Attempt ${i}/36: deployment not ready; retrying in 10s."
+            sleep 10
+          done
+          echo "Timed out waiting for the matching production deployment." >&2
+          exit 1
+      - run: npm run smoke -- https://contentgate-delta.vercel.app
+      - run: npx playwright install --with-deps chromium
+      - name: Verify grounded and safe no-evidence Ask flows
+        run: npx playwright test tests/e2e/knowledge-hub.spec.ts --workers=1
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: ask-production-validation-report
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore

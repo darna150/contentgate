@@ -12,11 +12,21 @@ import {
 } from "@/lib/knowledge-reliability";
 import { NextResponse } from "next/server";
 import { consumeApiRateLimit, rateLimitResponse } from "@/lib/rate-limit";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { compactAskConversation } from "@/lib/ask-conversation";
-import { createKnowledgeEmbeddings } from "@/lib/knowledge-embeddings";
+import {
+  createKnowledgeEmbeddingsWithUsage,
+  KNOWLEDGE_EMBEDDING_MODEL,
+} from "@/lib/knowledge-embeddings";
 import { expandKnowledgeEvidenceWithNeighbors } from "@/lib/knowledge-chunking";
 import { buildAskRetrievalQueries, fuseAskRetrievalEvidence } from "@/lib/ask-retrieval";
+import {
+  addEmbeddingUsage,
+  addResponseUsage,
+  emptyAskUsage,
+  type AskOutcome,
+  type AskUsage,
+} from "@/lib/ask-quality";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -100,6 +110,14 @@ type OpenAIResponse = {
   output?: Array<{
     content?: Array<{ type?: string; text?: string }>;
   }>;
+  usage?: {
+    input_tokens?: unknown;
+    output_tokens?: unknown;
+    input_tokens_details?: {
+      cached_tokens?: unknown;
+      cache_write_tokens?: unknown;
+    } | null;
+  };
 };
 
 type DocumentParagraphRow = {
@@ -113,6 +131,46 @@ type NotebookSessionRow = {
   product_id: string | null;
   messages: unknown;
 };
+
+type AskDeployment = {
+  environment: "production" | "preview" | "development" | "test" | "unknown";
+  commitSha: string | null;
+  trafficClass: "user" | "synthetic";
+};
+
+function askDeployment(req: Request): AskDeployment {
+  const rawEnvironment = process.env.VERCEL_ENV ?? process.env.NODE_ENV ?? "unknown";
+  const environment = ["production", "preview", "development", "test"].includes(
+    rawEnvironment
+  )
+    ? (rawEnvironment as AskDeployment["environment"])
+    : "unknown";
+  const rawSha = process.env.VERCEL_GIT_COMMIT_SHA?.toLowerCase() ?? "";
+  return {
+    environment,
+    commitSha: /^[0-9a-f]{7,64}$/.test(rawSha) ? rawSha : null,
+    // This header only classifies operational telemetry. It grants no access
+    // and changes neither retrieval nor answer behavior.
+    trafficClass:
+      req.headers.get("x-contentgate-validation-run") === "ask-production"
+        ? "synthetic"
+        : "user",
+  };
+}
+
+function askRequestId(req: Request) {
+  return req.headers.get("x-vercel-id") ?? randomUUID();
+}
+
+function logAskRuntime(
+  level: "info" | "error",
+  event: string,
+  details: Record<string, unknown>
+) {
+  const payload = JSON.stringify({ level, event, route: "/api/products/ask", ...details });
+  if (level === "error") console.error(payload);
+  else console.log(payload);
+}
 
 function fallbackParagraphRowsFromDocuments(
   documents: readonly DocumentParagraphRow[]
@@ -214,6 +272,16 @@ async function logKnowledgeQuery(
     retrievalQueryCount: number;
     verifiedClaimCount: number;
     answerLatencyMs: number;
+    outcome: AskOutcome;
+    deployment: AskDeployment;
+    requestId: string;
+    retrievalLatencyMs: number | null;
+    generationLatencyMs: number | null;
+    verificationLatencyMs: number | null;
+    usage: AskUsage;
+    candidateClaimCount: number;
+    verificationFailed: boolean;
+    failureCode: string | null;
   }
 ) {
   try {
@@ -239,8 +307,42 @@ async function logKnowledgeQuery(
         retrieval_query_count: input.retrievalQueryCount,
         verified_claim_count: input.verifiedClaimCount,
         answer_latency_ms: input.answerLatencyMs,
+        outcome: input.outcome,
+        traffic_class: input.deployment.trafficClass,
+        deployment_environment: input.deployment.environment,
+        deployment_commit_sha: input.deployment.commitSha,
+        retrieval_latency_ms: input.retrievalLatencyMs,
+        generation_latency_ms: input.generationLatencyMs,
+        verification_latency_ms: input.verificationLatencyMs,
+        input_tokens: input.usage.inputTokens,
+        cached_input_tokens: input.usage.cachedInputTokens,
+        cache_write_input_tokens: input.usage.cacheWriteInputTokens,
+        output_tokens: input.usage.outputTokens,
+        embedding_tokens: input.usage.embeddingTokens,
+        estimated_cost_usd: input.usage.estimatedCostUsd,
+        candidate_claim_count: input.candidateClaimCount,
+        verification_failed: input.verificationFailed,
+        failure_code: input.failureCode,
       }).select("id").maybeSingle();
       if (logError) console.warn("knowledge query audit log failed:", logError);
+      logAskRuntime(input.outcome.includes("error") ? "error" : "info", "ask.completed", {
+        requestId: input.requestId,
+        queryId: loggedQuery?.id ?? null,
+        outcome: input.outcome,
+        environment: input.deployment.environment,
+        trafficClass: input.deployment.trafficClass,
+        retrievalStrategy: input.retrievalStrategy,
+        retrievedParagraphCount: input.retrievedParagraphCount,
+        candidateClaimCount: input.candidateClaimCount,
+        verifiedClaimCount: input.verifiedClaimCount,
+        answerLatencyMs: input.answerLatencyMs,
+        retrievalLatencyMs: input.retrievalLatencyMs,
+        generationLatencyMs: input.generationLatencyMs,
+        verificationLatencyMs: input.verificationLatencyMs,
+        estimatedCostUsd: input.usage.estimatedCostUsd,
+        failureCode: input.failureCode,
+        auditPersisted: !logError,
+      });
       return loggedQuery?.id ?? null;
     }
   } catch (logError) {
@@ -337,7 +439,10 @@ async function verifyKnowledgeClaimsWithOpenAI(input: {
   const json = (await response.json()) as OpenAIResponse;
   const text = openAIOutputText(json).trim();
   if (!text) throw new Error("OpenAI returned no claim verification.");
-  return parseSupportedClaimIndexes(JSON.parse(text));
+  return {
+    indexes: parseSupportedClaimIndexes(JSON.parse(text)),
+    usage: json.usage,
+  };
 }
 
 async function answerWithOpenAI(input: {
@@ -409,7 +514,10 @@ async function answerWithOpenAI(input: {
   const json = (await response.json()) as OpenAIResponse;
   const text = openAIOutputText(json).trim();
   if (!text) throw new Error("OpenAI returned no Ask text output.");
-  return parseKnowledgeAnswer(JSON.parse(text));
+  return {
+    result: parseKnowledgeAnswer(JSON.parse(text)),
+    usage: json.usage,
+  };
 }
 
 async function rewriteRetrievalQueryWithOpenAI(input: {
@@ -466,11 +574,20 @@ async function rewriteRetrievalQueryWithOpenAI(input: {
   const json = (await response.json()) as OpenAIResponse;
   const text = openAIOutputText(json).trim();
   if (!text) throw new Error("OpenAI returned no retrieval rewrite.");
-  return parseRetrievalQuery(JSON.parse(text), input.question);
+  return {
+    query: parseRetrievalQuery(JSON.parse(text), input.question),
+    usage: json.usage,
+  };
 }
 
 export async function POST(req: Request) {
   const requestStartedAt = performance.now();
+  const deployment = askDeployment(req);
+  const requestId = askRequestId(req);
+  let usage = emptyAskUsage();
+  let retrievalLatencyMs: number | null = null;
+  let generationLatencyMs: number | null = null;
+  let verificationLatencyMs: number | null = null;
   const supabase = await createClient();
   const {
     data: { user },
@@ -515,6 +632,13 @@ export async function POST(req: Request) {
   const notebookSession = session as NotebookSessionRow;
   const productId = notebookSession.product_id;
   const conversation = compactAskConversation(notebookSession.messages);
+  logAskRuntime("info", "ask.started", {
+    requestId,
+    environment: deployment.environment,
+    trafficClass: deployment.trafficClass,
+    hasProductScope: Boolean(productId),
+    hasConversationHistory: conversation.hasHistory,
+  });
   const safetyIdentifier = createHash("sha256")
     .update(`${process.env.OPENAI_SAFETY_IDENTIFIER_SALT ?? "contentgate"}:${user.id}`)
     .digest("hex");
@@ -534,14 +658,17 @@ export async function POST(req: Request) {
       };
   if (!product) return NextResponse.json({ error: "Product not found" }, { status: 404 });
 
+  const retrievalStartedAt = performance.now();
   let retrievalQuestion = question;
   if (conversation.hasHistory && process.env.OPENAI_API_KEY) {
     try {
-      retrievalQuestion = await rewriteRetrievalQueryWithOpenAI({
+      const rewrite = await rewriteRetrievalQueryWithOpenAI({
         question,
         conversationContext: conversation.context,
         safetyIdentifier,
       });
+      retrievalQuestion = rewrite.query;
+      usage = addResponseUsage(usage, OPENAI_ASK_QUERY_MODEL, rewrite.usage);
     } catch (error) {
       console.warn("knowledge retrieval rewrite failed; using the original question:", error);
     }
@@ -555,7 +682,13 @@ export async function POST(req: Request) {
     "full_text";
   if (process.env.OPENAI_API_KEY) {
     try {
-      const embeddings = await createKnowledgeEmbeddings(retrievalQueries);
+      const embeddingResult = await createKnowledgeEmbeddingsWithUsage(retrievalQueries);
+      const embeddings = embeddingResult.embeddings;
+      usage = addEmbeddingUsage(
+        usage,
+        KNOWLEDGE_EMBEDDING_MODEL,
+        embeddingResult.inputTokens
+      );
       const hybrid = await Promise.all(
         retrievalQueries.map((query, index) =>
           supabase.rpc("search_product_knowledge_hybrid", {
@@ -626,6 +759,7 @@ export async function POST(req: Request) {
     retrievalStrategy = "lexical_fallback";
   }
   evidence = await expandRetrievedEvidence(supabase, evidence);
+  retrievalLatencyMs = Math.round(performance.now() - retrievalStartedAt);
 
   const approvedContext = buildKnowledgeContext(evidence);
 
@@ -667,6 +801,16 @@ ${product.disclaimer_text ? `MANDATORY DISCLAIMER (always applies): ${product.di
         retrievalQueryCount: retrievalQueries.length,
         verifiedClaimCount: 0,
         answerLatencyMs: Math.round(performance.now() - requestStartedAt),
+        outcome: "no_evidence",
+        deployment,
+        requestId,
+        retrievalLatencyMs,
+        generationLatencyMs,
+        verificationLatencyMs,
+        usage,
+        candidateClaimCount: 0,
+        verificationFailed: false,
+        failureCode: null,
       }
     );
   }
@@ -677,14 +821,44 @@ ${product.disclaimer_text ? `MANDATORY DISCLAIMER (always applies): ${product.di
     not_found: boolean;
   };
   if (process.env.OPENAI_API_KEY) {
+    const generationStartedAt = performance.now();
     try {
-      rawResult = await answerWithOpenAI({
+      const generated = await answerWithOpenAI({
         system,
         question,
         safetyIdentifier,
       });
+      rawResult = generated.result;
+      usage = addResponseUsage(usage, OPENAI_ASK_MODEL, generated.usage);
+      generationLatencyMs = Math.round(performance.now() - generationStartedAt);
     } catch (error) {
       console.error("knowledge answer failed:", error);
+      generationLatencyMs = Math.round(performance.now() - generationStartedAt);
+      await logKnowledgeQuery(supabase, {
+        userId: user.id,
+        productId,
+        question,
+        answer: "",
+        notFound: false,
+        citations: [],
+        retrievalQuery: retrievalQueries.join(" || "),
+        retrievalStrategy,
+        answerModel: OPENAI_ASK_MODEL,
+        retrievedParagraphCount: evidence.length,
+        retrievalQueryCount: retrievalQueries.length,
+        verifiedClaimCount: 0,
+        answerLatencyMs: Math.round(performance.now() - requestStartedAt),
+        outcome: "provider_error",
+        deployment,
+        requestId,
+        retrievalLatencyMs,
+        generationLatencyMs,
+        verificationLatencyMs,
+        usage,
+        candidateClaimCount: 0,
+        verificationFailed: false,
+        failureCode: "answer_provider_failed",
+      });
       return NextResponse.json(
         { error: "Knowledge Q&A is temporarily unavailable. Please try again." },
         { status: 502 }
@@ -700,21 +874,34 @@ ${product.disclaimer_text ? `MANDATORY DISCLAIMER (always applies): ${product.di
       not_found: extractive.not_found,
     };
   }
+  const candidateClaimCount = rawResult.claims?.length ?? 0;
+  const verificationStartedAt = performance.now();
   const structurallyVerifiedClaims = verifyKnowledgeClaims(rawResult.claims ?? [], evidence);
   let claims = structurallyVerifiedClaims;
+  let verificationFailed = false;
+  let failureCode: string | null = null;
   if (process.env.OPENAI_API_KEY && claims.length > 0) {
     try {
-      const supportedIndexes = await verifyKnowledgeClaimsWithOpenAI({
+      const verification = await verifyKnowledgeClaimsWithOpenAI({
         claims,
         safetyIdentifier,
       });
-      claims = selectVerifiedKnowledgeClaims(claims, supportedIndexes);
+      usage = addResponseUsage(usage, OPENAI_ASK_QUERY_MODEL, verification.usage);
+      claims = selectVerifiedKnowledgeClaims(claims, verification.indexes);
     } catch (error) {
       console.error("knowledge claim verification failed; failing closed:", error);
       claims = [];
+      verificationFailed = true;
+      failureCode = "claim_verifier_failed";
     }
   }
+  verificationLatencyMs = Math.round(performance.now() - verificationStartedAt);
   const result = finalizeKnowledgeClaims({ claims, notFound: rawResult.not_found });
+  const outcome: AskOutcome = verificationFailed
+    ? "verification_error"
+    : result.not_found
+      ? "no_evidence"
+      : "answered";
 
   const queryId = await logKnowledgeQuery(supabase, {
     userId: user.id,
@@ -730,6 +917,16 @@ ${product.disclaimer_text ? `MANDATORY DISCLAIMER (always applies): ${product.di
     retrievalQueryCount: retrievalQueries.length,
     verifiedClaimCount: result.claims.length,
     answerLatencyMs: Math.round(performance.now() - requestStartedAt),
+    outcome,
+    deployment,
+    requestId,
+    retrievalLatencyMs,
+    generationLatencyMs,
+    verificationLatencyMs,
+    usage,
+    candidateClaimCount,
+    verificationFailed,
+    failureCode,
   });
 
   return NextResponse.json({ ...result, query_id: queryId });
@@ -749,6 +946,16 @@ async function saveAndReturnNotFound(
     retrievalQueryCount: number;
     verifiedClaimCount: number;
     answerLatencyMs: number;
+    outcome: AskOutcome;
+    deployment: AskDeployment;
+    requestId: string;
+    retrievalLatencyMs: number | null;
+    generationLatencyMs: number | null;
+    verificationLatencyMs: number | null;
+    usage: AskUsage;
+    candidateClaimCount: number;
+    verificationFailed: boolean;
+    failureCode: string | null;
   }
 ) {
   const queryId = await logKnowledgeQuery(supabase, {

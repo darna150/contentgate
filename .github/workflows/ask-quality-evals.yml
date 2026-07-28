@@ -1,0 +1,40 @@
+name: Ask quality evaluations
+
+on:
+  schedule:
+    - cron: "23 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  retrieval-quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Run deterministic retrieval evaluation
+        run: npm run --silent ask:eval-retrieval > ask-retrieval-lexical.json
+      - name: Enforce retrieval release gates
+        run: npx tsx scripts/check-ask-retrieval-report.ts ask-retrieval-lexical.json
+      - name: Run live hybrid retrieval evaluation when configured
+        run: |
+          if [ -n "$OPENAI_API_KEY" ]; then
+            npm run --silent ask:eval-retrieval:hybrid > ask-retrieval-hybrid.json
+            npx tsx scripts/check-ask-retrieval-report.ts ask-retrieval-hybrid.json
+          else
+            echo '{"status":"skipped","reason":"OPENAI_API_KEY is not configured"}' > ask-retrieval-hybrid.json
+          fi
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: ask-quality-evaluation-reports
+          path: ask-retrieval-*.json
