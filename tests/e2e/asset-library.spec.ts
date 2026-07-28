@@ -37,6 +37,12 @@ async function signIn(page: Page) {
 }
 
 async function assertNoBrokenImages(page: Page) {
+  await page.waitForFunction(
+    () => [...document.images].filter((image) => image.getClientRects().length > 0)
+      .every((image) => image.complete),
+    undefined,
+    { timeout: 45_000 }
+  );
   const brokenImages = await page.locator("img").evaluateAll((images) =>
     images
       .map((image) => {

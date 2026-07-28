@@ -111,7 +111,6 @@ const FOREST = "#0B2A24";
 const TEAL = "#0E5F58";
 const MINT = "#DDEDE5";
 const WARM = "#F7F2E8";
-const FIGMA_WARM_A = "#F8F5EE";
 const RUST = "#B85D40";
 const MUTED = "#52615B";
 const WHITE = "#FFFFFF";
@@ -546,135 +545,12 @@ function frame(
   return { size, background, layers, textSlots, imageSlots, ...options };
 }
 
-function friendlyPackage(): PublishedTemplatePackage {
+function premiumPackage(): PublishedTemplatePackage {
   return {
     packageVersion: 1,
-    packageKey: "contentgate-localized-ads-set-a-v1",
-    publicName: "Set A - Local Content Friendly",
-    frames: {
-      square: frame(
-        "square",
-        FIGMA_WARM_A,
-        [
-          { kind: "rect", x: 0, y: 0, w: 1080, h: 1080, color: WHITE },
-          { kind: "rect", x: 660, y: 110, w: 300, h: 850, color: WARM, radius: 28 },
-          { kind: "brand", x: 72, y: 70, scale: 1.25 },
-          { kind: "dashboard", x: 560, y: 250, w: 430, h: 330 },
-          { kind: "rule", x: 72, y: 455, w: 116, h: 12, color: RUST },
-          { kind: "rect", x: 97.2, y: 945, w: 367.2, h: 59.4, color: GREEN, radius: 999 },
-        ],
-        [
-          { field: "local_detail", x: 97.2, y: 594, w: 777.6, h: 48.6, fontSize: 18, lineHeight: 1.1, weight: 600, color: RUST, maxChars: 74, maxLines: 1, lineChars: 60, family: "Inter" },
-          { field: "headline", x: 97.2, y: 648, w: 885.6, h: 172.8, fontSize: 66.96, lineHeight: 0.98, weight: 700, color: GREEN, maxChars: 58, maxLines: 2, lineChars: 27, fallback: "Local content, made on brand.", family: "Inter" },
-          { field: "subheadline", x: 97.2, y: 826.2, w: 799.2, h: 81, fontSize: 27, lineHeight: 1.18, weight: 400, color: MUTED, maxChars: 130, maxLines: 2, lineChars: 58, family: "Inter" },
-          { field: "cta", x: 97.2, y: 945, w: 367.2, h: 59.4, fontSize: 22.68, lineHeight: 1.04, weight: 600, color: WHITE, maxChars: 28, maxLines: 1, align: "center", family: "Inter" },
-          { field: "proof_note", x: 507.6, y: 945, w: 453.6, h: 59.4, fontSize: 20.52, lineHeight: 1.04, weight: 500, color: TEAL, maxChars: 64, maxLines: 1, lineChars: 42, family: "Inter" },
-        ],
-        [],
-        {
-          referenceImage: "/template-packages/contentgate/set-a/square.png",
-          generatedImage: "/template-packages/contentgate/set-a/backgrounds/square.png",
-        }
-      ),
-      story: frame(
-        "story",
-        FIGMA_WARM_A,
-        [
-          { kind: "rect", x: 0, y: 0, w: 1080, h: 1030, color: WARM },
-          { kind: "brand", x: 86, y: 72, scale: 1.5 },
-          { kind: "dashboard", x: 86, y: 210, w: 908, h: 730 },
-          { kind: "rule", x: 86, y: 1015, w: 112, h: 12, color: RUST },
-          { kind: "rect", x: 97.2, y: 1584, w: 885.6, h: 105.6, color: GREEN, radius: 999 },
-        ],
-        [
-          { field: "local_detail", x: 97.2, y: 940.8, w: 842.4, h: 76.8, fontSize: 18, lineHeight: 1.1, weight: 600, color: RUST, maxChars: 74, maxLines: 1, lineChars: 60, family: "Inter" },
-          { field: "headline", x: 97.2, y: 1036.8, w: 885.6, h: 249.6, fontSize: 92.88, lineHeight: 0.94, weight: 700, color: GREEN, maxChars: 58, maxLines: 2, lineChars: 18, family: "Inter" },
-          { field: "subheadline", x: 97.2, y: 1344, w: 842.4, h: 163.2, fontSize: 38.88, lineHeight: 1.18, weight: 400, color: MUTED, maxChars: 130, maxLines: 3, lineChars: 40, family: "Inter" },
-          { field: "cta", x: 97.2, y: 1584, w: 885.6, h: 105.6, fontSize: 34.56, lineHeight: 1.04, weight: 600, color: WHITE, maxChars: 28, maxLines: 1, align: "center", family: "Inter" },
-          { field: "proof_note", x: 97.2, y: 1737.6, w: 885.6, h: 67.2, fontSize: 25.92, lineHeight: 1.04, weight: 500, color: TEAL, maxChars: 64, maxLines: 1, lineChars: 48, align: "center", family: "Inter" },
-        ],
-        [],
-        {
-          referenceImage: "/template-packages/contentgate/set-a/story.png",
-          generatedImage: "/template-packages/contentgate/set-a/backgrounds/story.png",
-        }
-      ),
-      link_ad: frame(
-        "link_ad",
-        FIGMA_WARM_A,
-        [
-          { kind: "rect", x: 0, y: 0, w: 1200, h: 628, color: WHITE },
-          { kind: "rect", x: 760, y: 54, w: 330, h: 520, color: WARM, radius: 28 },
-          { kind: "brand", x: 66, y: 58, scale: 1.05 },
-          { kind: "dashboard", x: 650, y: 150, w: 470, h: 330 },
-          { kind: "rule", x: 66, y: 242, w: 104, h: 10, color: RUST },
-          { kind: "rect", x: 72, y: 477.28, w: 252, h: 56.52, color: GREEN, radius: 999 },
-        ],
-        [
-          { field: "local_detail", x: 72, y: 134, w: 504, h: 34.54, fontSize: 14.5068, lineHeight: 1.1, weight: 600, color: RUST, maxChars: 74, maxLines: 1, lineChars: 50, family: "Inter" },
-          { field: "headline", x: 72, y: 207.24, w: 576, h: 136, fontSize: 60, lineHeight: 1.04, weight: 700, color: GREEN, maxChars: 58, maxLines: 2, lineChars: 20, family: "Inter" },
-          { field: "subheadline", x: 72, y: 374, w: 528, h: 75.36, fontSize: 21.98, lineHeight: 1.22, weight: 400, color: MUTED, maxChars: 112, maxLines: 2, lineChars: 40, family: "Inter" },
-          { field: "cta", x: 72, y: 477.28, w: 252, h: 56.52, fontSize: 20.096, lineHeight: 1.04, weight: 600, color: WHITE, maxChars: 28, maxLines: 1, align: "center", family: "Inter" },
-          { field: "proof_note", x: 348, y: 477.28, w: 288, h: 56.52, fontSize: 16.328, lineHeight: 1.04, weight: 500, color: TEAL, maxChars: 64, maxLines: 2, lineChars: 32, family: "Inter" },
-        ],
-        [],
-        {
-          referenceImage: "/template-packages/contentgate/set-a/link-ad.png",
-          generatedImage: "/template-packages/contentgate/set-a/backgrounds/link-ad.png",
-        }
-      ),
-      leaderboard: frame(
-        "leaderboard",
-        FIGMA_WARM_A,
-        [
-          { kind: "brand", x: 18, y: 27, scale: 0.72 },
-          { kind: "rule", x: 190, y: 18, w: 5, h: 54, color: RUST },
-          { kind: "rect", x: 560, y: 24, w: 132, h: 42, color: GREEN, radius: 999 },
-        ],
-        [
-          { field: "headline", x: 250, y: 16, w: 355, h: 28, fontSize: 20, lineHeight: 1.04, weight: 700, color: GREEN, maxChars: 31, maxLines: 1, lineChars: 31, family: "Inter" },
-          { field: "subheadline", x: 250, y: 46, w: 260, h: 20, fontSize: 13, lineHeight: 1.04, weight: 400, color: MUTED, maxChars: 78, maxLines: 1, lineChars: 42, family: "Inter" },
-          { field: "cta", x: 560, y: 24, w: 132, h: 42, fontSize: 15, lineHeight: 1.04, weight: 600, color: WHITE, maxChars: 18, maxLines: 1, align: "center", family: "Inter" },
-        ],
-        [],
-        {
-          referenceImage: "/template-packages/contentgate/set-a/leaderboard.png",
-          generatedImage: "/template-packages/contentgate/set-a/backgrounds/leaderboard.png",
-        }
-      ),
-      medium_rectangle: frame(
-        "medium_rectangle",
-        FIGMA_WARM_A,
-        [
-          { kind: "rule", x: 22, y: 18, w: 44, h: 4, color: RUST },
-          { kind: "brand", x: 22, y: 31, scale: 0.62 },
-          { kind: "dashboard", x: 204, y: 72, w: 70, h: 48, compact: true },
-          { kind: "rect", x: 24, y: 200, w: 142, h: 32, color: GREEN, radius: 999 },
-        ],
-        [
-          { field: "headline", x: 24, y: 69, w: 252, h: 62, fontSize: 29, lineHeight: 0.96, weight: 700, color: GREEN, maxChars: 34, maxLines: 2, lineChars: 15, family: "Inter" },
-          { field: "subheadline", x: 24, y: 133, w: 232, h: 42, fontSize: 13, lineHeight: 1.16, weight: 400, color: MUTED, maxChars: 54, maxLines: 2, lineChars: 29, family: "Inter" },
-          { field: "cta", x: 24, y: 200, w: 142, h: 32, fontSize: 13, lineHeight: 1.04, weight: 600, color: WHITE, maxChars: 18, maxLines: 1, align: "center", family: "Inter" },
-          { field: "proof_note", x: 176, y: 200, w: 92, h: 32, fontSize: 10, lineHeight: 1.04, weight: 500, color: TEAL, maxChars: 24, maxLines: 1, family: "Inter" },
-        ],
-        [],
-        {
-          referenceImage: "/template-packages/contentgate/set-a/medium-rectangle.png",
-          generatedImage: "/template-packages/contentgate/set-a/backgrounds/medium-rectangle.png",
-        }
-      ),
-    },
-  };
-}
-
-function premiumPackage(): PublishedTemplatePackage {
-  const pkg = friendlyPackage();
-  return {
-    ...pkg,
     packageKey: "contentgate-localized-ads-set-b-v1",
     publicName: "Set B - Local Content Premium",
     frames: {
-      ...pkg.frames,
       square: frame(
         "square",
         WARM,
@@ -773,7 +649,6 @@ function premiumPackage(): PublishedTemplatePackage {
 }
 
 const PACKAGE_REGISTRY: Record<string, PublishedTemplatePackage> = {
-  contentgate_local_friendly: friendlyPackage(),
   contentgate_local_premium: premiumPackage(),
 };
 

@@ -50,7 +50,6 @@ The database enforces the common metadata. The code registry enforces layout-spe
 | `apex_canine_flyer` | A4 | Kicker, headline, body |
 | `caniguard5_social` | Square | Headline, support copy |
 | `vitalbite_social` | Square | Kicker, headline, supporting copy, CTA |
-| `contentgate_local_friendly` | Square, Story, Link Ad, Leaderboard, Medium Rectangle | Headline, subheadline, local detail, CTA, proof note |
 | `contentgate_local_premium` | Square, Portrait, Story, Link Ad, Medium Rectangle | Headline, subheadline, local detail, CTA, proof note |
 
 All other existing templates remain inactive. Inactive historical templates stay readable for existing content but cannot become active until they are registered and pass the contract suite.

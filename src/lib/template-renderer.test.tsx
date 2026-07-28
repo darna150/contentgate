@@ -97,10 +97,7 @@ test("renders worst-case copy for every active layout and output size", async ()
 });
 
 test("ContentGate generated frames include locked surfaces for white editable text", () => {
-  for (const layoutKey of [
-    "contentgate_local_friendly",
-    "contentgate_local_premium",
-  ]) {
+  for (const layoutKey of ["contentgate_local_premium"]) {
     const contract = TEMPLATE_LAYOUT_CONTRACTS[layoutKey];
     assert.ok(contract);
     for (const sizeKey of contract.sizes) {
@@ -114,10 +111,7 @@ test("ContentGate generated frames include locked surfaces for white editable te
 });
 
 test("ContentGate generated vector frames avoid mixed raster backgrounds", () => {
-  for (const layoutKey of [
-    "contentgate_local_friendly",
-    "contentgate_local_premium",
-  ]) {
+  for (const layoutKey of ["contentgate_local_premium"]) {
     const contract = TEMPLATE_LAYOUT_CONTRACTS[layoutKey];
     assert.ok(contract);
     for (const sizeKey of contract.sizes) {

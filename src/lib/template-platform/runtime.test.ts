@@ -7,31 +7,8 @@ import {
   getTemplateBundleVariantBackgroundOptions,
   getTemplateBundleSupportedSizes,
   getTemplateBundleVariantDimensions,
-  getTemplateBundleVariantFieldLimits,
-  getTemplateBundleVariantFields,
   resolveTemplateBundleRuntimeVariant,
 } from "./runtime";
-
-test("resolves ContentGate Set A size-specific fields and limits", async () => {
-  const bundle = await buildContentGateTemplateBundle("contentgate_local_friendly");
-
-  assert.deepEqual(getTemplateBundleSupportedSizes(bundle.manifest), [
-    "square",
-    "story",
-    "link_ad",
-    "leaderboard",
-    "medium_rectangle",
-  ]);
-  assert.deepEqual(
-    getTemplateBundleVariantFields(bundle.manifest, "leaderboard").map((field) => field.key),
-    ["headline", "subheadline", "cta"]
-  );
-  assert.deepEqual(getTemplateBundleVariantFieldLimits(bundle.manifest, "leaderboard"), {
-    headline: { max_chars: 31, max_words: undefined, max_lines: 1 },
-    subheadline: { max_chars: 78, max_words: undefined, max_lines: 1 },
-    cta: { max_chars: 18, max_words: undefined, max_lines: 1 },
-  });
-});
 
 test("resolves ContentGate Set B without exposing unsupported leaderboard", async () => {
   const bundle = await buildContentGateTemplateBundle("contentgate_local_premium");

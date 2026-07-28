@@ -48,13 +48,13 @@ test("flattenContentRow builds platform family and size labels", () => {
     baseRow({
       template_versions: {
         version_label: "figwright-v1",
-        template_families: { name: "ContentGate Local Friendly" },
+        template_families: { name: "Nimbus Air Campaign" },
       },
       template_variants: { label: "Link Ad", variant_key: "link_ad" },
     })
   );
 
-  assert.equal(row.templateName, "ContentGate Local Friendly · Link Ad");
+  assert.equal(row.templateName, "Nimbus Air Campaign · Link Ad");
   assert.equal(row.sizeKey, "link_ad");
 });
 

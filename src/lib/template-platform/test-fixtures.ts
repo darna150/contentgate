@@ -6,8 +6,8 @@ import {
 export const validTemplateBundleManifest: TemplateBundleManifest = {
   schemaVersion: TEMPLATE_BUNDLE_SCHEMA_VERSION,
   family: {
-    key: "contentgate-local-friendly",
-    name: "ContentGate Local Friendly",
+    key: "example-campaign",
+    name: "Example Campaign",
   },
   version: {
     name: "v1",

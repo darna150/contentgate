@@ -119,7 +119,7 @@ function createCliTemplateBundleRepository(
 }
 
 type ContentGateTarget = {
-  layoutKey: "contentgate_local_friendly" | "contentgate_local_premium";
+  layoutKey: "contentgate_local_premium";
   figwrightBundleFolder: string;
   defaultVariantKey: string;
 };
@@ -144,11 +144,6 @@ type ExistingTemplateVersion = {
 const CONTENTGATE_PRODUCT_ID = "20000000-0000-0000-0000-000000000001";
 
 const targets: ContentGateTarget[] = [
-  {
-    layoutKey: "contentgate_local_friendly",
-    figwrightBundleFolder: "local-friendly-v1",
-    defaultVariantKey: "square",
-  },
   {
     layoutKey: "contentgate_local_premium",
     figwrightBundleFolder: "local-premium-v1",

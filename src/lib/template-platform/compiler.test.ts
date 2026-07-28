@@ -24,7 +24,7 @@ const fixedIds = {
 const compileOptions = {
   orgId: "99999999-9999-4999-8999-999999999999",
   createdBy: "88888888-8888-4888-8888-888888888888",
-  storagePrefix: "template-bundles/contentgate-local-friendly/v1",
+  storagePrefix: "template-bundles/example-campaign/v1",
   now: new Date("2026-07-14T10:00:00.000Z"),
   ids: fixedIds,
 };
@@ -38,7 +38,7 @@ test("compiles a valid bundle into template platform insert rows", () => {
   if (!result.ok) return;
 
   assert.equal(result.value.rows.family.id, fixedIds.familyId);
-  assert.equal(result.value.rows.family.family_key, "contentgate-local-friendly");
+  assert.equal(result.value.rows.family.family_key, "example-campaign");
   assert.equal(result.value.rows.version.family_id, fixedIds.familyId);
   assert.equal(result.value.rows.version.id, fixedIds.versionId);
   assert.equal(result.value.rows.version.status, "ready");
@@ -78,7 +78,7 @@ test("assigns reference and background assets to their variant and fonts to the 
   assert.equal(assetsByKey["square-background"].variant_id, fixedIds.variantIds.square);
   assert.equal(
     assetsByKey["square-background"].storage_path,
-    "template-bundles/contentgate-local-friendly/v1/variants/square/background.png"
+    "template-bundles/example-campaign/v1/variants/square/background.png"
   );
 });
 

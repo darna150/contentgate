@@ -62,7 +62,7 @@ type ContentGateFrameTarget = {
 };
 
 type ContentGateBundleTarget = {
-  layoutKey: "contentgate_local_friendly" | "contentgate_local_premium";
+  layoutKey: "contentgate_local_premium";
   folder: string;
   pageId: string;
   family: FigmaPublisherInput["family"];
@@ -72,24 +72,6 @@ type ContentGateBundleTarget = {
 };
 
 const targets: ContentGateBundleTarget[] = [
-  {
-    layoutKey: "contentgate_local_friendly",
-    folder: "local-friendly-v1",
-    pageId: "2:2",
-    family: {
-      key: "contentgate-local-friendly",
-      name: "ContentGate Local Friendly",
-    },
-    versionName: "figwright-v1",
-    sourceVersion: "figwright-set-a",
-    frames: [
-      { key: "square", label: "Square", channel: "social", nodeId: "2:15" },
-      { key: "story", label: "Story", channel: "social", nodeId: "2:52" },
-      { key: "link_ad", label: "Link Ad", channel: "display_ad", nodeId: "2:90" },
-      { key: "leaderboard", label: "Leaderboard", channel: "display_ad", nodeId: "2:124" },
-      { key: "medium_rectangle", label: "Medium Rectangle", channel: "display_ad", nodeId: "2:138" },
-    ],
-  },
   {
     layoutKey: "contentgate_local_premium",
     folder: "local-premium-v1",

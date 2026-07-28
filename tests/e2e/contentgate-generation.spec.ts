@@ -2,7 +2,10 @@ import { expect, test, type Page, type TestInfo } from "@playwright/test";
 
 const E2E_EMAIL = process.env.CONTENTGATE_E2E_EMAIL;
 const E2E_PASSWORD = process.env.CONTENTGATE_E2E_PASSWORD;
-const TEMPLATE_NAME = "ContentGate Local Friendly";
+const TEMPLATE_NAME = "Nimbus Air Campaign";
+const DEMO_PRODUCT_ID =
+  process.env.CONTENTGATE_E2E_PRODUCT_ID ??
+  "27cf3a56-84e6-41fb-8cb7-4bf7dbe3c564";
 const PLATFORM_ASSIGNMENT_ID =
   process.env.CONTENTGATE_E2E_ASSIGNMENT_ID ??
   "3a6cbcb0-23b4-476b-8deb-ad2e48d20516";
@@ -85,21 +88,8 @@ async function signIn(page: Page) {
 }
 
 async function openContentGateTemplate(page: Page) {
-  await page.goto("/products");
-  await expect(page).toHaveURL(/\/products/);
-  await expect(page.getByRole("heading", { name: /Products/i })).toBeVisible();
-
-  const productLink = page.locator('a[href^="/products/"]').filter({ hasText: /ContentGate/i }).first();
-  await expect(productLink).toBeVisible();
-  await productLink.click();
-  await page.waitForURL(/\/products\//, { timeout: 45_000 });
-
-  const templatesLink = page.getByRole("link", { name: /Templates/i });
-  if (await templatesLink.isVisible()) {
-    await templatesLink.click();
-  } else {
-    await page.goto(`${page.url().split("?")[0]}?view=templates`);
-  }
+  await page.goto(`/products/${DEMO_PRODUCT_ID}?view=templates`);
+  await expect(page).toHaveURL(new RegExp(`/products/${DEMO_PRODUCT_ID}`));
 
   await expect(page.getByText(TEMPLATE_NAME)).toBeVisible();
 }

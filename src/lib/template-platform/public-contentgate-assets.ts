@@ -4,8 +4,7 @@ export const CONTENTGATE_PUBLIC_ASSET_VERSION = "vector-figwright-2026-07-19-01"
 
 type ContentGateAssetKind = "reference" | "background";
 
-const CONTENTGATE_PUBLIC_PACKAGE_BY_FAMILY: Record<string, "set-a" | "set-b"> = {
-  "contentgate-local-friendly": "set-a",
+const CONTENTGATE_PUBLIC_PACKAGE_BY_FAMILY: Record<string, "set-b"> = {
   "contentgate-local-premium": "set-b",
 };
 
@@ -56,7 +55,7 @@ function inferVariantAssetKindFromPath(assetPath: string):
   }
 
   const packageMatch = normalized.match(
-    /^template-packages\/contentgate\/set-[ab]\/(?:(backgrounds)\/)?([^/]+)\.png$/i
+    /^template-packages\/contentgate\/set-b\/(?:(backgrounds)\/)?([^/]+)\.png$/i
   );
   if (!packageMatch) return null;
   const variantKey = packageMatch[2].replace(/-/g, "_");

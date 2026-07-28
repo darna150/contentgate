@@ -65,7 +65,6 @@ const BACKGROUND_OPTIONS = [
 ] as const;
 
 const LAYOUT_FAMILY_KEYS: Record<string, string> = {
-  contentgate_local_friendly: "contentgate-local-friendly",
   contentgate_local_premium: "contentgate-local-premium",
 };
 
@@ -302,7 +301,7 @@ async function buildVariantAssets(input: {
 }
 
 export async function buildContentGateTemplateBundle(
-  layoutKey: "contentgate_local_friendly" | "contentgate_local_premium"
+  layoutKey: "contentgate_local_premium"
 ): Promise<ContentGateTemplateBundle> {
   const pkg = resolvePublishedTemplatePackage(layoutKey);
   if (!pkg) throw new Error(`Unknown ContentGate package ${layoutKey}.`);

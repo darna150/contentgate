@@ -13,8 +13,8 @@ const activeRow = {
   default_payload: {},
   template_families: {
     id: "family-id",
-    family_key: "contentgate-local-friendly",
-    name: "ContentGate Local Friendly",
+    family_key: "example-campaign",
+    name: "Example Campaign",
   },
   template_versions: {
     id: "version-id",
