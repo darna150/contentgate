@@ -109,6 +109,13 @@ function trimLastWord(value: string) {
   return words.slice(0, -1).join(" ").trim();
 }
 
+function trimToCharacterLimit(value: string, maxChars: number) {
+  if (value.length <= maxChars) return value;
+  const sliced = value.slice(0, maxChars).trim();
+  if (!sliced || /\s/.test(value[maxChars] ?? "")) return sliced;
+  return sliced.replace(/\s+\S+$/, "").trim() || sliced;
+}
+
 function descenderPadding(slot: TemplateBundleTextSlot, fontSize: number) {
   const lineBoxHeight = fontSize * slot.lineHeight * slot.maxLines;
   return Math.max(0, Math.min(fontSize * 0.12, slot.height - lineBoxHeight));
@@ -348,9 +355,10 @@ export async function coerceTemplatePlatformFieldsToFit(
     if (!value) continue;
     const original = value;
 
-    if (slot.maxChars && value.length > slot.maxChars) {
-      value = value.slice(0, slot.maxChars).trim();
+    if (slot.maxWords) {
+      value = value.split(/\s+/).slice(0, slot.maxWords).join(" ");
     }
+    if (slot.maxChars) value = trimToCharacterLimit(value, slot.maxChars);
 
     for (let attempt = 0; attempt < 120; attempt += 1) {
       const layout = await resolveTemplatePlatformTextSlotLayout(input.manifest, value, slot, fontSource);

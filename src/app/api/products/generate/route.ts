@@ -593,6 +593,7 @@ export async function POST(req: Request) {
     let rawEvidenceCount = 0;
     let fitReasons: string[] = [];
     let groundingIssues: string[] = [];
+    let coercedTruncatedFields: string[] = [];
     const generationMode = "ai";
 
     for (let attempt = 0; attempt < PLATFORM_GENERATION_ATTEMPTS; attempt += 1) {
@@ -635,6 +636,14 @@ export async function POST(req: Request) {
               .trim(),
           ])
         );
+        const coerceResult = await coerceTemplatePlatformFieldsToFit({
+          manifest: assignment.manifest,
+          variantKey: outputSizeKey,
+          fields: structured,
+          assetUrlByPath,
+        });
+        structured = coerceResult.fields;
+        coercedTruncatedFields = coerceResult.truncatedFields;
         const configuredIssues = templateFieldIssues(
           structured,
           editableFields,
@@ -681,7 +690,6 @@ export async function POST(req: Request) {
       }
     }
 
-    let coercedTruncatedFields: string[] = [];
     // Fit-only coercion fallback: shrink/trim to satisfy the geometry gate.
     // Only attempt when grounding already passed — coercion cannot fix an
     // ungrounded claim, and it only removes words, so the verified citations
@@ -694,7 +702,9 @@ export async function POST(req: Request) {
         assetUrlByPath,
       });
       structured = coerceResult.fields;
-      coercedTruncatedFields = coerceResult.truncatedFields;
+      coercedTruncatedFields = Array.from(
+        new Set([...coercedTruncatedFields, ...coerceResult.truncatedFields])
+      );
       const configuredIssues = templateFieldIssues(
         structured,
         editableFields,

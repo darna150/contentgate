@@ -209,14 +209,12 @@ async function findFieldTextarea(page: Page, labelPattern: RegExp) {
 }
 
 async function findEditableTextArea(page: Page) {
-  const textareas = page.locator("textarea");
+  const textareas = page.locator("textarea:not([disabled])");
   const count = await textareas.count();
   for (let index = 0; index < count; index += 1) {
     const textarea = textareas.nth(index);
     const value = await textarea.inputValue();
-    if (/local|content|brand|get started|see how|approved/i.test(value)) {
-      return textarea;
-    }
+    if (value.trim()) return textarea;
   }
   throw new Error("Could not find a populated editable text field in Studio.");
 }
