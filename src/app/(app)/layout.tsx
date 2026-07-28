@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { Sidebar } from "@/components/sidebar";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { UiUxMeasurementProvider } from "@/components/uiux-measurement-provider";
 
 export default async function AppLayout({
   children,
@@ -12,6 +13,7 @@ export default async function AppLayout({
   // Unconfigured preview fallback so the shell is reviewable without Supabase
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
     return (
+      <UiUxMeasurementProvider enabled={false}>
       <TooltipProvider>
         <div className="flex min-h-screen flex-col md:flex-row">
           <Sidebar
@@ -21,10 +23,11 @@ export default async function AppLayout({
             userRole="admin"
             pendingCount={0}
           />
-          <main className="min-w-0 flex-1">{children}</main>
+          <main id="main-content" tabIndex={-1} className="min-w-0 flex-1">{children}</main>
         </div>
         <Toaster />
       </TooltipProvider>
+      </UiUxMeasurementProvider>
     );
   }
 
@@ -52,7 +55,14 @@ export default async function AppLayout({
     .not("product_id", "is", null)
     .eq("status", "in_review");
 
+  const { data: pilotFlag } = await supabase
+    .from("organization_feature_flags")
+    .select("uiux_campaign_pilot_enabled")
+    .eq("org_id", profile.org_id)
+    .maybeSingle();
+
   return (
+    <UiUxMeasurementProvider enabled={pilotFlag?.uiux_campaign_pilot_enabled === true}>
     <TooltipProvider>
       <div className="flex min-h-screen flex-col md:flex-row">
         <Sidebar
@@ -62,9 +72,10 @@ export default async function AppLayout({
           userRole={profile.role}
           pendingCount={count ?? 0}
         />
-        <main className="min-w-0 flex-1">{children}</main>
+        <main id="main-content" tabIndex={-1} className="min-w-0 flex-1">{children}</main>
       </div>
       <Toaster />
     </TooltipProvider>
+    </UiUxMeasurementProvider>
   );
 }

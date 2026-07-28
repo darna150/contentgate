@@ -26,11 +26,13 @@ export function StudioBackgroundPicker({
   value,
   editable,
   onChange,
+  assetUrlByPath,
 }: {
   options: TemplateBundleRuntimeBackgroundOption[];
   value: string;
   editable: boolean;
   onChange: (value: string) => void;
+  assetUrlByPath?: Record<string, string>;
 }) {
   const buttonRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
@@ -54,7 +56,7 @@ export function StudioBackgroundPicker({
     <div className="flex flex-col gap-3 border-t border-edge pt-5" data-testid="studio-background-picker">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <span className="text-label text-ink-faint">Background style</span>
+          <span className="text-label text-ink-faint">Background</span>
           {hasMultipleOptions && (
             <p className="mt-2 text-[14px] leading-6 text-ink-muted">
               Swaps the locked background design only. Copy stays exactly as written.
@@ -70,12 +72,15 @@ export function StudioBackgroundPicker({
 
       <div
         role="radiogroup"
-        aria-label="Background style"
+        aria-label="Background choices"
         onKeyDown={handleKeyDown}
         className="flex flex-wrap gap-3"
       >
         {options.map((option, index) => {
           const selected = value === option.key;
+          const thumbnailSrc =
+            assetUrlByPath?.[option.thumbnailAssetPath] ??
+            assetUrlByPath?.[option.assetPath];
           return (
             <button
               key={option.key}
@@ -100,6 +105,16 @@ export function StudioBackgroundPicker({
                 swatchStyle(option)
               )}
             >
+              {thumbnailSrc && (
+                // The image is an authored, locked background thumbnail. The
+                // swatch remains as a fallback while a signed URL is loading.
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={thumbnailSrc}
+                  alt=""
+                  className="absolute inset-0 h-full w-full object-cover"
+                />
+              )}
               {selected && (
                 <span
                   className="absolute right-1.5 top-1.5 flex size-6 items-center justify-center rounded-full bg-brand text-white shadow-elevated"

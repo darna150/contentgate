@@ -23,6 +23,7 @@ import {
   resolveTemplateBundleRuntimeVariant,
 } from "@/lib/template-platform/runtime";
 import { createTemplateBundleAssetUrlMap } from "@/lib/template-platform/storage-urls";
+import { getTemplateVariantRenderAssetPaths } from "@/lib/template-platform/live-preview-assets";
 import type { FieldLimits } from "@/lib/template-fields";
 import { studioEditableTemplateFields } from "@/lib/generation-evidence";
 
@@ -38,6 +39,8 @@ export type StudioContent = {
   status: string;
   rejectionNote: string | null;
   structured_fields: Record<string, string>;
+  citations: Array<{ field: string; approved_source: string; excerpt?: string }>;
+  templateVersionId: string | null;
   outputSize: string | null;
   campaignRootContentId: string;
   manuallyEdited: boolean;
@@ -125,12 +128,15 @@ type PlatformAssignmentRow = {
     | null;
 };
 
+type ServerSupabaseClient = Awaited<ReturnType<typeof createClient>>;
+
 type GeneratedContentRow = {
   id: string;
   title: string;
   status: string;
   rejection_note?: string | null;
   structured_fields: Record<string, string> | null;
+  citations?: Array<{ field: string; approved_source: string; excerpt?: string }> | null;
   prompt_context: Record<string, unknown> | null;
   created_by: string;
   product_id: string;
@@ -150,7 +156,7 @@ type ProductAssetBindingRow = TemplateDamAssetRow & {
 };
 
 const CONTENT_SELECT =
-  "id, title, status, rejection_note, structured_fields, prompt_context, created_by, product_id, product_template_id, template_version_id, template_variant_id, template_variants!generated_content_template_variant_id_fkey(variant_key, label), updated_at";
+  "id, title, status, rejection_note, structured_fields, citations, prompt_context, created_by, product_id, product_template_id, template_version_id, template_variant_id, template_variants!generated_content_template_variant_id_fkey(variant_key, label), updated_at";
 
 const ACTIVE_CONTENT_STATUSES = ["draft", "rejected", "in_review", "approved"];
 
@@ -201,6 +207,8 @@ function toStudioContent(row: GeneratedContentRow, userId?: string): StudioConte
     status: row.status,
     rejectionNote: row.rejection_note ?? null,
     structured_fields: (row.structured_fields ?? {}) as Record<string, string>,
+    citations: Array.isArray(row.citations) ? row.citations : [],
+    templateVersionId: row.template_version_id ?? null,
     outputSize: contentOutputSize(row),
     campaignRootContentId: campaignGroupId(row),
     canEdit: userId
@@ -266,8 +274,7 @@ async function platformAssignmentsToTemplates(rows: PlatformAssignmentRow[]): Pr
   return templates.flat();
 }
 
-async function listActiveAssignments() {
-  const supabase = await createClient();
+async function listActiveAssignments(supabase: ServerSupabaseClient) {
   const { data } = await supabase
     .from("product_template_assignments")
     .select(
@@ -334,8 +341,10 @@ async function resolveTemplateDamOptions(input: {
   };
 }
 
-async function findAssignmentForContent(content: GeneratedContentRow) {
-  const supabase = await createClient();
+async function findAssignmentForContent(
+  supabase: ServerSupabaseClient,
+  content: GeneratedContentRow
+) {
   const assignmentId = promptAssignmentId(content);
 
   let query = supabase
@@ -361,12 +370,16 @@ async function findAssignmentForContent(content: GeneratedContentRow) {
 }
 
 export async function getStudioContent(
-  contentId: string
+  contentId: string,
+  dependencies?: {
+    supabase: ServerSupabaseClient;
+    userId: string | undefined;
+  }
 ): Promise<StudioContentContext | null> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const supabase = dependencies?.supabase ?? (await createClient());
+  const userId = dependencies
+    ? dependencies.userId
+    : (await supabase.auth.getUser()).data.user?.id;
   const { data, error } = await supabase
     .from("generated_content")
     .select(
@@ -380,14 +393,14 @@ export async function getStudioContent(
   const row = data as GeneratedContentRow;
   const product = one(row.products);
   if (!product) return null;
-  const assignmentRow = await findAssignmentForContent(row);
+  const assignmentRow = await findAssignmentForContent(supabase, row);
   if (!assignmentRow) return null;
   const [assignment] = await platformAssignmentsToTemplates([assignmentRow]);
   if (!assignment?.platformManifest) return null;
   const variantKey = contentOutputSize(row) ?? defaultVariantKey(assignment.platformManifest);
   const dims = variantDimensions(assignment.platformManifest, variantKey);
   const sizeLabel = getTemplateBundleVariantLabel(assignment.platformManifest, variantKey);
-  const content = toStudioContent(row, user?.id);
+  const content = toStudioContent(row, userId);
 
   return {
     content,
@@ -463,13 +476,15 @@ export async function loadStudioState(input: {
     { data: organization },
     { data: profile },
   ] = await Promise.all([
-    input.contentId ? getStudioContent(input.contentId) : Promise.resolve(null),
+    input.contentId
+      ? getStudioContent(input.contentId, { supabase, userId: user?.id })
+      : Promise.resolve(null),
     supabase
       .from("products")
       .select("id, name, disclaimer_text")
       .eq("status", "active")
       .order("name"),
-    listActiveAssignments(),
+    listActiveAssignments(supabase),
     supabase.from("organizations").select("name").single(),
     user
       ? supabase.from("profiles").select("role, org_id").eq("id", user.id).single()
@@ -558,36 +573,9 @@ export async function loadStudioState(input: {
   if (selectedTemplate?.platformManifest && profile?.org_id) {
     const manifest = selectedTemplate.platformManifest;
     const activeSize = initialSize ?? manifest.variants[0]?.key;
-    const runtime = activeSize
-      ? resolveTemplateBundleRuntimeVariant(manifest, activeSize)
-      : null;
-    // Reference URLs are signed once with the Studio payload, then used as
-    // direct image sources in the browser. This removes the per-size
-    // auth → assignment lookup → signing → redirect waterfall.
-    const referencePathsBySize = Object.fromEntries(
-      manifest.variants.flatMap((variant) => {
-        const asset = manifest.assets.find((item) => item.key === variant.referenceAsset);
-        return asset ? [[variant.key, asset.path] as const] : [];
-      })
-    );
-    const requiredPaths = [
-      // Draft can be generated for any selected size without a navigation.
-      // Sign every background (small render dependency) up front; reference
-      // exports remain direct URLs and are never downloaded until selected.
-      runtime?.backgroundAssetPath,
-      ...manifest.variants.flatMap((variant) => {
-        const resolved = resolveTemplateBundleRuntimeVariant(manifest, variant.key);
-        return resolved ? [resolved.backgroundAssetPath] : [];
-      }),
-      ...manifest.fonts.flatMap((font) => {
-        const asset = manifest.assets.find((item) => item.key === font.asset);
-        return asset ? [asset.path] : [];
-      }),
-      ...manifest.assets
-        .filter((asset) => asset.kind === "image")
-        .map((asset) => asset.path),
-      ...Object.values(referencePathsBySize),
-    ].filter((path): path is string => Boolean(path));
+    const requiredPaths = activeSize
+      ? getTemplateVariantRenderAssetPaths(manifest, activeSize)
+      : [];
     const signedUrls = Object.fromEntries(
       await createTemplateBundleAssetUrlMap(supabase, profile.org_id, [manifest], {
         assetPaths: requiredPaths,
@@ -596,11 +584,6 @@ export async function loadStudioState(input: {
     selectedTemplate = {
       ...selectedTemplate,
       platformAssetUrlByPath: signedUrls,
-      referenceAssetBySize: Object.fromEntries(
-        Object.entries(referencePathsBySize).flatMap(([size, path]) =>
-          signedUrls[path] ? [[size, signedUrls[path]] as const] : []
-        )
-      ),
     };
   }
 

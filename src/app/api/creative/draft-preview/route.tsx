@@ -6,6 +6,7 @@ import { renderTemplateBundleVariant } from "@/lib/template-platform/render";
 import { resolveTemplatePlatformVariantLayout } from "@/lib/template-platform/fit";
 import { resolveTemplateBundleRuntimeVariant } from "@/lib/template-platform/runtime";
 import { createTemplateBundleAssetUrlMap } from "@/lib/template-platform/storage-urls";
+import { getTemplateVariantRenderAssetPaths } from "@/lib/template-platform/live-preview-assets";
 import { loadTemplateBundleImageFonts } from "@/lib/template-platform/server-fonts";
 import { loadContentGateFonts } from "@/lib/contentgate-fonts";
 import {
@@ -97,7 +98,9 @@ export async function GET(req: Request) {
   }
 
   const assetUrlByPath = Object.fromEntries(
-    await createTemplateBundleAssetUrlMap(supabase, content.org_id, [manifest])
+    await createTemplateBundleAssetUrlMap(supabase, content.org_id, [manifest], {
+      assetPaths: getTemplateVariantRenderAssetPaths(manifest, variantKey),
+    })
   );
   const fields = (content.structured_fields ?? {}) as Record<string, string>;
   const damAssetUrlById = await createTemplateDamAssetUrlMap({

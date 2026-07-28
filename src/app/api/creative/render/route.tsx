@@ -28,6 +28,7 @@ import { renderTemplateBundleVariant } from "@/lib/template-platform/render";
 import { resolveTemplatePlatformVariantLayout } from "@/lib/template-platform/fit";
 import { resolveTemplateBundleRuntimeVariant } from "@/lib/template-platform/runtime";
 import { createTemplateBundleAssetUrlMap } from "@/lib/template-platform/storage-urls";
+import { getTemplateVariantRenderAssetPaths } from "@/lib/template-platform/live-preview-assets";
 import { loadTemplateBundleImageFonts } from "@/lib/template-platform/server-fonts";
 import {
   convertServerRenderedPng,
@@ -133,7 +134,9 @@ export async function GET(req: Request) {
       return new Response("Unsupported size for this template", { status: 400 });
     }
     const assetUrlByPath = Object.fromEntries(
-      await createTemplateBundleAssetUrlMap(supabase, content.org_id, [manifest])
+      await createTemplateBundleAssetUrlMap(supabase, content.org_id, [manifest], {
+        assetPaths: getTemplateVariantRenderAssetPaths(manifest, variantKey),
+      })
     );
     const damAssetUrlById = await createTemplateDamAssetUrlMap({
       supabase,

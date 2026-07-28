@@ -8,7 +8,7 @@ export default async function StudioContentPage({
   searchParams,
 }: {
   params: Promise<{ contentId: string }>;
-  searchParams: Promise<{ size?: string }>;
+  searchParams: Promise<{ size?: string; returnTo?: string }>;
 }) {
   const [{ contentId }, query] = await Promise.all([params, searchParams]);
   const state = await loadStudioState({
@@ -20,5 +20,5 @@ export default async function StudioContentPage({
     notFound();
   }
 
-  return <StudioPageView state={state} />;
+  return <StudioPageView state={state} returnTo={query.returnTo} />;
 }

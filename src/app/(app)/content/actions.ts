@@ -196,15 +196,19 @@ export async function updateContentBody(
 
 export async function updateStructuredFields(
   id: string,
-  fields: Record<string, string>
+  fields: Record<string, string>,
+  expectedUpdatedAt: string | null
 ): Promise<ActionResult> {
   const ctx = await requireUser();
   if (!ctx) return { error: "Your session expired — sign in again." };
+  if (!expectedUpdatedAt) {
+    return { error: "This draft is out of date. Refresh Studio before saving." };
+  }
 
   const { data: content } = await ctx.supabase
     .from("generated_content")
     .select(
-      "structured_fields, prompt_context, product_templates!generated_content_product_template_id_fkey(layout_key, category, editable_fields, field_limits, locked_fields, template_definition, status), template_versions!generated_content_template_version_id_fkey(manifest), template_variants!generated_content_template_variant_id_fkey(variant_key)"
+      "structured_fields, prompt_context, updated_at, product_templates!generated_content_product_template_id_fkey(layout_key, category, editable_fields, field_limits, locked_fields, template_definition, status), template_versions!generated_content_template_version_id_fkey(manifest), template_variants!generated_content_template_variant_id_fkey(variant_key)"
     )
     .eq("id", id)
     .single();
@@ -325,9 +329,13 @@ export async function updateStructuredFields(
       updated_at: savedAt,
     })
     .eq("id", id)
-    .select("id, status")
+    .eq("updated_at", expectedUpdatedAt)
+    .select("id, status, updated_at")
     .single();
   if (error || !row) {
+    if (!row && (!error || error.code === "PGRST116")) {
+      return { error: "This draft changed elsewhere. Refresh Studio before saving." };
+    }
     return { error: `Could not save: ${error?.message ?? "not found"}` };
   }
 
@@ -338,7 +346,7 @@ export async function updateStructuredFields(
   return {
     ok: true,
     status: row.status,
-    savedAt,
+    savedAt: row.updated_at,
     manuallyEdited: manuallyEditedFields.length > 0,
   };
 }

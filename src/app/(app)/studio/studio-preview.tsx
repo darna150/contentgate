@@ -9,12 +9,50 @@ import {
 } from "@/lib/template-platform/render";
 
 const GENERATION_MESSAGES = [
-  "Reading the approved brief.",
-  "Balancing the headline and layout.",
-  "Keeping every pixel inside the brand system.",
-  "Checking copy against the source material.",
-  "Polishing the preview for its close-up.",
+  "Giving every word a job…",
+  "Checking the claim before it gets the spotlight…",
+  "Making the layout earn each line break…",
+  "Turning source material into something worth approving…",
 ] as const;
+
+// FontFace instances live for the lifetime of the browser document. Reusing
+// them avoids a new signed-storage font request every time the user changes a
+// size, product colour, or background in Studio.
+const previewFontLoads = new Map<string, Promise<void>>();
+
+function previewFontLoadKey(
+  manifest: TemplateBundleManifest,
+  font: TemplateBundleManifest["fonts"][number]
+) {
+  return [manifest.family.key, manifest.version.name, font.asset, font.family, font.weight, font.style].join(":");
+}
+
+function loadPreviewFont(input: {
+  manifest: TemplateBundleManifest;
+  font: TemplateBundleManifest["fonts"][number];
+  src: string;
+}) {
+  const key = previewFontLoadKey(input.manifest, input.font);
+  const existing = previewFontLoads.get(key);
+  if (existing) return existing;
+
+  const pending = new FontFace(input.font.family, `url(${input.src})`, {
+    weight: String(input.font.weight),
+    style: input.font.style,
+  })
+    .load()
+    .then((loaded) => {
+      document.fonts.add(loaded);
+    })
+    .catch((error) => {
+      // A short-lived signed URL must not poison future attempts after a
+      // refresh or a later size switch obtains a fresh URL.
+      previewFontLoads.delete(key);
+      throw error;
+    });
+  previewFontLoads.set(key, pending);
+  return pending;
+}
 
 function previewScale(input: {
   availableWidth: number;
@@ -82,8 +120,8 @@ export function GenerationLoader() {
           </span>
         </div>
         <div className="flex flex-col gap-1.5">
-          <p className="text-[14px] font-bold text-ink">Building your preview</p>
-          <p className="min-h-5 text-[12.5px] text-ink-muted">
+          <p className="text-[14px] font-bold text-ink">Making the case, not just the copy</p>
+          <p className="min-h-5 text-[13px] text-ink-muted">
             {GENERATION_MESSAGES[messageIndex]}
           </p>
         </div>
@@ -220,12 +258,14 @@ export function MissingDraftFrame({
   sizeLabel,
   busy,
   onGenerate,
+  onCopyFromCampaign,
 }: {
   width: number;
   height: number;
   sizeLabel: string;
   busy: boolean;
   onGenerate: () => void;
+  onCopyFromCampaign: () => void;
 }) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0.72);
@@ -266,6 +306,15 @@ export function MissingDraftFrame({
         </p>
         <Button type="button" onClick={onGenerate} disabled={busy} className="mt-4">
           {busy ? "Generating…" : `Generate ${sizeLabel} draft`}
+        </Button>
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={onCopyFromCampaign}
+          disabled={busy}
+          className="mt-2"
+        >
+          Copy from campaign
         </Button>
       </div>
     </div>
@@ -340,7 +389,12 @@ export function LiveTemplatePreviewFrame({
     queueMicrotask(() => {
       if (!disposed) setFontsReady(false);
     });
+    const variant = manifest.variants.find((item) => item.key === variantKey);
+    const usedFontKeys = new Set(
+      variant?.slots.flatMap((slot) => (slot.kind === "text" ? [slot.fontKey] : [])) ?? []
+    );
     const bundleFonts = manifest.fonts
+      .filter((font) => usedFontKeys.size === 0 || usedFontKeys.has(font.key))
       .map((font) => {
         const assetPath = manifest.assets.find((asset) => asset.key === font.asset)?.path;
         return { font, src: assetPath ? assetUrlByPath?.[assetPath] : undefined };
@@ -353,14 +407,7 @@ export function LiveTemplatePreviewFrame({
       return;
     }
     void Promise.all(
-      bundleFonts.map(async ({ font, src }) => {
-        const face = new FontFace(font.family, `url(${src})`, {
-          weight: String(font.weight),
-          style: font.style,
-        });
-        const loaded = await face.load();
-        document.fonts.add(loaded);
-      })
+      bundleFonts.map(({ font, src }) => loadPreviewFont({ manifest, font, src }))
     )
       .catch(() => {
         // Keep the canvas available if a signed asset has just expired. The
@@ -372,7 +419,7 @@ export function LiveTemplatePreviewFrame({
     return () => {
       disposed = true;
     };
-  }, [assetUrlByPath, manifest.assets, manifest.fonts]);
+  }, [assetUrlByPath, manifest, variantKey]);
 
   if (!rendered) {
     return (
@@ -396,7 +443,18 @@ export function LiveTemplatePreviewFrame({
     <div
       ref={viewportRef}
       className="relative flex h-full min-h-0 w-full items-center justify-center overflow-hidden bg-[#f5f5f2] p-4"
+      aria-busy={!fontsReady}
     >
+      {!fontsReady && (
+        <div
+          className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-[#f5f5f2]/90 text-center"
+          role="status"
+          aria-live="polite"
+        >
+          <span className="size-7 animate-spin rounded-full border-2 border-brand/25 border-t-brand motion-reduce:animate-none" aria-hidden="true" />
+          <p className="text-[12.5px] font-semibold text-ink-muted">Loading locked preview…</p>
+        </div>
+      )}
       {updating && (
         <div className="absolute right-4 top-4 z-10 rounded-full bg-surface/90 px-3 py-1.5 text-[11px] font-semibold text-ink-muted shadow-sm">
           Saving…
@@ -416,8 +474,8 @@ export function LiveTemplatePreviewFrame({
             transform: `scale(${scale / renderScale})`,
             transformOrigin: "top left",
             // Do not flash a system-font layout before the bundle fonts are
-            // present; that flash was being mistaken for generated copy
-            // overflowing the locked Figma slots.
+            // present; the explicit loading state above keeps this from
+            // looking like an empty or broken preview.
             visibility: fontsReady ? "visible" : "hidden",
           }}
         >
