@@ -12,7 +12,10 @@ import {
 } from "./fit";
 import { isPublicContentGateBundle } from "./public-contentgate-assets";
 import { validateTemplateBundlePublishReadiness } from "./publish-readiness";
-import { renderTemplateBundleVariant } from "./render";
+import {
+  renderTemplateBundleVariant,
+  resolveTemplateBundleTextSlotPlacements,
+} from "./render";
 import { BACKGROUND_CHOICE_FIELD } from "./runtime";
 import { validTemplateBundleManifest } from "./test-fixtures";
 
@@ -338,7 +341,7 @@ test("generated bundle renders with absolute assets for ImageResponse consumptio
   );
 });
 
-test("ContentGate link ad headlines reserve descender-safe line boxes", async () => {
+test("ContentGate link ad headlines preserve the authored line height", async () => {
   const bundle = await buildContentGateTemplateBundle("contentgate_local_friendly");
   const fields = {
     cta: "Get started",
@@ -360,7 +363,45 @@ test("ContentGate link ad headlines reserve descender-safe line boxes", async ()
   assert.ok(rendered);
   const html = renderToStaticMarkup(rendered.element);
   assert.match(html, /Carry lighter/);
-  assert.match(html, /line-height:1.2400000095367432/);
+  assert.match(html, /line-height:0\.94(?:[;\"])/);
+  assert.doesNotMatch(html, /line-height:1\.2400000095367432/);
+});
+
+test("moves a later generated text slot below a colliding multi-line headline", () => {
+  const [headline, heroImage] = validTemplateBundleManifest.variants[0].slots;
+  assert.ok(headline && headline.kind === "text");
+  const subheadline = {
+    ...headline,
+    key: "subheadline-slot",
+    field: "subheadline",
+    y: 650,
+    height: 72,
+    fontSize: 36,
+    lineHeight: 1.2,
+    maxLines: 1,
+  } as const;
+  const variant = {
+    ...validTemplateBundleManifest.variants[0],
+    slots: [headline, subheadline, heroImage],
+  };
+  const placements = resolveTemplateBundleTextSlotPlacements({
+    variant,
+    fields: {
+      headline: "Two lines of generated copy",
+      subheadline: "Supporting proof",
+    },
+    layoutByField: {
+      headline: { fontSize: 72, lines: ["Two lines of", "generated copy"] },
+      subheadline: { fontSize: 36, lines: ["Supporting proof"] },
+    },
+  });
+
+  const headlinePlacement = placements.get("headline-slot");
+  const subheadlinePlacement = placements.get("subheadline-slot");
+  assert.ok(headlinePlacement);
+  assert.ok(subheadlinePlacement);
+  assert.ok(subheadlinePlacement.contentTop >= headlinePlacement.contentBottom + 2);
+  assert.ok(subheadlinePlacement.top > subheadline.y);
 });
 
 test("reports platform copy that wraps beyond the locked text slot", async () => {

@@ -4,6 +4,7 @@ import type {
   TemplateBundleImageSlot,
   TemplateBundleManifest,
   TemplateBundleTextSlot,
+  TemplateBundleVariant,
 } from "./manifest";
 import { selectedTemplateAssetUrl } from "./dam-bindings";
 import {
@@ -54,6 +55,12 @@ export type TemplateBundleTextLayout = {
   lines: string[];
 };
 
+export type TemplateBundleTextSlotPlacement = {
+  top: number;
+  contentTop: number;
+  contentBottom: number;
+};
+
 function scaledNumber(value: number, scale: number) {
   return Math.round(value * scale * 1000) / 1000;
 }
@@ -73,11 +80,91 @@ function fallbackFontSizeForUnresolvedText(
   return scaledNumber(estimatedSize, scale);
 }
 
+function resolvedTextSlotFontSize(
+  slot: TemplateBundleTextSlot,
+  fields: Record<string, unknown>,
+  layoutByField: Record<string, TemplateBundleTextLayout> | undefined
+) {
+  const resolved = layoutByField?.[slot.field];
+  const content = resolved ? resolved.lines.join("\n") : cleanText(fields[slot.field]);
+  return resolved ? resolved.fontSize : fallbackFontSizeForUnresolvedText(slot, content, 1);
+}
+
+function resolvedTextSlotLineCount(
+  slot: TemplateBundleTextSlot,
+  fields: Record<string, unknown>,
+  layoutByField: Record<string, TemplateBundleTextLayout> | undefined
+) {
+  const resolved = layoutByField?.[slot.field];
+  if (resolved) return resolved.lines.length;
+  return cleanText(fields[slot.field]) ? slot.maxLines : 0;
+}
+
+function intersectsHorizontally(a: TemplateBundleTextSlot, b: TemplateBundleTextSlot) {
+  return a.x < b.x + b.width && b.x < a.x + a.width;
+}
+
+/**
+ * Keep generated text from occupying the same visible space as another text
+ * slot. Figma files can contain deliberately tight bounding boxes, but those
+ * boxes do not account for browser font metrics or a generated two-line
+ * value. We preserve each slot's authored typography and move only a later
+ * colliding text treatment far enough to create a responsive safe gap.
+ */
+export function resolveTemplateBundleTextSlotPlacements(input: {
+  variant: TemplateBundleVariant;
+  fields: Record<string, unknown>;
+  layoutByField?: Record<string, TemplateBundleTextLayout>;
+}): ReadonlyMap<string, TemplateBundleTextSlotPlacement> {
+  const placements = new Map<string, TemplateBundleTextSlotPlacement>();
+  const placed: Array<{ slot: TemplateBundleTextSlot; placement: TemplateBundleTextSlotPlacement }> = [];
+  const safeGap = Math.max(2, Math.min(16, input.variant.height * 0.008));
+
+  for (const slot of input.variant.slots) {
+    if (slot.kind !== "text") continue;
+    const fontSize = resolvedTextSlotFontSize(slot, input.fields, input.layoutByField);
+    const lineCount = resolvedTextSlotLineCount(slot, input.fields, input.layoutByField);
+    const contentHeight = Math.min(
+      slot.height,
+      lineCount > 0 ? fontSize * slot.lineHeight * lineCount + descenderPadding(slot, fontSize) : 0
+    );
+    // Older Figma exports used "center" before the public manifest contract
+    // standardized on "middle". The renderer has always centered that legacy
+    // value, so the collision calculation must do the same.
+    const verticalOffset =
+      slot.verticalAlign === "bottom"
+        ? slot.height - contentHeight
+        : slot.verticalAlign === "top"
+          ? 0
+          : (slot.height - contentHeight) / 2;
+    let top = slot.y;
+
+    for (const previous of placed) {
+      if (!intersectsHorizontally(slot, previous.slot) || contentHeight === 0) continue;
+      const contentTop = top + verticalOffset;
+      if (contentTop < previous.placement.contentBottom + safeGap) {
+        top += previous.placement.contentBottom + safeGap - contentTop;
+      }
+    }
+
+    const placement = {
+      top,
+      contentTop: top + verticalOffset,
+      contentBottom: top + verticalOffset + contentHeight,
+    };
+    placements.set(slot.key, placement);
+    if (contentHeight > 0) placed.push({ slot, placement });
+  }
+
+  return placements;
+}
+
 function renderTextSlot(
   manifest: TemplateBundleManifest,
   slot: TemplateBundleTextSlot,
   fields: Record<string, unknown>,
   layoutByField?: Record<string, TemplateBundleTextLayout>,
+  placement?: TemplateBundleTextSlotPlacement,
   scale = 1,
   colorOverride?: string
 ) {
@@ -88,10 +175,7 @@ function renderTextSlot(
     : fallbackFontSizeForUnresolvedText(slot, content, scale);
   const horizontalAlign =
     slot.align === "center" ? "center" : slot.align === "right" ? "flex-end" : "flex-start";
-  const lineHeight =
-    slot.field === "headline" && slot.maxLines > 1
-      ? Math.max(slot.lineHeight, 1.2400000095367432)
-      : slot.lineHeight;
+  const lineHeight = slot.lineHeight;
 
   return (
     <div
@@ -102,7 +186,7 @@ function renderTextSlot(
       style={{
         position: "absolute",
         left: scaledNumber(slot.x, scale),
-        top: scaledNumber(slot.y, scale),
+        top: scaledNumber(placement?.top ?? slot.y, scale),
         width: scaledNumber(slot.width, scale),
         height: scaledNumber(slot.height, scale),
         overflow: "hidden",
@@ -335,6 +419,11 @@ export function renderTemplateBundleVariant(input: {
   const displayImageSrc = scale > 1 && imageSrc2x ? imageSrc2x : imageSrc;
   const width = runtime.variant.width * scale;
   const height = runtime.variant.height * scale;
+  const textPlacements = resolveTemplateBundleTextSlotPlacements({
+    variant: runtime.variant,
+    fields: input.fields,
+    layoutByField: input.textLayoutByField,
+  });
 
   return {
     width,
@@ -382,6 +471,7 @@ export function renderTemplateBundleVariant(input: {
                   slot,
                   input.fields,
                   input.textLayoutByField,
+                  textPlacements.get(slot.key),
                   scale,
                   textColorOverride
                 )
