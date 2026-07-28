@@ -5,10 +5,57 @@ import { buildContentGateTemplateBundle } from "./contentgate-bundle";
 import { validTemplateBundleManifest } from "./test-fixtures";
 import {
   getTemplateBundleVariantBackgroundOptions,
+  getTemplateBundleVariantEditableFields,
+  getTemplateBundleVariantGeneratedFields,
   getTemplateBundleSupportedSizes,
   getTemplateBundleVariantDimensions,
   resolveTemplateBundleRuntimeVariant,
 } from "./runtime";
+
+test("keeps system asset controls out of editable and AI-generated copy", () => {
+  const manifest = {
+    ...validTemplateBundleManifest,
+    fields: [
+      ...validTemplateBundleManifest.fields,
+      {
+        key: "__productVariantKey",
+        label: "Product variant",
+        type: "asset_choice" as const,
+        source: "user" as const,
+        required: false,
+      },
+    ],
+    variants: validTemplateBundleManifest.variants.map((variant) => ({
+      ...variant,
+      slots: [
+        ...variant.slots,
+        {
+          key: "product",
+          field: "__productVariantKey",
+          kind: "image" as const,
+          x: 0,
+          y: 0,
+          width: 100,
+          height: 100,
+          fit: "contain" as const,
+        },
+      ],
+    })),
+  };
+
+  assert.equal(
+    getTemplateBundleVariantEditableFields(manifest, "square").some(
+      (field) => field.key === "__productVariantKey"
+    ),
+    false
+  );
+  assert.equal(
+    getTemplateBundleVariantGeneratedFields(manifest, "square").some(
+      (field) => field.key === "__productVariantKey"
+    ),
+    false
+  );
+});
 
 test("resolves ContentGate Set B without exposing unsupported leaderboard", async () => {
   const bundle = await buildContentGateTemplateBundle("contentgate_local_premium");

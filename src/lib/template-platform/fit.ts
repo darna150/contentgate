@@ -1,6 +1,7 @@
 import { createRequire } from "node:module";
 import type { Font, Glyph } from "opentype.js";
 
+import { trimDanglingCopyEnd } from "../generated-copy-quality.ts";
 import type { TemplateBundleManifest, TemplateBundleTextSlot } from "./manifest.ts";
 import {
   templateBundleFontDescription,
@@ -374,6 +375,8 @@ export async function coerceTemplatePlatformFieldsToFit(
 
       if (!value) break;
     }
+
+    if (value !== original) value = trimDanglingCopyEnd(value);
 
     coerced[slot.field] = value;
     if (value !== original) truncatedFields.push(slot.field);

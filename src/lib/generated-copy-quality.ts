@@ -43,6 +43,16 @@ function terminalWord(value: string) {
     ?.toLowerCase();
 }
 
+export function trimDanglingCopyEnd(value: string) {
+  let trimmed = value.trim();
+  while (trimmed.split(/\s+/).length > 1) {
+    const lastWord = terminalWord(trimmed);
+    if (!lastWord || !DANGLING_END_WORDS.has(lastWord)) break;
+    trimmed = trimmed.replace(/\s+\S+[.!?…"')\]]*$/u, "").trim();
+  }
+  return trimmed;
+}
+
 function hasBalancedPairs(value: string, open: string, close: string) {
   return value.split(open).length === value.split(close).length;
 }

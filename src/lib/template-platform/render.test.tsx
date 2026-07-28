@@ -57,6 +57,23 @@ test("renders platform bundle with signed asset URLs when provided", async () =>
   assert.match(html, /https:\/\/storage\.example\.test\/signed-background\.png/);
 });
 
+test("does not invent an @2x sibling for a signed storage object", () => {
+  const signedUrl =
+    "https://example.supabase.co/storage/v1/object/sign/template-bundles/path/background.png?token=secret";
+  const rendered = renderTemplateBundleVariant({
+    manifest: validTemplateBundleManifest,
+    variantKey: "square",
+    fields: {},
+    assetUrlByPath: { "variants/square/background.png": signedUrl },
+    scale: 2,
+  });
+
+  assert.ok(rendered);
+  const html = renderToStaticMarkup(rendered.element);
+  assert.match(html, /background\.png\?token=secret/);
+  assert.doesNotMatch(html, /background@2x\.png/);
+});
+
 test("a shrink_to_fit slot renders at its resolved smaller size, not the authored max", async () => {
   const longHeadline = "Approved local marketing copy for every team";
   const textLayoutByField = await resolveTemplatePlatformVariantLayout({

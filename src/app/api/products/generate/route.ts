@@ -22,6 +22,7 @@ import {
 import {
   BACKGROUND_CHOICE_FIELD,
   getTemplateBundleVariantFieldLimits,
+  getTemplateBundleVariantGeneratedFields,
   resolveTemplateBundleRuntimeVariant,
 } from "@/lib/template-platform/runtime";
 import {
@@ -474,8 +475,12 @@ export async function POST(req: Request) {
         .eq("product_id", product.id),
     ]);
 
-    const editableFields = runtimeVariant.fields.map((field) => field.key);
-    const requiredFields = runtimeVariant.fields
+    const generatedFields = getTemplateBundleVariantGeneratedFields(
+      assignment.manifest,
+      outputSizeKey
+    );
+    const editableFields = generatedFields.map((field) => field.key);
+    const requiredFields = generatedFields
       .filter((field) => field.required !== false)
       .map((field) => field.key);
     const fieldLimits = getTemplateBundleVariantFieldLimits(

@@ -142,3 +142,25 @@ test("coerceTemplatePlatformFieldsToFit keeps character-limit truncation on word
   assert.equal(result.fields.headline.length <= 18, true);
   assert.deepEqual(result.truncatedFields, ["headline"]);
 });
+
+test("coercion removes a dangling connector created by truncation", async () => {
+  const constrained: TemplateBundleManifest = {
+    ...manifest,
+    variants: [
+      {
+        ...manifest.variants[0],
+        slots: manifest.variants[0].slots.map((slot) =>
+          slot.kind === "text" ? { ...slot, maxChars: 24 } : slot
+        ),
+      },
+    ],
+  };
+  const result = await coerceTemplatePlatformFieldsToFit({
+    manifest: constrained,
+    variantKey: "square",
+    fields: { headline: "Cloud cushioning built for everyday speed" },
+  });
+
+  assert.equal(result.fields.headline, "Cloud cushioning built");
+  assert.deepEqual(result.truncatedFields, ["headline"]);
+});
