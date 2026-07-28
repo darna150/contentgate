@@ -420,7 +420,10 @@ export async function loadStudioState(input: {
       ...selectedTemplate,
       platformAssetUrlByPath: Object.fromEntries(
         await createTemplateBundleAssetUrlMap(supabase, profile.org_id, [
-          selectedTemplate.platformManifest,
+          {
+            versionId: selectedTemplate.templateVersionId!,
+            manifest: selectedTemplate.platformManifest,
+          },
         ])
       ),
     };
