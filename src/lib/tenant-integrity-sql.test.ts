@@ -116,3 +116,34 @@ test("asset download recording is an atomic authorized RPC", () => {
   assert.match(sql, /revoke all on function public\.record_product_asset_download\(uuid\) from anon/);
   assert.match(sql, /grant execute on function public\.record_product_asset_download\(uuid\) to authenticated/);
 });
+
+test("Ask feedback binds queries and users to the same tenant", () => {
+  const feedbackSql = compact(
+    readFileSync("supabase/migrations/20260728044150_ask_answer_feedback.sql", "utf8")
+  );
+
+  assert.match(feedbackSql, /constraint knowledge_query_feedback_org_query_fkey/);
+  assert.match(
+    feedbackSql,
+    /foreign key \(org_id, query_id\) references public\.knowledge_queries \(org_id, id\)/
+  );
+  assert.match(feedbackSql, /constraint knowledge_query_feedback_org_user_fkey/);
+  assert.match(
+    feedbackSql,
+    /foreign key \(org_id, user_id\) references public\.profiles \(org_id, id\)/
+  );
+  assert.match(feedbackSql, /check \(rating in \(-1, 1\)\)/);
+  assert.match(feedbackSql, /enable row level security/);
+});
+
+test("Ask polish migration bounds operational metadata and feedback reasons", () => {
+  const polishSql = compact(
+    readFileSync("supabase/migrations/20260728055231_ask_polish_operational_feedback.sql", "utf8")
+  );
+
+  assert.match(polishSql, /retrieval_query_count integer not null default 1/);
+  assert.match(polishSql, /check \(retrieval_query_count between 1 and 3\)/);
+  assert.match(polishSql, /verified_claim_count integer not null default 0/);
+  assert.match(polishSql, /knowledge_query_feedback_reason_check/);
+  assert.match(polishSql, /'wrong_source'/);
+});

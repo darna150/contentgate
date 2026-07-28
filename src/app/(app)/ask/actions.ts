@@ -10,9 +10,21 @@ export type Citation = {
   excerpt: string;
 };
 
+export type VerifiedClaim = {
+  text: string;
+  citations: Citation[];
+};
+
 export type SessionMessage =
   | { role: "user"; content: string }
-  | { role: "assistant"; content: string; citations: Citation[]; not_found: boolean };
+  | {
+      role: "assistant";
+      content: string;
+      citations: Citation[];
+      claims?: VerifiedClaim[];
+      query_id?: string;
+      not_found: boolean;
+    };
 
 export async function createSession(
   productId: string | null

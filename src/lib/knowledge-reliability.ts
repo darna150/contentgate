@@ -12,11 +12,21 @@ export type RawKnowledgeCitation = {
   excerpt?: unknown;
 };
 
+export type RawKnowledgeClaim = {
+  text?: unknown;
+  citations?: unknown;
+};
+
 export type VerifiedKnowledgeCitation = {
   document_id: string;
   document_title: string;
   paragraph_n: number;
   excerpt: string;
+};
+
+export type VerifiedKnowledgeClaim = {
+  text: string;
+  citations: VerifiedKnowledgeCitation[];
 };
 
 const SAFE_NO_EVIDENCE_ANSWER =
@@ -61,6 +71,24 @@ function tokens(value: string) {
 
 function evidenceKey(documentId: string, paragraphNumber: number) {
   return `${documentId}:${paragraphNumber}`;
+}
+
+const NUMERIC_TOKEN = /\b\d+(?:[.,]\d+)?\b/g;
+const RISK_PHRASES = ["at least", "at most", "more than", "less than", "up to", "only", "never", "not"];
+
+export function hasDeterministicClaimSupport(
+  claim: string,
+  citations: readonly VerifiedKnowledgeCitation[]
+) {
+  const normalizedClaim = normalizeWhitespace(claim).toLocaleLowerCase();
+  const evidence = citations
+    .map((citation) => normalizeWhitespace(citation.excerpt).toLocaleLowerCase())
+    .join(" ");
+  const claimNumbers = normalizedClaim.match(NUMERIC_TOKEN) ?? [];
+  if (claimNumbers.some((number) => !evidence.includes(number))) return false;
+  return RISK_PHRASES.every(
+    (phrase) => !normalizedClaim.includes(phrase) || evidence.includes(phrase)
+  );
 }
 
 export function normalizeRetrievedParagraphs(
@@ -211,6 +239,67 @@ export function verifyKnowledgeCitations(
         excerpt,
       },
     ];
+  });
+}
+
+export function verifyKnowledgeClaims(
+  claims: readonly RawKnowledgeClaim[],
+  evidence: readonly RetrievedKnowledgeParagraph[]
+): VerifiedKnowledgeClaim[] {
+  return claims.flatMap((claim) => {
+    const text = typeof claim.text === "string" ? normalizeWhitespace(claim.text) : "";
+    const rawCitations = Array.isArray(claim.citations)
+      ? (claim.citations as RawKnowledgeCitation[])
+      : [];
+    const citations = verifyKnowledgeCitations(rawCitations, evidence);
+    if (!text || text.length > 900 || citations.length === 0) return [];
+    if (!hasDeterministicClaimSupport(text, citations)) return [];
+    return [{ text, citations }];
+  });
+}
+
+export function finalizeKnowledgeClaims(input: {
+  claims: readonly VerifiedKnowledgeClaim[];
+  notFound: unknown;
+}) {
+  if (input.notFound === true || input.claims.length === 0) {
+    return {
+      answer: SAFE_NO_EVIDENCE_ANSWER,
+      citations: [] as VerifiedKnowledgeCitation[],
+      claims: [] as VerifiedKnowledgeClaim[],
+      not_found: true,
+    };
+  }
+
+  const seen = new Set<string>();
+  const citations = input.claims.flatMap((claim) =>
+    claim.citations.filter((citation) => {
+      const key = evidenceKey(citation.document_id, citation.paragraph_n);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+  );
+  return {
+    answer: input.claims.map((claim) => claim.text).join("\n\n"),
+    citations,
+    claims: [...input.claims],
+    not_found: false,
+  };
+}
+
+export function selectVerifiedKnowledgeClaims(
+  claims: readonly VerifiedKnowledgeClaim[],
+  indexes: readonly unknown[]
+) {
+  const seen = new Set<number>();
+  return indexes.flatMap((value) => {
+    const index = Number(value);
+    if (!Number.isInteger(index) || index < 0 || index >= claims.length || seen.has(index)) {
+      return [];
+    }
+    seen.add(index);
+    return [claims[index]];
   });
 }
 
