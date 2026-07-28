@@ -558,7 +558,7 @@ test.describe("ContentGate live generation QA", () => {
 
       // Wait for the generation to complete: the draft status returns and the
       // preview is available again. Grounding failure surfaces as an error banner.
-      await expect(page.getByText(/could not verify|grounding required/i)).toHaveCount(0, {
+      await expect(page.getByText(/could not (?:verify|ground)|grounding required/i)).toHaveCount(0, {
         timeout: 120_000,
       });
       await assertDraftOutputLoaded(page, 120_000);

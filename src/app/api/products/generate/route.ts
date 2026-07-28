@@ -42,7 +42,7 @@ const OPENAI_GENERATION_MODEL =
   "gpt-5.6-terra";
 const PLATFORM_GENERATION_ATTEMPTS = Math.max(
   1,
-  Number(process.env.PLATFORM_GENERATION_ATTEMPTS ?? "2")
+  Number(process.env.PLATFORM_GENERATION_ATTEMPTS ?? "3")
 );
 const MAX_GENERATION_SOURCE_PARAGRAPHS = 24;
 
