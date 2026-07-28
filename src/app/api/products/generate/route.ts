@@ -30,6 +30,7 @@ import {
   resolveTemplateBundleRuntimeVariant,
 } from "@/lib/template-platform/runtime";
 import {
+  coerceTemplatePlatformFieldsToFit,
   formatTemplatePlatformFitIssues,
   templatePlatformFieldFitIssues,
   templatePlatformFitInstructions,
@@ -64,6 +65,7 @@ type Body = {
   assetChoices?: Record<string, unknown>;
   revisions?: string[]; // controlled revision keys, applied as extra instructions
   replaceContentId?: string; // when revising, update this draft in place
+  replaceContentUpdatedAt?: string; // optimistic concurrency token from Studio
   sourceContentId?: string; // when adapting another size, preserve the same campaign idea
 };
 
@@ -90,6 +92,7 @@ type ReplaceContentRow = {
   template_variant_id: string | null;
   prompt_context: Record<string, unknown> | null;
   structured_fields: Record<string, string> | null;
+  updated_at: string;
 };
 
 type CampaignSourceRow = {
@@ -411,6 +414,7 @@ export async function POST(req: Request) {
     assetChoices,
     revisions = [],
     replaceContentId,
+    replaceContentUpdatedAt,
     sourceContentId,
   } = requestBody;
   if (productTemplateId) {
@@ -515,13 +519,19 @@ export async function POST(req: Request) {
       const { data: existingContent } = await supabase
         .from("generated_content")
         .select(
-          "id, status, created_by, product_id, template_version_id, template_variant_id, prompt_context, structured_fields"
+          "id, status, created_by, product_id, template_version_id, template_variant_id, prompt_context, structured_fields, updated_at"
         )
         .eq("id", replaceContentId)
         .eq("org_id", profile.org_id)
         .single();
       if (!existingContent) {
         return Response.json({ error: "Draft to regenerate was not found." }, { status: 404 });
+      }
+      if (!replaceContentUpdatedAt || existingContent.updated_at !== replaceContentUpdatedAt) {
+        return Response.json(
+          { error: "This draft changed elsewhere. Refresh Studio before generating again." },
+          { status: 409 }
+        );
       }
       if (existingContent.created_by !== user.id) {
         return Response.json({ error: "Only the draft author can regenerate it." }, { status: 403 });
@@ -586,8 +596,9 @@ export async function POST(req: Request) {
       supabase
         .from("documents")
         .select("id, title, paragraphs")
-        .eq("product_id", product.id)
-        .eq("org_id", profile.org_id),
+        .eq("org_id", profile.org_id)
+        .eq("approval_status", "approved")
+        .or(`product_id.eq.${product.id},product_id.is.null`),
     ]);
 
     const aiFields = aiEditableTemplateFields(runtimeVariant.fields);
@@ -857,6 +868,56 @@ export async function POST(req: Request) {
       }
     }
 
+    // The model has already had several opportunities to rewrite a too-long
+    // field. For the remaining fit-only case, make one deterministic,
+    // template-aware shortening pass before failing the author. The result
+    // still goes through the same quality, geometry, and evidence gates below;
+    // it is never persisted merely because it is shorter.
+    if (!out && fitReasons.length && !groundingIssues.length && !variationIssues.length) {
+      const coerced = await coerceTemplatePlatformFieldsToFit({
+        manifest: assignment.manifest,
+        variantKey: outputSizeKey,
+        fields: structured,
+        assetUrlByPath,
+      });
+      const coercedGeometryIssues = await templatePlatformFieldFitIssues({
+        manifest: assignment.manifest,
+        variantKey: outputSizeKey,
+        fields: coerced.fields,
+        assetUrlByPath,
+      });
+      const coercedQualityIssues = generatedCopyQualityIssues(
+        coerced.fields,
+        editableFields
+      );
+      const coercedEvidenceIssues = generatedCopyEvidenceIssues({
+        fields: evidenceScopedFields(coerced.fields, evidenceRequiredFields),
+        evidence: verifiedEvidence,
+        approvedSources: approvedSourceTexts,
+      });
+      const coercedConfiguredIssues = templatePlatformRequiredFieldIssues(
+        assignment.manifest,
+        outputSizeKey,
+        coerced.fields
+      );
+      const coercedReasons = [
+        ...editableFields.flatMap((key) =>
+          (coercedConfiguredIssues[key] ?? []).map((issue) => `${key}: ${issue.message}`)
+        ),
+        ...formatTemplatePlatformFitIssues(coercedGeometryIssues),
+        ...formatGeneratedCopyQualityIssues(coercedQualityIssues),
+        ...coercedEvidenceIssues,
+      ];
+
+      if (!coercedReasons.length) {
+        structured = coerced.fields;
+        generatedFields = Object.fromEntries(
+          editableFields.map((key) => [key, coerced.fields[key] ?? ""])
+        );
+        out = { fields: structured, evidence: verifiedEvidence };
+      }
+    }
+
     if (!out) {
       if (fitReasons.length) {
         console.error("platform generated copy failed template fit validation:", {
@@ -1070,6 +1131,7 @@ export async function POST(req: Request) {
             updated_at: savedAt,
           })
           .eq("id", replaceContent.id)
+          .eq("updated_at", replaceContent.updated_at)
       : supabase.from("generated_content").insert({
           org_id: profile.org_id,
           created_by: user.id,
@@ -1089,9 +1151,21 @@ export async function POST(req: Request) {
           status: "draft",
         });
 
-    const { data: row, error: writeError } = await writeQuery.select("id").single();
+    const { data: row, error: writeError } = await writeQuery
+      .select("id, updated_at")
+      .single();
 
     if (writeError || !row) {
+      if (
+        !row &&
+        replaceContent &&
+        (!writeError || writeError.code === "PGRST116")
+      ) {
+        return Response.json(
+          { error: "This draft changed while generation was running. Refresh Studio before trying again." },
+          { status: 409 }
+        );
+      }
       return Response.json({ error: `Could not save draft: ${writeError?.message}` }, { status: 500 });
     }
     logTemplatePipelineEvent({
@@ -1110,6 +1184,7 @@ export async function POST(req: Request) {
 
     return Response.json({
       contentId: row.id,
+      updatedAt: row.updated_at,
       structured_fields: structured,
       outputSize: outputSizeKey,
       campaignRootContentId: campaignRootContentId ?? row.id,
