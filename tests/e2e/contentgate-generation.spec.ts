@@ -8,6 +8,14 @@ const DEMO_PRODUCT_ID =
   "27cf3a56-84e6-41fb-8cb7-4bf7dbe3c564";
 const OUTPUT_SIZE = "instagram-post-square";
 const OUTPUT_SIZE_LABEL = "Instagram post (square)";
+const OUTPUT_SIZE_LABEL_PATTERN = OUTPUT_SIZE_LABEL.replace(
+  /[.*+?^${}()|[\]\\]/g,
+  "\\$&"
+);
+const DRAFT_OUTPUT_LABEL = new RegExp(
+  `DRAFT\\s*·\\s*${OUTPUT_SIZE_LABEL_PATTERN}`,
+  "i"
+);
 const LIVE_EDIT_TEXT = `QA Live ${Date.now().toString().slice(-5)}`;
 const BASE_URL = process.env.CONTENTGATE_E2E_BASE_URL ?? "";
 
@@ -131,7 +139,7 @@ async function generatePrimaryDraft(page: Page) {
   await page.waitForURL(new RegExp(`/studio/${json.contentId as string}`), {
     timeout: 60_000,
   });
-  await expect(page.getByText(new RegExp(`DRAFT\\s*·\\s*${OUTPUT_SIZE_LABEL}`, "i"))).toBeVisible({
+  await expect(page.getByText(DRAFT_OUTPUT_LABEL)).toBeVisible({
     timeout: 60_000,
   });
 
@@ -303,7 +311,7 @@ test.describe("ContentGate live generation QA", () => {
     await page
       .getByRole("button", { name: /Instagram post \(square\)\s+1080×1080/i })
       .click();
-    await expect(page.getByText(new RegExp(`DRAFT\\s*·\\s*${OUTPUT_SIZE_LABEL}`, "i"))).toBeVisible({
+    await expect(page.getByText(DRAFT_OUTPUT_LABEL)).toBeVisible({
       timeout: 20_000,
     });
     await assertPreviewIsAvailable(page);
@@ -538,7 +546,7 @@ test.describe("ContentGate live generation QA", () => {
         timeout: 120_000,
       });
       await expect(
-        page.getByText(new RegExp(`DRAFT\\s*·\\s*${OUTPUT_SIZE_LABEL}`, "i"))
+        page.getByText(DRAFT_OUTPUT_LABEL)
       ).toBeVisible({ timeout: 120_000 });
       await assertPreviewIsAvailable(page);
 
