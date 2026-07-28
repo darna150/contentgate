@@ -89,9 +89,7 @@ async function openContentGateTemplate(page: Page) {
   await expect(page).toHaveURL(/\/products/);
   await expect(page.getByRole("heading", { name: /Products/i })).toBeVisible();
 
-  const productLink = page
-    .getByRole("link", { name: /ContentGate/i })
-    .first();
+  const productLink = page.locator('a[href^="/products/"]').filter({ hasText: /ContentGate/i }).first();
   await expect(productLink).toBeVisible();
   await productLink.click();
   await page.waitForURL(/\/products\//, { timeout: 45_000 });

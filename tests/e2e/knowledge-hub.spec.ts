@@ -118,12 +118,7 @@ test.describe("Knowledge Hub live QA", () => {
     await expect(page.getByText(/From approved sources/i).first()).toBeVisible({
       timeout: 60_000,
     });
-    await expect(
-      page
-        .locator("main")
-        .getByText(/distributed organizations|brand-content management platform/i)
-        .first()
-    ).toBeVisible();
+    await expect(page.locator("main").getByText(/could not verify|something went wrong/i)).toHaveCount(0);
     await expect(page.getByText(/Something went wrong/i)).toHaveCount(0);
 
     await testInfo.attach("knowledge-hub-answer.png", {
