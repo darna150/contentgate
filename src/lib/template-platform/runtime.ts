@@ -9,6 +9,10 @@ import type {
 
 export const BACKGROUND_CHOICE_FIELD = "__backgroundAssetKey";
 
+export function isTemplateSystemFieldKey(key: string) {
+  return key.startsWith("__");
+}
+
 export type TemplateBundleRuntimeBackgroundOption = {
   key: string;
   label: string;
@@ -81,6 +85,32 @@ export function getTemplateBundleVariantFields(
   if (!variant) return [];
   const visibleFields = new Set(variant.slots.map((slot) => slot.field));
   return manifest.fields.filter((field) => visibleFields.has(field.key));
+}
+
+export function getTemplateBundleVariantEditableFields(
+  manifest: TemplateBundleManifest,
+  variantKey: string
+): TemplateBundleField[] {
+  return getTemplateBundleVariantFields(manifest, variantKey).filter(
+    (field) =>
+      !isTemplateSystemFieldKey(field.key) &&
+      (field.source === "ai" || field.source === "user") &&
+      field.type !== "asset_choice" &&
+      field.type !== "image"
+  );
+}
+
+export function getTemplateBundleVariantGeneratedFields(
+  manifest: TemplateBundleManifest,
+  variantKey: string
+): TemplateBundleField[] {
+  return getTemplateBundleVariantFields(manifest, variantKey).filter(
+    (field) =>
+      !isTemplateSystemFieldKey(field.key) &&
+      field.source === "ai" &&
+      field.type !== "asset_choice" &&
+      field.type !== "image"
+  );
 }
 
 export function getTemplateBundleVariantFieldLimits(

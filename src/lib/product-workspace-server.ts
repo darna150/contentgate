@@ -21,6 +21,7 @@ import {
   type TemplatePlatformAssignmentRow,
 } from "@/lib/template-platform/assignments";
 import { publicContentGateBundleAssetPath } from "@/lib/template-platform/public-contentgate-assets";
+import { createTemplateBundleAssetUrlMap } from "@/lib/template-platform/storage-urls";
 import { cursorFromOffset, offsetFromCursor } from "@/lib/content-listing-shared";
 
 type Joined<T> = T | T[] | null;
@@ -461,7 +462,12 @@ export async function getProductWorkspace(
   const normalizedPlatformTemplates = ((platformTemplateResult.data ?? []) as TemplatePlatformAssignmentRow[])
     .map(normalizeTemplatePlatformAssignment)
     .filter((template): template is NonNullable<typeof template> => Boolean(template));
-  const platformTemplates = normalizedPlatformTemplates.map((template) => {
+  const platformTemplates = await Promise.all(normalizedPlatformTemplates.map(async (template) => {
+      const assetUrlByPath = await createTemplateBundleAssetUrlMap(
+        supabase,
+        profile.org_id,
+        [{ versionId: template.versionId, manifest: template.manifest }]
+      );
       const fieldsBySize = Object.fromEntries(
         template.supportedSizes.map((size) => {
           const variant = template.manifest.variants.find((item) => item.key === size);
@@ -493,7 +499,9 @@ export async function getProductWorkspace(
           return [
             size,
             asset
-              ? (publicContentGateBundleAssetPath(template.manifest, asset.path) ?? asset.path)
+              ? (publicContentGateBundleAssetPath(template.manifest, asset.path) ??
+                assetUrlByPath.get(asset.path) ??
+                "")
               : "",
           ];
         })
@@ -507,7 +515,9 @@ export async function getProductWorkspace(
           return [
             size,
             asset
-              ? (publicContentGateBundleAssetPath(template.manifest, asset.path) ?? asset.path)
+              ? (publicContentGateBundleAssetPath(template.manifest, asset.path) ??
+                assetUrlByPath.get(asset.path) ??
+                "")
               : "",
           ];
         })
@@ -528,7 +538,7 @@ export async function getProductWorkspace(
         referenceAssetBySize,
         backgroundAssetBySize,
       };
-    });
+    }));
   const fetchedContentRows = (contentResult.data ?? []) as unknown as ContentRow[];
   const visibleContentRows = paginatesApprovals
     ? fetchedContentRows.slice(0, approvalPageSize)

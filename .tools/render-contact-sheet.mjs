@@ -6,7 +6,6 @@ import sharp from "sharp";
 const inputDir = process.env.CONTENTGATE_RENDER_DIR ?? path.join(os.tmpdir(), "contentgate-rendered");
 const outputDir = process.env.CONTENTGATE_CONTACT_DIR ?? os.tmpdir();
 const sets = {
-  "set-a": ["square", "story", "link_ad", "leaderboard", "medium_rectangle"],
   "set-b": ["square", "portrait", "story", "link_ad", "medium_rectangle"],
 };
 const cellWidth = 400;

@@ -13,13 +13,6 @@ const PUBLIC_PACKAGE_ROOT = join(
 );
 
 const EXPECTED_VARIANTS = {
-  "contentgate-local-friendly": {
-    leaderboard: [1456, 180],
-    link_ad: [2400, 1256],
-    medium_rectangle: [600, 500],
-    square: [2160, 2160],
-    story: [2160, 3840],
-  },
   "contentgate-local-premium": {
     link_ad: [2400, 1256],
     medium_rectangle: [600, 500],
@@ -30,13 +23,6 @@ const EXPECTED_VARIANTS = {
 } as const;
 
 const EXPECTED_PACKAGE_VARIANTS = {
-  "set-a": {
-    square: [1080, 1080],
-    story: [1080, 1920],
-    "link-ad": [1200, 628],
-    leaderboard: [728, 90],
-    "medium-rectangle": [300, 250],
-  },
   "set-b": {
     square: [1080, 1080],
     portrait: [1080, 1350],

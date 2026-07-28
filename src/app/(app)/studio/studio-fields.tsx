@@ -55,6 +55,7 @@ export function StudioFields({
     <div className="flex flex-col gap-3">
       <span className="text-label text-ink-faint">Copy</span>
       {fields.map((key) => {
+        const fieldId = `studio-field-${key}`;
         const issues = issuesByField[key] ?? [];
         const overflowing = overflowFields.includes(key);
         const hasProblem = issues.length > 0 || overflowing;
@@ -73,7 +74,7 @@ export function StudioFields({
             className="flex flex-col gap-1.5"
           >
             <div className="flex items-center justify-between gap-3">
-              <Label className="text-[13px] font-normal text-ink-muted">
+              <Label htmlFor={fieldId} className="text-[13px] font-normal text-ink-muted">
                 {compactFieldLabel(key)}
                 {!required.has(key) ? " · Optional" : ""}
               </Label>
@@ -90,6 +91,7 @@ export function StudioFields({
             </div>
             {editable ? (
               <Textarea
+                id={fieldId}
                 value={value}
                 onChange={(event) => onChange?.(key, event.target.value)}
                 rows={rows}

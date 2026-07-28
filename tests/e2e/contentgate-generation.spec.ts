@@ -2,17 +2,25 @@ import { expect, test, type Page, type TestInfo } from "@playwright/test";
 
 const E2E_EMAIL = process.env.CONTENTGATE_E2E_EMAIL;
 const E2E_PASSWORD = process.env.CONTENTGATE_E2E_PASSWORD;
-const TEMPLATE_NAME = "ContentGate Local Friendly";
-const PLATFORM_ASSIGNMENT_ID =
-  process.env.CONTENTGATE_E2E_ASSIGNMENT_ID ??
-  "3a6cbcb0-23b4-476b-8deb-ad2e48d20516";
-const OUTPUT_SIZE = "leaderboard";
-const OUTPUT_SIZE_LABEL = "Leaderboard";
+const TEMPLATE_NAME = "Nimbus Air Campaign";
+const DEMO_PRODUCT_ID =
+  process.env.CONTENTGATE_E2E_PRODUCT_ID ??
+  "27cf3a56-84e6-41fb-8cb7-4bf7dbe3c564";
+const OUTPUT_SIZE = "instagram-post-square";
+const OUTPUT_SIZE_LABEL = "Instagram post (square)";
+const OUTPUT_SIZE_LABEL_PATTERN = OUTPUT_SIZE_LABEL.replace(
+  /[.*+?^${}()|[\]\\]/g,
+  "\\$&"
+);
+const OUTPUT_SIZE_BUTTON = new RegExp(
+  `${OUTPUT_SIZE_LABEL_PATTERN}\\s+1080×1080`,
+  "i"
+);
 const LIVE_EDIT_TEXT = `QA Live ${Date.now().toString().slice(-5)}`;
 const BASE_URL = process.env.CONTENTGATE_E2E_BASE_URL ?? "";
 
 const OUTPUT_SIZE_DIMENSIONS: Record<string, { width: number; height: number }> = {
-  leaderboard: { width: 728, height: 90 },
+  "instagram-post-square": { width: 1080, height: 1080 },
 };
 
 type BrowserIssue = {
@@ -85,90 +93,72 @@ async function signIn(page: Page) {
 }
 
 async function openContentGateTemplate(page: Page) {
-  await page.goto("/products");
-  await expect(page).toHaveURL(/\/products/);
-  await expect(page.getByRole("heading", { name: /Products/i })).toBeVisible();
-
-  const productLink = page
-    .getByRole("link", { name: /ContentGate/i })
-    .first();
-  await expect(productLink).toBeVisible();
-  await productLink.click();
-  await page.waitForURL(/\/products\//, { timeout: 45_000 });
-
-  const templatesLink = page.getByRole("link", { name: /Templates/i });
-  if (await templatesLink.isVisible()) {
-    await templatesLink.click();
-  } else {
-    await page.goto(`${page.url().split("?")[0]}?view=templates`);
-  }
+  await page.goto(`/products/${DEMO_PRODUCT_ID}?view=templates`);
+  await expect(page).toHaveURL(new RegExp(`/products/${DEMO_PRODUCT_ID}`));
 
   await expect(page.getByText(TEMPLATE_NAME)).toBeVisible();
 }
 
-async function generateLeaderboardDraft(page: Page) {
-  let result: {
-    ok: boolean;
-    status: number;
-    text: string;
-    json: Record<string, unknown>;
-  } | null = null;
-
-  for (let attempt = 1; attempt <= 3; attempt += 1) {
-    result = await page.evaluate(
-      async ({ platformAssignmentId, outputSize }) => {
-        const response = await fetch("/api/products/generate", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            platformAssignmentId,
-            language: "English",
-            outputSize,
-          }),
-        });
-        const text = await response.text();
-        let json: Record<string, unknown> = {};
-        try {
-          json = JSON.parse(text) as Record<string, unknown>;
-        } catch {
-          // Keep the raw text for diagnostics below.
-        }
-        return {
-          ok: response.ok,
-          status: response.status,
-          text,
-          json,
-        };
-      },
-      {
-        platformAssignmentId: PLATFORM_ASSIGNMENT_ID,
-        outputSize: OUTPUT_SIZE,
-      }
-    );
-
-    if (result.ok || ![429, 502, 503, 504].includes(result.status)) break;
-    await page.waitForTimeout(2_000 * attempt);
+async function generatePrimaryDraft(page: Page) {
+  if (!page.url().includes(`/products/${DEMO_PRODUCT_ID}`)) {
+    await openContentGateTemplate(page);
   }
 
-  expect(
-    result?.ok,
-    `Generation failed with ${result?.status}: ${result?.text}`
-  ).toBeTruthy();
+  const templateCard = page
+    .getByText(TEMPLATE_NAME)
+    .locator("xpath=ancestor::div[.//select[@aria-label='Output size']][1]");
+  const outputSelect = templateCard.getByLabel("Output size");
+  await expect(outputSelect).toBeVisible();
+  await outputSelect.selectOption(OUTPUT_SIZE);
 
-  expect(result?.json.contentId, "Generation did not return contentId.").toEqual(
-    expect.any(String)
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const responsePromise = page.waitForResponse(
+      (response) =>
+        response.url().includes("/api/products/generate") &&
+        response.request().method() === "POST",
+      { timeout: 180_000 }
+    );
+    await templateCard.getByRole("button", { name: /^Generate$/ }).click();
+    const response = await responsePromise;
+    const text = await response.text();
+    let json: Record<string, unknown> = {};
+    try {
+      json = JSON.parse(text) as Record<string, unknown>;
+    } catch {
+      // Keep the raw text for diagnostics below.
+    }
+
+    const retryableFitRejection =
+      response.status() === 422 &&
+      typeof json.error === "string" &&
+      json.error.includes("safely fits this size");
+    if (!response.ok() && retryableFitRejection && attempt === 0) continue;
+    if (!response.ok()) {
+      throw new Error(`Generation failed with ${response.status()}: ${text}`);
+    }
+
+    expect(json.contentId, "Generation did not return contentId.").toEqual(
+      expect.any(String)
+    );
+
+    await page.waitForURL(new RegExp(`/studio/${json.contentId as string}`), {
+      timeout: 60_000,
+    });
+    await assertDraftOutputLoaded(page, 60_000);
+
+    return json.contentId as string;
+  }
+
+  throw new Error("Generation exhausted its retry budget.");
+}
+
+async function assertDraftOutputLoaded(page: Page, timeout: number) {
+  await expect(page.getByText("Draft", { exact: true }).first()).toBeVisible({ timeout });
+  await expect(page.getByRole("button", { name: OUTPUT_SIZE_BUTTON })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+    { timeout }
   );
-
-  await page.goto(
-    `/studio/${result?.json.contentId as string}?size=${
-      (result?.json.outputSize as string | undefined) ?? OUTPUT_SIZE
-    }`
-  );
-  await expect(page.getByText(new RegExp(`DRAFT\\s*·\\s*${OUTPUT_SIZE_LABEL}`, "i"))).toBeVisible({
-    timeout: 60_000,
-  });
-
-  return result?.json.contentId as string;
 }
 
 async function getPreviewMetrics(page: Page) {
@@ -213,20 +203,18 @@ async function assertPreviewIsAvailable(page: Page) {
 }
 
 async function findFieldTextarea(page: Page, labelPattern: RegExp) {
-  const label = page.locator("label").filter({ hasText: labelPattern }).first();
-  await expect(label).toBeVisible();
-  return label.locator("xpath=following-sibling::textarea").first();
+  const textarea = page.getByLabel(labelPattern).first();
+  await expect(textarea).toBeVisible();
+  return textarea;
 }
 
 async function findEditableTextArea(page: Page) {
-  const textareas = page.locator("textarea");
+  const textareas = page.locator("textarea:not([disabled])");
   const count = await textareas.count();
   for (let index = 0; index < count; index += 1) {
     const textarea = textareas.nth(index);
     const value = await textarea.inputValue();
-    if (/local|content|brand|get started|see how|approved/i.test(value)) {
-      return textarea;
-    }
+    if (value.trim()) return textarea;
   }
   throw new Error("Could not find a populated editable text field in Studio.");
 }
@@ -295,7 +283,7 @@ test.describe("ContentGate live generation QA", () => {
     await openContentGateTemplate(page);
     await attachScreenshot(page, testInfo, "01-template-picker");
 
-    await generateLeaderboardDraft(page);
+    await generatePrimaryDraft(page);
     await attachScreenshot(page, testInfo, "02-generated-studio");
     await assertPreviewIsAvailable(page);
 
@@ -321,20 +309,22 @@ test.describe("ContentGate live generation QA", () => {
       expect(initialMetrics.text, "Live preview rendered no editable text.").not.toEqual("");
     }
 
-    await page.getByRole("button", { name: /Square\s+1080×1080/i }).click();
-    await expect(page.getByText(/No draft for Square yet/i)).toBeVisible({
+    await page
+      .getByRole("button", { name: /Instagram post \(portrait\)\s+1080×1350/i })
+      .click();
+    await expect(page.getByText(/No draft for Instagram post \(portrait\) yet/i)).toBeVisible({
       timeout: 20_000,
     });
     await expect(
-      page.getByRole("button", { name: /Generate Square draft/i }).first()
+      page.getByRole("button", { name: /Generate Instagram post \(portrait\) draft/i }).first()
     ).toBeVisible();
     await expect(page.getByText("Preview unavailable")).toHaveCount(0);
     await attachScreenshot(page, testInfo, "03-missing-size-draft");
 
-    await page.getByRole("button", { name: /Leaderboard\s+728×90/i }).click();
-    await expect(page.getByText(new RegExp(`DRAFT\\s*·\\s*${OUTPUT_SIZE_LABEL}`, "i"))).toBeVisible({
-      timeout: 20_000,
-    });
+    await page
+      .getByRole("button", { name: /Instagram post \(square\)\s+1080×1080/i })
+      .click();
+    await assertDraftOutputLoaded(page, 20_000);
     await assertPreviewIsAvailable(page);
 
     const editableField = await findEditableTextArea(page);
@@ -399,16 +389,21 @@ test.describe("ContentGate live generation QA", () => {
     });
 
     await signIn(page);
-    const contentId = await generateLeaderboardDraft(page);
+    const contentId = await generatePrimaryDraft(page);
 
     await page.getByRole("button", { name: /Submit for review/i }).click();
-    await expect(page.getByText(new RegExp(`IN REVIEW\\s*·\\s*${OUTPUT_SIZE_LABEL}`, "i"))).toBeVisible({
+    await expect(page.getByText("In review", { exact: true }).first()).toBeVisible({
       timeout: 30_000,
     });
+    await expect(page.getByRole("button", { name: OUTPUT_SIZE_BUTTON })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+      { timeout: 30_000 }
+    );
     await expect(page.getByText(/Awaiting your review/i)).toBeVisible();
 
     await page.getByRole("button", { name: /^Approve$/i }).click();
-    await expect(page.getByText(new RegExp(`APPROVED\\s*·\\s*${OUTPUT_SIZE_LABEL}`, "i"))).toBeVisible({
+    await expect(page.getByText("Approved", { exact: true }).first()).toBeVisible({
       timeout: 30_000,
     });
     await expect(page.getByText(/Approved snapshot/i)).toBeVisible();
@@ -494,10 +489,10 @@ test.describe("ContentGate live generation QA", () => {
     });
 
     await signIn(page);
-    await generateLeaderboardDraft(page);
+    await generatePrimaryDraft(page);
 
     await page.getByRole("button", { name: /Submit for review/i }).click();
-    await expect(page.getByText(new RegExp(`IN REVIEW\\s*·\\s*${OUTPUT_SIZE_LABEL}`, "i"))).toBeVisible({
+    await expect(page.getByText("In review", { exact: true }).first()).toBeVisible({
       timeout: 30_000,
     });
 
@@ -505,7 +500,7 @@ test.describe("ContentGate live generation QA", () => {
     await page.getByPlaceholder(/What needs to change/i).fill(rejectionNote);
     await page.getByRole("button", { name: /Reject with note/i }).click();
 
-    await expect(page.getByText(new RegExp(`REJECTED\\s*·\\s*${OUTPUT_SIZE_LABEL}`, "i"))).toBeVisible({
+    await expect(page.getByText("Rejected", { exact: true }).first()).toBeVisible({
       timeout: 30_000,
     });
     await expect(page.getByText("Changes requested")).toBeVisible();
@@ -544,7 +539,7 @@ test.describe("ContentGate live generation QA", () => {
     });
 
     await signIn(page);
-    await generateLeaderboardDraft(page);
+    await generatePrimaryDraft(page);
     await assertPreviewIsAvailable(page);
 
     // "More strategic" is the refine option that triggered the Phase 1 grounding bug —
@@ -563,12 +558,10 @@ test.describe("ContentGate live generation QA", () => {
 
       // Wait for the generation to complete: the draft status returns and the
       // preview is available again. Grounding failure surfaces as an error banner.
-      await expect(page.getByText(/could not verify|grounding required/i)).toHaveCount(0, {
+      await expect(page.getByText(/could not (?:verify|ground)|grounding required/i)).toHaveCount(0, {
         timeout: 120_000,
       });
-      await expect(
-        page.getByText(new RegExp(`DRAFT\\s*·\\s*${OUTPUT_SIZE_LABEL}`, "i"))
-      ).toBeVisible({ timeout: 120_000 });
+      await assertDraftOutputLoaded(page, 120_000);
       await assertPreviewIsAvailable(page);
 
       await testInfo.attach(`refine-${label.toLowerCase().replace(/\s+/g, "-")}.png`, {
@@ -599,7 +592,7 @@ test.describe("ContentGate live generation QA", () => {
     });
 
     await signIn(page);
-    await generateLeaderboardDraft(page);
+    await generatePrimaryDraft(page);
     await assertPreviewIsAvailable(page);
 
     const headlineField = await findFieldTextarea(page, /^Headline/i);

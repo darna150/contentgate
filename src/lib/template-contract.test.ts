@@ -22,7 +22,6 @@ const CATEGORY_BY_LAYOUT: Record<string, string> = {
   apex_canine_social: "social",
   apex_canine_flyer: "flyer",
   caniguard5_social: "social",
-  contentgate_local_friendly: "social",
   contentgate_local_premium: "social",
   vitalbite_social: "social",
 };
@@ -75,7 +74,6 @@ test("registers every active Phase 4 layout with an explicit output contract", (
     "apex_canine_flyer",
     "apex_canine_social",
     "caniguard5_social",
-    "contentgate_local_friendly",
     "contentgate_local_premium",
     "vitalbite_social",
   ]);

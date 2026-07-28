@@ -110,7 +110,7 @@ const fixedIds = {
 const baseRequest = {
   orgId: "99999999-9999-4999-8999-999999999999",
   createdBy: "88888888-8888-4888-8888-888888888888",
-  storagePrefix: "template-bundles/contentgate-local-friendly/v1",
+  storagePrefix: "template-bundles/example-campaign/v1",
   now: new Date("2026-07-14T10:00:00.000Z"),
   ids: fixedIds,
 };
@@ -212,7 +212,7 @@ test("builds org-scoped template bundle storage prefixes", () => {
       orgId: baseRequest.orgId,
       manifest,
     }),
-    `${baseRequest.orgId}/template-bundles/contentgate-local-friendly/v1`
+    `${baseRequest.orgId}/template-bundles/example-campaign/v1`
   );
 });
 

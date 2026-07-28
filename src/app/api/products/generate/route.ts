@@ -22,6 +22,7 @@ import {
 import {
   BACKGROUND_CHOICE_FIELD,
   getTemplateBundleVariantFieldLimits,
+  getTemplateBundleVariantGeneratedFields,
   resolveTemplateBundleRuntimeVariant,
 } from "@/lib/template-platform/runtime";
 import {
@@ -41,7 +42,7 @@ const OPENAI_GENERATION_MODEL =
   "gpt-5.6-terra";
 const PLATFORM_GENERATION_ATTEMPTS = Math.max(
   1,
-  Number(process.env.PLATFORM_GENERATION_ATTEMPTS ?? "2")
+  Number(process.env.PLATFORM_GENERATION_ATTEMPTS ?? "3")
 );
 const MAX_GENERATION_SOURCE_PARAGRAPHS = 24;
 
@@ -474,8 +475,12 @@ export async function POST(req: Request) {
         .eq("product_id", product.id),
     ]);
 
-    const editableFields = runtimeVariant.fields.map((field) => field.key);
-    const requiredFields = runtimeVariant.fields
+    const generatedFields = getTemplateBundleVariantGeneratedFields(
+      assignment.manifest,
+      outputSizeKey
+    );
+    const editableFields = generatedFields.map((field) => field.key);
+    const requiredFields = generatedFields
       .filter((field) => field.required !== false)
       .map((field) => field.key);
     const fieldLimits = getTemplateBundleVariantFieldLimits(
@@ -483,7 +488,9 @@ export async function POST(req: Request) {
       outputSizeKey
     );
     const assetUrlByPath = Object.fromEntries(
-      await createTemplateBundleAssetUrlMap(supabase, [assignment.manifest])
+      await createTemplateBundleAssetUrlMap(supabase, profile.org_id, [
+        { versionId: assignment.versionId, manifest: assignment.manifest },
+      ])
     );
     const typographyInstructions = templatePlatformFitInstructions({
       manifest: assignment.manifest,
@@ -591,6 +598,7 @@ export async function POST(req: Request) {
     let rawEvidenceCount = 0;
     let fitReasons: string[] = [];
     let groundingIssues: string[] = [];
+    let coercedTruncatedFields: string[] = [];
     const generationMode = "ai";
 
     for (let attempt = 0; attempt < PLATFORM_GENERATION_ATTEMPTS; attempt += 1) {
@@ -633,6 +641,14 @@ export async function POST(req: Request) {
               .trim(),
           ])
         );
+        const coerceResult = await coerceTemplatePlatformFieldsToFit({
+          manifest: assignment.manifest,
+          variantKey: outputSizeKey,
+          fields: structured,
+          assetUrlByPath,
+        });
+        structured = coerceResult.fields;
+        coercedTruncatedFields = coerceResult.truncatedFields;
         const configuredIssues = templateFieldIssues(
           structured,
           editableFields,
@@ -679,7 +695,6 @@ export async function POST(req: Request) {
       }
     }
 
-    let coercedTruncatedFields: string[] = [];
     // Fit-only coercion fallback: shrink/trim to satisfy the geometry gate.
     // Only attempt when grounding already passed — coercion cannot fix an
     // ungrounded claim, and it only removes words, so the verified citations
@@ -692,7 +707,9 @@ export async function POST(req: Request) {
         assetUrlByPath,
       });
       structured = coerceResult.fields;
-      coercedTruncatedFields = coerceResult.truncatedFields;
+      coercedTruncatedFields = Array.from(
+        new Set([...coercedTruncatedFields, ...coerceResult.truncatedFields])
+      );
       const configuredIssues = templateFieldIssues(
         structured,
         editableFields,

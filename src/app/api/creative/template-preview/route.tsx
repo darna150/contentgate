@@ -102,7 +102,7 @@ export async function GET(req: Request) {
     const { data: assignmentRow } = await supabase
       .from("product_template_assignments")
       .select(
-        "id, default_payload, template_families!product_template_assignments_template_family_id_fkey(name), template_versions!product_template_assignments_template_version_id_fkey(manifest)"
+        "id, default_payload, template_families!product_template_assignments_template_family_id_fkey(name), template_versions!product_template_assignments_template_version_id_fkey(id, manifest)"
       )
       .eq("id", platformAssignmentId)
       .eq("org_id", profile.org_id)
@@ -125,7 +125,9 @@ export async function GET(req: Request) {
       return new Response("Unsupported size for this template", { status: 400 });
     }
     const assetUrlByPath = Object.fromEntries(
-      await createTemplateBundleAssetUrlMap(supabase, [manifest])
+      await createTemplateBundleAssetUrlMap(supabase, profile.org_id, [
+        { versionId: version.id, manifest },
+      ])
     );
     const rendered = renderTemplateBundleVariant({
       manifest,

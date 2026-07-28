@@ -4,7 +4,7 @@ import sharp from "sharp";
 
 const ROOT = process.cwd();
 
-const SETS = ["set-a", "set-b"];
+const SETS = ["set-b"];
 const OPTIONS = [
   {
     key: "mint-glow",
@@ -117,9 +117,7 @@ async function renderOption(inputPath, outputPath, option) {
 
 for (const set of SETS) {
   const backgroundDir = join(ROOT, "public", "template-packages", "contentgate", set, "backgrounds");
-  const files = set === "set-a"
-    ? ["square.png", "story.png", "link-ad.png", "leaderboard.png", "medium-rectangle.png"]
-    : ["square.png", "portrait.png", "story.png", "link-ad.png", "medium-rectangle.png"];
+  const files = ["square.png", "portrait.png", "story.png", "link-ad.png", "medium-rectangle.png"];
 
   for (const file of files) {
     for (const option of OPTIONS) {

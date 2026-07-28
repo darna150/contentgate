@@ -53,7 +53,7 @@ async function requireUser() {
   if (!user) return null;
   const { data: profile } = await supabase
     .from("profiles")
-    .select("role")
+    .select("role, org_id")
     .eq("id", user.id)
     .single();
   if (!profile) return null;
@@ -92,15 +92,16 @@ async function validateStoredTemplateFields(
         }[]
       | null;
     template_versions?:
-      | { manifest: TemplateBundleManifest }
-      | { manifest: TemplateBundleManifest }[]
+      | { id: string; manifest: TemplateBundleManifest }
+      | { id: string; manifest: TemplateBundleManifest }[]
       | null;
     template_variants?:
       | { variant_key: string }
       | { variant_key: string }[]
       | null;
   },
-  supabase: FitStorageClient
+  supabase: FitStorageClient,
+  orgId: string
 ): Promise<string | null> {
   const template = Array.isArray(content.product_templates)
     ? content.product_templates[0]
@@ -125,7 +126,9 @@ async function validateStoredTemplateFields(
       return `${firstIssue[0]}: ${firstIssue[1].map((issue) => issue.message).join(", ")}`;
     }
     const assetUrlByPath = Object.fromEntries(
-      await createTemplateBundleAssetUrlMap(supabase, [version.manifest])
+      await createTemplateBundleAssetUrlMap(supabase, orgId, [
+        { versionId: version.id, manifest: version.manifest },
+      ])
     );
     const geometryIssues = await templatePlatformFieldFitIssues({
       manifest: version.manifest,
@@ -185,7 +188,7 @@ export async function updateStructuredFields(
   const { data: content } = await ctx.supabase
     .from("generated_content")
     .select(
-      "structured_fields, prompt_context, product_templates!generated_content_product_template_id_fkey(layout_key, category, editable_fields, field_limits, locked_fields, template_definition, status), template_versions!generated_content_template_version_id_fkey(manifest), template_variants!generated_content_template_variant_id_fkey(variant_key)"
+      "structured_fields, prompt_context, product_templates!generated_content_product_template_id_fkey(layout_key, category, editable_fields, field_limits, locked_fields, template_definition, status), template_versions!generated_content_template_version_id_fkey(id, manifest), template_variants!generated_content_template_variant_id_fkey(variant_key)"
     )
     .eq("id", id)
     .single();
@@ -252,8 +255,11 @@ export async function updateStructuredFields(
   if (validationError) return { error: validationError };
   if (!template) {
     const assetUrlByPath = Object.fromEntries(
-      await createTemplateBundleAssetUrlMap(ctx.supabase, [
-        version!.manifest as TemplateBundleManifest,
+      await createTemplateBundleAssetUrlMap(ctx.supabase, ctx.profile.org_id, [
+        {
+          versionId: version!.id,
+          manifest: version!.manifest as TemplateBundleManifest,
+        },
       ])
     );
     const geometryIssues = await templatePlatformFieldFitIssues({
@@ -321,7 +327,7 @@ export async function checkDraftStructuredFieldsFit(
   const { data: content } = await ctx.supabase
     .from("generated_content")
     .select(
-      "structured_fields, prompt_context, product_templates!generated_content_product_template_id_fkey(layout_key, category, editable_fields, field_limits, locked_fields, template_definition, status), template_versions!generated_content_template_version_id_fkey(manifest), template_variants!generated_content_template_variant_id_fkey(variant_key)"
+      "structured_fields, prompt_context, product_templates!generated_content_product_template_id_fkey(layout_key, category, editable_fields, field_limits, locked_fields, template_definition, status), template_versions!generated_content_template_version_id_fkey(id, manifest), template_variants!generated_content_template_variant_id_fkey(variant_key)"
     )
     .eq("id", id)
     .single();
@@ -349,7 +355,9 @@ export async function checkDraftStructuredFieldsFit(
     );
     const configuredIssues = templateFieldIssues(cleaned, order, limits, requiredFields);
     const assetUrlByPath = Object.fromEntries(
-      await createTemplateBundleAssetUrlMap(ctx.supabase, [version.manifest])
+      await createTemplateBundleAssetUrlMap(ctx.supabase, ctx.profile.org_id, [
+        { versionId: version.id, manifest: version.manifest },
+      ])
     );
     const [geometryIssues, textLayoutByField] = await Promise.all([
       templatePlatformFieldFitIssues({
@@ -415,7 +423,7 @@ export async function approveContent(id: string): Promise<ActionResult> {
   const { data: row } = await ctx.supabase
     .from("generated_content")
     .select(
-      "status, structured_fields, prompt_context, product_templates!generated_content_product_template_id_fkey(layout_key, category, editable_fields, field_limits, locked_fields, template_definition, status), template_versions!generated_content_template_version_id_fkey(manifest), template_variants!generated_content_template_variant_id_fkey(variant_key)"
+      "status, structured_fields, prompt_context, product_templates!generated_content_product_template_id_fkey(layout_key, category, editable_fields, field_limits, locked_fields, template_definition, status), template_versions!generated_content_template_version_id_fkey(id, manifest), template_variants!generated_content_template_variant_id_fkey(variant_key)"
     )
     .eq("id", id)
     .single();
@@ -425,7 +433,11 @@ export async function approveContent(id: string): Promise<ActionResult> {
   if (row.status !== "in_review") {
     return { error: "Only content in review can be approved." };
   }
-  const validationError = await validateStoredTemplateFields(row, ctx.supabase);
+  const validationError = await validateStoredTemplateFields(
+    row,
+    ctx.supabase,
+    ctx.profile.org_id
+  );
   if (validationError) {
     return { error: `Content no longer fits its template: ${validationError}` };
   }
@@ -474,7 +486,7 @@ export async function submitForReview(id: string): Promise<ActionResult> {
   const { data: current } = await ctx.supabase
     .from("generated_content")
     .select(
-      "created_by, status, structured_fields, prompt_context, product_templates!generated_content_product_template_id_fkey(layout_key, category, editable_fields, field_limits, locked_fields, template_definition, status), template_versions!generated_content_template_version_id_fkey(manifest), template_variants!generated_content_template_variant_id_fkey(variant_key)"
+      "created_by, status, structured_fields, prompt_context, product_templates!generated_content_product_template_id_fkey(layout_key, category, editable_fields, field_limits, locked_fields, template_definition, status), template_versions!generated_content_template_version_id_fkey(id, manifest), template_variants!generated_content_template_variant_id_fkey(variant_key)"
     )
     .eq("id", id)
     .single();
@@ -494,7 +506,11 @@ export async function submitForReview(id: string): Promise<ActionResult> {
     }
     return { error: "Only the author or an admin can submit this content." };
   }
-  const validationError = await validateStoredTemplateFields(current, ctx.supabase);
+  const validationError = await validateStoredTemplateFields(
+    current,
+    ctx.supabase,
+    ctx.profile.org_id
+  );
   if (validationError) {
     return { error: `Content does not fit its template: ${validationError}` };
   }

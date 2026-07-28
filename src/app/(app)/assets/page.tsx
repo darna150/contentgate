@@ -11,6 +11,8 @@ import type {
   ProductAssetType,
 } from "@/lib/product-assets";
 
+export const dynamic = "force-dynamic";
+
 type Joined<T> = T | T[] | null;
 
 type AssetRow = {

@@ -7,10 +7,6 @@ const outputRoot = join(process.cwd(), ".template-bundles", "contentgate");
 
 const targets = [
   {
-    layoutKey: "contentgate_local_friendly" as const,
-    folder: "local-friendly-v1",
-  },
-  {
     layoutKey: "contentgate_local_premium" as const,
     folder: "local-premium-v1",
   },

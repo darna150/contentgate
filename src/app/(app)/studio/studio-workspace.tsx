@@ -18,8 +18,8 @@ import {
 import {
   BACKGROUND_CHOICE_FIELD,
   getTemplateBundleVariantBackgroundOptions,
+  getTemplateBundleVariantEditableFields,
   getTemplateBundleVariantFieldLimits,
-  getTemplateBundleVariantFields,
   getTemplateBundleSupportedSizes,
   getTemplateBundleVariantDimensions,
   getTemplateBundleVariantLabel,
@@ -200,7 +200,7 @@ export function StudioWorkspace({
   const activeVariantFields = useMemo(
     () =>
       selectedTemplate.platformManifest
-        ? getTemplateBundleVariantFields(selectedTemplate.platformManifest, size)
+        ? getTemplateBundleVariantEditableFields(selectedTemplate.platformManifest, size)
         : selectedTemplate.editable_fields.map((key) => ({
             key,
             required: selectedTemplate.required_fields.includes(key),
@@ -971,6 +971,7 @@ export function StudioWorkspace({
                 manifest={selectedTemplate.platformManifest}
                 variantKey={size}
                 fields={draftFields}
+                assetUrlByPath={selectedTemplate.platformAssetUrlByPath}
                 textLayoutByField={textLayoutByField}
                 width={dims.w}
                 height={dims.h}

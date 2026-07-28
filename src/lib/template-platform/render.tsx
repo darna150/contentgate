@@ -156,8 +156,18 @@ function resolveImageSource(
 }
 
 function highDensityImageSource(src: string) {
+  // Signed storage URLs authorize one exact object path. Rewriting that path
+  // to an assumed @2x sibling invalidates the signature and may target an
+  // object that does not exist. Only public, same-origin bundles use the
+  // conventional @2x naming scheme.
   if (src.startsWith("http://") || src.startsWith("https://")) {
     const url = new URL(src);
+    if (
+      url.pathname.includes("/storage/v1/object/sign/") ||
+      url.searchParams.has("token")
+    ) {
+      return null;
+    }
     if (!url.pathname.toLowerCase().endsWith(".png")) return null;
     url.pathname = url.pathname.replace(/\.png$/i, "@2x.png");
     return url.toString();

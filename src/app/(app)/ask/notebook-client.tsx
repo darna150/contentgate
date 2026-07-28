@@ -2,14 +2,14 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
-import { FileText, MessageCircleQuestion, Menu, Pencil, Plus, Trash2, UploadCloud, X } from "lucide-react";
+import { BarChart3, FileText, MessageCircleQuestion, Menu, Pencil, Plus, RotateCcw, Square, ThumbsDown, ThumbsUp, Trash2, UploadCloud, X } from "lucide-react";
 import {
   createSession,
   saveSession,
   deleteSession,
   renameSession,
 } from "./actions";
-import type { Citation, SessionMessage } from "./actions";
+import type { Citation, SessionMessage, VerifiedClaim } from "./actions";
 import { resolveInitialKnowledgeSelection } from "@/lib/knowledge-hub";
 import { useFocusTrap } from "@/lib/use-focus-trap";
 import { Button } from "@/components/ui/button";
@@ -161,11 +161,13 @@ export function NotebookClient({
   initialSessions,
   initialProductId,
   docs,
+  canManageQuality = false,
 }: {
   products: Product[];
   initialSessions: Session[];
   initialProductId: string | null;
   docs: Doc[];
+  canManageQuality?: boolean;
 }) {
   const initialSelection = resolveInitialKnowledgeSelection({
     notebookIds: products.map((product) => product.id),
@@ -186,6 +188,11 @@ export function NotebookClient({
   const [question, setQuestion] = useState("");
   const [loading, setLoading] = useState(false);
   const [errorsBySession, setErrorsBySession] = useState<Record<string, string>>({});
+  const [feedbackByQuery, setFeedbackByQuery] = useState<Record<string, -1 | 1>>({});
+  const [feedbackPromptFor, setFeedbackPromptFor] = useState<string | null>(null);
+  const [feedbackReason, setFeedbackReason] = useState("inaccurate");
+  const [feedbackNote, setFeedbackNote] = useState("");
+  const [progress, setProgress] = useState("Searching approved sources");
   const [isPending, startTransition] = useTransition();
 
   // Rename state
@@ -200,6 +207,8 @@ export function NotebookClient({
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
+  const lastQuestionBySession = useRef<Record<string, string>>({});
   const activeSession = sessions.find((s) => s.id === activeId) ?? null;
   const activeError = activeId ? errorsBySession[activeId] ?? null : null;
   const selectedProduct =
@@ -214,6 +223,23 @@ export function NotebookClient({
   const indexedSourceCount = activeSourceDocs.filter(
     (doc) => doc.indexStatus === "indexed"
   ).length;
+  const suggestedQuestions = selectedProduct
+    ? [
+        `What approved claims can we use for ${selectedProduct.name}?`,
+        `Summarize the approved guidance for ${selectedProduct.name}.`,
+        `What requirements or disclaimers apply to ${selectedProduct.name}?`,
+      ]
+    : STARTERS;
+
+  useEffect(() => {
+    if (!loading) return;
+    const verificationTimer = window.setTimeout(() => setProgress("Verifying evidence"), 700);
+    const draftingTimer = window.setTimeout(() => setProgress("Building a cited answer"), 1_800);
+    return () => {
+      window.clearTimeout(verificationTimer);
+      window.clearTimeout(draftingTimer);
+    };
+  }, [loading]);
 
   function setSessionError(sessionId: string, message: string | null) {
     setErrorsBySession((current) => {
@@ -309,8 +335,8 @@ export function NotebookClient({
 
   // ── Asking ──────────────────────────────────────────────────────────────────
 
-  async function submit() {
-    const q = question.trim();
+  async function submit(questionOverride?: string) {
+    const q = (questionOverride ?? question).trim();
     if (!q || loading) return;
 
     if (!activeSession) return;
@@ -337,6 +363,8 @@ export function NotebookClient({
 
     setQuestion("");
     setLoading(true);
+    setProgress("Searching approved sources");
+    lastQuestionBySession.current[sessionId] = q;
     setSessionError(sessionId, null);
 
     const userMsg: SessionMessage = { role: "user", content: q };
@@ -351,10 +379,13 @@ export function NotebookClient({
     );
 
     try {
+      const controller = new AbortController();
+      abortRef.current = controller;
       const res = await fetch("/api/products/ask", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ productId, question: q }),
+        body: JSON.stringify({ sessionId, question: q }),
+        signal: controller.signal,
       });
       if (!res.ok) {
         const payload = await res.json().catch(() => null) as { error?: unknown } | null;
@@ -367,6 +398,8 @@ export function NotebookClient({
       const data = await res.json() as {
         answer: string;
         citations: Citation[];
+        claims?: VerifiedClaim[];
+        query_id?: string | null;
         not_found: boolean;
       };
 
@@ -374,6 +407,8 @@ export function NotebookClient({
         role: "assistant",
         content: data.answer,
         citations: data.citations ?? [],
+        claims: data.claims ?? [],
+        query_id: typeof data.query_id === "string" ? data.query_id : undefined,
         not_found: data.not_found,
       };
 
@@ -406,14 +441,47 @@ export function NotebookClient({
         setSessionError(sessionId, "The answer is shown, but this conversation could not be saved.");
       }
     } catch (caught) {
+      if (caught instanceof DOMException && caught.name === "AbortError") {
+        setSessionError(sessionId, "Answer generation was canceled. You can retry the question.");
+        return;
+      }
       const message =
         caught instanceof Error && caught.message
           ? caught.message
           : "Knowledge Q&A is temporarily unavailable. Please try again.";
       setSessionError(sessionId, message);
     } finally {
+      abortRef.current = null;
       setLoading(false);
+      setProgress("Searching approved sources");
       setTimeout(() => inputRef.current?.focus(), 50);
+    }
+  }
+
+  function cancelAnswer() {
+    abortRef.current?.abort();
+  }
+
+  async function submitFeedback(
+    queryId: string,
+    rating: -1 | 1,
+    detail?: { reason?: string; note?: string }
+  ) {
+    setFeedbackByQuery((current) => ({ ...current, [queryId]: rating }));
+    try {
+      const response = await fetch("/api/products/ask/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ queryId, rating, ...detail }),
+      });
+      if (!response.ok) throw new Error("Could not save feedback");
+    } catch (error) {
+      console.warn("knowledge feedback failed:", error);
+      setFeedbackByQuery((current) => {
+        const next = { ...current };
+        delete next[queryId];
+        return next;
+      });
     }
   }
 
@@ -679,6 +747,11 @@ export function NotebookClient({
               : "Ask notebook"}
           </span>
           <div className="flex-1" />
+          {canManageQuality && (
+            <Button asChild variant="ghost" size="sm" className="mr-2 h-7 px-2 text-[11.5px] text-ink-muted">
+              <Link href="/ask/quality"><BarChart3 className="size-3.5" aria-hidden />Quality</Link>
+            </Button>
+          )}
           <Badge variant="brand" className="shrink-0 uppercase tracking-[0.06em]">
             Approved sources only
           </Badge>
@@ -728,7 +801,7 @@ export function NotebookClient({
                 </p>
               </div>
               <div className="flex flex-wrap justify-center gap-2">
-                {STARTERS.map((s) => (
+                {suggestedQuestions.map((s) => (
                   <Button
                     key={s}
                     variant="outline"
@@ -752,14 +825,27 @@ export function NotebookClient({
                   </div>
                 ) : (
                   <div key={i} className="flex flex-col gap-2.5">
-                    <Card
-                      className={`gap-0 px-5 py-4 text-[13.5px] leading-relaxed ${
-                        msg.not_found ? "italic text-ink-muted" : "text-ink"
-                      }`}
-                    >
-                      <AssistantMarkdown content={softenSavedAnswer(msg.content)} />
+                    <Card className={`gap-0 px-5 py-4 text-[13.5px] leading-relaxed ${msg.not_found ? "italic text-ink-muted" : "text-ink"}`}>
+                      {msg.claims && msg.claims.length > 0 ? (
+                        <div className="space-y-4">
+                          {msg.claims.map((claim, claimIndex) => (
+                            <div key={`${claim.text}-${claimIndex}`} className="space-y-2.5 border-b border-edge pb-4 last:border-0 last:pb-0">
+                              <AssistantMarkdown content={softenSavedAnswer(claim.text)} />
+                              <CitationList
+                                citations={claim.citations.map((citation) => ({
+                                  documentId: citation.document_id,
+                                  documentTitle: citation.document_title,
+                                  excerpt: citation.excerpt,
+                                  paragraphN: citation.paragraph_n,
+                                }))}
+                                label="Evidence for this claim"
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      ) : <AssistantMarkdown content={softenSavedAnswer(msg.content)} />}
                     </Card>
-                    {msg.citations && msg.citations.length > 0 && (
+                    {(!msg.claims || msg.claims.length === 0) && msg.citations && msg.citations.length > 0 && (
                       <CitationList
                         citations={msg.citations.map((citation) => ({
                           documentId: citation.document_id,
@@ -770,18 +856,63 @@ export function NotebookClient({
                         label="From approved sources"
                       />
                     )}
+                    {msg.query_id && !msg.not_found && (
+                      <div className="flex flex-col items-start gap-1.5 text-[11.5px] text-ink-faint">
+                        <div className="flex items-center gap-1.5">
+                        <span className="mr-1">Was this answer helpful?</span>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label="Mark answer helpful"
+                          aria-pressed={feedbackByQuery[msg.query_id] === 1}
+                          onClick={() => { setFeedbackPromptFor(null); submitFeedback(msg.query_id!, 1); }}
+                          className={`h-7 w-7 rounded-full [&_svg]:size-3.5 ${feedbackByQuery[msg.query_id] === 1 ? "bg-approve/15 text-approve" : "text-ink-faint hover:bg-page hover:text-ink"}`}
+                        >
+                          <ThumbsUp aria-hidden />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label="Mark answer unhelpful"
+                          aria-pressed={feedbackByQuery[msg.query_id] === -1}
+                          onClick={() => { setFeedbackPromptFor(msg.query_id!); submitFeedback(msg.query_id!, -1); }}
+                          className={`h-7 w-7 rounded-full [&_svg]:size-3.5 ${feedbackByQuery[msg.query_id] === -1 ? "bg-reject/10 text-reject" : "text-ink-faint hover:bg-page hover:text-ink"}`}
+                        >
+                          <ThumbsDown aria-hidden />
+                        </Button>
+                        </div>
+                        {feedbackPromptFor === msg.query_id && (
+                          <div className="rounded-[10px] border border-edge bg-page p-2.5 text-left">
+                            <p className="mb-2 font-medium text-ink-muted">What should we improve?</p>
+                            <div className="flex flex-wrap gap-1.5">
+                              {[
+                                ["inaccurate", "Inaccurate"], ["incomplete", "Incomplete"], ["wrong_source", "Wrong source"],
+                                ["unclear", "Unclear"], ["too_slow", "Too slow"], ["other", "Other"],
+                              ].map(([value, label]) => (
+                                <Button key={value} type="button" variant={feedbackReason === value ? "default" : "outline"} size="sm" className="h-7 text-[11px]" onClick={() => setFeedbackReason(value)}>{label}</Button>
+                              ))}
+                            </div>
+                            <textarea value={feedbackNote} onChange={(event) => setFeedbackNote(event.target.value)} maxLength={1000} placeholder="Optional detail" className="mt-2 min-h-16 w-full rounded border border-edge bg-surface px-2 py-1.5 text-[12px] outline-none focus:border-brand" />
+                            <div className="mt-2 flex gap-2">
+                              <Button type="button" size="sm" className="h-7 text-[11px]" onClick={() => { submitFeedback(msg.query_id!, -1, { reason: feedbackReason, note: feedbackNote }); setFeedbackPromptFor(null); setFeedbackNote(""); }}>Save feedback</Button>
+                              <Button type="button" variant="ghost" size="sm" className="h-7 text-[11px]" onClick={() => setFeedbackPromptFor(null)}>Cancel</Button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )
               )}
               {loading && (
-                <div className="flex items-center gap-2 text-[13px] text-ink-faint">
-                  <span>Searching approved sources</span>
+                <div className="flex items-center gap-2 text-[13px] text-ink-faint" role="status" aria-live="polite">
+                  <span>{progress}</span>
                   {[0, 150, 300].map((d) => (
                     <span key={d} className="inline-block animate-bounce" style={{ animationDelay: `${d}ms` }}>·</span>
                   ))}
                 </div>
               )}
-              {activeError && <p className="text-[13px] text-reject">{activeError}</p>}
+              {activeError && <div className="flex items-center gap-2"><p className="text-[13px] text-reject">{activeError}</p>{lastQuestionBySession.current[activeId ?? ""] && <Button type="button" variant="outline" size="sm" onClick={() => submit(lastQuestionBySession.current[activeId ?? ""])}><RotateCcw className="size-3.5" aria-hidden />Retry</Button>}</div>}
               <div ref={bottomRef} />
             </div>
           )}
@@ -811,13 +942,7 @@ export function NotebookClient({
                   rows={1}
                   className="min-h-[64px] flex-1 resize-none overflow-y-auto rounded-control border border-edge bg-page px-4 py-2.5 text-[13.5px] leading-5 placeholder:text-ink-faint focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 disabled:opacity-50 sm:min-h-[44px]"
                 />
-                <Button
-                  type="submit"
-                  disabled={!question.trim() || loading}
-                  className="self-end px-5"
-                >
-                  Ask
-                </Button>
+                {loading ? <Button type="button" variant="outline" onClick={cancelAnswer} className="self-end px-4"><Square className="size-3.5" aria-hidden />Cancel</Button> : <Button type="submit" disabled={!question.trim()} className="self-end px-5">Ask</Button>}
               </form>
             </div>
           </div>

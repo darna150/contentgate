@@ -1,38 +1,24 @@
 import "server-only";
 
+import type { createClient } from "@/lib/supabase/server";
 import { TEMPLATE_BUNDLE_STORAGE_BUCKET } from "./importer";
 import type { TemplateBundleManifest } from "./manifest";
 import { isPublicContentGateBundle } from "./public-contentgate-assets";
+import {
+  resolveTemplateBundleAssetStoragePath,
+  type TemplateBundleStorageAssetRow,
+} from "./storage-path";
+
+export { templateBundleStoragePath } from "./storage-path";
 
 const TEMPLATE_BUNDLE_URL_TTL_SECONDS = 60 * 60;
 
-type StorageClient = {
-  storage: {
-    from(bucket: string): {
-      createSignedUrls(
-        paths: string[],
-        expiresIn: number
-      ): Promise<{
-        data:
-          | Array<{ path: string | null; signedUrl: string | null }>
-          | null;
-        error: { message: string } | null;
-      }>;
-    };
-  };
-};
+type StorageClient = Awaited<ReturnType<typeof createClient>>;
 
-export function templateBundleStoragePath(
-  manifest: TemplateBundleManifest,
-  assetPath: string
-) {
-  return [
-    "template-bundles",
-    manifest.family.key,
-    manifest.version.name,
-    assetPath,
-  ].join("/");
-}
+export type TemplateBundleStorageSource = {
+  versionId: string;
+  manifest: TemplateBundleManifest;
+};
 
 // Includes "font" alongside "background"/"reference": renderer image fonts
 // (loadTemplateBundleImageFonts) and the fit engine (loadTemplateBundleFontData)
@@ -44,17 +30,41 @@ const SIGNED_ASSET_KINDS = new Set(["background", "font", "reference"]);
 
 export async function createTemplateBundleAssetUrlMap(
   supabase: StorageClient,
-  manifests: readonly TemplateBundleManifest[]
+  orgId: string,
+  sources: readonly TemplateBundleStorageSource[]
 ) {
-  const privateManifests = manifests.filter(
-    (manifest) => !isPublicContentGateBundle(manifest)
+  const privateSources = sources.filter(
+    ({ manifest }) => !isPublicContentGateBundle(manifest)
   );
+  const versionIds = Array.from(new Set(privateSources.map((source) => source.versionId)));
+  if (versionIds.length === 0) return new Map<string, string>();
+
+  const { data: storedAssetRows, error: storedAssetError } = await supabase
+    .from("template_assets")
+    .select("template_version_id, asset_key, sha256, storage_path")
+    .eq("org_id", orgId)
+    .in("template_version_id", versionIds);
+  if (storedAssetError) {
+    throw new Error(`Could not load template asset records: ${storedAssetError.message}`);
+  }
+  const storedAssets = (storedAssetRows ?? []) as TemplateBundleStorageAssetRow[];
+
+  const storagePathFor = (source: TemplateBundleStorageSource, assetIndex: number) =>
+    resolveTemplateBundleAssetStoragePath({
+      orgId,
+      versionId: source.versionId,
+      manifest: source.manifest,
+      asset: source.manifest.assets[assetIndex],
+      storedAssets,
+    });
   const paths = Array.from(
     new Set(
-      privateManifests.flatMap((manifest) =>
-        manifest.assets
-          .filter((asset) => SIGNED_ASSET_KINDS.has(asset.kind))
-          .map((asset) => templateBundleStoragePath(manifest, asset.path))
+      privateSources.flatMap((source) =>
+        source.manifest.assets.flatMap((asset, assetIndex) =>
+          SIGNED_ASSET_KINDS.has(asset.kind)
+            ? [storagePathFor(source, assetIndex)]
+            : []
+        )
       )
     )
   );
@@ -66,23 +76,21 @@ export async function createTemplateBundleAssetUrlMap(
   if (error) throw new Error(`Could not sign template bundle URLs: ${error.message}`);
 
   const signedByStoragePath = new Map(
-    (data ?? [])
-      .filter(
-        (item): item is { path: string; signedUrl: string } =>
-          Boolean(item.path && item.signedUrl)
-      )
-      .map((item) => [item.path, item.signedUrl] as const)
+    (data ?? []).flatMap((item) =>
+      item.path && item.signedUrl
+        ? [[item.path, item.signedUrl] as const]
+        : []
+    )
   );
 
   return new Map(
-    privateManifests.flatMap((manifest) =>
-      manifest.assets
-        .filter((asset) => SIGNED_ASSET_KINDS.has(asset.kind))
-        .flatMap((asset) => {
-          const storagePath = templateBundleStoragePath(manifest, asset.path);
-          const signedUrl = signedByStoragePath.get(storagePath);
-          return signedUrl ? [[asset.path, signedUrl] as const] : [];
-        })
+    privateSources.flatMap((source) =>
+      source.manifest.assets.flatMap((asset, assetIndex) => {
+        if (!SIGNED_ASSET_KINDS.has(asset.kind)) return [];
+        const storagePath = storagePathFor(source, assetIndex);
+        const signedUrl = signedByStoragePath.get(storagePath);
+        return signedUrl ? [[asset.path, signedUrl] as const] : [];
+      })
     )
   );
 }

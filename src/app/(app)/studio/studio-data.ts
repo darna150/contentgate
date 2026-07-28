@@ -11,6 +11,7 @@ import type { TemplateBundleManifest } from "@/lib/template-platform/manifest";
 import { publicContentGateBundleVariantAssetPath } from "@/lib/template-platform/public-contentgate-assets";
 import {
   getTemplateBundleSupportedSizes,
+  getTemplateBundleVariantEditableFields,
   getTemplateBundleVariantDimensions,
   getTemplateBundleVariantLabel,
   resolveTemplateBundleRuntimeVariant,
@@ -211,6 +212,10 @@ function platformAssignmentsToTemplates(rows: PlatformAssignmentRow[]): StudioTe
     if (!defaultVariantKey) return [];
     const runtime = resolveTemplateBundleRuntimeVariant(version.manifest, defaultVariantKey);
     if (!runtime) return [];
+    const editableFields = getTemplateBundleVariantEditableFields(
+      version.manifest,
+      defaultVariantKey
+    );
     const referenceAssetBySize = Object.fromEntries(
       supportedSizes.map((size) => [
         size,
@@ -229,12 +234,12 @@ function platformAssignmentsToTemplates(rows: PlatformAssignmentRow[]): StudioTe
         templateVersionId: version.id,
         platformManifest: version.manifest,
         referenceAssetBySize,
-        editable_fields: runtime.fields.map((field) => field.key),
-        required_fields: runtime.fields
+        editable_fields: editableFields.map((field) => field.key),
+        required_fields: editableFields
           .filter((field) => field.required !== false)
           .map((field) => field.key),
         default_copy: Object.fromEntries(
-          runtime.fields.map((field) => [field.key, String(defaultCopy[field.key] ?? "")])
+          editableFields.map((field) => [field.key, String(defaultCopy[field.key] ?? "")])
         ),
         field_limits: runtime.fieldLimits,
         locked_fields: [],
@@ -394,7 +399,7 @@ export async function loadStudioState(input: {
     listActiveAssignments(),
     supabase.from("organizations").select("name").single(),
     user
-      ? supabase.from("profiles").select("role").eq("id", user.id).single()
+      ? supabase.from("profiles").select("role, org_id").eq("id", user.id).single()
       : Promise.resolve({ data: null }),
   ]);
 
@@ -415,11 +420,16 @@ export async function loadStudioState(input: {
     productTemplates[0] ??
     null;
 
-  if (selectedTemplate?.platformManifest) {
+  if (selectedTemplate?.platformManifest && profile?.org_id) {
     selectedTemplate = {
       ...selectedTemplate,
       platformAssetUrlByPath: Object.fromEntries(
-        await createTemplateBundleAssetUrlMap(supabase, [selectedTemplate.platformManifest])
+        await createTemplateBundleAssetUrlMap(supabase, profile.org_id, [
+          {
+            versionId: selectedTemplate.templateVersionId!,
+            manifest: selectedTemplate.platformManifest,
+          },
+        ])
       ),
     };
   }

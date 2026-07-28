@@ -24,21 +24,9 @@ const OPTIONS = [
 
 const SETS = [
   {
-    key: "set-a",
-    label: "Set A / Local Friendly",
-    x: 0,
-    sizes: [
-      { key: "square", filename: "square.png", width: 1080, height: 1080 },
-      { key: "story", filename: "story.png", width: 1080, height: 1920 },
-      { key: "link-ad", filename: "link-ad.png", width: 1200, height: 628 },
-      { key: "leaderboard", filename: "leaderboard.png", width: 728, height: 90 },
-      { key: "medium-rectangle", filename: "medium-rectangle.png", width: 300, height: 250 },
-    ],
-  },
-  {
     key: "set-b",
     label: "Set B / Local Premium",
-    x: 5600,
+    x: 0,
     sizes: [
       { key: "square", filename: "square.png", width: 1080, height: 1080 },
       { key: "portrait", filename: "portrait.png", width: 1080, height: 1350 },

@@ -5,32 +5,56 @@ import { buildContentGateTemplateBundle } from "./contentgate-bundle";
 import { validTemplateBundleManifest } from "./test-fixtures";
 import {
   getTemplateBundleVariantBackgroundOptions,
+  getTemplateBundleVariantEditableFields,
+  getTemplateBundleVariantGeneratedFields,
   getTemplateBundleSupportedSizes,
   getTemplateBundleVariantDimensions,
-  getTemplateBundleVariantFieldLimits,
-  getTemplateBundleVariantFields,
   resolveTemplateBundleRuntimeVariant,
 } from "./runtime";
 
-test("resolves ContentGate Set A size-specific fields and limits", async () => {
-  const bundle = await buildContentGateTemplateBundle("contentgate_local_friendly");
+test("keeps system asset controls out of editable and AI-generated copy", () => {
+  const manifest = {
+    ...validTemplateBundleManifest,
+    fields: [
+      ...validTemplateBundleManifest.fields,
+      {
+        key: "__productVariantKey",
+        label: "Product variant",
+        type: "asset_choice" as const,
+        source: "user" as const,
+        required: false,
+      },
+    ],
+    variants: validTemplateBundleManifest.variants.map((variant) => ({
+      ...variant,
+      slots: [
+        ...variant.slots,
+        {
+          key: "product",
+          field: "__productVariantKey",
+          kind: "image" as const,
+          x: 0,
+          y: 0,
+          width: 100,
+          height: 100,
+          fit: "contain" as const,
+        },
+      ],
+    })),
+  };
 
-  assert.deepEqual(getTemplateBundleSupportedSizes(bundle.manifest), [
-    "square",
-    "story",
-    "link_ad",
-    "leaderboard",
-    "medium_rectangle",
-  ]);
-  assert.deepEqual(
-    getTemplateBundleVariantFields(bundle.manifest, "leaderboard").map((field) => field.key),
-    ["headline", "subheadline", "cta"]
+  assert.equal(
+    getTemplateBundleVariantEditableFields(manifest, "square").some(
+      (field) => field.key === "__productVariantKey"
+    ),
+    false
   );
-  assert.deepEqual(getTemplateBundleVariantFieldLimits(bundle.manifest, "leaderboard"), {
-    headline: { max_chars: 31, max_words: undefined, max_lines: 1 },
-    subheadline: { max_chars: 78, max_words: undefined, max_lines: 1 },
-    cta: { max_chars: 18, max_words: undefined, max_lines: 1 },
-  });
+  assert.equal(
+    getTemplateBundleVariantGeneratedFields(manifest, "square").some(
+      (field) => field.key === "__productVariantKey"
+    ),
+    false
+  );
 });
 
 test("resolves ContentGate Set B without exposing unsupported leaderboard", async () => {

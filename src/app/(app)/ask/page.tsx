@@ -47,6 +47,7 @@ export default async function AskPage({
             },
           ]}
           initialProductId="preview-product"
+          canManageQuality={false}
           docs={[
             {
               id: "preview-source",
@@ -70,6 +71,7 @@ export default async function AskPage({
     { data: products },
     { data: rawSessions },
     { data: docs },
+    { data: profile },
   ] = await Promise.all([
     searchParams,
     supabase
@@ -85,7 +87,9 @@ export default async function AskPage({
     supabase
       .from("documents")
       .select("id, title, product_id, paragraphs, content_text, storage_path")
+      .eq("approval_status", "approved")
       .order("title"),
+    supabase.from("profiles").select("role").eq("id", user.id).maybeSingle(),
   ]);
 
   const sessions = (rawSessions ?? []).map((s) => ({
@@ -114,6 +118,7 @@ export default async function AskPage({
         products={productOptions}
         initialSessions={sessions}
         initialProductId={initialProductId}
+        canManageQuality={profile?.role === "admin"}
         docs={(docs ?? []).map((d) => ({
           id: d.id,
           title: d.title,
