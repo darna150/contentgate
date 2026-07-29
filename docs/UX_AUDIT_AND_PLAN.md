@@ -3,7 +3,8 @@
 Audited: 2026-07-29 · Commit `6b2288b` · Branch `main` (clean tree)
 Auditor: Claude (design/UX) · Implementer: Codex
 Status: **plan only — nothing in this document has been implemented**
-Revised: 2026-07-29 — added §4.8/§4.9 deep reviews of Studio and Products; phases restructured to six
+Revised: 2026-07-29 — added §4.8/§4.9 deep reviews of Studio and Products; phases restructured to six;
+F43 canvas geometry measured across four viewports (was an estimate)
 
 ---
 
@@ -26,7 +27,8 @@ query, not from reading.
 a signed-in session with real data, and I don't enter credentials. Those findings are from
 source plus the design oracle in `docs/design/`, and are flagged where confidence is
 lower. **Before Phase 2 ships, someone should run the Studio findings against a real
-signed-in session.**
+signed-in session.** One exception: F43's canvas geometry was measured on 2026-07-29 by
+cloning Studio's markup into the running app — see that finding for method and caveats.
 
 **Benchmarks applied:** WCAG 2.1/2.2 AA, Nielsen's heuristics, and the project's own
 design oracle (`docs/design/README.md` + `screenshots/`) — the spec this build was
@@ -74,7 +76,7 @@ Three things hold it back, and they are all systemic rather than cosmetic:
 |---|---|---|
 | Visual system & tokens | **D** | The accent colour fails contrast at 2.90:1 and is on every primary button and link |
 | Accessibility | **D+** | Unlabelled form fields, undesigned focus, silent state changes, false ARIA tabs |
-| Studio (core surface) | **C−** | Excellent logic; zero responsive breakpoints, a dead control in the header, reviewer mode inverted, the artifact at 27% |
+| Studio (core surface) | **C−** | Excellent logic; zero responsive breakpoints, a dead control in the header, reviewer mode inverted, the artifact at 16% on a standard laptop |
 | Products | **C** | Sound information model, but a kitchen-sink edit page, two generate paths, and a decorative monogram where information belongs |
 | Information architecture | **C+** | Knowledge split across three entry points; no global search |
 | Feedback & state | **C** | `Toaster` mounted globally, used on 1 of 11 async surfaces |
@@ -439,35 +441,52 @@ eyebrow, then Language / Headline / Subhead as a read-only summary, then the com
 then Approve / Reject. One column, one job, in task order. Rebuild reviewer mode as its
 own composition rather than the author column with controls switched off.
 
-**F43 · The artifact under review renders at 27%. (P1)**
+**F43 · The artifact under review renders at 16–27%, and gets worse on smaller laptops.
+(P1 — MEASURED)**
 
-Derived from the source dimensions at a 1440×900 viewport (arithmetic, not measured in
-app — verify during implementation):
+**Measured 2026-07-29**, superseding this finding's original estimate. Method: Studio's
+markup was reproduced verbatim — same class strings, same inline
+`gridTemplateColumns`, same toolbar / export-bar / canvas structure — and injected into
+the running app so it resolved against the app's own compiled Tailwind stylesheet. Scale
+was then computed with `previewScale()` copied verbatim from `studio-preview.tsx`. Sizes
+are ContentGate set A.
 
-```text
-1440 − 248 sidebar                        = 1192 studio width
-1192 − 400 editor column                  =  792 canvas column
- 900 −  76 header                         =  824 canvas column height
- 824 − 173 toolbar − 85 export bar         =  566 canvas region
- 566 −  48 padding = 518 usable height ·  792 − 48 = 744 usable width
+| Viewport | Studio | Editor | Canvas | Toolbar | Chrome | square | **story** | link-ad | leaderboard |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 1728×1117 | 1480 | 400 | 1080×777 | 179 | 25% | 68% | **38%** | 86% | 100% |
+| 1440×900 | 1192 | 400 | 792×560 | 179 | 32% | 47% | **27%** | 62% | 100% |
+| 1280×800 | 1032 | 400 | 632×395 | **245** | 46% | 32% | **18%** | 49% | 80% |
+| 1366×768 | 1118 | 400 | 718×363 | **245** | **48%** | 29% | **16%** | 50% | 92% |
 
-story     1080×1920 → scale 0.270 → 291×518   ← 27%
-square    1080×1080 → scale 0.480 → 518×518
-link-ad   1200× 628 → scale 0.620 → 744×389
-leaderboard 728× 90 → scale 1.000 → 728× 90
-```
+Three things the original estimate missed:
 
-Chrome consumes **258 of 824px — 31% of the canvas column's height**. Story is a primary
-social format and it renders as a 291px-wide thumbnail. In a product whose entire promise
-is that output is on-brand, the reviewer cannot judge type, spacing or crop at that scale.
-This is the strongest argument for adding zoom/fit controls (F21) and for reclaiming
-toolbar height (F44) — treat those two as one piece of work.
+1. **The size switcher wraps below ~1400px.** Five pills at `min-w-[92px]` with `gap-x-8`
+   drop to a second row, taking the toolbar from 179px to **245px**. Chrome then eats
+   **46–48% of the canvas column** — nearly half the space is control surface.
+2. **1366×768 is the worst common case, not 1440×900.** It is also the most common
+   business-laptop resolution. A 1080×1920 story renders **177×315 — 16%**.
+3. **Even the smallest format stops rendering 1:1.** Leaderboard 728×90 drops to 92% at
+   1366 and 80% at 1280, so the one size that used to be pixel-accurate no longer is.
 
-**F44 · The size switcher costs 173px of vertical space. (P2)**
+The editor column stays pinned at 400px at every viewport — it never yields space back to
+the canvas, because `minmax(360px, 400px)` has no upper flexibility and the canvas track
+absorbs every pixel lost.
+
+In a product whose entire promise is that output is on-brand, a reviewer on a standard
+laptop is approving a 177px thumbnail. Treat F43, F44 and F21 (zoom controls) as one piece
+of work.
+
+*Caveat:* measured against a faithful clone, not live Studio with real content. The canvas
+column width is data-independent (fixed grid track), and toolbar height depends only on
+the size count and wrap point, so this holds for the ContentGate template families.
+A family with fewer sizes may not wrap at 1366.
+
+**F44 · The size switcher costs 179px — 245px once it wraps. (P2)**
 
 `px-10 py-7` container + two-line pills (`min-w-[92px] px-4 py-2`, label over dimensions)
-+ `gap-5` + a `py-3` segmented toggle. That is a fifth of the viewport height spent on a
-five-item switcher and a two-item toggle. Collapse to a single row of compact pills with
++ `gap-5` + a `py-3` segmented toggle. 179px at 1440 and above; **245px once the pills wrap
+below ~1400px** (measured, see F43). That is a fifth to a third of the viewport height spent
+on a five-item switcher and a two-item toggle. Collapse to a single row of compact pills with
 the dimensions in a tooltip or on the active pill only, and dock the draft/reference
 toggle inline with it rather than on its own line.
 
@@ -635,7 +654,9 @@ same files.*
 9. **Give the canvas back its space (F43 / F44 / F21).** Treat as one piece of work:
    collapse the toolbar to a single compact row with the draft/reference toggle docked
    inline; add zoom / fit-width / 1:1 controls with the current scale shown. Target: a
-   1080×1920 story readable above 50% on a 1440×900 screen, up from 27% today.
+   1080×1920 story readable above 50% at **1366×768**, up from a measured **16%** today.
+   Validate at 1366×768 and 1280×800, not just 1440×900 — the toolbar wraps below ~1400px
+   and chrome jumps to 46–48% of the canvas column.
 10. **Move the background picker next to the canvas, and hide it when not editable
     (F45).**
 11. **Collapse the two export paths (F47)** — fold "Copy generated copy" into the export
@@ -651,8 +672,8 @@ same files.*
 **Acceptance:** the full generate → edit → submit → approve → export loop completes at
 **390×844** as well as 768 / 1024 / 1440, with no clipped canvas, no horizontal body
 scroll, and no content trapped behind `overflow-hidden`; blocker reason visible without
-hover; Submit reachable without scrolling on a 5-field template; a 1080×1920 story
-readable above 50% at 1440×900; reviewer mode shows content before actions; no dead
+hover; Submit reachable without scrolling on a 5-field template; a 1080×1920 story readable above 50% at
+**1366×768** (up from a measured 16%), and the size switcher not wrapping at that width; reviewer mode shows content before actions; no dead
 controls in the header; VoiceOver announces save transitions. Ask also fills the viewport
 at 375×812 (falls out of step 0).
 
@@ -793,7 +814,7 @@ raw hex outside `globals.css`; mobile Ask fills the viewport.
 | Mobile Ask dead space (F32) | Visual capture at 375×812 |
 | Label association (F7) | `grep "<label"` vs `htmlFor` in `products/new`, `products/[id]/edit` |
 | Dead reviewer toggle (F41) | `studio-workspace.tsx:742` — bare `<span>`, no handler, `text-brand` bold |
-| Canvas at 27% (F43) | Arithmetic from fixed source dimensions at 1440×900 — verify in app |
+| Canvas at 16–27% (F43) | **Measured** — Studio markup cloned verbatim into the running app, scaled with `previewScale()` from source, across four viewports |
 | Approve button 4.41:1 (F46) | WCAG computation, white on `--color-approve` #00877e |
 | No `category` on products (F51) | `products` select in `product-workspace-server.ts:287`; `category` exists only on `product_templates` |
 | Two generate paths (F50) | `generate-variant.tsx` raw controls vs `studio-generate-panel.tsx` |
