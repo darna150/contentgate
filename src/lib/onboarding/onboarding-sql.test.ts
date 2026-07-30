@@ -6,6 +6,18 @@ const sql = readFileSync(
   new URL("../../../supabase/migrations/20260730142808_one_click_onboarding_control_plane.sql", import.meta.url),
   "utf8",
 );
+const ambiguityFixSql = readFileSync(
+  new URL("../../../supabase/migrations/20260730144321_fix_onboarding_org_id_ambiguity.sql", import.meta.url),
+  "utf8",
+);
+const retryFixSql = readFileSync(
+  new URL("../../../supabase/migrations/20260730144438_fix_onboarding_retry_run_id_ambiguity.sql", import.meta.url),
+  "utf8",
+);
+const tenantVariableFixSql = readFileSync(
+  new URL("../../../supabase/migrations/20260730144615_rename_onboarding_tenant_variables.sql", import.meta.url),
+  "utf8",
+);
 
 test("control-plane tables are RLS protected and service-role only", () => {
   assert.match(sql, /alter table public\.onboarding_runs enable row level security/i);
@@ -72,6 +84,24 @@ test("failure recovery preserves completed runs and waits for Auth profile delet
   assert.match(sql, /if exists \(select 1 from public\.profiles where profiles\.org_id = org_id\)/i);
   assert.match(sql, /current_step = 'delete_users'/i);
   assert.match(sql, /delete from public\.organizations where organizations\.id = org_id/i);
+});
+
+test("provisioning and compensation resolve the tenant variable deterministically", () => {
+  assert.match(ambiguityFixSql, /apply_onboarding_blueprint\(uuid,uuid,jsonb,jsonb\)/i);
+  assert.match(ambiguityFixSql, /rollback_onboarding_run\(uuid\)/i);
+  assert.match(ambiguityFixSql, /#variable_conflict use_variable/i);
+});
+
+test("retry resolution prefers the audited step table run identifier", () => {
+  assert.match(retryFixSql, /begin_onboarding_run\(text,text,jsonb,uuid,text\)/i);
+  assert.match(retryFixSql, /#variable_conflict use_column/i);
+});
+
+test("tenant RPC locals cannot shadow ON CONFLICT tenant columns", () => {
+  assert.match(tenantVariableFixSql, /target_org_id/i);
+  assert.match(tenantVariableFixSql, /values \(\\n      org_id,/i);
+  assert.match(tenantVariableFixSql, /Could not safely rewrite apply_onboarding_blueprint/i);
+  assert.match(tenantVariableFixSql, /Could not safely rewrite rollback_onboarding_run/i);
 });
 
 test("operator package storage has no browser policy and bounded ZIP inputs", () => {
