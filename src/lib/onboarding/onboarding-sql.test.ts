@@ -18,6 +18,10 @@ const tenantVariableFixSql = readFileSync(
   new URL("../../../supabase/migrations/20260730144615_rename_onboarding_tenant_variables.sql", import.meta.url),
   "utf8",
 );
+const campaignIndexSql = readFileSync(
+  new URL("../../../supabase/migrations/20260730150146_onboarding_campaign_fk_indexes.sql", import.meta.url),
+  "utf8",
+);
 
 test("control-plane tables are RLS protected and service-role only", () => {
   assert.match(sql, /alter table public\.onboarding_runs enable row level security/i);
@@ -102,6 +106,11 @@ test("tenant RPC locals cannot shadow ON CONFLICT tenant columns", () => {
   assert.match(tenantVariableFixSql, /values \(\\n      org_id,/i);
   assert.match(tenantVariableFixSql, /Could not safely rewrite apply_onboarding_blueprint/i);
   assert.match(tenantVariableFixSql, /Could not safely rewrite rollback_onboarding_run/i);
+});
+
+test("campaign tenant foreign keys have covering indexes", () => {
+  assert.match(campaignIndexSql, /campaigns \(org_id, product_id\)/i);
+  assert.match(campaignIndexSql, /generated_content \(org_id, campaign_id\)/i);
 });
 
 test("operator package storage has no browser policy and bounded ZIP inputs", () => {

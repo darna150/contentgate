@@ -288,6 +288,22 @@ test.describe("ContentGate full app surface QA", () => {
     await assertNoAxeViolations(page, "Client onboarding");
   });
 
+  test("provisions a reviewed package through the operator UI", async ({ page }) => {
+    const packagePath = process.env.CONTENTGATE_E2E_ONBOARDING_PACKAGE;
+    test.skip(!packagePath, "Requires a disposable onboarding ZIP package path.");
+    await signIn(page, false);
+    await page.goto("/onboarding");
+    await page.getByLabel("Workspace package").setInputFiles(packagePath!);
+    await page.getByRole("button", { name: "Upload and preflight" }).click();
+    await expect(page.getByRole("heading", { name: "Preflight passed" })).toBeVisible({
+      timeout: 60_000,
+    });
+    await page.getByRole("button", { name: "Create workspace" }).click();
+    await expect(page.getByRole("heading", { name: "Workspace ready" })).toBeVisible({
+      timeout: 120_000,
+    });
+  });
+
   test("keeps mobile dashboard actions at least 44 by 44 pixels", async ({ page }) => {
     await signIn(page, false);
     await page.setViewportSize({ width: 390, height: 844 });
