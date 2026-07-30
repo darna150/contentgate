@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { getProductWorkspace } from "@/lib/product-workspace-server";
 import {
   parseWorkspaceView,
@@ -66,6 +67,21 @@ export default async function ProductWorkspacePage({
         {product.description && (
           <p className="max-w-2xl text-body text-ink-muted">{product.description}</p>
         )}
+        {workspace.campaigns.length > 0 ? (
+          <div className="flex flex-wrap items-center gap-2" aria-label="Product campaigns">
+            <span className="text-caption font-semibold uppercase tracking-wide text-ink-muted">
+              Campaigns
+            </span>
+            {workspace.campaigns.map((campaign) => (
+              <Badge
+                key={campaign.id}
+                variant={campaign.status === "active" ? "approve" : "neutral"}
+              >
+                {campaign.name} · {campaign.status}
+              </Badge>
+            ))}
+          </div>
+        ) : null}
       </div>
 
       {/* Tabs */}

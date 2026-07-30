@@ -21,6 +21,14 @@ Instead target a PR preview or a dedicated staging deployment.
 CONTENTGATE_E2E_BASE_URL="https://contentgate-<pr-id>-debbies-projects-a8de6bb4.vercel.app" \
 CONTENTGATE_E2E_EMAIL="qa-user@example.com" \
 CONTENTGATE_E2E_PASSWORD="..." \
+CONTENTGATE_E2E_PRODUCT_ID="..." \
+CONTENTGATE_E2E_PRODUCT_NAME="..." \
+CONTENTGATE_E2E_TEMPLATE_NAME="..." \
+CONTENTGATE_E2E_OUTPUT_SIZE_KEY="..." \
+CONTENTGATE_E2E_OUTPUT_SIZE_LABEL="..." \
+CONTENTGATE_E2E_OUTPUT_WIDTH="1080" \
+CONTENTGATE_E2E_OUTPUT_HEIGHT="1080" \
+CONTENTGATE_E2E_KNOWLEDGE_QUESTION="..." \
 npm run test:e2e
 ```
 
@@ -63,9 +71,15 @@ repository secrets:
 - `CONTENTGATE_E2E_EMAIL`
 - `CONTENTGATE_E2E_PASSWORD`
 - optional `CONTENTGATE_E2E_ASSIGNMENT_ID`
+- `CONTENTGATE_E2E_PRODUCT_ID`
+- `CONTENTGATE_E2E_PRODUCT_NAME`
+- `CONTENTGATE_E2E_TEMPLATE_NAME`
+- `CONTENTGATE_E2E_OUTPUT_SIZE_KEY`, `CONTENTGATE_E2E_OUTPUT_SIZE_LABEL`,
+  `CONTENTGATE_E2E_OUTPUT_WIDTH`, and `CONTENTGATE_E2E_OUTPUT_HEIGHT`
+- `CONTENTGATE_E2E_KNOWLEDGE_QUESTION`
 
-The workflow can be run manually. It also runs on a daily schedule against
-`https://contentgate-delta.vercel.app`.
+The onboarding receipt emits these client-neutral values from the package QA
+configuration. The live workflow is manual-only and refuses the production URL.
 
 ## Reading failures
 

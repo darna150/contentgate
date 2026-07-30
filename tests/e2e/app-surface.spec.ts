@@ -1,11 +1,12 @@
 import { expect, test, type Page, type TestInfo } from "@playwright/test";
+import { clientFixture, escapeRegExp, requireClientFixture } from "./client-fixture";
 
 const E2E_EMAIL = process.env.CONTENTGATE_E2E_EMAIL;
 const E2E_PASSWORD = process.env.CONTENTGATE_E2E_PASSWORD;
 const BASE_URL = process.env.CONTENTGATE_E2E_BASE_URL ?? "";
-const DEMO_PRODUCT_ID =
-  process.env.CONTENTGATE_E2E_PRODUCT_ID ??
-  "27cf3a56-84e6-41fb-8cb7-4bf7dbe3c564";
+const DEMO_PRODUCT_ID = clientFixture.productId;
+const PRODUCT_NAME = new RegExp(escapeRegExp(clientFixture.productName), "i");
+const TEMPLATE_NAME = new RegExp(escapeRegExp(clientFixture.templateName), "i");
 
 type BrowserIssue = {
   kind: "console" | "pageerror" | "requestfailed" | "http";
@@ -24,12 +25,12 @@ const SURFACES: Surface[] = [
   {
     name: "Product overview",
     path: `/products/${DEMO_PRODUCT_ID}`,
-    expectedText: /Nimbus 1/i,
+    expectedText: PRODUCT_NAME,
   },
   {
     name: "Product templates",
     path: `/products/${DEMO_PRODUCT_ID}?view=templates`,
-    expectedText: /Nimbus Air Campaign/i,
+    expectedText: TEMPLATE_NAME,
   },
   {
     name: "Product content",
@@ -68,6 +69,7 @@ function requireCredentials() {
       ].join("\n")
     );
   }
+  requireClientFixture(["productId", "productName", "templateName"]);
 }
 
 function isBenignBrowserIssue(issue: BrowserIssue) {

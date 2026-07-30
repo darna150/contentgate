@@ -1,18 +1,18 @@
 import { expect, test, type Page, type TestInfo } from "@playwright/test";
+import { clientFixture, requireClientFixture } from "./client-fixture";
 
 const E2E_EMAIL = process.env.CONTENTGATE_E2E_EMAIL;
 const E2E_PASSWORD = process.env.CONTENTGATE_E2E_PASSWORD;
-const TEMPLATE_NAME = "Nimbus Air Campaign";
-const PLATFORM_ASSIGNMENT_ID =
-  process.env.NIMBUS_E2E_ASSIGNMENT_ID ??
-  "6433194b-789e-4ca6-afd4-79a42ae54d7e";
-const OUTPUT_SIZE = "instagram-post-square";
-const OUTPUT_SIZE_LABEL = "Instagram Post (Square)";
+const TEMPLATE_NAME = clientFixture.templateName;
+const PLATFORM_ASSIGNMENT_ID = clientFixture.assignmentId;
+const OUTPUT_SIZE = clientFixture.outputSizeKey;
+const OUTPUT_SIZE_LABEL = clientFixture.outputSizeLabel;
+const OUTPUT_DIMENSIONS_TEXT = `${clientFixture.outputWidth}×${clientFixture.outputHeight}`;
 const LIVE_EDIT_TEXT = `QA Live ${Date.now().toString().slice(-5)}`;
 const BASE_URL = process.env.CONTENTGATE_E2E_BASE_URL ?? "";
 
 const OUTPUT_SIZE_DIMENSIONS: Record<string, { width: number; height: number }> = {
-  "instagram-post-square": { width: 1080, height: 1080 },
+  [OUTPUT_SIZE]: { width: clientFixture.outputWidth, height: clientFixture.outputHeight },
 };
 
 type BrowserIssue = {
@@ -31,6 +31,16 @@ function requireCredentials() {
       ].join("\n")
     );
   }
+  requireClientFixture([
+    "productId",
+    "productName",
+    "assignmentId",
+    "templateName",
+    "outputSizeKey",
+    "outputSizeLabel",
+    "outputWidth",
+    "outputHeight",
+  ]);
 }
 
 async function attachBrowserIssues(testInfo: TestInfo, issues: BrowserIssue[]) {
@@ -97,7 +107,7 @@ async function expectStudioDraftState(
     timeout,
   });
   await expect(page.getByLabel("Size and format")).toContainText(
-    new RegExp(`${escapeRegExp(OUTPUT_SIZE_LABEL)}\\s+·\\s+1080×1080`, "i"),
+    new RegExp(`${escapeRegExp(OUTPUT_SIZE_LABEL)}\\s+·\\s+${escapeRegExp(OUTPUT_DIMENSIONS_TEXT)}`, "i"),
     { timeout }
   );
 }
@@ -107,7 +117,7 @@ async function expectNimbusReviewMode(page: Page) {
     timeout: 30_000,
   });
   await expect(page.getByLabel("Size and format")).toContainText(
-    new RegExp(`${escapeRegExp(OUTPUT_SIZE_LABEL)}\\s+·\\s+1080×1080`, "i")
+    new RegExp(`${escapeRegExp(OUTPUT_SIZE_LABEL)}\\s+·\\s+${escapeRegExp(OUTPUT_DIMENSIONS_TEXT)}`, "i")
   );
 }
 
@@ -116,7 +126,9 @@ async function openNimbusTemplate(page: Page) {
   await expect(page).toHaveURL(/\/products/);
   await expect(page.getByRole("heading", { name: /Products/i })).toBeVisible();
 
-  const productLink = page.getByRole("link", { name: /Nimbus 1/i }).first();
+  const productLink = page.getByRole("link", {
+    name: new RegExp(escapeRegExp(clientFixture.productName), "i"),
+  }).first();
   await expect(productLink).toBeVisible();
   await productLink.click();
   await page.waitForURL(/\/products\//, { timeout: 45_000 });
@@ -237,11 +249,11 @@ async function assertPreviewIsAvailable(page: Page) {
 
 async function expectNimbusStudioPickers(page: Page) {
   await expect(page.getByLabel("Size and format")).toContainText(
-    new RegExp(`${escapeRegExp(OUTPUT_SIZE_LABEL)}\\s+·\\s+1080×1080`, "i")
+    new RegExp(`${escapeRegExp(OUTPUT_SIZE_LABEL)}\\s+·\\s+${escapeRegExp(OUTPUT_DIMENSIONS_TEXT)}`, "i")
   );
   const productPicker = page.getByTestId("studio-asset-choice-__productVariantKey");
   await expect(productPicker).toBeVisible();
-  await expect(productPicker).toContainText("Nimbus 1");
+  await expect(productPicker).toContainText(clientFixture.productName);
   await expect(productPicker).toContainText("1 option");
 
   const backgroundPicker = page.getByTestId("studio-background-picker");
@@ -299,7 +311,7 @@ function readPngDimensions(bytes: number[]) {
   };
 }
 
-test.describe("Nimbus live generation QA", () => {
+test.describe("Client package live generation QA", () => {
   // Serial so each test can reuse state from the previous; 5-minute per-test
   // budget accommodates OpenAI generation latency plus SSR cold starts on a
   // Vercel preview deployment.

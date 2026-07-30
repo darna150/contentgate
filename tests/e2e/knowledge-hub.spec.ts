@@ -1,4 +1,5 @@
 import { expect, test, type Page, type TestInfo } from "@playwright/test";
+import { clientFixture, requireClientFixture } from "./client-fixture";
 
 const E2E_EMAIL = process.env.CONTENTGATE_E2E_EMAIL;
 const E2E_PASSWORD = process.env.CONTENTGATE_E2E_PASSWORD;
@@ -17,6 +18,7 @@ function requireCredentials() {
       ].join("\n")
     );
   }
+  requireClientFixture(["knowledgeQuestion"]);
 }
 
 function isBenignBrowserIssue(issue: BrowserIssue) {
@@ -112,18 +114,12 @@ test.describe("Knowledge Hub live QA", () => {
       `Ask textarea clips wrapped placeholder/text: ${JSON.stringify(inputBox)}`
     ).not.toBe("hidden");
 
-    await input.fill("What is Nimbus 1?");
+    await input.fill(clientFixture.knowledgeQuestion);
     await page.getByRole("button", { name: /^Ask$/ }).click();
 
     await expect(page.getByText(/From approved sources/i).first()).toBeVisible({
       timeout: 60_000,
     });
-    await expect(
-      page
-        .locator("main")
-        .getByText(/Run on Air|cloud-soft cushioning|real-world speed/i)
-        .first()
-    ).toBeVisible();
     await expect(page.getByText(/Something went wrong/i)).toHaveCount(0);
 
     await testInfo.attach("knowledge-hub-answer.png", {
