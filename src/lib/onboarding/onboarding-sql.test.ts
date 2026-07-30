@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 const sql = readFileSync(
-  new URL("../../../supabase/migrations/20260730133433_one_click_onboarding_control_plane.sql", import.meta.url),
+  new URL("../../../supabase/migrations/20260730142808_one_click_onboarding_control_plane.sql", import.meta.url),
   "utf8",
 );
 

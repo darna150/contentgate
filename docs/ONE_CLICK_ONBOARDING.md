@@ -99,7 +99,7 @@ Production requires the temporary feature gate and exact confirmation. Do not ke
 4. Re-run the identical package and confirm it returns the same receipt without writes.
 5. Inject a failure at users, upload, core data, and template import; verify no tenant or object residue.
 6. Provision two different packages concurrently and verify complete isolation.
-7. Run the generic signed-in browser and axe journeys using IDs and names from the receipt.
+7. Run the generic signed-in browser and axe journeys using the QA environment block from the receipt, including the resolved template assignment ID for generation coverage.
 8. Verify the internal upload-and-create operator page with axe and keyboard navigation, then consider enabling reviewed production runs.
 
 ## Explicitly deferred

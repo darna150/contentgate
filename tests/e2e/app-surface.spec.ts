@@ -1,4 +1,5 @@
 import { expect, test, type Page, type TestInfo } from "@playwright/test";
+import AxeBuilder from "@axe-core/playwright";
 import { clientFixture, escapeRegExp, requireClientFixture } from "./client-fixture";
 
 const E2E_EMAIL = process.env.CONTENTGATE_E2E_EMAIL;
@@ -60,7 +61,14 @@ const SURFACES: Surface[] = [
   { name: "Template Ops", path: "/templates", expectedText: /Template Ops/i },
 ];
 
-function requireCredentials() {
+const ACCESSIBILITY_SURFACES: Surface[] = [
+  { name: "Dashboard", path: "/dashboard", expectedText: /Good morning|Recent activity/i },
+  { name: "Content library", path: "/content", expectedText: /Content/i },
+  { name: "New product", path: "/products/new", expectedText: /New product/i },
+  { name: "Assets", path: "/assets", expectedText: /Assets/i },
+];
+
+function requireLoginCredentials() {
   if (!E2E_EMAIL || !E2E_PASSWORD) {
     throw new Error(
       [
@@ -69,6 +77,10 @@ function requireCredentials() {
       ].join("\n")
     );
   }
+}
+
+function requireCredentials() {
+  requireLoginCredentials();
   requireClientFixture(["productId", "productName", "templateName"]);
 }
 
@@ -86,8 +98,9 @@ function isBenignBrowserIssue(issue: BrowserIssue) {
   return false;
 }
 
-async function signIn(page: Page) {
-  requireCredentials();
+async function signIn(page: Page, fixtureRequired = true) {
+  if (fixtureRequired) requireCredentials();
+  else requireLoginCredentials();
   await page.goto("/login");
   await page.getByLabel("Work email").fill(E2E_EMAIL!);
   await page.getByLabel("Password").fill(E2E_PASSWORD!);
@@ -223,9 +236,48 @@ async function attachIssues(testInfo: TestInfo, issues: BrowserIssue[]) {
   });
 }
 
+async function assertNoAxeViolations(page: Page, surfaceName: string) {
+  const results = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
+    .analyze();
+
+  const violations = results.violations.map((violation) => ({
+    id: violation.id,
+    impact: violation.impact,
+    help: violation.help,
+    nodes: violation.nodes.map((node) => ({
+      target: node.target,
+      summary: node.failureSummary,
+    })),
+  }));
+
+  expect(
+    violations,
+    `${surfaceName} has axe-core violations: ${JSON.stringify(violations, null, 2)}`,
+  ).toEqual([]);
+}
+
 test.describe("ContentGate full app surface QA", () => {
+  test("meets the Phase 1 automated accessibility gate", async ({ page }) => {
+    await signIn(page, false);
+
+    for (const surface of ACCESSIBILITY_SURFACES) {
+      await page.goto(surface.path);
+      await expect(
+        page.getByText(surface.expectedText).and(page.locator(":visible")).first(),
+        surface.name,
+      ).toBeVisible({ timeout: 30_000 });
+      await assertNoAxeViolations(page, surface.name);
+    }
+
+    await page.goto("/products/new");
+    await expect(page.getByLabel("Product name", { exact: false })).toBeVisible();
+    await expect(page.getByLabel("Description", { exact: true })).toBeVisible();
+    await expect(page.getByLabel("Mandatory disclaimer", { exact: true })).toBeVisible();
+  });
+
   test("keeps mobile dashboard actions at least 44 by 44 pixels", async ({ page }) => {
-    await signIn(page);
+    await signIn(page, false);
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/dashboard");
     await assertMobileTouchTargets(page, "Mobile dashboard");
@@ -234,7 +286,7 @@ test.describe("ContentGate full app surface QA", () => {
   test("supports keyboard sign-in, skip navigation, and primary workspace links", async ({
     page,
   }) => {
-    requireCredentials();
+    requireLoginCredentials();
     await page.goto("/login");
     await page.waitForTimeout(300);
 
