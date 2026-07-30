@@ -71,7 +71,7 @@ export function ParagraphMark({ n, id }: { n: number; id?: string }) {
   return (
     <span
       id={id}
-      className="mt-0.5 flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full border border-approve-border bg-brand-tint px-1.5 text-[11px] font-bold text-brand"
+      className="mt-0.5 flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full border border-approve-border bg-brand-tint px-1.5 text-[11px] font-bold text-brand-on-tint"
     >
       ¶{n}
     </span>

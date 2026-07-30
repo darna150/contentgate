@@ -276,6 +276,18 @@ test.describe("ContentGate full app surface QA", () => {
     await expect(page.getByLabel("Mandatory disclaimer", { exact: true })).toBeVisible();
   });
 
+  test("keeps the platform onboarding surface accessible", async ({ page }) => {
+    test.skip(
+      process.env.CONTENTGATE_E2E_ONBOARDING_OPERATOR !== "true",
+      "Requires an allowlisted disposable platform operator.",
+    );
+    await signIn(page, false);
+    await page.goto("/onboarding");
+    await expect(page.getByRole("heading", { name: "Create a client workspace" })).toBeVisible();
+    await expect(page.getByLabel("Workspace package")).toBeVisible();
+    await assertNoAxeViolations(page, "Client onboarding");
+  });
+
   test("keeps mobile dashboard actions at least 44 by 44 pixels", async ({ page }) => {
     await signIn(page, false);
     await page.setViewportSize({ width: 390, height: 844 });
