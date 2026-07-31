@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ImageOff } from "lucide-react";
@@ -48,6 +48,11 @@ export function AssetLibrary({
   nextCursor,
 }: Props) {
   const router = useRouter();
+  const hydrated = useSyncExternalStore(
+    () => () => undefined,
+    () => true,
+    () => false,
+  );
   const uploadButtonRef = useRef<HTMLButtonElement>(null);
   const [dialog, setDialog] = useState<DialogState>({ type: "closed" });
   const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
@@ -85,6 +90,7 @@ export function AssetLibrary({
             <Button
               ref={uploadButtonRef}
               onClick={() => setDialog({ type: "upload" })}
+              disabled={!hydrated}
             >
               <UploadIcon className="h-4 w-4" /> Upload asset
             </Button>

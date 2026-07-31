@@ -226,3 +226,72 @@ test("validated lifecycle RPC can cross the direct profile membership guard", ()
   assert.match(bridgeSql, /current_user <> 'postgres'/);
   assert.match(bridgeSql, /only trusted server actions may change profile org or role/);
 });
+
+test("approved renders atomically create immutable export evidence", () => {
+  const evidenceSql = compact(
+    readFileSync(
+      "supabase/migrations/20260731152448_enterprise_stateful_capacity_evidence.sql",
+      "utf8"
+    )
+  );
+
+  assert.match(evidenceSql, /create or replace function public\.record_render_job_event/);
+  assert.match(evidenceSql, /insert into public\.render_jobs/);
+  assert.match(evidenceSql, /insert into public\.generated_content_events/);
+  assert.match(evidenceSql, /'content\.exported'/);
+  assert.match(evidenceSql, /'render_job_id', inserted_id/);
+  assert.match(evidenceSql, /approved_revision_number <> content_row\.current_revision_number/);
+  assert.match(evidenceSql, /grant execute on function public\.record_render_job_event[^;]+to authenticated/);
+});
+
+test("stateful capacity cleanup stays bounded and service-role only", () => {
+  const evidenceSql = compact(
+    readFileSync(
+      "supabase/migrations/20260731152448_enterprise_stateful_capacity_evidence.sql",
+      "utf8"
+    )
+  );
+
+  assert.match(evidenceSql, /dispose_enterprise_stateful_capacity_fixture/);
+  assert.match(evidenceSql, /expected_org_id constant uuid := '77777777-7777-4777-8777-777777777777'/);
+  assert.match(evidenceSql, /cardinality\(p_user_ids\), 0\) not between 1 and 3/);
+  assert.match(evidenceSql, /cardinality\(target_content_ids\) > 2/);
+  assert.match(evidenceSql, /profile\.full_name like 'enterprise stateful %'/);
+  assert.match(evidenceSql, /asset\.title like 'enterprise stateful qa %'/);
+  assert.match(evidenceSql, /revoke all on function public\.dispose_enterprise_stateful_capacity_fixture[^;]+authenticated, service_role/);
+  assert.match(evidenceSql, /grant execute on function public\.dispose_enterprise_stateful_capacity_fixture[^;]+to service_role/);
+});
+
+test("synthetic cleanup bypasses immutability only inside its validated transaction", () => {
+  const cleanupSql = compact(
+    readFileSync(
+      "supabase/migrations/20260731153009_allow_guarded_stateful_capacity_cleanup.sql",
+      "utf8"
+    )
+  );
+
+  assert.match(cleanupSql, /create or replace function public\.prevent_content_history_mutation\(\)/);
+  assert.match(cleanupSql, /current_user = 'postgres'/);
+  assert.match(cleanupSql, /contentgate\.enterprise_stateful_capacity_cleanup/);
+  assert.match(cleanupSql, /raise exception 'generated content history is immutable'/);
+  assert.match(cleanupSql, /rename to dispose_enterprise_stateful_capacity_fixture_v1/);
+  assert.match(cleanupSql, /revoke all on function public\.dispose_enterprise_stateful_capacity_fixture_v1[^;]+service_role/);
+  assert.match(cleanupSql, /perform set_config\( [^;]+'on', true \)/);
+  assert.match(cleanupSql, /grant execute on function public\.dispose_enterprise_stateful_capacity_fixture[^;]+to service_role/);
+});
+
+test("stateful asset cleanup detaches only its bounded synthetic current versions", () => {
+  const cleanupSql = compact(
+    readFileSync(
+      "supabase/migrations/20260731153139_fix_stateful_capacity_asset_cleanup.sql",
+      "utf8"
+    )
+  );
+
+  assert.match(cleanupSql, /update public\.product_assets as asset set current_version_id = null/);
+  assert.match(cleanupSql, /asset\.org_id = p_org_id/);
+  assert.match(cleanupSql, /asset\.id = any\(coalesce\(p_asset_ids, '\{\}'::uuid\[\]\)\)/);
+  assert.match(cleanupSql, /asset\.uploaded_by = any\(coalesce\(p_user_ids, '\{\}'::uuid\[\]\)\)/);
+  assert.match(cleanupSql, /asset\.title like 'enterprise stateful qa %'/);
+  assert.match(cleanupSql, /return public\.dispose_enterprise_stateful_capacity_fixture_v1/);
+});
