@@ -49,6 +49,10 @@ import {
   logTemplatePipelineEvent,
   templatePipelineDuration,
 } from "@/lib/template-platform/observability";
+import {
+  isSyntheticProviderFailureRequest,
+  reportProviderIncident,
+} from "@/lib/provider-failure";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -484,6 +488,10 @@ export async function POST(req: Request) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const syntheticProviderFailure = isSyntheticProviderFailureRequest(
+    req,
+    user.email,
+  );
 
   let requestBody: Body;
   try {
@@ -906,7 +914,7 @@ export async function POST(req: Request) {
         ? [userPrompt, ``, ...repairBlocks].join("\n")
         : userPrompt;
 
-      if (provider === "fallback") {
+      if (provider === "fallback" && !syntheticProviderFailure) {
         return Response.json(
           { error: "Generation is temporarily unavailable." },
           { status: 503 }
@@ -914,6 +922,9 @@ export async function POST(req: Request) {
       }
 
       try {
+        if (syntheticProviderFailure) {
+          throw new Error("Synthetic staging provider failure.");
+        }
         const candidate = await generateWithOpenAI({
           system,
           prompt: attemptPrompt,
@@ -1034,11 +1045,34 @@ export async function POST(req: Request) {
         outputSize: outputSizeKey,
         error: providerFailure,
       });
+      const incidentDelivery = await reportProviderIncident({
+        severity: "P1",
+        service: "contentgate-generation",
+        summary: "Generation provider retries exhausted",
+        occurredAt: new Date().toISOString(),
+        environment: process.env.CONTENTGATE_ENVIRONMENT ?? "unknown",
+        deployment: process.env.VERCEL_GIT_COMMIT_SHA ?? null,
+        details: {
+          route: "/api/products/generate",
+          code: "provider_unavailable",
+          attempts: PLATFORM_GENERATION_ATTEMPTS,
+          output_size: outputSizeKey,
+          synthetic: syntheticProviderFailure,
+        },
+      });
       return Response.json(
         {
           error: "Generation service is temporarily unavailable. ContentGate already retried automatically.",
           code: "provider_unavailable",
           retryAfterSeconds: 3,
+          ...(syntheticProviderFailure
+            ? {
+                validation: {
+                  attempts: PLATFORM_GENERATION_ATTEMPTS,
+                  incidentDelivery,
+                },
+              }
+            : {}),
         },
         { status: 503, headers: { "Retry-After": "3" } }
       );

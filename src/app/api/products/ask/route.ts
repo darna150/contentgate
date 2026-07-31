@@ -27,6 +27,10 @@ import {
   type AskOutcome,
   type AskUsage,
 } from "@/lib/ask-quality";
+import {
+  isSyntheticProviderFailureRequest,
+  reportProviderIncident,
+} from "@/lib/provider-failure";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -45,6 +49,14 @@ function boundedTimeoutMs(value: string | undefined) {
 }
 
 const OPENAI_ASK_TIMEOUT_MS = boundedTimeoutMs(process.env.OPENAI_ASK_TIMEOUT_MS);
+const OPENAI_ASK_ATTEMPTS = (() => {
+  const parsed = Number(process.env.OPENAI_ASK_ATTEMPTS ?? "2");
+  return Number.isInteger(parsed) && parsed >= 1 && parsed <= 3 ? parsed : 2;
+})();
+const OPENAI_ASK_ATTEMPT_TIMEOUT_MS = Math.min(
+  OPENAI_ASK_TIMEOUT_MS,
+  Math.floor(50_000 / OPENAI_ASK_ATTEMPTS),
+);
 
 const KNOWLEDGE_ANSWER_SCHEMA = {
   type: "object",
@@ -138,7 +150,10 @@ type AskDeployment = {
   trafficClass: "user" | "synthetic";
 };
 
-function askDeployment(req: Request): AskDeployment {
+function askDeployment(
+  req: Request,
+  syntheticProviderFailure = false,
+): AskDeployment {
   const rawEnvironment = process.env.VERCEL_ENV ?? process.env.NODE_ENV ?? "unknown";
   const environment = ["production", "preview", "development", "test"].includes(
     rawEnvironment
@@ -146,13 +161,15 @@ function askDeployment(req: Request): AskDeployment {
     ? (rawEnvironment as AskDeployment["environment"])
     : "unknown";
   const rawSha = process.env.VERCEL_GIT_COMMIT_SHA?.toLowerCase() ?? "";
+  const validationRun = req.headers.get("x-contentgate-validation-run");
   return {
     environment,
     commitSha: /^[0-9a-f]{7,64}$/.test(rawSha) ? rawSha : null,
-    // This header only classifies operational telemetry. It grants no access
-    // and changes neither retrieval nor answer behavior.
+    // Classification happens only after authentication. The provider-failure
+    // class also requires the staging-only synthetic identity guard.
     trafficClass:
-      req.headers.get("x-contentgate-validation-run") === "ask-production"
+      validationRun === "ask-production" ||
+      (validationRun === "provider-failure" && syntheticProviderFailure)
         ? "synthetic"
         : "user",
   };
@@ -449,6 +466,7 @@ async function answerWithOpenAI(input: {
   system: string;
   question: string;
   safetyIdentifier: string;
+  timeoutMs?: number;
 }) {
   if (!process.env.OPENAI_API_KEY) {
     throw new Error("OpenAI Ask is not configured.");
@@ -503,7 +521,7 @@ async function answerWithOpenAI(input: {
       "Content-Type": "application/json",
     },
     body: JSON.stringify(body),
-    signal: AbortSignal.timeout(OPENAI_ASK_TIMEOUT_MS),
+    signal: AbortSignal.timeout(input.timeoutMs ?? OPENAI_ASK_TIMEOUT_MS),
   });
 
   if (!response.ok) {
@@ -582,7 +600,6 @@ async function rewriteRetrievalQueryWithOpenAI(input: {
 
 export async function POST(req: Request) {
   const requestStartedAt = performance.now();
-  const deployment = askDeployment(req);
   const requestId = askRequestId(req);
   let usage = emptyAskUsage();
   let retrievalLatencyMs: number | null = null;
@@ -593,6 +610,11 @@ export async function POST(req: Request) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const syntheticProviderFailure = isSyntheticProviderFailureRequest(
+    req,
+    user.email,
+  );
+  const deployment = askDeployment(req, syntheticProviderFailure);
 
   try {
     const rateLimit = await consumeApiRateLimit(supabase, "knowledge.ask");
@@ -680,7 +702,7 @@ export async function POST(req: Request) {
   let retrievalError: { message?: string } | null = null;
   let retrievalStrategy: "hybrid" | "full_text" | "lexical_fallback" | "no_evidence" | "extractive_preview" =
     "full_text";
-  if (process.env.OPENAI_API_KEY) {
+  if (process.env.OPENAI_API_KEY && !syntheticProviderFailure) {
     try {
       const embeddingResult = await createKnowledgeEmbeddingsWithUsage(retrievalQueries);
       const embeddings = embeddingResult.embeddings;
@@ -820,19 +842,37 @@ ${product.disclaimer_text ? `MANDATORY DISCLAIMER (always applies): ${product.di
     claims: RawKnowledgeClaim[];
     not_found: boolean;
   };
-  if (process.env.OPENAI_API_KEY) {
+  if (process.env.OPENAI_API_KEY || syntheticProviderFailure) {
     const generationStartedAt = performance.now();
-    try {
-      const generated = await answerWithOpenAI({
-        system,
-        question,
-        safetyIdentifier,
-      });
-      rawResult = generated.result;
-      usage = addResponseUsage(usage, OPENAI_ASK_MODEL, generated.usage);
-      generationLatencyMs = Math.round(performance.now() - generationStartedAt);
-    } catch (error) {
-      console.error("knowledge answer failed:", error);
+    let generated: Awaited<ReturnType<typeof answerWithOpenAI>> | null = null;
+    let providerError: unknown = null;
+    let attemptsUsed = 0;
+    for (let attempt = 1; attempt <= OPENAI_ASK_ATTEMPTS; attempt += 1) {
+      attemptsUsed = attempt;
+      try {
+        if (syntheticProviderFailure) {
+          throw new Error("Synthetic staging provider failure.");
+        }
+        generated = await answerWithOpenAI({
+          system,
+          question,
+          safetyIdentifier,
+          timeoutMs: OPENAI_ASK_ATTEMPT_TIMEOUT_MS,
+        });
+        break;
+      } catch (error) {
+        providerError = error;
+        console.warn("knowledge answer provider attempt failed; retrying:", {
+          requestId,
+          attempt,
+          maxAttempts: OPENAI_ASK_ATTEMPTS,
+          error: error instanceof Error ? error.message : "provider request failed",
+        });
+      }
+    }
+    generationLatencyMs = Math.round(performance.now() - generationStartedAt);
+    if (!generated) {
+      console.error("knowledge answer provider exhausted retries:", providerError);
       generationLatencyMs = Math.round(performance.now() - generationStartedAt);
       await logKnowledgeQuery(supabase, {
         userId: user.id,
@@ -859,11 +899,36 @@ ${product.disclaimer_text ? `MANDATORY DISCLAIMER (always applies): ${product.di
         verificationFailed: false,
         failureCode: "answer_provider_failed",
       });
+      const incidentDelivery = await reportProviderIncident({
+        severity: "P1",
+        service: "contentgate-ask",
+        summary: "Ask provider retries exhausted",
+        occurredAt: new Date().toISOString(),
+        environment: process.env.CONTENTGATE_ENVIRONMENT ?? "unknown",
+        deployment: process.env.VERCEL_GIT_COMMIT_SHA ?? null,
+        details: {
+          route: "/api/products/ask",
+          request_id: requestId,
+          code: "provider_unavailable",
+          attempts: attemptsUsed,
+          retrieval_strategy: retrievalStrategy,
+          synthetic: syntheticProviderFailure,
+        },
+      });
       return NextResponse.json(
-        { error: "Knowledge Q&A is temporarily unavailable. Please try again." },
-        { status: 502 }
+        {
+          error: "Knowledge Q&A is temporarily unavailable. ContentGate already retried automatically.",
+          code: "provider_unavailable",
+          retryAfterSeconds: 3,
+          ...(syntheticProviderFailure
+            ? { validation: { attempts: attemptsUsed, incidentDelivery } }
+            : {}),
+        },
+        { status: 502, headers: { "Retry-After": "3" } },
       );
     }
+    rawResult = generated.result;
+    usage = addResponseUsage(usage, OPENAI_ASK_MODEL, generated.usage);
   } else {
     const extractive = buildExtractiveKnowledgeAnswer(question, evidence);
     rawResult = {
