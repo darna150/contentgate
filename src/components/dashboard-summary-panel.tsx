@@ -62,7 +62,7 @@ export function DashboardSummaryPanel({
           <p className="text-[13px] leading-relaxed text-ink-muted">{attention.body}</p>
         </div>
         {attention.actionHref && attention.actionLabel && (
-          <Link href={attention.actionHref} className="shrink-0 text-[13px] font-bold text-brand hover:underline">
+          <Link href={attention.actionHref} className="shrink-0 text-[13px] font-bold text-brand-on-tint hover:underline">
             {attention.actionLabel} →
           </Link>
         )}

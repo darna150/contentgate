@@ -12,15 +12,14 @@ export function FilterChips({
   getHref: (value: string) => string;
 }) {
   return (
-    <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Filter">
+    <nav className="flex flex-wrap gap-1.5" aria-label="Content status filters">
       {options.map((option) => {
         const active = option.value === activeValue;
         return (
           <Link
             key={option.value}
             href={getHref(option.value)}
-            role="tab"
-            aria-selected={active}
+            aria-current={active ? "page" : undefined}
             className={cn(
               "rounded-full border px-3 py-1.5 text-[12px] font-semibold transition-colors",
               active
@@ -33,6 +32,6 @@ export function FilterChips({
           </Link>
         );
       })}
-    </div>
+    </nav>
   );
 }

@@ -39,7 +39,7 @@ export function ApprovalsView({ workspace }: { workspace: ProductWorkspace }) {
         {canReview && sections.approvals.actionHref && (
           <Link
             href={sections.approvals.actionHref}
-            className="text-[13px] font-semibold text-brand hover:underline"
+            className="text-[13px] font-semibold text-brand-strong hover:underline"
           >
             Open Reviews →
           </Link>

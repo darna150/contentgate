@@ -38,7 +38,7 @@ export function AssetCard({
       >
         {asset.mediaKind === "video" ? (
           <>
-            <video src={asset.previewUrl} className="h-full w-full object-cover" muted preload="metadata" />
+            <video src={asset.previewUrl} className="h-full w-full object-cover" muted preload="metadata" aria-hidden />
             <span className="absolute left-2 top-2 rounded-full bg-ink/75 px-2 py-1 text-[10.5px] font-bold text-white">
               Video{duration ? ` · ${duration}` : ""}
             </span>

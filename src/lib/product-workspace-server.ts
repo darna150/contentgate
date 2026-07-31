@@ -117,6 +117,14 @@ export type ProductWorkspaceContent = {
   updatedAt: string;
 };
 
+export type ProductWorkspaceCampaign = {
+  id: string;
+  key: string;
+  name: string;
+  status: "draft" | "active" | "archived";
+  brief: string | null;
+};
+
 export type ProductWorkspace = {
   viewer: {
     id: string;
@@ -137,6 +145,7 @@ export type ProductWorkspace = {
   claims: ProductWorkspaceClaim[];
   platformTemplates: ProductWorkspacePlatformTemplate[];
   activePlatformTemplates: ProductWorkspacePlatformTemplate[];
+  campaigns: ProductWorkspaceCampaign[];
   content: ProductWorkspaceContent[];
   approvals: ProductWorkspaceContent[];
   approvalsNextCursor: string | null;
@@ -367,6 +376,7 @@ export async function getProductWorkspace(
     contentResult,
     contentCountResult,
     inReviewCountResult,
+    campaignResult,
   ] =
     await Promise.all([
       assetQuery,
@@ -392,6 +402,12 @@ export async function getProductWorkspace(
       contentQuery,
       contentCountQuery,
       inReviewCountQuery,
+      supabase
+        .from("campaigns")
+        .select("id, campaign_key, name, status, brief")
+        .eq("org_id", profile.org_id)
+        .eq("product_id", productId)
+        .order("updated_at", { ascending: false }),
     ]);
 
   assertQuery(assetResult.error, "assets");
@@ -401,6 +417,7 @@ export async function getProductWorkspace(
   assertQuery(contentResult.error, "content");
   assertQuery(contentCountResult.error, "content count");
   assertQuery(inReviewCountResult.error, "approval count");
+  assertQuery(campaignResult.error, "campaigns");
 
   const assetPreviewUrls = needsAssetRows
     ? await createProductAssetPreviewUrlMap(
@@ -636,6 +653,13 @@ export async function getProductWorkspace(
     claims,
     platformTemplates,
     activePlatformTemplates,
+    campaigns: (campaignResult.data ?? []).map((campaign) => ({
+      id: campaign.id,
+      key: campaign.campaign_key,
+      name: campaign.name,
+      status: campaign.status as ProductWorkspaceCampaign["status"],
+      brief: campaign.brief,
+    })),
     content,
     approvals,
     approvalsNextCursor: approvalsHasMore

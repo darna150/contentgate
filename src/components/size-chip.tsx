@@ -30,7 +30,7 @@ export function SizeChip({
       className={cn(
         "flex items-center gap-2 rounded-control border px-3 py-2 text-[12px] font-semibold whitespace-nowrap transition-colors",
         active
-          ? "border-brand bg-brand-tint text-brand"
+          ? "border-brand bg-brand-tint text-brand-on-tint"
           : "border-edge text-ink-muted hover:border-edge-strong hover:text-ink"
       )}
     >

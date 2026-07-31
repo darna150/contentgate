@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import {
   importTemplateBundle,
   templateBundleStoragePrefix,
@@ -115,7 +116,7 @@ export async function POST(req: Request) {
         createdBy: admin.value.userId,
         storagePrefix,
       },
-      createSupabaseTemplateBundleRepository()
+      createSupabaseTemplateBundleRepository(createAdminClient() as never)
     );
 
     if (!result.ok) {

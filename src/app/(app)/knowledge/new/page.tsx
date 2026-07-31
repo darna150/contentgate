@@ -32,7 +32,7 @@ export default async function NewDocumentPage({
   return (
     <div className="mx-auto flex max-w-[1280px] flex-col gap-6 px-4 py-9 sm:px-10">
       <div className="flex flex-col gap-1.5">
-        <Link href={backHref} className="text-[13px] font-semibold text-brand hover:underline">
+        <Link href={backHref} className="text-[13px] font-semibold text-brand-strong hover:underline">
           {backLabel}
         </Link>
         <h1 className="text-h1 text-ink">Add brand knowledge source</h1>
