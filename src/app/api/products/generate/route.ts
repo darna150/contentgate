@@ -1008,7 +1008,12 @@ export async function POST(req: Request) {
           break;
         }
       } catch (err) {
-        console.error("platform generation provider failed:", err);
+        console.warn("platform generation provider attempt failed; retrying:", {
+          platformAssignmentId,
+          outputSize: outputSizeKey,
+          attempt: attempt + 1,
+          error: err instanceof Error ? err.message : "provider request failed",
+        });
         providerFailure = err instanceof Error ? err.message : "provider request failed";
         // A malformed response, transient provider failure, or failed
         // semantic-verifier call should consume one internal attempt, not
@@ -1024,6 +1029,11 @@ export async function POST(req: Request) {
       !groundingIssues.length &&
       !variationIssues.length
     ) {
+      console.error("platform generation provider exhausted retries:", {
+        platformAssignmentId,
+        outputSize: outputSizeKey,
+        error: providerFailure,
+      });
       return Response.json(
         {
           error: "Generation service is temporarily unavailable. ContentGate already retried automatically.",

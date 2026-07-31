@@ -12,7 +12,7 @@ in front of a client:
   the full PR retry window.
 
 - major app surface loading and broken-image checks
-- all 24 declared UI routes and their public, authenticated, dynamic,
+- all 26 declared UI routes and their public, authenticated, dynamic,
   redirect, not-found, modal, and mobile accessibility states
 - ContentGate template generation
 - Studio size switching, missing-size draft guardrails, and live text updates
@@ -49,7 +49,8 @@ npm run test:e2e:deterministic
 
 The CI E2E gate (`.github/workflows/ci.yml`) discovers the Vercel preview URL
 through the GitHub Deployments API and runs the deterministic suite against it
-on every PR. Run the live-AI lane separately against the same exact candidate:
+on every PR. Its independent read-only route scenarios use four workers. Run
+the live-AI lane separately against the same exact candidate:
 
 ```sh
 npm run test:e2e:live-ai

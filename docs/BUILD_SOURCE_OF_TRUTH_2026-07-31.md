@@ -45,6 +45,35 @@ existed only in the other Codex and Claude lines:
 - CI verification, clean migration replay plus tenant isolation, preview E2E,
   production smoke, and manual live-QA workflows.
 
+## Release-gate stabilization
+
+Commit `6ad1d35` separates the credentialed browser evidence into two explicit
+lanes without reducing launch scope:
+
+- 19 deterministic route, authorization, asset, accessibility, responsive,
+  content-ledger, and Studio viewport tests remain required on every PR;
+- 7 live provider tests cover grounded Ask, generation, refinement, fit,
+  review, approval, and export as separately run launch evidence.
+
+The `6ad1d35` Preview passed verify, clean migration replay/tenant isolation,
+Vercel deployment, all 17 configured deterministic checks, and all 7 live-AI
+checks. Two operator-onboarding checks correctly remained skipped because their
+disposable package inputs are supplied only during the dedicated onboarding
+gate. Independent read-only route scenarios now use four workers, reducing the
+deterministic browser runtime from 4.0 to 2.5 minutes in the local exact-Preview
+benchmark.
+
+An executable Playwright global guard now refuses every ContentGate production
+hostname unless the CI-only, marked Ask production-validation job is running.
+Expected 422 model-safety refusals are warnings so they no longer pollute fatal
+runtime monitoring; actual provider and application failures remain errors.
+
+The production migration ledger is historical and must not receive a blind
+canonical `db push`. Read-only structural comparison shows production is
+otherwise aligned but lacks the additive onboarding/campaign control plane.
+The exact six-migration promotion sequence and rollback rules are recorded in
+`docs/PRODUCTION_RELEASE_RUNBOOK.md`.
+
 ## Branch and worktree disposition
 
 - `origin/claude/studio-reflow-scale-floor` at `207c7ad` is fully represented by
@@ -137,6 +166,10 @@ head completes all of the following:
 - representative admin/member product → knowledge → asset → campaign →
   generation → review → approval → approved-only export journey;
 - exact-candidate log review, rollback/support check, and named go/no-go signoff.
+
+The detailed current status, security findings, production configuration gates,
+and compliance boundary are in
+`docs/PILOT_RELEASE_READINESS_2026-07-31.md`.
 
 ## Release rule
 

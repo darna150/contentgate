@@ -400,6 +400,11 @@ async function waitForVisualState(element: Locator) {
 }
 
 test.describe("ContentGate full app surface QA", () => {
+  // These scenarios are independent, read-only acceptance checks. Running
+  // them across the deterministic lane's workers keeps the broad route and
+  // axe matrix merge-blocking without serializing every authenticated page.
+  test.describe.configure({ mode: "parallel" });
+
   test("keeps every public surface accessible", async ({ page }) => {
     for (const surface of [
       { name: "Sign in", path: "/login", expectedText: /Sign in/i },
