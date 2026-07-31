@@ -21,10 +21,13 @@ turn it into an unbounded load test.
 | Review/export | 3 simultaneous review or approved-export actions | No lost transition, duplicate approval, wrong revision, or invalid export |
 
 The first three rows are implemented by
-`tests/e2e/enterprise-capacity.spec.ts`. The stateful rows must use synthetic or
-explicitly approved staging fixtures, preserve immutable audit evidence, and
-clean up disposable data. They remain required before the capacity control can
-be marked pass.
+`tests/e2e/enterprise-capacity.spec.ts`. Upload, Ask, generation, review, and
+export are implemented by
+`tests/e2e/enterprise-stateful-capacity.spec.ts`. The stateful gate uses three
+disposable role-bound users in the approved Nimbus staging fixture, preserves
+its evidence as a Playwright attachment, and removes its users, content, files,
+queries, jobs, and synthetic audit rows through a tightly bounded service-only
+disposer. Both gates are required for the capacity control to pass.
 
 ## Running the bounded read gate
 
@@ -41,6 +44,24 @@ npx playwright test tests/e2e/enterprise-capacity.spec.ts --workers=1
 `CONTENTGATE_CAPACITY_USERS` may be set from 1 to 10 and
 `CONTENTGATE_CAPACITY_HEALTH_CONCURRENCY` from 1 to 50. Higher values require a
 separately reviewed test plan and are intentionally rejected by this gate.
+
+## Running the bounded stateful gate
+
+The stateful gate refuses production, unknown Supabase projects, non-Preview
+remote hosts, non-Nimbus fixtures, and concurrency outside its checked-in
+2-upload / 2-Ask / 2-generation / 3-export envelope. Run it against the exact
+candidate Preview:
+
+```sh
+CONTENTGATE_E2E_STATEFUL_CAPACITY=1 \
+CONTENTGATE_E2E_BASE_URL="https://<exact-preview>.vercel.app" \
+npm run qa:enterprise-stateful-capacity
+```
+
+The two upload files are small synthetic PNGs. This exercises the signed TUS
+upload and supported worker path without using large-file traffic as a proxy
+for concurrency. The gate refuses to start its bounded worker if any unrelated
+queued media job exists.
 
 ## Evidence required
 
@@ -75,4 +96,31 @@ loaded into five isolated browser contexts for the route waves.
 
 Teardown and an independent post-run read found zero matching disposable
 organizations, profiles, and Auth users. Production was not used or mutated.
-The stateful capacity rows remain open.
+
+## Stateful candidate evidence
+
+- Evidence time: 2026-07-31T15:41Z
+- Application SHA: `4f01b553e62bbf0a88ccb3752e1454c7d32880cc`
+- Preview: `https://contentgate-git-codex-enterpri-9a463e-debbies-projects-a8de6bb4.vercel.app`
+- Database: staging `bncwjibscptgijgmuhrn`
+- Evidence owner: Codex engineering task
+
+Result: **1 passed in 1.8 minutes**.
+
+| Measurement | Result | Threshold |
+|---|---:|---:|
+| Asset upload and processing | 2/2 approved; both jobs completed on attempt 1; p95 14,517 ms | No corrupt, cross-tenant, or incomplete asset |
+| Grounded Ask | 2/2 returned 200 with one verified citation each; p95 12,376 ms | 0 5xx; safe evidence; p95 at or below 15,000 ms |
+| Generation | 2/2 returned 200 on attempt 1; p95 7,485 ms; both created complete revisioned drafts | 0 5xx or corrupt draft; bounded retries |
+| Review workflow | Both submissions and approvals recorded once at revision 2 | No lost or duplicate transition; exact revision |
+| Approved export | 3/3 returned 200; p95 11,690 ms; each was a valid 637,035-byte 1080×1080 PNG | Valid output; exact approved revision; immutable receipt |
+
+This run also found and closed a second cold-page hydration race: the Assets
+page exposed its upload button before the client handler was attached. The
+button is now server-rendered disabled and becomes interactive only after
+hydration. Export certification found that completed render jobs previously
+lacked the canonical `content.exported` event; render job creation and export
+evidence are now one database transaction.
+
+Teardown returned a bounded disposal receipt and an independent pre-run read
+found zero residual synthetic profiles. Production was not used or mutated.
