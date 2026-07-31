@@ -43,7 +43,7 @@ export function StudioBackgroundPicker({
   const selectedIndex = options.findIndex((option) => option.key === value);
   const focusableIndex = selectedIndex === -1 ? 0 : selectedIndex;
 
-  function handleKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+  function handleKeyDown(event: React.KeyboardEvent<HTMLButtonElement>) {
     if (!editable || !hasMultipleOptions) return;
     const nextIndex = nextRovingIndex(focusableIndex, event.key, options.length);
     if (nextIndex === null) return;
@@ -70,12 +70,10 @@ export function StudioBackgroundPicker({
         ) : null}
       </div>
 
-      <div
-        role="radiogroup"
-        aria-label="Background choices"
-        onKeyDown={handleKeyDown}
-        className="flex flex-wrap gap-3"
+      <fieldset
+        className="m-0 flex flex-wrap gap-3 border-0 p-0"
       >
+        <legend className="sr-only">Background choices</legend>
         {options.map((option, index) => {
           const selected = value === option.key;
           const thumbnailSrc =
@@ -90,6 +88,7 @@ export function StudioBackgroundPicker({
               type="button"
               role="radio"
               tabIndex={index === focusableIndex ? 0 : -1}
+              onKeyDown={handleKeyDown}
               onClick={() => editable && hasMultipleOptions && onChange(option.key)}
               disabled={!editable || !hasMultipleOptions}
               aria-checked={selected}
@@ -127,7 +126,7 @@ export function StudioBackgroundPicker({
             </button>
           );
         })}
-      </div>
+      </fieldset>
       {selectedIndex >= 0 && (
         <p className="text-[13px] font-bold text-ink">
           {options[selectedIndex].label}

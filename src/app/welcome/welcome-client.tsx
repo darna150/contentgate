@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+import { createClient, hasSupabaseBrowserConfig } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,20 +13,34 @@ type Phase =
   | { kind: "saving"; email: string | null }
   | { kind: "invalid"; message: string };
 
+type PasswordFlow = "invite" | "recovery";
+
 // Invite links can arrive as a PKCE `?code=` or as implicit-flow tokens in
 // the URL hash depending on how Supabase verified the email link, so both
 // are handled explicitly instead of relying on auto-detection.
-export function WelcomeClient() {
+export function PasswordSetupClient({ flow }: { flow: PasswordFlow }) {
   const router = useRouter();
   const passwordId = useId();
   const confirmId = useId();
-  const [phase, setPhase] = useState<Phase>({ kind: "verifying" });
+  const [phase, setPhase] = useState<Phase>(() =>
+    hasSupabaseBrowserConfig()
+      ? { kind: "verifying" }
+      : {
+          kind: "invalid",
+          message: "Authentication is not configured for this environment.",
+        }
+  );
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
+    if (!hasSupabaseBrowserConfig()) {
+      return () => {
+        cancelled = true;
+      };
+    }
     const supabase = createClient();
 
     async function establishSession(): Promise<
@@ -34,6 +48,13 @@ export function WelcomeClient() {
     > {
       const url = new URL(window.location.href);
       const hashParams = new URLSearchParams(url.hash.replace(/^#/, ""));
+      if (url.searchParams.get("error") === "invalid") {
+        return {
+          error: flow === "invite"
+            ? "This invite link is invalid or has expired. Ask your workspace admin to send a new one."
+            : "This password reset link is invalid or has expired. Request a new one from the sign-in page.",
+        };
+      }
       const failure =
         hashParams.get("error_description") ?? url.searchParams.get("error_description");
       if (failure) return { error: failure };
@@ -60,8 +81,9 @@ export function WelcomeClient() {
       } = await supabase.auth.getUser();
       if (!user) {
         return {
-          error:
-            "This invite link is invalid or has expired. Ask your workspace admin to send a new one.",
+          error: flow === "invite"
+            ? "This invite link is invalid or has expired. Ask your workspace admin to send a new one."
+            : "This password reset link is invalid or has expired. Request a new one from the sign-in page.",
         };
       }
       return { email: user.email ?? null };
@@ -79,7 +101,7 @@ export function WelcomeClient() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [flow]);
 
   async function savePassword(e: React.FormEvent) {
     e.preventDefault();
@@ -106,7 +128,11 @@ export function WelcomeClient() {
   }
 
   if (phase.kind === "verifying") {
-    return <p className="text-body text-ink-muted">Verifying your invite…</p>;
+    return (
+      <p role="status" className="text-body text-ink-muted">
+        {flow === "invite" ? "Verifying your invite…" : "Verifying your reset link…"}
+      </p>
+    );
   }
 
   if (phase.kind === "invalid") {
@@ -124,7 +150,9 @@ export function WelcomeClient() {
       {phase.email && (
         <p className="text-body text-ink-muted">
           Signed in as <span className="font-semibold text-ink">{phase.email}</span>.
-          Choose a password to finish setting up your account.
+          {flow === "invite"
+            ? " Choose a password to finish setting up your account."
+            : " Choose a new password for your account."}
         </p>
       )}
       <div className="flex flex-col gap-1.5">
@@ -142,6 +170,7 @@ export function WelcomeClient() {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           placeholder="At least 8 characters"
+          autoComplete="new-password"
           className="h-auto py-3 text-sm"
         />
       </div>
@@ -159,12 +188,17 @@ export function WelcomeClient() {
           value={confirm}
           onChange={(e) => setConfirm(e.target.value)}
           placeholder="••••••••"
+          autoComplete="new-password"
           className="h-auto py-3 text-sm"
         />
       </div>
 
       <Button type="submit" size="lg" disabled={busy} className="mt-1">
-        {busy ? "Saving…" : "Set password and enter workspace"}
+        {busy
+          ? "Saving…"
+          : flow === "invite"
+            ? "Set password and enter workspace"
+            : "Save new password"}
       </Button>
 
       {formError && (
@@ -174,4 +208,8 @@ export function WelcomeClient() {
       )}
     </form>
   );
+}
+
+export function WelcomeClient() {
+  return <PasswordSetupClient flow="invite" />;
 }

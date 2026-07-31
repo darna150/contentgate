@@ -12,9 +12,9 @@ export default function LoginPage() {
         </div>
 
         <div className="flex max-w-md flex-1 flex-col justify-center gap-5">
-          <h1 className="text-[44px] font-bold leading-[0.98] tracking-[-0.03em] text-white">
+          <h2 className="text-[44px] font-bold leading-[0.98] tracking-[-0.03em] text-white">
             Locked templates. Approved claims. Nothing ships without a sign-off.
-          </h1>
+          </h2>
           <p className="max-w-sm text-[15px] leading-relaxed text-sidebar-text">
             Generate localized content from governed source knowledge and route every export through approval.
           </p>
@@ -32,7 +32,7 @@ export default function LoginPage() {
             <span className="text-[18px] font-bold tracking-[-0.03em] text-ink">contentgate</span>
           </div>
           <div className="flex flex-col gap-2">
-            <h2 className="text-h1 text-ink">Sign in</h2>
+            <h1 className="text-h1 text-ink">Sign in</h1>
             <p className="text-body text-ink-muted">
               Welcome back. Use your company credentials.
             </p>
