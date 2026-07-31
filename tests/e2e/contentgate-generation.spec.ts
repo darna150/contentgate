@@ -27,7 +27,7 @@ function requireCredentials() {
         "Missing live QA credentials.",
         "Run with CONTENTGATE_E2E_EMAIL and CONTENTGATE_E2E_PASSWORD.",
         "Example:",
-        'CONTENTGATE_E2E_BASE_URL="https://contentgate-delta.vercel.app" CONTENTGATE_E2E_EMAIL="you@example.com" CONTENTGATE_E2E_PASSWORD="..." npm run test:e2e -- --headed',
+        'CONTENTGATE_E2E_BASE_URL="https://contentgate-git-release-example.vercel.app" CONTENTGATE_E2E_EMAIL="you@example.com" CONTENTGATE_E2E_PASSWORD="..." npm run test:e2e:live-ai -- --headed',
       ].join("\n")
     );
   }
@@ -329,7 +329,7 @@ function readPngDimensions(bytes: number[]) {
   };
 }
 
-test.describe("Client package live generation QA", () => {
+test.describe("Client package live generation QA @live-ai", () => {
   // Serial so each test can reuse state from the previous; 5-minute per-test
   // budget accommodates OpenAI generation latency plus SSR cold starts on a
   // Vercel preview deployment.

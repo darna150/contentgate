@@ -1114,7 +1114,7 @@ export async function POST(req: Request) {
 
     if (!out) {
       if (fitReasons.length) {
-        console.error("platform generated copy failed template fit validation:", {
+        console.warn("platform generated copy failed template fit validation:", {
           platformAssignmentId,
           outputSize: outputSizeKey,
           reasons: fitReasons,
@@ -1128,7 +1128,7 @@ export async function POST(req: Request) {
         );
       }
       if (variationIssues.length) {
-        console.error("platform generated copy failed variation validation:", {
+        console.warn("platform generated copy failed variation validation:", {
           platformAssignmentId,
           outputSize: outputSizeKey,
           reasons: variationIssues,
@@ -1144,7 +1144,7 @@ export async function POST(req: Request) {
       const ungroundedFields = groundingIssues
         .map((issue) => issue.split(":")[0]?.trim())
         .filter(Boolean);
-      console.error("platform generated copy failed evidence validation:", {
+      console.warn("platform generated copy failed evidence validation:", {
         platformAssignmentId,
         outputSize: outputSizeKey,
         reasons: groundingIssues,
@@ -1250,7 +1250,7 @@ export async function POST(req: Request) {
         ...finalQualityReasons,
         ...finalGroundingIssues,
       ];
-      console.error("platform generation final contract validation failed:", {
+      console.warn("platform generation final contract validation failed:", {
         platformAssignmentId,
         outputSize: outputSizeKey,
         reasons,
