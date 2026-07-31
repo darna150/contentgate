@@ -2,250 +2,230 @@
 
 Owner: Claude (UI/UX implementation)
 Recipient: Codex (release captain)
+Status: **ready for Codex** — PR #59 marked ready for review, not merged.
 
 ## 1. Provenance
 
 | | |
 |---|---|
-| Base SHA | `384722294329ff35f0585277992b324892fa40b6` |
-| Base branch | `codex/complete-build-source-of-truth` (base SHA was its exact tip) |
+| Original base SHA | `384722294329ff35f0585277992b324892fa40b6` |
+| Merge base (current) | `251d48d33dcfaa473ee29c9803208ddfd4af4ce5` |
+| Final Claude SHA | `9eec7028d13e3fe79721feb1572b01d44f46e1b8` (plus this doc commit — see PR head) |
 | Claude branch | `claude/enterprise-ui-pilot` |
-| Final Claude SHA | see `git rev-parse claude/enterprise-ui-pilot` — recorded in the PR body |
+| PR | [#59](https://github.com/darna150/contentgate/pull/59) → `codex/complete-build-source-of-truth` (**never** `main`) |
+| Exact Preview | `https://contentgate-git-claude-enterpr-ed4f08-debbies-projects-a8de6bb4.vercel.app` |
 | Worktree | `.claude/worktrees/enterprise-ui-pilot` |
-| PR target | `codex/complete-build-source-of-truth` (**not** `main`), opened as **draft**, not merged |
 
-The branch was created directly at the base SHA and verified with
-`git merge-base --is-ancestor`. No rebase onto another UI branch, no merge, no
-deploy.
+`origin/codex/complete-build-source-of-truth` @ `251d48d` was merged into this
+branch (merge commit `07d22a9`). No commit was rewritten and nothing was
+force-pushed.
 
-## 2. Scope actually delivered
+## 2. Correction to an earlier commit
 
-The brief is scoped at one to two focused days. This was one session, and per
-the product owner's direction it went **depth-first on Priority A** rather than
-thin breadth. What that means concretely is in §8 and §9 — read those before
-planning integration, because the honest answer is that most of Priority A did
-not need changing and the work concentrated where real defects existed.
+Commit `0286650` is titled *"ui: improve operator onboarding and
+authentication"* and contains **only onboarding work** — two files, no auth.
+The title came from the brief's prescribed commit sequence and was left on a
+commit that had not earned the second half. Authentication was actually done
+later, in `1dce7e4`. Recorded by note rather than rewrite, since the commit is
+already published. Full detail: `docs/CLAUDE_UI_COMMIT_CORRECTION_2026-07-31.md`.
 
-## 3. Environment discipline
+## 3. Completed / partial / not covered
 
-The only pre-configured `.env.local` in the primary checkout points at Supabase
-project `egjssfcenboalijfdmsi`, which is **production**. It was never used.
+### Completed
 
-Verification ran against **staging** (`bncwjibscptgijgmuhrn`), from env files the
-product owner supplied, copied into the worktree as gitignored local files after
-confirming, without printing any secret material:
+| Area | What was done |
+|---|---|
+| Content ledger | Rebuilt on `campaignName` + `revisionNumber`; title preserved; format its own column; row alignment fixed |
+| Authentication | Expired-link dead end closed; enumeration-safe errors; network-failure lockout fixed on 3 forms; autofill pairing |
+| Onboarding presentation | Environment banner (production ≠ staging); resumed vs fresh receipt; failure state honesty; in-flight state; hydration bug |
+| Studio governed states | Verified against real draft / rejected / approved content; reviewer note raised above the editor |
+| Focus visibility | Ring contrast raised from ~1.8:1 to measured 5.2:1 across every button, dialog close and asset card |
+| Error-to-field association | `aria-invalid` + `aria-describedby` + `role="alert"` + focus movement on password setup/recovery |
+| Manual a11y | 200% reflow, reduced motion, keyboard-only, touch targets — all verified; one target-size defect fixed |
+| Automated sweep | 75 route × viewport combinations, 0 axe violations, 0 overflow, 0 console errors |
+
+### Partial
+
+| Area | Done | Gap |
+|---|---|---|
+| Studio lifecycle | draft, rejected, approved verified with real staging content | **in-review never seen** — staging holds no content in that state |
+| Onboarding states | resumed receipt, failure, in-flight, preflight-blocked, package selection | **A real provision was not executed by me.** Codex has proven provisioning, replay and guarded cleanup; I verified how those outcomes *present*, by rendering the receipt and failure states directly |
+| Component system | Buttons, inputs, textareas, dialog, badge, confirm-dialog, asset card audited against the checklist | Tabs, dropdown-menu, select, scroll-area, sonner, skeleton, tooltip, separator **not individually audited** — they raised no findings in the route sweep but were not opened |
+| Roles | admin + platform operator (the QA account) | **member, author, approver never seen.** Role-gating is asserted by the E2E suite, not by me |
+
+### Not covered
+
+- **Mutating flows were never executed**: generation, save, submit-for-review,
+  approve, reject, export, provisioning, cleanup. Their *code paths* were read
+  and their *rendered states* verified where reachable, but no write was made to
+  staging beyond authentication.
+- **Cleanup messaging** — no cleanup UI exists in the operator panel to audit;
+  the failure state now references cleanup honestly, but there is no cleanup
+  surface of my own to verify.
+- **Priority B/C routes** (`/settings`, `/ask`, `/ask/quality`, `/templates`
+  beyond one fix) received automated sweep coverage only, not a design pass.
+
+## 4. Environment discipline
+
+Production (`egjssfcenboalijfdmsi`) was **never** used. All verification ran
+against staging (`bncwjibscptgijgmuhrn`), confirmed before use without printing
+secrets:
 
 - `CONTENTGATE_SUPABASE_PROJECT_REF=bncwjibscptgijgmuhrn` ✓
 - `CONTENTGATE_ENVIRONMENT=staging` ✓
 - `CONTENTGATE_ALLOW_PRODUCTION_ONBOARDING` not enabled ✓
-- no reference to `egjssfcenboalijfdmsi` in either file ✓
+- no production ref in either env file ✓
 
-Local server on `http://localhost:3200` from this worktree (process cwd
-confirmed). No production or staging **data was modified**: the audit harness
-signs in and reads, and never submits a form, generates, saves, approves,
-exports, or provisions. No destructive onboarding, cleanup, or production test
-was run.
+The exact Preview was **independently confirmed staging-backed** before any test
+ran against it: a deliberately invalid sign-in was used to make the auth request
+observable, and the only Supabase host contacted was `bncwjibscptgijgmuhrn`.
+Codex's `assertSafeE2ETarget` also passed the host.
 
-One incident worth recording: two early `preview_start` calls resolved to the
-wrong `launch.json` config and briefly started a dev server from a checkout
-carrying the production `.env.local`. Both were stopped within seconds and only
-issued reads (a `/login` GET and an auth session check). No writes occurred. The
-config file was restored to its committed state.
+Recorded incidents: on two occasions `preview_start` resolved to a `launch.json`
+config pointing at a checkout carrying the production `.env.local`. Both servers
+were stopped within seconds having issued only a `/login` GET and a session
+check. No writes occurred. (Codex's `251d48d` made `launch.json`
+checkout-independent, which removes the `cwd` but means the preview tool now
+defaults to the session's primary checkout — see §7.3.)
 
-## 4. How verification was done
+## 5. Verification results
 
-Two independent mechanisms, both against staging on localhost:3200.
-
-**a. The repository's own E2E accessibility gate**
-
-```
-npx playwright test tests/e2e/app-surface.spec.ts --grep 'public surface accessible|automated accessibility gate|primary route reflowable|modal and mobile-navigation|keyboard sign-in'
-```
-
-5 passed before the changes and 5 passed after. Credentials stayed inside the
-Playwright harness; they were never typed into a form by hand.
-
-**b. A read-only audit harness** (not committed; lived in a gitignored path)
-
-Signs in once, then walks 15 routes across the five required viewports —
-1280×800, 1366×768, 1440×900, 390×844, 320×800 — capturing per combination: a
-screenshot, axe-core violations at wcag2a/2aa/21a/21aa/22aa, document scrollWidth
-vs clientWidth, elements crossing the viewport edge, `h1` count, heading-level
-skips, landmark counts, controls with no accessible name, disabled controls, and
-console/page errors.
-
-**Final sweep: 75/75 route × viewport combinations — 0 axe violations, 0
-horizontal overflow, 0 route errors, 0 console errors.**
-
-## 5. Commits
-
-| SHA | Commit |
+| Gate | Result |
 |---|---|
-| `9d0a0c2` | `ui: complete enterprise Studio presentation` |
-| `0286650` | `ui: improve operator onboarding and authentication` |
-| `7a2085b` | `ui: refine content approval and export states` |
-| `9e70261` | `ui: refine product campaign and knowledge workspaces` |
-| `0d37d1e` | `fix: close responsive and accessibility UI gaps` |
-| `c3dd84d` | `fix: stop the operator package builder mismatching on hydration` |
+| `npm run lint` | pass |
+| `npm run typecheck` | pass |
+| `npm test` | **326 tests, 326 pass, 0 fail** (12 suites) |
+| `npm run build` | pass, 34 routes |
+| `npm audit --omit=dev --audit-level=high` | **0 vulnerabilities** |
+| `npm run test:e2e:deterministic` — localhost:3200 | **17 passed, 2 skipped, 0 failed** |
+| `npm run test:e2e:deterministic` — **exact Preview** | **17 passed, 2 skipped, 0 failed** |
+| Route × viewport axe sweep | **75/75 clean** |
 
-No formatting-only churn is mixed into any of them.
+E2E fixture note: `CONTENTGATE_E2E_ASSIGNMENT_ID` is not discoverable from the
+UI, so a placeholder was used. The only route consuming it
+(`/products/:id/templates/:assignmentId`) is a declared redirect contract where
+the id is not meaningful. Every other fixture value is a real staging record.
 
-## 6. Files changed
+### Manual accessibility (things the sweep cannot assert)
+
+| Check | Result |
+|---|---|
+| 200% zoom / reflow at 640 CSS px, 9 routes | no horizontal scrolling |
+| `prefers-reduced-motion` | media matches; nothing animates or transitions > 50ms |
+| Keyboard-only, 30 tab stops | every stop had a visible indicator (except the Next.js dev overlay) |
+| Touch targets (SC 2.5.8) | one defect at 117×20, fixed; all clean after |
+| Focus indicator contrast (SC 1.4.11) | measured 5.2:1 after fix, was ~1.8:1 |
+
+## 6. Studio — every changed interaction
+
+Shared-risk. All presentation; contracts verified intact by the four
+`studio-viewport` contract tests passing on **both** localhost and the Preview.
+
+1. Export label distinguishes three cases: "Download original design …",
+   "Download draft …", "Export approved …". Confirmed against real content —
+   draft shows "Export — locked until approved" (disabled), rejected shows
+   "Download draft PNG", approved shows "Export approved PNG".
+2. Locked-export reason moved from a `title` on a disabled (unfocusable) button
+   into visible text, still referenced by `aria-describedby`.
+3. Export bar wraps instead of forcing a 260px minimum on narrow viewports.
+4. Empty required fields read `0/24 · required` in neutral type instead of red
+   `0/24 · needs edit`.
+5. The reviewer's rejection note moved above the Message editor (it rendered
+   below the Generate button, under the fold at 1440×900).
+
+**Verified unchanged:** generation payloads, autosave sequencing, optimistic
+locking, fit validation (`hasIssues` still gates submission), evidence
+validation, review transitions, revision semantics, export eligibility
+(`downloadDisabled` / `draftPreviewDownloadAllowed` byte-identical), the 50%
+scale floor, fit/50%/100% zoom, canvas overflow and scrolling.
+
+Measured floor on the Preview: 1366×768 → 50.0%, 1280×800 → 50.0%,
+1440×900 → 56.1%.
+
+## 7. Unresolved engineering findings for Codex
+
+**7.1 — `qaEnvironment` values render in the operator receipt.**
+`onboarding-panel.tsx` prints `receipt.qaEnvironment` as `NAME=value` pairs
+inside a `<details>`. It is operator-only and may be intended, but the brief
+says not to expose secrets and I could not establish what that map can contain.
+Worth a decision. Not changed.
+
+**7.2 — `ANTHROPIC_API_KEY` still present in the primary checkout `.env.local`.**
+Anthropic was removed on 2026-07-20 and must not return. Stale local env var,
+not code. Env files are Codex-owned — flagged, not touched.
+
+**7.3 — `launch.json` now has no `cwd`.**
+`251d48d` made it checkout-independent, which is right for CI, but the local
+preview tool then defaults to the session's primary checkout. On this machine
+that checkout carries the production `.env.local`, which is how the two
+incidents in §4 happened. Consider whether local tooling should fail closed when
+`CONTENTGATE_ENVIRONMENT` is unset or production.
+
+**7.4 — `aria-invalid` is styled but almost unused.**
+`Input` and `Textarea` have carried `aria-invalid:border-reject` since they were
+written. Only the password setup form now sets it. Every other form in the
+product still shows unassociated form-level errors. Systematic adoption is a
+larger change than this pass.
+
+**7.5 — no content in `in_review` on staging.**
+Blocks visual verification of the reviewer-facing Studio state and of the
+approvals queue with real pending records.
+
+## 8. Files changed (vs merge base `251d48d`)
 
 ```
-src/app/(app)/onboarding/environment-banner.tsx     (new)
+src/app/(app)/content/page.tsx
+src/app/(app)/onboarding/environment-banner.tsx        (new)
+src/app/(app)/onboarding/onboarding-panel.tsx
 src/app/(app)/onboarding/onboarding-workflow.tsx
 src/app/(app)/onboarding/package-builder.tsx
-src/app/(app)/studio/studio-toolbar.tsx             ** shared-risk **
-src/app/(app)/studio/studio-workspace.tsx           ** shared-risk **
-src/app/(app)/studio/studio-fields.tsx              ** shared-risk **
-src/app/(app)/content/page.tsx
 src/app/(app)/products/page.tsx
+src/app/(app)/studio/studio-fields.tsx                 ** shared-risk **
+src/app/(app)/studio/studio-toolbar.tsx                ** shared-risk **
+src/app/(app)/studio/studio-workspace.tsx              ** shared-risk **
 src/app/(app)/templates/template-ops-actions.tsx
-docs/CLAUDE_ENTERPRISE_UI_HANDOFF_2026-07-31.md     (new)
-docs/evidence/claude-enterprise-ui-2026-07-31/*.png (new)
+src/app/forgot-password/forgot-password-form.tsx
+src/app/login/login-form.tsx
+src/app/login/page.tsx
+src/app/welcome/welcome-client.tsx
+src/components/assets/asset-card.tsx
+src/components/dashboard-summary-panel.tsx
+src/components/ui/button.tsx                           ** all consumers **
+src/components/ui/dialog.tsx
+docs/CLAUDE_ENTERPRISE_UI_HANDOFF_2026-07-31.md
+docs/CLAUDE_UI_COMMIT_CORRECTION_2026-07-31.md
+docs/evidence/claude-enterprise-ui-2026-07-31/*.png
 ```
 
-## 7. Shared-risk surface — read this before integrating
+`src/components/ui/button.tsx` changes the focus ring for **every button in the
+product**. It is a one-token change and the safest way to fix the defect at
+source, but it is the widest-blast-radius edit in the branch.
 
-`codex/wip-snapshot-20260731` (local, unpushed, at `bedbd74`) diverges from the
-base and differs in **127 `src/` files**, including all three Studio files above.
-If that work lands, these three commits will conflict. Every Studio change is
-presentation-only and confined to `9d0a0c2`, so it can be re-applied or dropped
-as one unit without unpicking anything else.
+## 9. State and role evidence
 
-**Every interaction changed in Studio, exhaustively:**
-
-1. Export button *wording* — three cases now read differently: "Download
-   original design …" (stage shows the untouched template), "Download draft …"
-   (draft QA proof), "Export approved …" (approved export). Previously the first
-   and third both read "Export …".
-2. The locked-export reason moved from a `title` attribute into visible text
-   beneath the action, still referenced by `aria-describedby`.
-3. The export bar wraps instead of forcing a 260px minimum on narrow viewports.
-4. An empty required copy field renders in neutral type reading `0/24 · required`
-   instead of red `0/24 · needs edit` with a red border.
-
-**Explicitly NOT changed, verified by reading each:** generation request
-payloads, autosave sequencing, optimistic locking, fit-validation logic
-(`hasIssues` still governs submission exactly as before), evidence validation,
-review transitions, revision semantics, export eligibility (`downloadDisabled`
-and `draftPreviewDownloadAllowed` are byte-identical), the 50% scale floor, the
-fit/50%/100% zoom behaviour, and canvas overflow/scroll contracts.
-
-The 320px Studio canvas clipping seen in screenshots is the **intended** 50%-floor
-plus scrollable-stage contract, not a defect. It was deliberately left alone.
-
-## 8. Findings and what was done
-
-### Fixed
-
-| # | Sev | Finding | Where |
-|---|---|---|---|
-| 1 | P1 | Operator console gave no page-level signal of target environment; production looked identical to staging. Target was named only in body copy inside stage 2. | `onboarding` |
-| 2 | P1 | Every row in the content ledger repeated the campaign name as its most prominent text — under a heading already naming that campaign — while the one distinguishing attribute (format) was truncated to "Instagram P…". | `content` |
-| 3 | P1 | Locked-export reason lived in a `title` on a disabled button: unfocusable by keyboard, invisible on touch. | Studio |
-| 4 | P1 | An untouched template preview offered "Export PNG" — the same words as a governed approved export. | Studio |
-| 5 | P2 | Empty required fields presented as errors (red, "needs edit") before the author typed anything. | Studio |
-| 6 | P2 | Template bundle import left both actions disabled with no stated reason. | `templates` |
-| 7 | P2 | React hydration attribute mismatch on every `/onboarding` load, from `crypto.randomUUID()` in SSR'd `useState` initialisers. Pre-existing at base SHA. | `onboarding` |
-| 8 | P3 | Product cards read "1 templates". | `products` |
-
-### Considered and deliberately not changed
-
-- **Ask composer's disabled "Ask" button.** Adjacent to an empty, labelled
-  textarea whose placeholder reads "Ask a question…". Self-evident; adding text
-  would be the decorative churn the brief warns against.
-- **Package builder "Remove user/product 1" disabled at one row.** The constraint
-  (a package needs at least one) is evident from there being a single row.
-- **"Add approved claim" disabled.** Already explained by adjacent text — "Add an
-  approved source before adding claims." My detector flagged it because it only
-  inspected `title`/`aria-describedby`; a false positive, correctly implemented
-  already.
-- **Shell and navigation.** Audited at all five viewports: one `h1` per route,
-  one `main`, no heading-level skips, no unnamed controls, correct role-gated
-  sections (Admin, Platform), working mobile drawer with focus trap, Escape
-  handling and focus restoration, working skip link. No defect found, so no
-  commit was made against it. The prescribed commit 1 is intentionally absent.
-
-## 9. Not covered — do not read this branch as more than it is
-
-- **Priority A routes not individually re-styled:** `/login`,
-  `/forgot-password`, `/reset-password`, `/welcome`, `/dashboard`,
-  `/products/[id]`, `/products/[id]/edit`, `/products/new`, `/knowledge`,
-  `/knowledge/new`, `/knowledge/[id]`, `/assets`, `/approvals`,
-  `/content/[id]`, `/studio/[contentId]`. They were audited (clean on axe,
-  overflow, structure) and read, but received no design changes because no
-  defect justified one. They have **not** had a subjective enterprise-polish pass.
-- **States never exercised live:** generation in flight, rate-limited generation,
-  save failure and recovery, export progress/failure/success, approval and
-  rejection transitions, rejected-note display, approved-snapshot vs current
-  draft. Exercising these requires mutating staging data, which was out of
-  bounds. Their code paths were read; their rendered appearance is unverified.
-- **Roles never seen:** all verification ran as one admin + platform-operator QA
-  account. Member, author, and approver views — and the "members do not receive
-  admin controls" / "approvers do not receive workspace management" rules — were
-  **not** visually confirmed. Route-level gating is asserted by the existing E2E
-  suite, not by me.
-- **Priority B/C:** `/settings`, `/ask`, `/ask/quality`, `/templates` beyond the
-  one fix received audit coverage only.
-- **Contrast** was reasoned about from the token values and passes axe, but no
-  manual contrast audit was performed against every state.
-
-## 10. Backend requirements for Codex
-
-1. **Revision is not available on the content listing row.** §14 requires
-   revision to be visible alongside title, product, campaign, format, author and
-   status. `FlattenedContentRow` (`src/lib/content-listing-shared.ts`) carries no
-   revision field and `contentListSelect` does not query one. Surfacing it needs
-   a query and type change in Codex-owned code. Until then, two pieces in the
-   same campaign, format and language are distinguishable only by status, owner
-   and date.
-
-2. **`.env.local` in the primary checkout still contains `ANTHROPIC_API_KEY`.**
-   Per the recorded Phase 0 decision, Anthropic was fully removed on 2026-07-20
-   and must not be reintroduced. This is a stale local env var, not code, and
-   env files are Codex-owned — flagging, not touching.
-
-3. **`.claude/launch.json` is committed with `cwd` pointing at
-   `/Users/debbiemelgarejo/Documents/Content Gate/contentgate`** — a different
-   local checkout. Anyone running the preview from this repo starts the wrong
-   tree. Left unmodified deliberately; worth a decision.
-
-## 11. Commands run
-
-| Command | Result |
+| Evidence | File |
 |---|---|
-| `npm ci` | clean |
-| `npm run lint` | pass (before and after) |
-| `npm run typecheck` | pass (before and after) |
-| `npm test` | pass — 33 tests, 0 fail |
-| `npm run build` | pass — all 28 routes compiled |
-| `npm audit --omit=dev --audit-level=high` | **0 vulnerabilities** |
-| E2E a11y/reflow gate (5 tests) | 5 passed before, 5 passed after |
-| Audit harness, 15 routes × 5 viewports | 75/75 clean |
+| Content ledger with campaign grouping + revision | `after-content-ledger-revision__1280x800.png` |
+| Content ledger before | `before-content__1280x800.png` |
+| Studio rejected, note above editor | `studio-rejected-note-above-editor.png` |
+| Studio approved, read-only, approved-only export | `studio-approved-readonly.png` |
+| Studio empty-field + export label | `before-`/`after-studio-new__1280x800.png` |
+| Operator environment, all three tones | `environment-tones-all-three.png` |
+| Onboarding resumed receipt + failure state | `onboarding-resumed-receipt-and-failure.png` |
 
-## 12. Evidence
+All in `docs/evidence/claude-enterprise-ui-2026-07-31/`.
 
-`docs/evidence/claude-enterprise-ui-2026-07-31/`
+Roles exercised: **admin + platform operator only** (`qa-accessibility@contentgate.example`).
 
-- `before-` / `after-content__1280x800.png` — ledger row identity
-- `before-` / `after-studio-new__1280x800.png` — field state and export label
-- `before-` / `after-onboarding__1280x800.png` — environment banner
-- `environment-tones-all-three.png` — production / not-configured / staging
-  rendered together, showing they differ by icon, wording and chip and not by
-  colour alone
+## 10. Assumptions needing product approval
 
-## 13. Assumptions needing product approval
-
-1. **Format leads a content row instead of the campaign title.** Correct when
-   rows are grouped by campaign, which they are. If ungrouped or cross-campaign
-   listings are added later, revisit.
-2. **Audience is the best available secondary attribute** on a content row.
-   Chosen because revision is unavailable (§10.1). Revisit once revision exists.
-3. **An unconfigured `CONTENTGATE_ENVIRONMENT` is presented as unsafe** (amber,
-   "treat it as unsafe"), not neutral. An operator who cannot confirm the target
-   should not be reassured by silence — but this is a product judgement.
-4. **"Export approved …"** is asserted as the wording for a governed export.
-   Verified against the eligibility logic, but the phrasing is a content
-   decision.
+1. **"Unassigned campaign"** is the group label for rows with no `campaignName`.
+2. **Audience** is the secondary line under a content title. Campaign, format,
+   language and revision now each have their own place.
+3. **Revision renders as `r2`** with a screen-reader-only "Revision" prefix.
+4. **An unconfigured `CONTENTGATE_ENVIRONMENT` is presented as unsafe** (amber,
+   "treat it as unsafe"), not neutral.
+5. **Sign-in never distinguishes "no such account" from "wrong password"**, and
+   never surfaces "Email not confirmed". That is deliberate enumeration safety
+   and it does mean an unconfirmed user gets no specific guidance beyond the
+   always-present "Forgot password?" route.
