@@ -257,6 +257,11 @@ test.describe("ContentGate full app surface QA", () => {
     await expect(page.locator("#main-content")).toBeFocused();
 
     for (const path of ["/products", "/approvals"]) {
+      // Start from the top of a fresh document for each navigation check.
+      // Activating the skip link intentionally moves focus past the sidebar,
+      // so continuing from #main-content cannot exercise those nav links.
+      await page.goto("/dashboard");
+      await page.waitForLoadState("domcontentloaded");
       let found = false;
       for (let index = 0; index < 80; index += 1) {
         await page.keyboard.press("Tab");
@@ -271,10 +276,6 @@ test.describe("ContentGate full app surface QA", () => {
       }
       expect(found, `Keyboard focus did not reach ${path}`).toBeTruthy();
       await expect(page).toHaveURL(new RegExp(`${path.replace("/", "\\/")}$`));
-      await page.goto("/dashboard");
-      await page.waitForLoadState("domcontentloaded");
-      await page.keyboard.press("Tab");
-      await page.keyboard.press("Enter");
     }
   });
 
