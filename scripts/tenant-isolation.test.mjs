@@ -14,7 +14,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { createClient } from "@supabase/supabase-js";
+
+const DATA_LIFECYCLE_INVENTORY = JSON.parse(
+  readFileSync(new URL("../config/workspace-data-lifecycle.json", import.meta.url), "utf8")
+);
 
 const API_URL = process.env.API_URL;
 const ANON_KEY = process.env.ANON_KEY;
@@ -29,6 +34,10 @@ const GLOBAL_TABLES = new Set([
   // Worker liveness is an operator-only deployment signal; it is RLS-enabled
   // and revoked from every client role, but intentionally carries no tenant data.
   "asset_media_worker_heartbeats",
+  // Service-only evidence intentionally survives workspace deletion.
+  "workspace_data_export_receipts",
+  // Service-only evidence intentionally survives workspace deletion.
+  "workspace_deletion_receipts",
 ]);
 
 // The onboarding control plane is service-role-only. Runs acquire an
@@ -192,6 +201,22 @@ test("tenant isolation", async (t) => {
     assert.ok(
       orgScopedTables.length >= 10,
       `Expected at least 10 org-scoped tables, found ${orgScopedTables.length} — enumeration looks broken`
+    );
+  });
+
+  await t.test("every org-scoped table is covered by the data lifecycle inventory", () => {
+    const inventoried = DATA_LIFECYCLE_INVENTORY.orgScopedTables.map(
+      (entry) => entry.name
+    );
+    assert.deepEqual(
+      [...inventoried].sort(),
+      [...orgScopedTables].sort(),
+      "config/workspace-data-lifecycle.json must exactly cover every org-scoped table"
+    );
+    assert.equal(
+      new Set(inventoried).size,
+      inventoried.length,
+      "data lifecycle inventory contains a duplicate org-scoped table"
     );
   });
 
