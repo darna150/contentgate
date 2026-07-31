@@ -75,6 +75,7 @@ type Body = {
   replaceContentId?: string; // when revising, update this draft in place
   replaceContentUpdatedAt?: string; // optimistic concurrency token from Studio
   sourceContentId?: string; // when adapting another size, preserve the same campaign idea
+  campaignId?: string; // explicit campaign; otherwise inherit or use the active product campaign
 };
 
 const SUPPORTED_GENERATION_LANGUAGES = new Set([
@@ -101,6 +102,7 @@ type ReplaceContentRow = {
   prompt_context: Record<string, unknown> | null;
   structured_fields: Record<string, string> | null;
   updated_at: string;
+  campaign_id: string | null;
 };
 
 type CampaignSourceRow = {
@@ -108,6 +110,7 @@ type CampaignSourceRow = {
   template_variant_id: string | null;
   structured_fields: Record<string, string> | null;
   prompt_context: Record<string, unknown> | null;
+  campaign_id: string | null;
   template_variants:
     | { variant_key: string; label: string | null }
     | { variant_key: string; label: string | null }[]
@@ -500,6 +503,7 @@ export async function POST(req: Request) {
     replaceContentId,
     replaceContentUpdatedAt,
     sourceContentId,
+    campaignId,
   } = requestBody;
   if (productTemplateId) {
     return Response.json(
@@ -603,7 +607,7 @@ export async function POST(req: Request) {
       const { data: existingContent } = await supabase
         .from("generated_content")
         .select(
-          "id, status, created_by, product_id, template_version_id, template_variant_id, prompt_context, structured_fields, updated_at"
+          "id, status, created_by, product_id, template_version_id, template_variant_id, prompt_context, structured_fields, updated_at, campaign_id"
         )
         .eq("id", replaceContentId)
         .eq("org_id", profile.org_id)
@@ -645,7 +649,7 @@ export async function POST(req: Request) {
       const { data: sourceContent } = await supabase
         .from("generated_content")
         .select(
-          "id, template_variant_id, structured_fields, prompt_context, template_variants!generated_content_template_variant_id_fkey(variant_key, label)"
+          "id, template_variant_id, structured_fields, prompt_context, campaign_id, template_variants!generated_content_template_variant_id_fkey(variant_key, label)"
         )
         .eq("id", sourceContentId)
         .eq("org_id", profile.org_id)
@@ -675,6 +679,36 @@ export async function POST(req: Request) {
       );
     }
     const productDisplayName = product.name;
+
+    let resolvedCampaignId =
+      campaignId ?? replaceContent?.campaign_id ?? campaignSource?.campaign_id ?? null;
+    if (resolvedCampaignId) {
+      const { data: campaign } = await supabase
+        .from("campaigns")
+        .select("id")
+        .eq("id", resolvedCampaignId)
+        .eq("org_id", profile.org_id)
+        .eq("product_id", product.id)
+        .neq("status", "archived")
+        .maybeSingle();
+      if (!campaign) {
+        return Response.json(
+          { error: "Campaign not found for this product." },
+          { status: 404 }
+        );
+      }
+    } else {
+      const { data: activeCampaign } = await supabase
+        .from("campaigns")
+        .select("id")
+        .eq("org_id", profile.org_id)
+        .eq("product_id", product.id)
+        .eq("status", "active")
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      resolvedCampaignId = activeCampaign?.id ?? null;
+    }
 
     const [{ data: claims }, { data: docs }] = await Promise.all([
       supabase.from("product_claims").select("claim_text").eq("product_id", product.id).eq("status", "approved"),
@@ -1260,6 +1294,7 @@ export async function POST(req: Request) {
       template_family_key: assignment.familyKey,
       template_version_id: assignment.versionId,
       template_variant_id: variantRow.id,
+      campaign_id: resolvedCampaignId,
       campaign_root_content_id: campaignRootContentId,
       campaign_source_content_id: campaignSource?.id ?? replaceContent?.id ?? null,
       campaign_source_fields: continuityPrompt
@@ -1295,6 +1330,7 @@ export async function POST(req: Request) {
             prompt_context: promptContext,
             template_version_id: assignment.versionId,
             template_variant_id: variantRow.id,
+            campaign_id: resolvedCampaignId,
             renderer_version: "template-platform-v1",
             status: "draft",
             updated_at: savedAt,
@@ -1308,6 +1344,7 @@ export async function POST(req: Request) {
           product_template_id: null,
           template_version_id: assignment.versionId,
           template_variant_id: variantRow.id,
+          campaign_id: resolvedCampaignId,
           renderer_version: "template-platform-v1",
           template_id: null,
           structured_fields: structured,
