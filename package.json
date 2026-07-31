@@ -62,7 +62,8 @@
     "qa:disposable-recovery": "tsx scripts/disposable-recovery-qa.ts",
     "workspace:export-data": "tsx scripts/export-workspace-data.ts",
     "workspace:delete-data": "tsx scripts/delete-workspace-data.ts",
-    "qa:enterprise-data-lifecycle": "tsx scripts/enterprise-data-lifecycle-qa.ts"
+    "qa:enterprise-data-lifecycle": "tsx scripts/enterprise-data-lifecycle-qa.ts",
+    "qa:enterprise-capacity": "playwright test tests/e2e/enterprise-capacity.spec.ts --workers=1"
   },
   "dependencies": {
     "@next/env": "16.2.12",
