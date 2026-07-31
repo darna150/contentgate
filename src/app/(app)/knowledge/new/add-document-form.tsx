@@ -259,7 +259,7 @@ export function AddDocumentForm({
             disabled={pending || importPending || (sourceMode === "website" && !importedUrl)}
             className="shrink-0 whitespace-nowrap rounded-control bg-brand px-[18px] py-2.5 text-[13.5px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
           >
-            {pending ? "Saving…" : sourceMode === "website" ? "Approve and save source" : "Save source document"}
+            {pending ? "Saving…" : sourceMode === "website" ? "Approve and save source" : "Save source"}
           </button>
           <span className="text-[12.5px] text-ink-faint">
             Assign a product before Ask can use this source. Unassigned sources remain in the library.
