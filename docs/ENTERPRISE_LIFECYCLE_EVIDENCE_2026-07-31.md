@@ -69,3 +69,29 @@ the local repository suite passed **353 tests with 0 failures**.
 
 Independent post-run reads found zero matching disposable organizations,
 profiles, and Auth users. No production project was used or mutated.
+
+## Final application-candidate recertification
+
+- Evidence time: 2026-08-01T00:39+08:00
+- Application SHA: `a5e140898c137e5a5533d6ed6f846b38374a044b`
+- Vercel deployment: `dpl_BXm6QnAijDfukm3gh2c6k8VbHh3E`
+- Preview: `https://contentgate-git-codex-enterpri-9a463e-debbies-projects-a8de6bb4.vercel.app`
+- Database: staging `bncwjibscptgijgmuhrn`
+- Evidence owner: Codex engineering task
+
+The complete guarded journey passed again on the final application candidate:
+**1 passed in 49.4 seconds**. This exact SHA also passed CodeQL, the complete
+verify/build job, the 93-migration clean-stack tenant-isolation gate,
+deterministic Preview accessibility/E2E, and Vercel deployment.
+
+The journey proved AAL1 denial, TOTP enrollment and AAL2 step-up, role change,
+disable/restore, stale-token data cutoff, blocked fresh Auth re-entry, pending
+invitation cancellation, tenant audit export plus receipt, and non-admin export
+denial. Independent service-role reads after teardown returned:
+
+- disposable organizations: **0**;
+- disposable profiles: **0**; and
+- disposable Auth users: **0**.
+
+Production was not read or mutated. Named beta administrators still need real
+MFA enrollment, and the first signed human access-review record remains open.
