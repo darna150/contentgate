@@ -6,6 +6,8 @@ const BASE_URL = process.env.CONTENTGATE_E2E_BASE_URL ?? "";
 const DEMO_PRODUCT_ID =
   process.env.CONTENTGATE_E2E_PRODUCT_ID ??
   "27cf3a56-84e6-41fb-8cb7-4bf7dbe3c564";
+const TEMPLATE_NAME =
+  process.env.CONTENTGATE_E2E_TEMPLATE_NAME ?? "Nimbus Air Campaign";
 
 type BrowserIssue = {
   kind: "console" | "pageerror" | "requestfailed" | "http";
@@ -29,7 +31,7 @@ const SURFACES: Surface[] = [
   {
     name: "Product templates",
     path: `/products/${DEMO_PRODUCT_ID}?view=templates`,
-    expectedText: /Nimbus Air Campaign/i,
+    expectedText: TEMPLATE_NAME,
   },
   {
     name: "Product content",

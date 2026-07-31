@@ -116,6 +116,10 @@ jobs:
           CONTENTGATE_E2E_EMAIL: ${{ secrets.CONTENTGATE_E2E_EMAIL }}
           CONTENTGATE_E2E_PASSWORD: ${{ secrets.CONTENTGATE_E2E_PASSWORD }}
           CONTENTGATE_E2E_ASSIGNMENT_ID: ${{ secrets.CONTENTGATE_E2E_ASSIGNMENT_ID }}
+          CONTENTGATE_E2E_PRODUCT_ID: ${{ secrets.CONTENTGATE_E2E_PRODUCT_ID }}
+          CONTENTGATE_E2E_TEMPLATE_NAME: ${{ secrets.CONTENTGATE_E2E_TEMPLATE_NAME }}
+          CONTENTGATE_E2E_OUTPUT_SIZE: ${{ secrets.CONTENTGATE_E2E_OUTPUT_SIZE }}
+          CONTENTGATE_E2E_OUTPUT_SIZE_LABEL: ${{ secrets.CONTENTGATE_E2E_OUTPUT_SIZE_LABEL }}
         run: npm run test:e2e
       - uses: actions/upload-artifact@v5
         if: always()
