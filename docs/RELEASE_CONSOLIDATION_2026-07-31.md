@@ -1,9 +1,14 @@
-# ContentGate release consolidation
+# ContentGate release consolidation (superseded)
 
 Status date: July 31, 2026
 
-This is the current release-control record for the initial client launch. It
-supersedes branch, worktree, and launch-status notes in older handoffs.
+This document records the earlier PR #57 release pass. It is retained as
+historical evidence, but it is no longer the release source of truth because it
+was tested against a different UI/build.
+
+Use `docs/BUILD_SOURCE_OF_TRUTH_2026-07-31.md` for the canonical candidate,
+branch disposition, current certification evidence, and remaining launch gates.
+Nothing in this older record authorizes merging PR #57 or launching its build.
 
 ## Release scope
 
