@@ -13,11 +13,14 @@ type Fixture = {
   organizationId: string;
   adminId: string;
   memberId: string;
+  inviteeId: string;
   adminEmail: string;
   memberEmail: string;
   password: string;
   workspaceName: string;
   memberName: string;
+  inviteeName: string;
+  inviteeEmail: string;
 };
 
 function required(name: string) {
@@ -85,6 +88,8 @@ async function createFixture(): Promise<Fixture> {
   const adminEmail = `enterprise-admin-${suffix}@contentgate.example`;
   const memberEmail = `enterprise-member-${suffix}@contentgate.example`;
   const memberName = `Enterprise lifecycle member ${suffix}`;
+  const inviteeName = `Enterprise pending invite ${suffix}`;
+  const inviteeEmail = `enterprise-invite-${suffix}@contentgate.example`;
   const password = `CgQA!${randomUUID()}aA7`;
 
   const { error: organizationError } = await admin.from("organizations").insert({
@@ -126,6 +131,9 @@ async function createFixture(): Promise<Fixture> {
       `Enterprise lifecycle admin ${suffix}`
     );
     const memberId = await createRoleUser(memberEmail, "member", memberName);
+    // A provisioned Auth user with no sign-in has the same pending directory
+    // state as an accepted invite record, without sending external email in QA.
+    const inviteeId = await createRoleUser(inviteeEmail, "member", inviteeName);
     const memberSession = createClient(supabaseUrl, anonKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
@@ -142,11 +150,14 @@ async function createFixture(): Promise<Fixture> {
       organizationId,
       adminId,
       memberId,
+      inviteeId,
       adminEmail,
       memberEmail,
       password,
       workspaceName,
       memberName,
+      inviteeName,
+      inviteeEmail,
     };
   } catch (error) {
     await admin.from("audit_log").delete().eq("org_id", organizationId);
@@ -164,7 +175,7 @@ async function deleteFixture(fixture: Fixture | null) {
     .from("audit_log")
     .delete()
     .eq("org_id", fixture.organizationId);
-  for (const userId of [fixture.memberId, fixture.adminId]) {
+  for (const userId of [fixture.inviteeId, fixture.memberId, fixture.adminId]) {
     const { error } = await fixture.admin.auth.admin.deleteUser(userId, false);
     if (error && !/not found/i.test(error.message)) throw error;
   }
@@ -249,8 +260,29 @@ test.describe.serial("enterprise identity and lifecycle @enterprise-live", () =>
     await memberRow.getByRole("button", { name: "Restore" }).click();
     await expect(memberRow.getByRole("button", { name: "Disable" })).toBeVisible();
 
+    const inviteeRow = page.locator("li").filter({ hasText: fixture.inviteeName });
+    await expect(inviteeRow.getByText("Invited", { exact: true })).toBeVisible();
+    await inviteeRow.getByRole("button", { name: "Cancel invite" }).click();
+    await expect(inviteeRow.getByText("Disabled", { exact: true })).toBeVisible();
+
+    const { data: inviteeProfile, error: inviteeProfileError } = await fixture.admin
+      .from("profiles")
+      .select("access_status")
+      .eq("id", fixture.inviteeId)
+      .single();
+    expect(inviteeProfileError).toBeNull();
+    expect(inviteeProfile?.access_status).toBe("disabled");
+
     await signIn(memberPage, fixture.memberEmail, fixture.password);
     await expect(memberPage).toHaveURL(/\/dashboard$/u);
+
+    const nonAdminAuditExport = await memberPage.evaluate(async () => {
+      const response = await fetch("/api/audit/export", {
+        credentials: "same-origin",
+      });
+      return response.status;
+    });
+    expect(nonAdminAuditExport).toBe(403);
     await memberPage.close();
 
     const exported = await page.evaluate(async () => {
@@ -271,7 +303,7 @@ test.describe.serial("enterprise identity and lifecycle @enterprise-live", () =>
 
     const { data: events, error: eventsError } = await fixture.admin
       .from("audit_log")
-      .select("action")
+      .select("action, entity_id")
       .eq("org_id", fixture.organizationId)
       .in("action", [
         "member_role_changed",
@@ -288,5 +320,11 @@ test.describe.serial("enterprise identity and lifecycle @enterprise-live", () =>
         "audit.exported",
       ])
     );
+    expect(
+      (events ?? []).some(
+        (event) =>
+          event.action === "member_disabled" && event.entity_id === fixture?.inviteeId,
+      ),
+    ).toBe(true);
   });
 });
