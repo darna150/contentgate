@@ -18,13 +18,13 @@ present during beta procurement.
 
 | Control | Beta requirement | Current evidence | Status |
 |---|---|---|---|
-| Exact build | Claude UI is integrated once; local, CI, Preview, browser, live-AI, role, recovery, onboarding, log, and security gates all name the same SHA | Claude `c007408` is integrated into release `94bf4a9`; the combined enterprise lifecycle tree passes 340 local contracts, lint, typecheck, build, and production-dependency audit | In progress — exact remote gates pending |
+| Exact build | Claude UI is integrated once; local, CI, Preview, browser, live-AI, role, recovery, onboarding, log, and security gates all name the same SHA | Claude `c007408` is integrated into release `94bf4a9`; the combined enterprise lifecycle tree passes 341 local contracts, lint, typecheck, build, and production-dependency audit | In progress — exact remote gates pending |
 | Tenant isolation | Database, Storage, API, and generated outputs deny cross-workspace access | Permanent clean-migration two-tenant CI gate and composite tenant foreign keys | Existing; rerun after integration |
 | Roles | Admin, approver, and member permissions are server-enforced and browser-verified | Governance contracts, RLS, role-aware routes, and prior staging journey | Existing; rerun after integration |
-| Admin MFA | Every beta workspace administrator uses an MFA-backed session for sensitive administration | TOTP enrollment/step-up, new-workspace default enforcement, AAL-aware RLS, protected admin APIs, and atomic enablement receipt are implemented; migration `20260731132045` is on staging | In progress — staging enrollment/enforcement journey pending |
+| Admin MFA | Every beta workspace administrator uses an MFA-backed session for sensitive administration | TOTP enrollment/step-up, new-workspace default enforcement, AAL-aware RLS, protected admin APIs, and atomic enablement receipt are implemented; a disposable MFA-required staging workspace proved AAL1 redirect and AAL2 administration | Pass at Preview `6d93f35`; rerun on final release SHA |
 | Enterprise SSO | One design-partner SAML/OIDC provider is verified, or the partner accepts a written password/MFA beta limitation | No application SSO implementation or partner IdP is selected | Partner-dependent |
-| User lifecycle | Invite, role assignment, disable/restore, live-JWT data-access cutoff, Auth re-entry blocking, and access review are auditable | AAL2-only same-tenant RPCs, last-admin/self-action guards, transactional audit receipts, immediate RLS/Storage capability cutoff, Auth ban/restore orchestration, cancel-invite control, and monthly review procedure are implemented; staging transaction evidence passes | In progress — exact-Preview browser journey and first signed access review pending |
-| Audit history | Admins can retrieve tenant-scoped events; export is bounded, safe for spreadsheets, and the export itself is recorded | Admin-only CSV route, tenant/user-context filtering, 10,000-row fail-closed bound, formula shielding, and export receipt exist with unit evidence | In progress — runtime role/receipt verification pending |
+| User lifecycle | Invite, role assignment, disable/restore, live-JWT data-access cutoff, Auth re-entry blocking, and access review are auditable | AAL2-only same-tenant RPCs, last-admin/self-action guards, transactional audit receipts, immediate RLS/Storage capability cutoff, Auth ban/restore orchestration, cancel-invite control, and monthly review procedure are implemented; the exact-Preview disposable journey passed | In progress — final-SHA rerun, cancel-invite browser path, and first signed access review pending |
+| Audit history | Admins can retrieve tenant-scoped events; export is bounded, safe for spreadsheets, and the export itself is recorded | Admin-only CSV route, tenant/user-context filtering, 10,000-row fail-closed bound, formula shielding, and `audit.exported` receipt passed in the exact-Preview disposable journey | Pass at Preview `6d93f35`; final-SHA and non-admin denial rerun pending |
 | Data inventory | Stored customer data, subprocessors, regions, and purpose are documented | Architecture and platform runbooks describe primary stores; formal inventory/subprocessor record is absent | Partial |
 | Retention and deletion | Defaults, legal holds, customer export, deletion approval, and deletion receipt are documented and tested | Asset and Ask operational purges exist; workspace-wide policy and verified customer deletion/export do not | Missing |
 | Backup and recovery | Backup/PITR is configured and a staging restore drill proves the documented RTO/RPO | Production runbook requires a recovery point; no restore-drill evidence or approved RTO/RPO exists | Missing |
@@ -40,8 +40,8 @@ present during beta procurement.
 
 - [ ] Certify the combined enterprise SHA through the complete remote Preview,
   browser, live-AI, role, recovery, onboarding, log, and security suite.
-- [ ] Enroll the staging beta admin and prove AAL1 administration is rejected
-  while AAL2 succeeds and is audited. The additive MFA migration is deployed.
+- [ ] Rerun the passing disposable AAL1/AAL2 administration journey on the final
+  release SHA; enroll both named beta-workspace admins before client access.
 - [ ] Browser-verify invite, role change, disable/restore, immediate blocked
   data access, Auth re-entry blocking, and receipts on the exact Preview; assign
   the access-review owner and complete the first signed review record.

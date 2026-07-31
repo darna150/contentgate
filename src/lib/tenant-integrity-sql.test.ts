@@ -210,3 +210,19 @@ test("enterprise member lifecycle cuts off live JWT data access and audits admin
   assert.match(lifecycleSql, /revoke all on function public\.admin_disable_member\(uuid\) from public, anon, service_role/);
   assert.match(lifecycleSql, /grant execute on function public\.admin_restore_member\(uuid\) to authenticated/);
 });
+
+test("validated lifecycle RPC can cross the direct profile membership guard", () => {
+  const bridgeSql = compact(
+    readFileSync(
+      "supabase/migrations/20260731134218_allow_validated_lifecycle_role_changes.sql",
+      "utf8"
+    )
+  );
+
+  assert.match(bridgeSql, /create or replace function public\.protect_profile_membership_fields\(\)/);
+  assert.match(bridgeSql, /security invoker/);
+  assert.match(bridgeSql, /auth\.jwt\(\) ->> 'role'/);
+  assert.match(bridgeSql, /<> 'service_role'/);
+  assert.match(bridgeSql, /current_user <> 'postgres'/);
+  assert.match(bridgeSql, /only trusted server actions may change profile org or role/);
+});
