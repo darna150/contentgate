@@ -1,6 +1,37 @@
 import { LoginForm } from "./login-form";
 
-export default function LoginPage() {
+/**
+ * /auth/confirm redirects here with ?error=auth when an email link fails to
+ * verify — expired, already used, or malformed. That signal was being dropped,
+ * so someone who clicked a stale invite or confirmation link arrived at an
+ * ordinary sign-in screen with no idea why, and no idea what to do next.
+ *
+ * The wording deliberately does not say whether an account exists.
+ */
+function LinkFailureNotice() {
+  return (
+    <div
+      role="status"
+      className="flex flex-col gap-1 rounded-control border border-warn-border bg-warn-tint px-3.5 py-3"
+    >
+      <p className="text-[13px] font-semibold text-warn">
+        That link could not be used
+      </p>
+      <p className="text-[13px] text-warn">
+        Email links expire and can only be used once. Sign in below, or use
+        “Forgot password?” to send yourself a new link.
+      </p>
+    </div>
+  );
+}
+
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
+  const { error } = await searchParams;
+
   return (
     <main id="main-content" className="flex min-h-screen bg-page" tabIndex={-1}>
       <div className="hidden w-[44%] flex-col bg-brand-dark p-12 text-white md:flex">
@@ -37,6 +68,7 @@ export default function LoginPage() {
               Welcome back. Use your company credentials.
             </p>
           </div>
+          {error === "auth" && <LinkFailureNotice />}
           <LoginForm />
         </div>
       </div>
