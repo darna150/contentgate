@@ -1,6 +1,7 @@
 import { createRequire } from "node:module";
 import type { Font, Glyph } from "opentype.js";
 
+import { trimDanglingCopyEnd } from "../generated-copy-quality.ts";
 import type { TemplateBundleManifest, TemplateBundleTextSlot } from "./manifest.ts";
 import { fieldIssues, type FieldIssue } from "../template-fields.ts";
 import {
@@ -132,6 +133,13 @@ function trimLastWord(value: string) {
   const words = value.split(/\s+/).filter(Boolean);
   if (words.length <= 1) return value.slice(0, Math.max(0, value.length - 1)).trim();
   return words.slice(0, -1).join(" ").trim();
+}
+
+function trimToCharacterLimit(value: string, maxChars: number) {
+  if (value.length <= maxChars) return value;
+  const sliced = value.slice(0, maxChars).trim();
+  if (!sliced || /\s/.test(value[maxChars] ?? "")) return sliced;
+  return sliced.replace(/\s+\S+$/, "").trim() || sliced;
 }
 
 function descenderPadding(slot: TemplateBundleTextSlot, fontSize: number) {
@@ -381,10 +389,10 @@ export async function coerceTemplatePlatformFieldsToFit(
     if (!value) continue;
     const original = value;
 
-    if (slot.maxChars && value.length > slot.maxChars) {
-      value = value.slice(0, slot.maxChars).trim();
+    if (slot.maxWords) {
+      value = value.split(/\s+/).slice(0, slot.maxWords).join(" ");
     }
-    value = value.replace(/[,;:]\s*$/, ".");
+    if (slot.maxChars) value = trimToCharacterLimit(value, slot.maxChars);
 
     for (let attempt = 0; attempt < 120; attempt += 1) {
       const layout = await resolveTemplatePlatformTextSlotLayout(input.manifest, value, slot, fontSource);
@@ -401,7 +409,9 @@ export async function coerceTemplatePlatformFieldsToFit(
       if (!value) break;
     }
 
-    coerced[slot.field] = value.replace(/[,;:]\s*$/, ".");
+    if (value !== original) value = trimDanglingCopyEnd(value);
+
+    coerced[slot.field] = value;
     if (value !== original) truncatedFields.push(slot.field);
   }
 

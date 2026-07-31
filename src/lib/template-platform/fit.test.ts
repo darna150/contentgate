@@ -119,3 +119,70 @@ test("coerceTemplatePlatformFieldsToFit still trims when even minFontSize can't 
   assert.equal(resolved.fits, true);
   assert.deepEqual(result.truncatedFields, ["headline"]);
 });
+
+test("coerceTemplatePlatformFieldsToFit keeps character-limit truncation on word boundaries", async () => {
+  const constrained: TemplateBundleManifest = {
+    ...manifest,
+    variants: [
+      {
+        ...manifest.variants[0],
+        slots: manifest.variants[0].slots.map((slot) =>
+          slot.kind === "text" ? { ...slot, maxChars: 18 } : slot
+        ),
+      },
+    ],
+  };
+  const result = await coerceTemplatePlatformFieldsToFit({
+    manifest: constrained,
+    variantKey: "square",
+    fields: { headline: "Cloud-soft cushioning meets real-world speed" },
+  });
+
+  assert.equal(result.fields.headline, "Cloud-soft");
+  assert.equal(result.fields.headline.length <= 18, true);
+  assert.deepEqual(result.truncatedFields, ["headline"]);
+});
+
+test("coercion removes a dangling connector created by truncation", async () => {
+  const constrained: TemplateBundleManifest = {
+    ...manifest,
+    variants: [
+      {
+        ...manifest.variants[0],
+        slots: manifest.variants[0].slots.map((slot) =>
+          slot.kind === "text" ? { ...slot, maxChars: 24 } : slot
+        ),
+      },
+    ],
+  };
+  const result = await coerceTemplatePlatformFieldsToFit({
+    manifest: constrained,
+    variantKey: "square",
+    fields: { headline: "Cloud cushioning built for everyday speed" },
+  });
+
+  assert.equal(result.fields.headline, "Cloud cushioning built");
+  assert.deepEqual(result.truncatedFields, ["headline"]);
+});
+
+test("coercion removes punctuation that implies truncated copy continues", async () => {
+  const constrained: TemplateBundleManifest = {
+    ...manifest,
+    variants: [
+      {
+        ...manifest.variants[0],
+        slots: manifest.variants[0].slots.map((slot) =>
+          slot.kind === "text" ? { ...slot, maxChars: 17 } : slot
+        ),
+      },
+    ],
+  };
+  const result = await coerceTemplatePlatformFieldsToFit({
+    manifest: constrained,
+    variantKey: "square",
+    fields: { headline: "Cloud cushioning, ready for every road" },
+  });
+
+  assert.equal(result.fields.headline, "Cloud cushioning");
+  assert.deepEqual(result.truncatedFields, ["headline"]);
+});

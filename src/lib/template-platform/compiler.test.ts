@@ -38,7 +38,7 @@ test("compiles a valid bundle into template platform insert rows", () => {
   if (!result.ok) return;
 
   assert.equal(result.value.rows.family.id, fixedIds.familyId);
-  assert.equal(result.value.rows.family.family_key, "contentgate-local-friendly");
+  assert.equal(result.value.rows.family.family_key, "example-campaign");
   assert.equal(result.value.rows.version.family_id, fixedIds.familyId);
   assert.equal(result.value.rows.version.id, fixedIds.versionId);
   assert.equal(result.value.rows.version.status, "ready");

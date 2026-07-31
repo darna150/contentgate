@@ -70,7 +70,7 @@ type ContentGateFrameTarget = {
 };
 
 type ContentGateBundleTarget = {
-  layoutKey: "contentgate_local_friendly" | "contentgate_local_premium";
+  layoutKey: "contentgate_local_premium";
   folder: string;
   pageId: string;
   family: FigmaPublisherInput["family"];
@@ -81,7 +81,7 @@ type ContentGateBundleTarget = {
 
 const targets: ContentGateBundleTarget[] = [
   {
-    layoutKey: "contentgate_local_friendly",
+    layoutKey: "contentgate_local_premium",
     folder: "aerform-air01-v1",
     pageId: "5:7",
     family: {

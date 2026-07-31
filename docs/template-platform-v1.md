@@ -34,7 +34,7 @@ Required principles:
 Example bundle layout:
 
 ```text
-contentgate-local-friendly-v1/
+example-campaign-v1/
   manifest.json
   fonts/
     Inter-Regular.ttf
@@ -129,7 +129,7 @@ Request shape:
 ```json
 {
   "manifest": {},
-  "storagePrefix": "template-bundles/contentgate-local-friendly/v1",
+  "storagePrefix": "template-bundles/example-campaign/v1",
   "assets": [
     {
       "path": "variants/square/background.png",
@@ -237,7 +237,7 @@ npm run template-platform:write-figma-publisher-bundle -- \
 
 The command writes `manifest.json`, copies the referenced font/image assets, runs local preflight, and verifies checksums. Use `--json` for machine-readable output or `--skip-preflight` only when debugging the exporter itself.
 
-For the current ContentGate Figma file, Figwright can generate both Set A and Set B publisher inputs and bundles without using official Figma MCP quota:
+For the current ContentGate Figma file, Figwright can generate the premium publisher input and bundle without using official Figma MCP quota:
 
 ```bash
 npm run figwright:export-contentgate-bundles

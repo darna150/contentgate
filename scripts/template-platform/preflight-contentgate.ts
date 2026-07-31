@@ -5,10 +5,7 @@ import {
   type TemplateBundlePreflightSample,
 } from "../../src/lib/template-platform/preflight.ts";
 
-const targets = [
-  "contentgate_local_friendly",
-  "contentgate_local_premium",
-] as const;
+const targets = ["contentgate_local_premium"] as const;
 
 const compactSamples: TemplateBundlePreflightSample[] = [
   {

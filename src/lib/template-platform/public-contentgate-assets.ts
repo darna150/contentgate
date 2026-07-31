@@ -4,9 +4,8 @@ export const CONTENTGATE_PUBLIC_ASSET_VERSION = "vector-figwright-2026-07-19-01"
 
 type ContentGateAssetKind = "reference" | "background";
 
-const CONTENTGATE_PUBLIC_PACKAGE_BY_FAMILY: Record<string, "set-a" | "set-b"> = {
-  "aerform-air01-campaign": "set-a",
-  "contentgate-local-friendly": "set-a",
+const CONTENTGATE_PUBLIC_PACKAGE_BY_FAMILY: Record<string, "set-b"> = {
+  "aerform-air01-campaign": "set-b",
   "contentgate-local-premium": "set-b",
 };
 

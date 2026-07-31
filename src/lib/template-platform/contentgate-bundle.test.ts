@@ -5,8 +5,8 @@ import { compileTemplateBundleImport } from "./compiler.ts";
 import { buildContentGateTemplateBundle } from "./contentgate-bundle.ts";
 import { validateTemplateBundleManifest } from "./manifest.ts";
 
-test("builds a valid ContentGate Set A template bundle from Figma exports", async () => {
-  const bundle = await buildContentGateTemplateBundle("contentgate_local_friendly");
+test("builds a valid ContentGate Set B template bundle from Figma exports", async () => {
+  const bundle = await buildContentGateTemplateBundle("contentgate_local_premium");
 
   assert.equal(bundle.manifest.family.key, "aerform-air01-campaign");
   assert.deepEqual(
@@ -62,7 +62,7 @@ test("builds a valid ContentGate Set A template bundle from Figma exports", asyn
 
   const compiled = compileTemplateBundleImport(bundle.manifest, {
     orgId: "99999999-9999-4999-8999-999999999999",
-    storagePrefix: "template-bundles/contentgate-local-friendly/v1",
+    storagePrefix: "template-bundles/contentgate-local-premium/v1",
   });
   assert.equal(compiled.ok, true);
 });
@@ -98,7 +98,7 @@ test("builds a valid ContentGate Set B template bundle with portrait support", a
 });
 
 test("bundle asset payloads match manifest asset paths and checksums", async () => {
-  const bundle = await buildContentGateTemplateBundle("contentgate_local_friendly");
+  const bundle = await buildContentGateTemplateBundle("contentgate_local_premium");
   const payloadPaths = new Set(bundle.assets.map((asset) => asset.path));
 
   for (const asset of bundle.manifest.assets) {

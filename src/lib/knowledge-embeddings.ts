@@ -10,11 +10,15 @@ export const KNOWLEDGE_EMBEDDING_MODEL =
 
 type EmbeddingResponse = {
   data?: Array<{ embedding?: unknown }>;
+  usage?: {
+    prompt_tokens?: unknown;
+    total_tokens?: unknown;
+  };
 };
 
-export async function createKnowledgeEmbeddings(inputs: readonly string[]) {
+export async function createKnowledgeEmbeddingsWithUsage(inputs: readonly string[]) {
   if (!process.env.OPENAI_API_KEY) throw new Error("OpenAI embeddings are not configured.");
-  if (inputs.length === 0) return [];
+  if (inputs.length === 0) return { embeddings: [], inputTokens: 0 };
 
   const response = await fetch("https://api.openai.com/v1/embeddings", {
     method: "POST",
@@ -37,5 +41,16 @@ export async function createKnowledgeEmbeddings(inputs: readonly string[]) {
   if (embeddings.length !== inputs.length || !embeddings.every(isKnowledgeEmbedding)) {
     throw new Error("OpenAI returned an invalid knowledge embedding payload.");
   }
-  return embeddings;
+  const reportedTokens = Number(
+    payload.usage?.prompt_tokens ?? payload.usage?.total_tokens ?? 0
+  );
+  return {
+    embeddings,
+    inputTokens:
+      Number.isInteger(reportedTokens) && reportedTokens >= 0 ? reportedTokens : 0,
+  };
+}
+
+export async function createKnowledgeEmbeddings(inputs: readonly string[]) {
+  return (await createKnowledgeEmbeddingsWithUsage(inputs)).embeddings;
 }

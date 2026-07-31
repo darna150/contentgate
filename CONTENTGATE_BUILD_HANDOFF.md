@@ -1,6 +1,12 @@
 # ContentGate Build Handoff
 
-Last updated: July 21, 2026
+Last updated: July 31, 2026
+
+> Release status, current worktree/branch, checked Days 1–2, and remaining
+> launch gates are maintained in
+> [`docs/RELEASE_CONSOLIDATION_2026-07-31.md`](docs/RELEASE_CONSOLIDATION_2026-07-31.md).
+> Where this historical architecture guide conflicts with that record, the
+> release-consolidation record is authoritative.
 
 This file is a full orientation guide for continuing ContentGate work from a new Codex/Claude/account session without needing the original chat history.
 
@@ -106,7 +112,6 @@ The current direction is:
 Current ContentGate demo template families:
 
 ```text
-ContentGate Local Friendly
 ContentGate Local Premium
 ```
 
@@ -115,25 +120,13 @@ Public runtime assets live in two places:
 Legacy/public package paths:
 
 ```text
-public/template-packages/contentgate/set-a/
 public/template-packages/contentgate/set-b/
 ```
 
 Template bundle paths:
 
 ```text
-public/template-bundles/contentgate-local-friendly/figwright-v1/
 public/template-bundles/contentgate-local-premium/figwright-v1/
-```
-
-Set A sizes:
-
-```text
-square             1080x1080
-story              1080x1920
-link-ad            1200x628
-leaderboard        728x90
-medium-rectangle   300x250
 ```
 
 Set B sizes:
@@ -162,17 +155,12 @@ sage-grid
 `classic-cream` uses the existing standard background:
 
 ```text
-public/template-packages/contentgate/set-a/backgrounds/
 public/template-packages/contentgate/set-b/backgrounds/
 ```
 
 Alternate background PNGs live here:
 
 ```text
-public/template-packages/contentgate/set-a/background-options/mint-glow/
-public/template-packages/contentgate/set-a/background-options/terracotta-edge/
-public/template-packages/contentgate/set-a/background-options/sage-grid/
-
 public/template-packages/contentgate/set-b/background-options/mint-glow/
 public/template-packages/contentgate/set-b/background-options/terracotta-edge/
 public/template-packages/contentgate/set-b/background-options/sage-grid/
@@ -245,8 +233,6 @@ BG_OPTION/{set}/{size}/{option-key}
 Examples:
 
 ```text
-BG_OPTION/set-a/square/mint-glow
-BG_OPTION/set-a/link-ad/terracotta-edge
 BG_OPTION/set-b/portrait/sage-grid
 ```
 

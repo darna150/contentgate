@@ -14,8 +14,8 @@ import {
   resolveTemplateBundleRuntimeVariant,
 } from "./runtime";
 
-test("resolves ContentGate Set A size-specific fields and limits", async () => {
-  const bundle = await buildContentGateTemplateBundle("contentgate_local_friendly");
+test("resolves ContentGate Set B size-specific fields and limits", async () => {
+  const bundle = await buildContentGateTemplateBundle("contentgate_local_premium");
 
   assert.deepEqual(getTemplateBundleSupportedSizes(bundle.manifest), [
     "portrait",

@@ -703,7 +703,7 @@ function aerformTextSlots(size: TemplateSizeKey): PublishedTextSlot[] {
 function aerformFrame(
   size: TemplateSizeKey,
   fileName: string,
-  set: "set-a" | "set-b"
+  set: "set-b"
 ): PublishedFrame {
   return frame(
     size,
@@ -718,7 +718,7 @@ function aerformFrame(
   );
 }
 
-function aerformPackage(set: "set-a" | "set-b"): PublishedTemplatePackage {
+function aerformPackage(set: "set-b"): PublishedTemplatePackage {
   return {
     packageVersion: 1,
     packageKey: `aerform-air01-campaign-${set}-v1`,
@@ -739,7 +739,6 @@ function aerformPackage(set: "set-a" | "set-b"): PublishedTemplatePackage {
 }
 
 const PACKAGE_REGISTRY: Record<string, PublishedTemplatePackage> = {
-  contentgate_local_friendly: aerformPackage("set-a"),
   contentgate_local_premium: aerformPackage("set-b"),
 };
 

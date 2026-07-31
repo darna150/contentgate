@@ -36,8 +36,8 @@ Create the Figma-side source/reference page for designer-approved background opt
 node .tools/figwright/create-background-options-source.mjs
 ```
 
-This creates a page named `04 ContentGate Background Options` with sections for Set A and
-Set B. Background option layers are named with the machine-readable pattern:
+This creates a page named `04 ContentGate Background Options` with a section for Set B.
+Background option layers are named with the machine-readable pattern:
 
 ```text
 BG_OPTION/{set}/{size}/{option-key}
@@ -63,10 +63,6 @@ This exports 2x full-reference PNGs, 2x background-only PNGs, exact editable tex
 
 ```text
 .template-bundles/figwright-contentgate/
-  local-friendly-v1/
-    publisher-input.json
-    source/
-    bundle/
   local-premium-v1/
     publisher-input.json
     source/
@@ -87,13 +83,12 @@ Create contact sheets from rendered samples:
 npm run contentgate:contact-sheets
 ```
 
-By default, rendered samples go to `$TMPDIR/contentgate-rendered`, and contact sheets go to `$TMPDIR/contentgate-set-a-contact.png` and `$TMPDIR/contentgate-set-b-contact.png`. Override those locations with `CONTENTGATE_RENDER_DIR` and `CONTENTGATE_CONTACT_DIR`.
+By default, rendered samples go to `$TMPDIR/contentgate-rendered`, and the contact sheet goes to `$TMPDIR/contentgate-set-b-contact.png`. Override those locations with `CONTENTGATE_RENDER_DIR` and `CONTENTGATE_CONTACT_DIR`.
 
 ## Figma Export Notes
 
 `export-backgrounds.mjs` temporarily hides the editable text layer node IDs, exports each frame at 1x PNG scale, restores text visibility, and writes the background assets under:
 
-- `public/template-packages/contentgate/set-a/backgrounds/`
 - `public/template-packages/contentgate/set-b/backgrounds/`
 
 If the Figma file changes, update the frame and text node IDs in `export-backgrounds.mjs` before re-exporting.

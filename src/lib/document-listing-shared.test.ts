@@ -9,7 +9,9 @@ function baseDocument(overrides: Partial<DocumentListRow> = {}): DocumentListRow
   return {
     id: "document-1",
     title: "Approved Source",
+    file_type: "pdf",
     storage_path: "org/document/source.pdf",
+    source_url: null,
     content_text: "Approved source text",
     approval_status: "approved",
     created_at: "2026-07-15T00:00:00.000Z",
@@ -26,6 +28,7 @@ test("flattenDocumentRow includes product, paragraph count, and indexed status",
   assert.equal(row.paragraphCount, 1);
   assert.equal(row.indexStatus, "indexed");
   assert.equal(row.approvalStatus, "approved");
+  assert.equal(row.sourceType, "file");
 });
 
 test("flattenDocumentRow handles unassigned processing documents", () => {
@@ -50,4 +53,17 @@ test("flattenDocumentRow handles Supabase array product joins", () => {
   );
 
   assert.equal(row.productName, "Array Product");
+});
+
+test("flattenDocumentRow identifies website sources", () => {
+  const row = flattenDocumentRow(
+    baseDocument({
+      file_type: "web",
+      storage_path: null,
+      source_url: "https://example.com/product",
+    })
+  );
+
+  assert.equal(row.sourceType, "website");
+  assert.equal(row.sourceUrl, "https://example.com/product");
 });

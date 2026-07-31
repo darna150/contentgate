@@ -6,7 +6,9 @@ import {
 export type DocumentListRow = {
   id: string;
   title: string;
+  file_type: string | null;
   storage_path: string | null;
+  source_url: string | null;
   content_text: string | null;
   approval_status: "approved" | "inactive";
   created_at: string;
@@ -18,6 +20,8 @@ export type FlattenedDocumentRow = {
   id: string;
   title: string;
   storagePath: string | null;
+  sourceUrl: string | null;
+  sourceType: "website" | "file" | "text";
   createdAt: string;
   productName: string | null;
   paragraphCount: number;
@@ -39,6 +43,8 @@ export function flattenDocumentRow(row: DocumentListRow): FlattenedDocumentRow {
     id: row.id,
     title: row.title,
     storagePath: row.storage_path,
+    sourceUrl: row.source_url,
+    sourceType: row.source_url ? "website" : row.storage_path ? "file" : "text",
     createdAt: row.created_at,
     productName: one(row.products)?.name ?? null,
     paragraphCount: paragraphCount(row.paragraphs),

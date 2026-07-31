@@ -14,7 +14,6 @@ const figwrightMcpPath =
 const BACKGROUND_OPTIONS_PAGE_ID = "52:193";
 
 const SIZES_BY_SET = {
-  "set-a": ["square", "story", "link-ad", "leaderboard", "medium-rectangle"],
   "set-b": ["square", "portrait", "story", "link-ad", "medium-rectangle"],
 };
 
