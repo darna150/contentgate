@@ -115,7 +115,9 @@ test.describe("Knowledge Hub live QA", () => {
     await input.fill("What is Nimbus 1?");
     await page.getByRole("button", { name: /^Ask$/ }).click();
 
-    await expect(page.getByText(/From approved sources/i).first()).toBeVisible({
+    await expect(
+      page.getByText(/From approved sources|Evidence for this claim/i).first()
+    ).toBeVisible({
       timeout: 60_000,
     });
     await expect(

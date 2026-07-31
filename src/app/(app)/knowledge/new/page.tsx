@@ -38,8 +38,8 @@ export default async function NewDocumentPage({
         <h1 className="text-h1 text-ink">Add source document</h1>
         <p className="text-[14.5px] text-ink-muted">
           {presetName
-            ? `Add approved source knowledge to ${presetName}. Every paragraph becomes a citable source.`
-            : "Upload a file or paste approved text. Every paragraph becomes a citable source for generated content."}
+            ? `Add approved source knowledge to ${presetName} from a document, pasted text, or public webpage.`
+            : "Upload a file, paste approved text, or let AI prepare a public webpage. Every approved paragraph becomes a citable source."}
         </p>
       </div>
       <AddDocumentForm products={products} defaultProductId={productId} />

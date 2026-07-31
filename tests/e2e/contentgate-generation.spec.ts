@@ -2,17 +2,21 @@ import { expect, test, type Page, type TestInfo } from "@playwright/test";
 
 const E2E_EMAIL = process.env.CONTENTGATE_E2E_EMAIL;
 const E2E_PASSWORD = process.env.CONTENTGATE_E2E_PASSWORD;
-const TEMPLATE_NAME = "Nimbus Air Campaign";
+const TEMPLATE_NAME =
+  process.env.CONTENTGATE_E2E_TEMPLATE_NAME ?? "Nimbus Air Campaign";
 const PLATFORM_ASSIGNMENT_ID =
-  process.env.NIMBUS_E2E_ASSIGNMENT_ID ??
+  process.env.CONTENTGATE_E2E_ASSIGNMENT_ID ??
   "6433194b-789e-4ca6-afd4-79a42ae54d7e";
-const OUTPUT_SIZE = "instagram-post-square";
-const OUTPUT_SIZE_LABEL = "Instagram Post (Square)";
+const OUTPUT_SIZE =
+  process.env.CONTENTGATE_E2E_OUTPUT_SIZE ?? "instagram-post-square";
+const OUTPUT_SIZE_LABEL =
+  process.env.CONTENTGATE_E2E_OUTPUT_SIZE_LABEL ?? "Instagram post (square)";
 const LIVE_EDIT_TEXT = `QA Live ${Date.now().toString().slice(-5)}`;
 const BASE_URL = process.env.CONTENTGATE_E2E_BASE_URL ?? "";
 
 const OUTPUT_SIZE_DIMENSIONS: Record<string, { width: number; height: number }> = {
   "instagram-post-square": { width: 1080, height: 1080 },
+  square: { width: 1080, height: 1080 },
 };
 
 type BrowserIssue = {

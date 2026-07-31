@@ -24,7 +24,7 @@ export default async function DocumentDetailPage({
     supabase
       .from("documents")
       .select(
-        "id, title, file_type, storage_path, content_text, paragraphs, created_at, uploaded_by, approval_status, products!documents_product_id_fkey(name), profiles!documents_uploaded_by_fkey(full_name)"
+        "id, title, file_type, storage_path, source_url, content_text, paragraphs, created_at, uploaded_by, approval_status, products!documents_product_id_fkey(name), profiles!documents_uploaded_by_fkey(full_name)"
       )
       .eq("id", id)
       .single(),
@@ -96,6 +96,16 @@ export default async function DocumentDetailPage({
             className="rounded-control border border-edge-strong px-4 py-2 text-[13px] font-semibold text-ink-muted transition-colors hover:border-brand hover:text-brand"
           >
             Original file
+          </a>
+        )}
+        {doc.source_url && (
+          <a
+            href={doc.source_url}
+            target="_blank"
+            rel="noreferrer"
+            className="rounded-control border border-edge-strong px-4 py-2 text-[13px] font-semibold text-ink-muted transition-colors hover:border-brand hover:text-brand"
+          >
+            Original webpage ↗
           </a>
         )}
         {isAdmin && (
