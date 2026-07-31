@@ -218,6 +218,27 @@ async function generateNimbusDraft(page: Page) {
   return result?.json.contentId as string;
 }
 
+async function makeNimbusDraftReviewable(page: Page) {
+  const submitButton = page.getByRole("button", { name: /Submit for review/i });
+  if (await submitButton.isEnabled()) return;
+
+  const fitSafeReferenceCopy: Record<string, string> = {
+    headline: "RUN ON AIR",
+    subheadline_1: "INTRODUCING THE NEW NIMBUS 1",
+    subheadline_2: "CLOUD-SOFT CUSHIONING MEETS REAL-WORLD SPEED",
+  };
+
+  for (const [field, value] of Object.entries(fitSafeReferenceCopy)) {
+    const input = page.locator(`#studio-field-${field}`);
+    if (await input.isVisible().catch(() => false)) {
+      await input.fill(value);
+    }
+  }
+
+  await expect(page.getByText(/layout over/i)).toHaveCount(0, { timeout: 30_000 });
+  await expect(submitButton).toBeEnabled({ timeout: 30_000 });
+}
+
 async function getPreviewMetrics(page: Page) {
   const livePreview = page.locator("[data-template-platform-bundle]").first();
   if (await livePreview.isVisible().catch(() => false)) {
@@ -446,6 +467,7 @@ test.describe("Client package live generation QA", () => {
     await signIn(page);
     const contentId = await generateNimbusDraft(page);
 
+    await makeNimbusDraftReviewable(page);
     await page.getByRole("button", { name: /Submit for review/i }).click();
     await expectNimbusReviewMode(page);
 
