@@ -166,7 +166,7 @@ export async function provisionStagedOnboardingPackage(
         repository: createSupabaseOnboardingRepository(),
         operatorUserId: operator.userId,
         operatorEmail: operator.email,
-        setupRedirectTo: origin ? `${origin}/welcome` : undefined,
+        setupRedirectTo: origin ? `${origin}/auth/confirm` : undefined,
       });
     });
     completed = true;

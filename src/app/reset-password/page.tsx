@@ -1,26 +1,7 @@
-import { redirect } from "next/navigation";
-import { getAuthConfirmationPath } from "@/lib/auth-confirm";
-import { WelcomeClient } from "./welcome-client";
+import Link from "next/link";
+import { PasswordSetupClient } from "../welcome/welcome-client";
 
-export default async function WelcomePage({
-  searchParams,
-}: {
-  searchParams: Promise<{
-    token_hash?: string;
-    type?: string;
-    next?: string;
-  }>;
-}) {
-  const params = await searchParams;
-  const confirmationPath = getAuthConfirmationPath(
-    params.token_hash ?? null,
-    params.type ?? null,
-    params.next ?? null
-  );
-  if (confirmationPath) {
-    redirect(confirmationPath);
-  }
-
+export default function ResetPasswordPage() {
   return (
     <main
       id="main-content"
@@ -37,12 +18,15 @@ export default async function WelcomePage({
           </span>
         </div>
         <div className="flex flex-col gap-2">
-          <h1 className="text-h1 text-ink">Welcome aboard</h1>
+          <h1 className="text-h1 text-ink">Choose a new password</h1>
           <p className="text-body text-ink-muted">
-            You&apos;ve been invited to a ContentGate workspace.
+            Use a unique password with at least eight characters.
           </p>
         </div>
-        <WelcomeClient />
+        <PasswordSetupClient flow="recovery" />
+        <Link href="/login" className="text-sm font-semibold text-brand underline-offset-4 hover:underline">
+          Return to sign in
+        </Link>
       </div>
     </main>
   );

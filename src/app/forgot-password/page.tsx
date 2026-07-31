@@ -1,26 +1,6 @@
-import { redirect } from "next/navigation";
-import { getAuthConfirmationPath } from "@/lib/auth-confirm";
-import { WelcomeClient } from "./welcome-client";
+import { ForgotPasswordForm } from "./forgot-password-form";
 
-export default async function WelcomePage({
-  searchParams,
-}: {
-  searchParams: Promise<{
-    token_hash?: string;
-    type?: string;
-    next?: string;
-  }>;
-}) {
-  const params = await searchParams;
-  const confirmationPath = getAuthConfirmationPath(
-    params.token_hash ?? null,
-    params.type ?? null,
-    params.next ?? null
-  );
-  if (confirmationPath) {
-    redirect(confirmationPath);
-  }
-
+export default function ForgotPasswordPage() {
   return (
     <main
       id="main-content"
@@ -37,12 +17,12 @@ export default async function WelcomePage({
           </span>
         </div>
         <div className="flex flex-col gap-2">
-          <h1 className="text-h1 text-ink">Welcome aboard</h1>
+          <h1 className="text-h1 text-ink">Reset your password</h1>
           <p className="text-body text-ink-muted">
-            You&apos;ve been invited to a ContentGate workspace.
+            Enter your work email and we&apos;ll send a secure reset link.
           </p>
         </div>
-        <WelcomeClient />
+        <ForgotPasswordForm />
       </div>
     </main>
   );
