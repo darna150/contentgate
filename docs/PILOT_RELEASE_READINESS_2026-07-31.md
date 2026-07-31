@@ -8,18 +8,26 @@ The consolidated build is an engineering release candidate, not yet an
 authorized production launch. PR #58 is the only release line. Production has
 not been changed.
 
-- CI-split implementation baseline: `6ad1d35`
-- Last fully remote-certified head before the CI split: `3847222`
+- Integrated code-bearing head: `b8e6000`
+- Claude UI head: `c007408` (all branch checks and exact Preview gate passed)
 - Release branch: `codex/complete-build-source-of-truth`
-- Claude UI branch: independently reviewed and merged into this branch only
-  after its own Preview evidence is complete
+- Claude UI branch: independently reviewed and merged into this release branch;
+  it remains unmerged to `main`
 
-Every gate must be rerun after Claude integration because evidence from a
-different UI or SHA is not launch evidence.
+The combined PR head must now rerun every remote gate because Claude's branch
+evidence proves its own SHA, not the post-review integration SHA.
 
 ## Engineering evidence complete
 
 - Clean working tree and pushed release history.
+- Claude's UI branch passed verify, clean migration replay/tenant isolation,
+  Vercel, and exact-Preview E2E/accessibility before integration. Codex's
+  integration review found and corrected inaccurate onboarding recovery copy,
+  provider-controlled Auth errors, an uncaught Auth session failure, and unsafe
+  local environment targeting.
+- The integrated local tree passes 330 tests, lint, typecheck, a Next.js 16.2.12
+  production build, and `npm audit --omit=dev --audit-level=high` with zero
+  production vulnerabilities.
 - Full local tests, lint, typecheck, Next.js 16.2.12 production build, and
   production dependency audit pass; the audit reports zero vulnerabilities.
 - All 85 canonical migrations replay cleanly in CI; two-tenant database and
@@ -90,8 +98,8 @@ Advisor references:
 
 These are required before go-live:
 
-1. Integrate Claude's accepted UI commit and rerun every exact-SHA local, CI,
-   Preview, browser, accessibility, live-AI, role, recovery, and onboarding gate.
+1. Certify the exact combined PR head through CI, Preview, browser,
+   accessibility, live-AI, role, recovery, and onboarding gates.
 2. Apply the six reviewed additive onboarding migrations using
    `PRODUCTION_RELEASE_RUNBOOK.md`; never run a blind canonical `db push` against
    the historical production ledger.
