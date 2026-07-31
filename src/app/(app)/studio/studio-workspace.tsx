@@ -1316,6 +1316,20 @@ export function StudioWorkspace({
             </section>
           )}
 
+          {/* What the reviewer asked for has to be readable before the copy it
+              applies to. This sat below the Generate button, under the fold at
+              1440x900, so an author opening rejected work saw the fields to
+              edit and not the instruction telling them what to change. Same
+              block, same condition, same content — moved above the editor. */}
+          {mode === "edit" && content?.status === "rejected" && content.rejectionNote && (
+            <div className="rounded-control border border-reject-border bg-reject-tint px-3 py-2.5">
+              <p className="text-[13px] font-bold text-reject">Changes requested</p>
+              <p className="mt-1 text-[13px] leading-relaxed text-ink-muted">
+                {content.rejectionNote}
+              </p>
+            </div>
+          )}
+
           <section className="flex flex-col gap-4" aria-labelledby="studio-message">
             <h2 id="studio-message" className="text-label text-ink-faint">Message</h2>
             <StudioFields
@@ -1389,14 +1403,6 @@ export function StudioWorkspace({
               Manual edits are tracked separately from the generated copy and require reviewer
               approval before export.
             </p>
-          )}
-          {mode === "edit" && content?.status === "rejected" && content.rejectionNote && (
-            <div className="rounded-control border border-reject-border bg-reject-tint px-3 py-2.5">
-              <p className="text-[13px] font-bold text-reject">Changes requested</p>
-              <p className="mt-1 text-[13px] leading-relaxed text-ink-muted">
-                {content.rejectionNote}
-              </p>
-            </div>
           )}
           {mode === "edit" && content && (
             <div className="flex items-center justify-between rounded-control border border-edge bg-page px-3 py-2" role="status" aria-live="polite">
