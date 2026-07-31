@@ -4,6 +4,7 @@ export type ContentListRow = {
   id: string;
   title: string;
   status: string;
+  current_revision_number: number;
   target_language: string;
   audience: string | null;
   created_at: string;
@@ -23,6 +24,7 @@ export type FlattenedContentRow = {
   id: string;
   title: string;
   status: string;
+  revisionNumber: number;
   targetLanguage: string;
   audience: string | null;
   createdAt: string;
@@ -73,6 +75,7 @@ export function flattenContentRow(row: ContentListRow): FlattenedContentRow {
     id: row.id,
     title: row.title,
     status: row.status,
+    revisionNumber: row.current_revision_number,
     targetLanguage: row.target_language,
     audience: row.audience,
     createdAt: row.created_at,

@@ -12,6 +12,7 @@ function baseRow(overrides: Partial<ContentListRow> = {}): ContentListRow {
     id: "content-1",
     title: "Draft headline",
     status: "draft",
+    current_revision_number: 3,
     target_language: "English",
     audience: "Local teams",
     created_at: "2026-07-15T00:00:00.000Z",
@@ -41,6 +42,7 @@ test("flattenContentRow prefers legacy product template labels when present", ()
   assert.equal(row.productName, "ContentGate");
   assert.equal(row.templateName, "Legacy Social");
   assert.equal(row.creatorName, "Debbie Melgarejo");
+  assert.equal(row.revisionNumber, 3);
 });
 
 test("flattenContentRow builds platform family and size labels", () => {
