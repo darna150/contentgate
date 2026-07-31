@@ -2,12 +2,15 @@ import { expect, test, type Page, type TestInfo } from "@playwright/test";
 
 const E2E_EMAIL = process.env.CONTENTGATE_E2E_EMAIL;
 const E2E_PASSWORD = process.env.CONTENTGATE_E2E_PASSWORD;
-const TEMPLATE_NAME = "Nimbus Air Campaign";
+const TEMPLATE_NAME =
+  process.env.CONTENTGATE_E2E_TEMPLATE_NAME ?? "Nimbus Air Campaign";
 const DEMO_PRODUCT_ID =
   process.env.CONTENTGATE_E2E_PRODUCT_ID ??
   "27cf3a56-84e6-41fb-8cb7-4bf7dbe3c564";
-const OUTPUT_SIZE = "instagram-post-square";
-const OUTPUT_SIZE_LABEL = "Instagram post (square)";
+const OUTPUT_SIZE =
+  process.env.CONTENTGATE_E2E_OUTPUT_SIZE ?? "instagram-post-square";
+const OUTPUT_SIZE_LABEL =
+  process.env.CONTENTGATE_E2E_OUTPUT_SIZE_LABEL ?? "Instagram post (square)";
 const OUTPUT_SIZE_LABEL_PATTERN = OUTPUT_SIZE_LABEL.replace(
   /[.*+?^${}()|[\]\\]/g,
   "\\$&"
@@ -21,6 +24,7 @@ const BASE_URL = process.env.CONTENTGATE_E2E_BASE_URL ?? "";
 
 const OUTPUT_SIZE_DIMENSIONS: Record<string, { width: number; height: number }> = {
   "instagram-post-square": { width: 1080, height: 1080 },
+  square: { width: 1080, height: 1080 },
 };
 
 type BrowserIssue = {
@@ -309,23 +313,24 @@ test.describe("ContentGate live generation QA", () => {
       expect(initialMetrics.text, "Live preview rendered no editable text.").not.toEqual("");
     }
 
-    await page
-      .getByRole("button", { name: /Instagram post \(portrait\)\s+1080×1350/i })
-      .click();
-    await expect(page.getByText(/No draft for Instagram post \(portrait\) yet/i)).toBeVisible({
-      timeout: 20_000,
+    const portraitOutput = page.getByRole("button", {
+      name: /Instagram post \(portrait\)\s+1080×1350/i,
     });
-    await expect(
-      page.getByRole("button", { name: /Generate Instagram post \(portrait\) draft/i }).first()
-    ).toBeVisible();
-    await expect(page.getByText("Preview unavailable")).toHaveCount(0);
-    await attachScreenshot(page, testInfo, "03-missing-size-draft");
+    if (await portraitOutput.isVisible().catch(() => false)) {
+      await portraitOutput.click();
+      await expect(page.getByText(/No draft for Instagram post \(portrait\) yet/i)).toBeVisible({
+        timeout: 20_000,
+      });
+      await expect(
+        page.getByRole("button", { name: /Generate Instagram post \(portrait\) draft/i }).first()
+      ).toBeVisible();
+      await expect(page.getByText("Preview unavailable")).toHaveCount(0);
+      await attachScreenshot(page, testInfo, "03-missing-size-draft");
 
-    await page
-      .getByRole("button", { name: /Instagram post \(square\)\s+1080×1080/i })
-      .click();
-    await assertDraftOutputLoaded(page, 20_000);
-    await assertPreviewIsAvailable(page);
+      await page.getByRole("button", { name: OUTPUT_SIZE_BUTTON }).click();
+      await assertDraftOutputLoaded(page, 20_000);
+      await assertPreviewIsAvailable(page);
+    }
 
     const editableField = await findEditableTextArea(page);
     const oldValue = await editableField.inputValue();

@@ -1,6 +1,6 @@
 # ContentGate Knowledge Hub Contract
 
-Last updated: 2026-07-13
+Last updated: 2026-07-31
 
 ## Purpose
 
@@ -12,6 +12,15 @@ The Knowledge Hub answers product questions from approved organization knowledge
 - Only admin-controlled `documents` rows explicitly assigned to that product are eligible for AI retrieval.
 - A document with `product_id = null` is treated as org-wide evidence: `search_product_knowledge` includes it for any product query in that organization. This is intentional — admins use null-product docs for shared brand knowledge that applies across all products.
 - Cross-organization and inactive-product retrieval must return no rows.
+- Public webpage imports are not eligible immediately after fetching. An admin must review and save the prepared text into a product-assigned `documents` row before it can enter retrieval.
+
+## Webpage Ingestion
+
+- The webpage importer accepts one public HTTP or HTTPS page at a time; whole-site crawling and authenticated pages remain out of scope.
+- Server-side fetching must reject credentials, nonstandard ports, local/private/reserved network addresses, unsafe redirects, unsupported content types, oversized responses, and excessive response time.
+- Fetched page text is untrusted data. AI cleanup must ignore instructions inside the page, remove irrelevant page chrome, preserve concrete source facts, and never invent or strengthen claims.
+- Admin review is the approval boundary. The reviewed text is segmented into the same stable numbered paragraphs used by uploaded documents, and `source_url` retains the original provenance.
+- When AI cleanup is unavailable, deterministic extraction may be shown for manual review, but it must not bypass admin approval.
 
 ## Retrieval
 

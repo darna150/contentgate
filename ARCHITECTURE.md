@@ -1,6 +1,6 @@
 # ContentGate Architecture
 
-Last updated: 2026-07-13
+Last updated: 2026-07-31
 
 ## Current Stack
 
@@ -42,6 +42,8 @@ Knowledge Hub is the source-grounded assistant layer. It should answer only from
 Current tables: `documents`, `knowledge_queries`, `notebook_sessions`.
 
 Phase 5 retrieval uses the security-invoker `search_product_knowledge` RPC to rank explicitly product-assigned document paragraphs with Postgres full-text search. The model sees only the retrieved evidence set, and the server validates every new citation by `(document_id, paragraph_n)` plus verbatim excerpt containment. See `KNOWLEDGE_HUB_CONTRACT.md`.
+
+Public webpage ingestion follows a hybrid boundary: a controlled server-side fetcher validates the URL, blocks private-network access, follows only validated redirects, and extracts bounded page text. OpenAI then removes page chrome and prepares the useful brand or product knowledge for explicit admin review. Approval stores the final text as the same numbered `documents.paragraphs` evidence used by uploaded files, while `documents.source_url` preserves provenance. The AI never approves or directly exposes fetched content to Ask.
 
 ### Template Studio
 
