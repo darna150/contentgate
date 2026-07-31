@@ -62,7 +62,7 @@ test("incident email is escaped, bounded, and idempotent", () => {
   assert.equal(message.to, "support@contentgate.app");
   assert.equal(message.replyTo, "security@contentgate.app");
   assert.match(message.subject, /^\[ContentGate P1\]/u);
-  assert.doesNotMatch(message.html, /<script>/u);
+  assert.doesNotMatch(message.html, /<script>/iu);
   assert.match(message.html, /&lt;script&gt;/u);
   assert.equal(incidentEmailIdempotencyKey(alert), incidentEmailIdempotencyKey({ ...alert }));
 });
