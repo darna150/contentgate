@@ -8,11 +8,11 @@ const COPY: Record<WorkspaceEmptyStateCode, { title: string; body: string }> = {
   },
   add_approved_knowledge: {
     title: "No approved knowledge yet",
-    body: "Add a source document or an approved claim so generated content stays grounded.",
+    body: "Add an approved source or claim so generated content stays grounded.",
   },
   add_approved_source: {
-    title: "No source documents",
-    body: "Add an approved source document to ground this product's content.",
+    title: "No approved sources",
+    body: "Add an approved source to ground this product's content.",
   },
   add_approved_claim: {
     title: "No approved claims",

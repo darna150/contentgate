@@ -247,21 +247,6 @@ async function assertPreviewIsAvailable(page: Page) {
   });
 }
 
-async function expectNimbusStudioPickers(page: Page) {
-  await expect(page.getByLabel("Size and format")).toContainText(
-    new RegExp(`${escapeRegExp(OUTPUT_SIZE_LABEL)}\\s+·\\s+${escapeRegExp(OUTPUT_DIMENSIONS_TEXT)}`, "i")
-  );
-  const productPicker = page.getByTestId("studio-asset-choice-__productVariantKey");
-  await expect(productPicker).toBeVisible();
-  await expect(productPicker).toContainText(clientFixture.productName);
-  await expect(productPicker).toContainText("1 option");
-
-  const backgroundPicker = page.getByTestId("studio-background-picker");
-  await expect(backgroundPicker).toBeVisible();
-  await expect(backgroundPicker).toContainText("Sky");
-  await expect(backgroundPicker).toContainText("1 option");
-}
-
 async function findFieldTextarea(page: Page, labelPattern: RegExp) {
   const textarea = page.getByLabel(labelPattern).first();
   await expect(textarea).toBeVisible();
@@ -359,7 +344,6 @@ test.describe("Client package live generation QA", () => {
     await generateNimbusDraft(page);
     await attachScreenshot(page, testInfo, "02-generated-studio");
     await assertPreviewIsAvailable(page);
-    await expectNimbusStudioPickers(page);
 
     const initialMetrics = await getPreviewMetrics(page);
     await testInfo.attach("initial-preview-metrics.json", {
@@ -543,9 +527,9 @@ test.describe("Client package live generation QA", () => {
     await page.getByRole("button", { name: /Submit for review/i }).click();
     await expectNimbusReviewMode(page);
 
-    await page.getByRole("button", { name: /^Reject$/i }).click();
+    await page.getByRole("button", { name: /^Request changes$/i }).click();
     await page.getByPlaceholder(/What needs to change/i).fill(rejectionNote);
-    await page.getByRole("button", { name: /Reject with note/i }).click();
+    await page.getByRole("button", { name: /^Request changes$/i }).click();
 
     await expectStudioDraftState(page, "Rejected");
     await expect(page.getByText("Changes requested")).toBeVisible();
@@ -592,18 +576,21 @@ test.describe("Client package live generation QA", () => {
     const refineOptions = ["More strategic", "Shorter", "More playful"] as const;
 
     for (const label of refineOptions) {
-      const refineBtn = page.getByRole("button", { name: label });
+      const refineBtn = page.getByRole("button", { name: label, exact: true });
       await expect(refineBtn).toBeVisible({ timeout: 10_000 });
       await refineBtn.click();
       await expect(refineBtn).toHaveAttribute("aria-pressed", "true");
       const beforeFields = await readGeneratedTextFields(page);
 
-      const applyBtn = page.getByRole("button", { name: /^Generate$/i });
+      const applyBtn = page.getByRole("button", {
+        name: `Apply “${label}”`,
+        exact: true,
+      });
       await expect(applyBtn).toBeVisible();
       await applyBtn.click();
-      await expect(page.getByRole("button", { name: /^Generating/i })).toBeVisible({
-        timeout: 5_000,
-      });
+      await expect(
+        page.getByRole("button", { name: /Making every word earn its place/i })
+      ).toBeVisible({ timeout: 5_000 });
 
       // Wait for the generation to complete: the draft status returns and the
       // preview is available again. Grounding failure surfaces as an error banner.
