@@ -1,15 +1,22 @@
 import { createClient } from "@/lib/supabase/server";
 import { flattenFields, revisionInstruction, type Evidence } from "@/lib/templates";
 import {
+  meaningfulVariationIssues,
+  revisionContractKind,
+  revisionLengthIssues,
+  semanticRevisionCriterion,
+} from "@/lib/revision-contract";
+import {
   formatGeneratedCopyQualityIssues,
   generatedCopyQualityIssues,
+  repairGeneratedCopyQualityFields,
 } from "@/lib/generated-copy-quality";
 import { fieldLimitInstruction } from "@/lib/template-fields";
 import { isProductLifecycleActive } from "@/lib/product-workspace";
 import {
   citationQuote,
-  findGroundingSource,
   generatedCopyEvidenceIssues,
+  resolvePromptGroundingCitation,
 } from "@/lib/evidence-validation";
 import {
   aiEditableTemplateFields,
@@ -27,6 +34,7 @@ import {
   BACKGROUND_CHOICE_FIELD,
   getTemplateBundleVariantAssetChoiceFields,
   getTemplateBundleVariantFieldLimits,
+  getTemplateBundleVariantReferenceFields,
   resolveTemplateBundleRuntimeVariant,
 } from "@/lib/template-platform/runtime";
 import {
@@ -209,6 +217,78 @@ async function generateWithOpenAI(input: {
   return parseGeneratedCopy(JSON.parse(text));
 }
 
+async function evaluateSemanticRevisionWithOpenAI(input: {
+  revision: string;
+  instruction: string;
+  criterion: string;
+  language: string;
+  editableFields: string[];
+  previousFields: Record<string, string>;
+  generatedFields: Record<string, string>;
+  approvedContext: string;
+}) {
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error("OpenAI generation is not configured.");
+  }
+
+  const response = await fetch("https://api.openai.com/v1/responses", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: OPENAI_GENERATION_MODEL,
+      max_output_tokens: 500,
+      input: [
+        {
+          role: "system",
+          content:
+            "You are a strict marketing-copy refinement verifier. Compare the before and after copy and reject cosmetic changes that do not visibly satisfy the requested direction. Do not give the rewrite the benefit of the doubt. Return JSON only.",
+        },
+        {
+          role: "user",
+          content: [
+            `REFINEMENT: ${input.revision}`,
+            `AUTHOR INSTRUCTION: ${input.instruction}`,
+            `PASS CRITERION: ${input.criterion}`,
+            `LANGUAGE: ${input.language}`,
+            `EDITABLE FIELDS: ${input.editableFields.join(", ")}`,
+            `BEFORE COPY: ${JSON.stringify(input.previousFields)}`,
+            `AFTER COPY: ${JSON.stringify(input.generatedFields)}`,
+            `APPROVED EVIDENCE AND BRAND CONTEXT:\n${input.approvedContext.slice(0, 12_000)}`,
+            "Return ONLY valid JSON in this shape:",
+            JSON.stringify({
+              passes: false,
+              issues: ["field: concise reason the requested refinement is not visible"],
+            }),
+          ].join("\n\n"),
+        },
+      ],
+      text: { format: { type: "json_object" } },
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => "");
+    throw new Error(
+      `OpenAI refinement verification failed (${response.status}): ${errorText.slice(0, 240)}`
+    );
+  }
+
+  const json = (await response.json()) as OpenAIResponse;
+  const text = openAIOutputText(json).trim();
+  if (!text) throw new Error("OpenAI returned no refinement verification.");
+  const parsed = JSON.parse(text) as { passes?: unknown; issues?: unknown };
+  if (parsed.passes === true) return [];
+  const issues = Array.isArray(parsed.issues)
+    ? parsed.issues.filter((issue): issue is string => typeof issue === "string" && issue.trim().length > 0)
+    : [];
+  return issues.length
+    ? issues
+    : [`generated copy did not visibly satisfy the ${input.revision} refinement`];
+}
+
 type GroundingSource = { id: string; label: string; text: string };
 
 // Assign stable, prompt-local ids to every approved claim and source paragraph
@@ -238,7 +318,7 @@ function buildGroundingSources(
 function resolveApprovedEvidence(
   evidence: Evidence[],
   editableFields: string[],
-  approvedSourceTexts: string[]
+  groundingSources: GroundingSource[]
 ): Evidence[] {
   const validFields = new Set(editableFields);
   const resolved: Evidence[] = [];
@@ -252,12 +332,16 @@ function resolveApprovedEvidence(
         typeof item.approved_source === "string" ? item.approved_source : "",
       excerpt: typeof item.excerpt === "string" ? item.excerpt : undefined,
     });
-    const source = findGroundingSource(quote, approvedSourceTexts);
-    if (!source) continue;
+    const resolvedCitation = resolvePromptGroundingCitation({
+      sourceId: typeof item.source_id === "string" ? item.source_id : undefined,
+      quote,
+      sources: groundingSources,
+    });
+    if (!resolvedCitation) continue;
     resolved.push({
       field: item.field,
-      approved_source: source,
-      excerpt: quote,
+      approved_source: resolvedCitation.approvedSource,
+      excerpt: resolvedCitation.excerpt,
     });
   }
   return resolved;
@@ -274,7 +358,7 @@ function groundingRepairInstruction(issues: string[]): string {
     fields.length
       ? `Fix these fields: ${fields.join(", ")}.`
       : ``,
-    `For each, add an evidence entry with the source id (e.g. C1 or P2) and an "excerpt" copied WORD-FOR-WORD from that approved source. Do not assert anything that is not directly supported by an approved claim or source sentence.`,
+    `For each, add an evidence entry with the source id (e.g. C1 or P2) and an "excerpt" copied WORD-FOR-WORD from that approved source. Use at least four words, or copy the entire source when it is shorter. Do not assert anything that is not directly supported by an approved claim or source sentence.`,
   ]
     .filter(Boolean)
     .join("\n");
@@ -570,10 +654,11 @@ export async function POST(req: Request) {
         .in("status", ["draft", "rejected", "in_review", "approved"])
         .maybeSingle();
 
-      if (!sourceContent) {
-        return Response.json({ error: "Source draft was not found." }, { status: 404 });
-      }
-      campaignSource = sourceContent as CampaignSourceRow;
+      // Campaign continuity is an enhancement, not a prerequisite. A source
+      // draft can disappear after Studio loaded (for example, another tab
+      // archived it). Continue with an independent, grounded generation
+      // instead of failing the selected format.
+      campaignSource = sourceContent ? (sourceContent as CampaignSourceRow) : null;
     }
 
     const { data: product } = await supabase
@@ -633,6 +718,10 @@ export async function POST(req: Request) {
     const defaultCopy = asStringRecord(
       (assignmentRow as TemplatePlatformAssignmentRow).default_payload
     );
+    const authoredReferenceCopy = getTemplateBundleVariantReferenceFields(
+      assignment.manifest,
+      outputSizeKey
+    );
     const previousStructuredFields = asStringRecord(replaceContent?.structured_fields);
     const approvedClaims = (claims ?? []).map((c) => c.claim_text);
     const sourceDocs = docs ?? [];
@@ -664,7 +753,15 @@ export async function POST(req: Request) {
       .map(revisionInstruction)
       .filter(Boolean)
       .join(" ");
+    const selectedRevision = revisions[0];
+    const selectedRevisionKind = revisionContractKind(selectedRevision);
+    const selectedSemanticCriterion = semanticRevisionCriterion(selectedRevision);
     const isRegeneration = Boolean(replaceContent);
+    const comparisonFields = isRegeneration
+      ? previousStructuredFields
+      : Object.keys(authoredReferenceCopy).length > 0
+        ? authoredReferenceCopy
+        : defaultCopy;
     const generationProfile =
       (assignmentRow as TemplatePlatformAssignmentRow).generation_profile &&
       typeof (assignmentRow as TemplatePlatformAssignmentRow).generation_profile === "object"
@@ -706,6 +803,9 @@ export async function POST(req: Request) {
       isRegeneration
         ? `\nREGENERATION REQUIREMENT: Produce a visibly different alternate copy draft. Keep the approved facts and campaign idea, but do not return the same wording for any AI-editable field unless the field is a fixed product name.`
         : ``,
+      !isRegeneration && Object.keys(authoredReferenceCopy).length > 0
+        ? `\nAUTHORED REFERENCE COPY: ${JSON.stringify(authoredReferenceCopy)}\nThis copy is visible in the original design and is a reference only. Produce a genuinely new draft; do not repeat it or make only cosmetic word substitutions.`
+        : ``,
       `\nSELECTED OUTPUT SIZE: ${runtimeVariant.variant.label} (${runtimeVariant.variant.width}x${runtimeVariant.variant.height}). Generate copy only for this size and stay inside its field limits.`,
       ``,
       `Produce exactly these AI-editable fields and no other fields: ${editableFields.join(", ")}.`,
@@ -720,9 +820,9 @@ export async function POST(req: Request) {
       `Every generated field must read like a complete thought. Short fragments are okay for CTAs and headlines, but never end a field with a dangling connector, broken hyphenated word, comma, colon, or dash.`,
       ``,
       `The existing template copy below is a length and tone reference only. Do not repeat unsupported facts from it:`,
-      editableFields.map((key) => `${key}: ${defaultCopy[key] ?? ""}`).join("\n"),
+      editableFields.map((key) => `${key}: ${comparisonFields[key] ?? ""}`).join("\n"),
       ``,
-      `EVIDENCE: for every field that makes a factual or benefit claim, add an evidence entry with { field, source_id, excerpt } where source_id is the id (e.g. C2 or P1) of the approved item it rests on and excerpt is a short phrase copied WORD-FOR-WORD from that item. The excerpt must appear exactly, verbatim, in the cited approved item. You may reword the field copy freely, but the excerpt proves the claim is grounded. Command/label fields (CTA, button) do not need evidence.`,
+      `EVIDENCE: for every field that makes a factual or benefit claim, add an evidence entry with { field, source_id, excerpt } where source_id is the id (e.g. C2 or P1) of the approved item it rests on and excerpt is copied WORD-FOR-WORD from that item. Use at least four words, or copy the entire source when it is shorter. The excerpt must appear exactly, verbatim, in the cited approved item. You may reword the field copy freely, but the excerpt proves the claim is grounded. Command/label fields (CTA, button) do not need evidence.`,
     ].join("\n");
 
     try {
@@ -742,6 +842,8 @@ export async function POST(req: Request) {
     let fitReasons: string[] = [];
     let groundingIssues: string[] = [];
     let variationIssues: string[] = [];
+    let providerFailure: string | null = null;
+    let truncatedFields: string[] = [];
     const generationMode = "ai";
 
     for (let attempt = 0; attempt < PLATFORM_GENERATION_ATTEMPTS; attempt += 1) {
@@ -755,9 +857,13 @@ export async function POST(req: Request) {
           : ``,
         variationIssues.length
           ? [
-              `REWRITE REQUIRED: the previous draft reused the same wording instead of creating an alternate:`,
+              `REWRITE REQUIRED: the previous draft failed the requested refinement:`,
               ...variationIssues.map((reason) => `- ${reason}`),
-              `Return a materially different rewrite for those fields. Keep the approved facts, but change the wording, rhythm, and angle enough that the user can see a real alternate copy option.`,
+              selectedRevision === "shorter"
+                ? `Every listed field must be strictly shorter than its current copy. Do not compensate by making one field longer while shortening another.`
+                : selectedRevision === "longer"
+                  ? `Every listed field must be strictly longer than its current copy while staying within its template limit.`
+                  : `Return a materially different rewrite for those fields. Keep the approved facts, but change the wording, rhythm, and angle enough that the user can see a real alternate copy option.`,
             ].join("\n")
           : ``,
         groundingIssues.length ? groundingRepairInstruction(groundingIssues) : ``,
@@ -783,24 +889,47 @@ export async function POST(req: Request) {
         const candidateEvidence = Array.isArray(candidate.evidence)
           ? candidate.evidence
           : [];
-        generatedFields = Object.fromEntries(
-          editableFields.map((key) => [
-            key,
-            String(candidate.fields?.[key] ?? "")
-              .replace(/\r\n?/g, "\n")
-              .trim(),
-          ])
+        generatedFields = repairGeneratedCopyQualityFields(
+          Object.fromEntries(
+            editableFields.map((key) => [
+              key,
+              String(candidate.fields?.[key] ?? "")
+                .replace(/\r\n?/g, "\n")
+                .trim(),
+            ])
+          ),
+          editableFields
         );
-        const comparisonFields = isRegeneration
-          ? previousStructuredFields
-          : defaultCopy;
-        variationIssues = allGeneratedFieldsUnchanged({
-          editableFields,
-          generatedFields,
-          previousFields: comparisonFields,
-        })
-          ? ["generated copy did not visibly change from the current template copy"]
-          : [];
+        const unchangedIssues = meaningfulVariationIssues({
+            editableFields,
+            generatedFields,
+            previousFields: comparisonFields,
+          });
+        const lengthIssues = revisionLengthIssues({
+            revision: selectedRevision,
+            editableFields,
+            generatedFields,
+            previousFields: comparisonFields,
+          });
+        const semanticIssues =
+          selectedRevisionKind === "semantic" &&
+          selectedRevision &&
+          selectedSemanticCriterion &&
+          unchangedIssues.length === 0
+            ? await evaluateSemanticRevisionWithOpenAI({
+                revision: selectedRevision,
+                instruction: revisionInstruction(selectedRevision) ?? "",
+                criterion: selectedSemanticCriterion,
+                language,
+                editableFields,
+                previousFields: comparisonFields,
+                generatedFields,
+                approvedContext: [generationProfile, approvedEvidenceBlock]
+                  .filter(Boolean)
+                  .join("\n\n"),
+              })
+            : [];
+        variationIssues = [...unchangedIssues, ...lengthIssues, ...semanticIssues];
         structured = composeStructuredFieldsForGeneration({
           allFieldKeys: allRuntimeFieldKeys,
           aiFieldKeys: editableFields,
@@ -831,7 +960,7 @@ export async function POST(req: Request) {
         verifiedEvidence = resolveApprovedEvidence(
           candidateEvidence,
           editableFields,
-          approvedSourceTexts
+          groundingSources
         );
         rawEvidenceCount = candidateEvidence.length;
         groundingIssues = generatedCopyEvidenceIssues({
@@ -846,16 +975,40 @@ export async function POST(req: Request) {
         }
       } catch (err) {
         console.error("platform generation provider failed:", err);
-        return Response.json(
-          { error: "Generation is temporarily unavailable. Please try again." },
-          { status: 503 }
-        );
+        providerFailure = err instanceof Error ? err.message : "provider request failed";
+        // A malformed response, transient provider failure, or failed
+        // semantic-verifier call should consume one internal attempt, not
+        // become a user-visible dead end on the first occurrence.
+        continue;
       }
     }
 
-    if (!out && variationIssues.length && !fitReasons.length && !groundingIssues.length) {
+    if (
+      !out &&
+      providerFailure &&
+      !fitReasons.length &&
+      !groundingIssues.length &&
+      !variationIssues.length
+    ) {
+      return Response.json(
+        {
+          error: "Generation service is temporarily unavailable. ContentGate already retried automatically.",
+          code: "provider_unavailable",
+          retryAfterSeconds: 3,
+        },
+        { status: 503, headers: { "Retry-After": "3" } }
+      );
+    }
+
+    if (
+      !out &&
+      selectedRevisionKind !== "semantic" &&
+      variationIssues.length &&
+      !fitReasons.length &&
+      !groundingIssues.length
+    ) {
       const deterministicFields = deterministicRevisionVariation({
-        revision: revisions[0],
+        revision: selectedRevision,
         editableFields,
         fields: structured,
         previousFields: previousStructuredFields,
@@ -873,7 +1026,13 @@ export async function POST(req: Request) {
     // template-aware shortening pass before failing the author. The result
     // still goes through the same quality, geometry, and evidence gates below;
     // it is never persisted merely because it is shorter.
-    if (!out && fitReasons.length && !groundingIssues.length && !variationIssues.length) {
+    if (
+      !out &&
+      selectedRevisionKind !== "semantic" &&
+      fitReasons.length &&
+      !groundingIssues.length &&
+      !variationIssues.length
+    ) {
       const coerced = await coerceTemplatePlatformFieldsToFit({
         manifest: assignment.manifest,
         variantKey: outputSizeKey,
@@ -911,6 +1070,7 @@ export async function POST(req: Request) {
 
       if (!coercedReasons.length) {
         structured = coerced.fields;
+        truncatedFields = coerced.truncatedFields;
         generatedFields = Object.fromEntries(
           editableFields.map((key) => [key, coerced.fields[key] ?? ""])
         );
@@ -958,7 +1118,7 @@ export async function POST(req: Request) {
       return Response.json(
         {
           error: ungroundedFields.length
-            ? `ContentGate could not ground ${ungroundedFields.join(", ")} in an approved claim or source. Add an approved claim or source that supports this copy, then try again.`
+            ? `ContentGate could not verify the source citations for ${ungroundedFields.join(", ")}. Please try Generate again.`
             : "ContentGate could not verify that every generated claim is grounded in approved sources.",
         },
         { status: 422 }
@@ -999,7 +1159,7 @@ export async function POST(req: Request) {
       })
     ) {
       const deterministicFields = deterministicRevisionVariation({
-        revision: revisions[0],
+        revision: selectedRevision,
         editableFields,
         fields: visibleGeneratedFields,
         previousFields: previousStructuredFields,
@@ -1037,14 +1197,21 @@ export async function POST(req: Request) {
       evidence,
       approvedSources: approvedSourceTexts,
     });
-    const finalUnchanged = allGeneratedFieldsUnchanged({
+    const finalVariationIssues = meaningfulVariationIssues({
         editableFields,
         generatedFields: structured,
-        previousFields: isRegeneration ? previousStructuredFields : defaultCopy,
+        previousFields: comparisonFields,
       });
-    if (finalUnchanged || finalGeometryReasons.length || finalQualityReasons.length || finalGroundingIssues.length) {
+    const finalRevisionIssues = revisionLengthIssues({
+      revision: selectedRevision,
+      editableFields,
+      generatedFields: structured,
+      previousFields: comparisonFields,
+    });
+    if (finalVariationIssues.length || finalRevisionIssues.length || finalGeometryReasons.length || finalQualityReasons.length || finalGroundingIssues.length) {
       const reasons = [
-        ...(finalUnchanged ? ["generated copy did not change from the current draft"] : []),
+        ...finalVariationIssues,
+        ...finalRevisionIssues,
         ...finalGeometryReasons,
         ...finalQualityReasons,
         ...finalGroundingIssues,
@@ -1056,9 +1223,11 @@ export async function POST(req: Request) {
       });
       return Response.json(
         {
-          error: finalUnchanged
-            ? "ContentGate could not produce a meaningfully different alternate. Please try Generate again."
-            : "ContentGate could not produce copy that safely fits this size. Please try again.",
+          error: finalRevisionIssues.length
+            ? `ContentGate could not produce copy that is ${selectedRevision} in every field. Please try again.`
+            : finalVariationIssues.length
+              ? "ContentGate could not produce a meaningfully different alternate. Please try Generate again."
+              : "ContentGate could not produce copy that safely fits this size. Please try again.",
           reasons,
         },
         { status: 422 }
@@ -1191,7 +1360,7 @@ export async function POST(req: Request) {
       evidence,
       title,
       platform: true,
-      truncatedFields: [],
+      truncatedFields,
     });
   }
 

@@ -74,7 +74,12 @@ function TemplateCard({
               className="overflow-hidden rounded-[10px] border border-edge bg-brand-tint"
               style={{ aspectRatio: dims ? `${dims.width} / ${dims.height}` : "1 / 1" }}
             >
-              <PreviewImage src={imageSrc(previewPath)} alt={`${template.familyName} original design`} />
+              <PreviewImage
+                src={imageSrc(previewPath)}
+                alt={`${template.familyName} original design`}
+                loading="eager"
+                revealImmediately
+              />
             </div>
           ) : null}
           <p className="text-[12px] leading-5 text-ink-muted">

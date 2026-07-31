@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   evidenceQuoteIsApproved,
   generatedCopyEvidenceIssues,
+  resolvePromptGroundingCitation,
 } from "./evidence-validation.ts";
 
 const approved = [
@@ -34,6 +35,28 @@ test("accepts a short approved claim quoted in full", () => {
 test("rejects tiny fragments of a longer source", () => {
   assert.equal(evidenceQuoteIsApproved("approved templates", approved), false);
   assert.equal(evidenceQuoteIsApproved("brand controls", approved), false);
+});
+
+test("repairs a valid prompt source id with the full approved source", () => {
+  assert.deepEqual(
+    resolvePromptGroundingCitation({
+      sourceId: "C1",
+      quote: "approved templates",
+      sources: [{ id: "C1", text: approved[0] }],
+    }),
+    { approvedSource: approved[0], excerpt: approved[0] }
+  );
+});
+
+test("does not repair an unknown prompt source id", () => {
+  assert.equal(
+    resolvePromptGroundingCitation({
+      sourceId: "C99",
+      quote: "invented performance guarantee",
+      sources: [{ id: "C1", text: approved[0] }],
+    }),
+    null
+  );
 });
 
 test("accepts verbatim excerpts despite casing and punctuation drift", () => {

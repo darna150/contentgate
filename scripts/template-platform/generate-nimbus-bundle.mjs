@@ -181,6 +181,7 @@ async function main() {
       height: frame.height,
       sourceNodeId: frame.figmaNodeId,
       referenceAsset: `${frame.key}-reference`,
+      referenceFields: source.referenceFields,
       backgroundAsset: `${frame.key}-${source.defaultBackgroundKey}-background`,
       backgroundOptions,
       slots: layout?.slots ?? canonicalNimbusSlots(frame),

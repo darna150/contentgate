@@ -105,6 +105,7 @@ export type TemplateBundleVariant = {
   width: number;
   height: number;
   referenceAsset: string;
+  referenceFields?: Readonly<Record<string, string>>;
   backgroundAsset: string;
   backgroundOptions?: readonly TemplateBundleBackgroundOption[];
   slots: readonly TemplateBundleSlot[];
@@ -349,6 +350,37 @@ export function validateTemplateBundleManifest(
             `Asset "${variant[assetKey]}" is not declared.`
           )
         );
+      }
+    }
+    if (variant.referenceFields != null) {
+      if (!isRecord(variant.referenceFields)) {
+        issues.push(
+          issue(
+            "value",
+            `variants.${variantIndex}.referenceFields`,
+            "Reference fields must be an object."
+          )
+        );
+      } else {
+        for (const [key, value] of Object.entries(variant.referenceFields)) {
+          if (!fieldKeys.has(key)) {
+            issues.push(
+              issue(
+                "value",
+                `variants.${variantIndex}.referenceFields.${key}`,
+                `Reference copy field "${key}" is not declared.`
+              )
+            );
+          } else if (typeof value !== "string") {
+            issues.push(
+              issue(
+                "value",
+                `variants.${variantIndex}.referenceFields.${key}`,
+                "Reference copy values must be strings."
+              )
+            );
+          }
+        }
       }
     }
 

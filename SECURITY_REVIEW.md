@@ -46,7 +46,7 @@ Last updated: 2026-07-13
 
 ## Remaining Manual Launch Gates
 
-- Enable and verify Supabase leaked-password protection in Auth settings.
-- Confirm daily backup retention or create a scheduled off-site logical backup if the project remains on the free plan.
-- Decide whether Storage object replication/export is required for the pilot's recovery objective.
+- **2026-07-27 verification:** the connected Supabase organization is on the Free plan and the security advisor still reports leaked-password protection as disabled. Supabase makes this control available on Pro and above. An organization owner must approve a plan change, then enable it in **Authentication → Providers → Email** and rerun the security advisor.
+- **2026-07-27 verification:** Free-plan database recovery needs a scheduled off-site logical backup. Choose the destination and recovery owner before creating automation; database backups do not restore Storage object bytes.
+- Decide whether Storage object replication/export is required for the pilot's recovery objective. If yes, choose the destination, retention period, encryption/key ownership, and restore owner before automation is provisioned.
 - Complete Claude Code responsive/state QA and later Figma template calibration without changing backend security contracts.

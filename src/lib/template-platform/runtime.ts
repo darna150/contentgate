@@ -165,6 +165,27 @@ export function getTemplateBundleVariantFieldLimits(
   return limits;
 }
 
+const LEGACY_REFERENCE_FIELDS_BY_FAMILY: Record<string, Record<string, string>> = {
+  "nimbus-air-campaign": {
+    headline: "RUN ON AIR",
+    subheadline_1: "INTRODUCING THE NEW NIMBUS 1",
+    subheadline_2: "CLOUD-SOFT CUSHIONING MEETS REAL-WORLD SPEED",
+  },
+};
+
+export function getTemplateBundleVariantReferenceFields(
+  manifest: TemplateBundleManifest,
+  variantKey: string
+) {
+  const variant = getTemplateBundleVariant(manifest, variantKey);
+  if (!variant) return {};
+  const declaredFields = new Set(variant.slots.map((slot) => slot.field));
+  return Object.fromEntries(Object.entries({
+    ...(LEGACY_REFERENCE_FIELDS_BY_FAMILY[manifest.family.key] ?? {}),
+    ...(variant.referenceFields ?? {}),
+  }).filter(([key, value]) => declaredFields.has(key) && typeof value === "string"));
+}
+
 export function getTemplateBundleVariantBackgroundOptions(
   manifest: TemplateBundleManifest,
   variantKey: string

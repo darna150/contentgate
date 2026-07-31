@@ -18,6 +18,7 @@ import {
   templatePreviewUrl,
 } from "@/lib/creative";
 import { studioEditableTemplateFields } from "@/lib/generation-evidence";
+import { revisionAvailabilityIssue } from "@/lib/revision-contract";
 import {
   STUDIO_PRODUCT_VARIANT_FIELD,
   studioDirtyState,
@@ -41,6 +42,11 @@ import {
 import { fieldLabel } from "@/lib/templates";
 import type { TemplateBundleTextLayout } from "@/lib/template-platform/render";
 import { fieldIssues } from "@/lib/template-fields";
+import { templateReferenceExportUrl } from "@/lib/studio-export";
+import {
+  getTemplateProductAssetPath,
+  getTemplateProductAssetPaths,
+} from "@/lib/template-platform/live-preview-assets";
 import {
   checkDraftStructuredFieldsFit,
   submitForReview,
@@ -90,6 +96,25 @@ function retryAfterSecondsFromPayload(payload: unknown) {
 }
 
 const PRODUCT_VARIANT_FIELD = STUDIO_PRODUCT_VARIANT_FIELD;
+
+// Hold preloaded images for the lifetime of the Studio session. Keeping the
+// decoded 600px product previews resident makes a product click as immediate
+// as a background click, including when the user changes format.
+const preloadedStudioImages = new Map<string, HTMLImageElement>();
+
+function preloadStudioImage(src: string) {
+  if (!src || preloadedStudioImages.has(src)) return;
+  const image = new Image();
+  image.decoding = "async";
+  image.onload = () => {
+    void image.decode().catch(() => undefined);
+  };
+  image.onerror = () => {
+    preloadedStudioImages.delete(src);
+  };
+  preloadedStudioImages.set(src, image);
+  image.src = src;
+}
 
 function StudioAssetChoicePicker({
   fieldKey,
@@ -147,6 +172,8 @@ function StudioAssetChoicePicker({
                 <img
                   src={option.previewUrl}
                   alt=""
+                  decoding="async"
+                  loading="eager"
                   className="size-8 rounded-[7px] object-cover ring-1 ring-black/10"
                 />
               ) : (
@@ -163,7 +190,10 @@ function StudioAssetChoicePicker({
 }
 
 async function downloadUrl(url: string, filename: string) {
-  const response = await fetch(url, { cache: "no-store" });
+  let response = await fetch(url, { cache: "no-store" });
+  if (response.status >= 500) {
+    response = await fetch(url, { cache: "no-store" });
+  }
   if (!response.ok) throw new Error("Download failed.");
   const blob = await response.blob();
   const objectUrl = URL.createObjectURL(blob);
@@ -377,6 +407,25 @@ export function StudioWorkspace({
     selectedTemplate.assetChoiceOptionsByField?.[PRODUCT_VARIANT_FIELD]?.[0]?.key ||
     selectedTemplate.default_copy[PRODUCT_VARIANT_FIELD] ||
     "";
+  const productPreviewUrls = useMemo(() => {
+    const manifest = selectedTemplate.platformManifest;
+    if (!manifest) return [];
+    const selectedPath = getTemplateProductAssetPath(manifest, selectedProductVariantKey);
+    const paths = [
+      ...(selectedPath ? [selectedPath] : []),
+      ...getTemplateProductAssetPaths(manifest),
+    ];
+    return Array.from(new Set(paths))
+      .map((path) => platformAssetUrlByPath?.[path])
+      .filter((url): url is string => Boolean(url));
+  }, [
+    platformAssetUrlByPath,
+    selectedProductVariantKey,
+    selectedTemplate.platformManifest,
+  ]);
+  useEffect(() => {
+    productPreviewUrls.forEach(preloadStudioImage);
+  }, [productPreviewUrls]);
   const previewFields: Record<string, string> = useMemo(
     () =>
       studioPreviewFields({
@@ -424,6 +473,27 @@ export function StudioWorkspace({
     () => new Set(activeRequiredFields),
     [activeRequiredFields]
   );
+  const unavailableRevisions = useMemo(() => {
+    if (!content) return {};
+    return Object.fromEntries(
+      ["shorter", "longer"].flatMap((revision) => {
+        const issue = revisionAvailabilityIssue({
+          revision,
+          editableFields: activeEditableFields,
+          currentFields: draftFields,
+          requiredFields: activeRequiredFields,
+          fieldLimits: activeFieldLimits,
+        });
+        return issue ? [[revision, issue]] : [];
+      })
+    );
+  }, [
+    activeEditableFields,
+    activeFieldLimits,
+    activeRequiredFields,
+    content,
+    draftFields,
+  ]);
 
   const issuesByField = useMemo(
     () =>
@@ -475,6 +545,41 @@ export function StudioWorkspace({
     (selectedTemplate.platformAssignmentId
       ? platformTemplatePreviewUrl(selectedTemplate.platformAssignmentId, size)
       : templatePreviewUrl(selectedTemplate.id, size));
+  // Static reference thumbnails are deliberately capped at 720px for an
+  // instant Studio preview. Downloads must always use the authenticated
+  // renderer, which preserves the manifest's exact output dimensions.
+  const originalExportUrl = templateReferenceExportUrl({
+    templateId: selectedTemplate.id,
+    platformAssignmentId: selectedTemplate.platformAssignmentId,
+    size,
+  });
+  useEffect(() => {
+    // Warm the current reference immediately, then cache the other format
+    // thumbnails once the first image has a head start. Format switches can
+    // therefore swap without exposing an empty canvas.
+    const images: HTMLImageElement[] = [];
+    const warm = (src: string) => {
+      const image = new Image();
+      image.decoding = "async";
+      image.src = src;
+      images.push(image);
+    };
+    warm(originalPreviewUrl);
+
+    const remainingReferences = Array.from(
+      new Set(Object.values(selectedTemplate.referenceAssetBySize ?? {}))
+    ).filter((src) => src !== originalPreviewUrl);
+    const timer = window.setTimeout(() => {
+      remainingReferences.forEach(warm);
+    }, 250);
+
+    return () => {
+      window.clearTimeout(timer);
+      images.forEach((image) => {
+        image.src = "";
+      });
+    };
+  }, [originalPreviewUrl, selectedTemplate.referenceAssetBySize]);
   const [showOriginal, setShowOriginal] = useState(false);
   // Shared by every preview frame, so switching format or toggling the original
   // keeps the reviewer's chosen zoom instead of snapping back to fit.
@@ -585,9 +690,15 @@ export function StudioWorkspace({
       string
     >;
     timer = window.setTimeout(async () => {
-      const result = await checkDraftStructuredFieldsFit(content.id, snapshot);
+      const result = await checkDraftStructuredFieldsFit(content.id, snapshot).catch(() => ({
+        error: "Fit check temporarily unavailable.",
+      }));
       if (cancelled) return;
       if ("error" in result) {
+        if (result.error.startsWith("Your session expired")) {
+          router.push("/login");
+          return;
+        }
         if (showOverflowAdvisory) setOverflowFields(["layout"]);
         return;
       }
@@ -604,6 +715,7 @@ export function StudioWorkspace({
     fitCheckSignature,
     hasIssues,
     mode,
+    router,
     selectedTemplate.platformManifest,
     size,
   ]);
@@ -630,13 +742,19 @@ export function StudioWorkspace({
     const timer = window.setTimeout(async () => {
       const saveStartedAt = performance.now();
       setSaveState("saving");
-      const result = await updateStructuredFields(content.id, snapshot, content.updatedAt);
+      const result = await updateStructuredFields(content.id, snapshot, content.updatedAt).catch(
+        () => ({ error: "The save service was briefly unavailable." })
+      );
       if (sequence !== saveSequence.current) return;
       if ("error" in result) {
         track("studio_save_completed", {
           duration_ms: Math.round(performance.now() - saveStartedAt),
           outcome: "failed",
         });
+        if (result.error.startsWith("Your session expired")) {
+          router.push("/login");
+          return;
+        }
         setSaveState("error");
         setError(result.error);
         return;
@@ -666,7 +784,7 @@ export function StudioWorkspace({
       });
     }, 750);
     return () => window.clearTimeout(timer);
-  }, [content, dirty, draftFields, hasIssues, hasLayoutOverflow, mode, size, track]);
+  }, [content, dirty, draftFields, hasIssues, hasLayoutOverflow, mode, router, size, track]);
 
   async function selectSize(nextSize: string) {
     if (busy) return;
@@ -716,10 +834,12 @@ export function StudioWorkspace({
       const result = await loadStudioVariantAssetUrls({
         assignmentId: selectedTemplate.platformAssignmentId,
         variantKey: nextSize,
-      });
+      }).catch(() => ({ error: "", urls: {} }));
       if (assetLoadSequence !== formatAssetLoadSequence.current) return;
       if (result.error) {
-        setError(result.error);
+        // The authored reference is already available locally. A signed
+        // working-preview asset miss should not interrupt format selection or
+        // generation; the server renderer will resolve fresh URLs on demand.
         return;
       }
       setPlatformAssetUrlByPath((current) => ({ ...current, ...result.urls }));
@@ -830,6 +950,10 @@ export function StudioWorkspace({
         }),
       });
       const result = await response.json();
+      if (response.status === 401) {
+        router.push("/login");
+        return;
+      }
       if (!response.ok) {
         track("studio_generation_failed", {
           duration_ms: Math.round(performance.now() - generationStartedAt),
@@ -905,11 +1029,11 @@ export function StudioWorkspace({
       setShowOriginal(false);
       setReferenceLockedSize(null);
       if (!regenerateCurrentDraft) {
-        window.history.replaceState(
-          window.history.state,
-          "",
-          studioContentUrl(nextContent.id, nextContentSize, returnTo)
-        );
+        // Move from /studio/new to the durable content route. A native history
+        // update changes the address bar but leaves Server Actions attached to
+        // the new-draft route tree, so the next autosave can re-render Studio
+        // with the blank template payload.
+        router.replace(studioContentUrl(nextContent.id, nextContentSize, returnTo));
       }
     } catch {
       track("studio_generation_failed", {
@@ -969,7 +1093,7 @@ export function StudioWorkspace({
         const filename = `${selectedProduct.name}-${selectedTemplate.variant}-brand-reference-${size}`
           .replace(/[^\w]+/g, "-")
           .toLowerCase();
-        const serverPreviewUrl = new URL(originalPreviewUrl, window.location.origin);
+        const serverPreviewUrl = new URL(originalExportUrl, window.location.origin);
         serverPreviewUrl.searchParams.set("format", exportFormat);
         serverPreviewUrl.searchParams.set("scale", exportScale);
         serverPreviewUrl.searchParams.set("download", "1");
@@ -1054,19 +1178,28 @@ export function StudioWorkspace({
     if (!content || dirty || hasIssues || hasLayoutOverflow || saveState === "saving") return;
     setSubmitting(true);
     setError(null);
-    const result = await submitForReview(content.id);
-    if ("error" in result) {
-      setError(result.error);
-    } else {
-      setContentsBySize((current) => {
-        const existing = current[size];
-        if (!existing || existing.id !== content.id) return current;
-        return { ...current, [size]: { ...existing, status: "in_review" } };
-      });
-      router.refresh();
-      track("studio_review_submitted", { format_key: size });
+    try {
+      const result = await submitForReview(content.id);
+      if ("error" in result) {
+        if (result.error.startsWith("Your session expired")) {
+          router.push("/login");
+          return;
+        }
+        setError(result.error);
+      } else {
+        setContentsBySize((current) => {
+          const existing = current[size];
+          if (!existing || existing.id !== content.id) return current;
+          return { ...current, [size]: { ...existing, status: "in_review" } };
+        });
+        router.refresh();
+        track("studio_review_submitted", { format_key: size });
+      }
+    } catch {
+      setError("Review submission was interrupted. Your draft is still saved; try submitting again.");
+    } finally {
+      setSubmitting(false);
     }
-    setSubmitting(false);
   }
 
   function markReviewed(status: "approved" | "rejected", rejectionNote?: string | null) {
@@ -1200,6 +1333,8 @@ export function StudioWorkspace({
               buttonLabel="Generate"
               error={error}
               warning={truncationWarning}
+              unavailableRevisions={unavailableRevisions}
+              allowedLocales={selectedTemplate.allowedLocales}
             />
           )}
 
@@ -1216,6 +1351,8 @@ export function StudioWorkspace({
               buttonLabel="Generate"
               error={error}
               warning={truncationWarning}
+              unavailableRevisions={unavailableRevisions}
+              allowedLocales={selectedTemplate.allowedLocales}
             />
           )}
 
@@ -1232,6 +1369,8 @@ export function StudioWorkspace({
               buttonLabel="Generate"
               error={error}
               warning={truncationWarning}
+              unavailableRevisions={unavailableRevisions}
+              allowedLocales={selectedTemplate.allowedLocales}
             />
           )}
           </section>

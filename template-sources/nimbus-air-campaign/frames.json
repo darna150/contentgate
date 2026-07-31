@@ -5,6 +5,11 @@
   "sourcePageName": "Paste Frames by Category",
   "defaultBackgroundKey": "sky",
   "defaultProductVariantKey": "nimbus-1",
+  "referenceFields": {
+    "headline": "RUN ON AIR",
+    "subheadline_1": "INTRODUCING THE NEW NIMBUS 1",
+    "subheadline_2": "CLOUD-SOFT CUSHIONING MEETS REAL-WORLD SPEED"
+  },
   "backgroundOptions": [
     { "key": "sky", "label": "Sky", "asset": "background.png" },
     { "key": "warm-pavement", "label": "Warm Pavement", "asset": "background-warm-pavement.png" },

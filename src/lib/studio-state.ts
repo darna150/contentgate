@@ -71,6 +71,27 @@ export function studioPreviewFields(input: {
   };
 }
 
+export function studioFieldsForPersistence(input: {
+  fieldKeys: readonly string[];
+  editableFieldKeys: readonly string[];
+  pickerFieldKeys: readonly string[];
+  submittedFields: Record<string, string>;
+  existingFields: Record<string, string>;
+}) {
+  const mutableFields = new Set([
+    ...input.editableFieldKeys,
+    ...input.pickerFieldKeys,
+  ]);
+  return Object.fromEntries(
+    input.fieldKeys.map((key) => [
+      key,
+      mutableFields.has(key)
+        ? String(input.submittedFields[key] ?? "")
+        : String(input.existingFields[key] ?? ""),
+    ])
+  );
+}
+
 export function studioPersistedFieldKeys(input: {
   editableFieldKeys: readonly string[];
   assetChoiceFieldKeys: readonly string[];

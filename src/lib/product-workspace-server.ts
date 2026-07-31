@@ -22,6 +22,7 @@ import {
   normalizeTemplatePlatformAssignment,
   type TemplatePlatformAssignmentRow,
 } from "@/lib/template-platform/assignments";
+import { publicContentGateBundleVariantAssetPath } from "@/lib/template-platform/public-contentgate-assets";
 import { cursorFromOffset, offsetFromCursor } from "@/lib/content-listing-shared";
 
 type Joined<T> = T | T[] | null;
@@ -517,7 +518,11 @@ export async function getProductWorkspace(
       const referenceAssetBySize = Object.fromEntries(
         template.supportedSizes.map((size) => [
           size,
-          platformTemplatePreviewUrl(template.assignmentId, size),
+          publicContentGateBundleVariantAssetPath(
+            template.manifest,
+            size,
+            "reference"
+          ) ?? platformTemplatePreviewUrl(template.assignmentId, size),
         ])
       );
       const backgroundAssetBySize = Object.fromEntries(

@@ -1,7 +1,10 @@
 import { createRequire } from "node:module";
 import type { Font, Glyph } from "opentype.js";
 
-import { trimDanglingCopyEnd } from "../generated-copy-quality.ts";
+import {
+  repairGeneratedCopyQualityText,
+  trimDanglingCopyEnd,
+} from "../generated-copy-quality.ts";
 import { fieldIssues, type FieldIssue } from "../template-fields.ts";
 import type { TemplateBundleManifest, TemplateBundleTextSlot } from "./manifest.ts";
 import {
@@ -397,9 +400,9 @@ export async function coerceTemplatePlatformFieldsToFit(
     }
 
     if (value !== original) value = trimDanglingCopyEnd(value);
-
-    coerced[slot.field] = value;
-    if (value !== original) truncatedFields.push(slot.field);
+    const repaired = repairGeneratedCopyQualityText(value);
+    coerced[slot.field] = repaired;
+    if (repaired !== original) truncatedFields.push(slot.field);
   }
 
   return { fields: coerced, truncatedFields };

@@ -1,6 +1,8 @@
 import type { TemplateBundleManifest } from "./manifest";
 
 export const CONTENTGATE_PUBLIC_ASSET_VERSION = "vector-figwright-2026-07-19-01";
+const NIMBUS_PUBLIC_PREVIEW_VERSION = "nimbus-reference-previews-2026-07-29-01";
+const NIMBUS_PRODUCT_PREVIEW_VERSION = "nimbus-product-previews-2026-07-29-01";
 
 type ContentGateAssetKind = "reference" | "background";
 
@@ -29,6 +31,14 @@ export function publicContentGateBundleVariantAssetPath(
   variantKey: string,
   kind: ContentGateAssetKind
 ) {
+  if (
+    kind === "reference" &&
+    manifest.family.key === "nimbus-air-campaign" &&
+    manifest.variants.some((variant) => variant.key === variantKey)
+  ) {
+    return `/template-previews/nimbus-air-campaign/${variantKey}.png?v=${NIMBUS_PUBLIC_PREVIEW_VERSION}`;
+  }
+
   const packageKey = CONTENTGATE_PUBLIC_PACKAGE_BY_FAMILY[manifest.family.key];
   const filename = CONTENTGATE_PUBLIC_FILENAME_BY_VARIANT[variantKey];
   if (!packageKey || !filename) return null;
@@ -38,6 +48,26 @@ export function publicContentGateBundleVariantAssetPath(
       ? `/template-packages/contentgate/${packageKey}/backgrounds/${filename}`
       : `/template-packages/contentgate/${packageKey}/${filename}`;
   return `${assetPath}?v=${CONTENTGATE_PUBLIC_ASSET_VERSION}`;
+}
+
+/**
+ * Lightweight, public assets used only by the interactive Studio canvas.
+ * Authenticated render/export routes continue to resolve the original bundle
+ * assets, so replacing a product in Studio is fast without lowering exports.
+ */
+export function publicTemplateStudioAssetPath(
+  manifest: TemplateBundleManifest,
+  assetPath: string
+) {
+  const normalized = assetPath.replace(/^\/+/, "");
+  if (
+    manifest.family.key === "nimbus-air-campaign" &&
+    /^products\/[^/]+\.png$/i.test(normalized) &&
+    manifest.assets.some((asset) => asset.kind === "image" && asset.path === normalized)
+  ) {
+    return `/template-previews/nimbus-air-campaign/${normalized}?v=${NIMBUS_PRODUCT_PREVIEW_VERSION}`;
+  }
+  return null;
 }
 
 function inferVariantAssetKindFromPath(assetPath: string):

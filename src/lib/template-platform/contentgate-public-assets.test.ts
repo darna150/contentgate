@@ -1,8 +1,13 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import test from "node:test";
 import sharp from "sharp";
+import type { TemplateBundleManifest } from "./manifest.ts";
+import {
+  publicContentGateBundleVariantAssetPath,
+  publicTemplateStudioAssetPath,
+} from "./public-contentgate-assets.ts";
 
 const PUBLIC_BUNDLE_ROOT = join(process.cwd(), "public", "template-bundles");
 const PUBLIC_PACKAGE_ROOT = join(
@@ -10,6 +15,17 @@ const PUBLIC_PACKAGE_ROOT = join(
   "public",
   "template-packages",
   "contentgate"
+);
+const NIMBUS_BUNDLE_ROOT = join(
+  process.cwd(),
+  ".template-bundles",
+  "nimbus-air-campaign"
+);
+const NIMBUS_PREVIEW_ROOT = join(
+  process.cwd(),
+  "public",
+  "template-previews",
+  "nimbus-air-campaign"
 );
 
 const EXPECTED_VARIANTS = {
@@ -239,5 +255,56 @@ test("ContentGate selectable background options exist at exact 1x template dimen
         );
       }
     }
+  }
+});
+
+test("Nimbus exposes a lightweight static PNG reference for every format", async () => {
+  const manifest = JSON.parse(
+    await readFile(join(NIMBUS_BUNDLE_ROOT, "manifest.json"), "utf8")
+  ) as TemplateBundleManifest;
+
+  assert.equal(manifest.variants.length, 42);
+  for (const variant of manifest.variants) {
+    const publicPath = publicContentGateBundleVariantAssetPath(
+      manifest,
+      variant.key,
+      "reference"
+    );
+    assert.match(
+      publicPath ?? "",
+      new RegExp(`^/template-previews/nimbus-air-campaign/${variant.key}\\.png\\?v=`)
+    );
+
+    const previewPath = join(NIMBUS_PREVIEW_ROOT, `${variant.key}.png`);
+    const [metadata, file] = await Promise.all([sharp(previewPath).metadata(), stat(previewPath)]);
+    assert.equal(metadata.format, "png");
+    assert.ok((metadata.width ?? 0) <= 720, `${variant.key} preview is too wide`);
+    assert.ok((metadata.height ?? 0) <= 720, `${variant.key} preview is too tall`);
+    assert.ok(file.size < 150_000, `${variant.key} preview is too heavy (${file.size} bytes)`);
+  }
+});
+
+test("Nimbus exposes lightweight product previews without changing bundle export assets", async () => {
+  const manifest = JSON.parse(
+    await readFile(join(NIMBUS_BUNDLE_ROOT, "manifest.json"), "utf8")
+  ) as TemplateBundleManifest;
+  const productAssets = manifest.assets.filter(
+    (asset) => asset.kind === "image" && asset.path.startsWith("products/")
+  );
+
+  assert.equal(productAssets.length, 4);
+  for (const asset of productAssets) {
+    const publicPath = publicTemplateStudioAssetPath(manifest, asset.path);
+    assert.match(
+      publicPath ?? "",
+      new RegExp(`^/template-previews/nimbus-air-campaign/${asset.path.replace(".", "\\.")}\\?v=`)
+    );
+
+    const previewPath = join(NIMBUS_PREVIEW_ROOT, asset.path);
+    const [metadata, file] = await Promise.all([sharp(previewPath).metadata(), stat(previewPath)]);
+    assert.equal(metadata.format, "png");
+    assert.ok((metadata.width ?? 0) <= 600, `${asset.key} preview is too wide`);
+    assert.ok((metadata.height ?? 0) <= 600, `${asset.key} preview is too tall`);
+    assert.ok(file.size < 150_000, `${asset.key} preview is too heavy (${file.size} bytes)`);
   }
 });

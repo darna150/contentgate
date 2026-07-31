@@ -6,6 +6,7 @@ import {
   STUDIO_PRODUCT_VARIANT_FIELD,
   generatedContentSizeKey,
   studioDirtyState,
+  studioFieldsForPersistence,
   studioInitialContentsBySize,
   studioInitialSize,
   studioPersistedFieldKeys,
@@ -107,6 +108,31 @@ test("treats generic asset-choice changes as picker-only dirty", () => {
       pickerFieldKeys: ["hero_asset"],
     }),
     { dirty: true, pickerOnlyDirty: false }
+  );
+});
+
+test("persists asset picker changes without allowing locked fields to change", () => {
+  assert.deepEqual(
+    studioFieldsForPersistence({
+      fieldKeys: ["headline", "hero_asset", "locked_legal"],
+      editableFieldKeys: ["headline"],
+      pickerFieldKeys: ["hero_asset"],
+      submittedFields: {
+        headline: "Updated headline",
+        hero_asset: "asset-2",
+        locked_legal: "Tampered legal copy",
+      },
+      existingFields: {
+        headline: "Saved headline",
+        hero_asset: "asset-1",
+        locked_legal: "Approved legal copy",
+      },
+    }),
+    {
+      headline: "Updated headline",
+      hero_asset: "asset-2",
+      locked_legal: "Approved legal copy",
+    }
   );
 });
 

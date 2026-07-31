@@ -13,12 +13,12 @@ import { REVISION_OPTIONS } from "@/lib/templates";
 import { cn } from "@/lib/utils";
 
 const LANGUAGES = [
-  { value: "English", label: "English (EN)" },
-  { value: "Filipino", label: "Filipino (FIL)" },
-  { value: "Spanish", label: "Spanish (ES)" },
-  { value: "Portuguese", label: "Portuguese (PT)" },
-  { value: "Vietnamese", label: "Vietnamese (VI)" },
-  { value: "Thai", label: "Thai (TH)" },
+  { value: "English", label: "English (EN)", locale: "en" },
+  { value: "Filipino", label: "Filipino (FIL)", locale: "fil" },
+  { value: "Spanish", label: "Spanish (ES)", locale: "es" },
+  { value: "Portuguese", label: "Portuguese (PT)", locale: "pt" },
+  { value: "Vietnamese", label: "Vietnamese (VI)", locale: "vi" },
+  { value: "Thai", label: "Thai (TH)", locale: "th" },
 ];
 
 export function StudioGeneratePanel({
@@ -33,6 +33,8 @@ export function StudioGeneratePanel({
   buttonLabel,
   error,
   warning,
+  unavailableRevisions = {},
+  allowedLocales = ["en"],
 }: {
   language: string;
   onLanguageChange: (value: string) => void;
@@ -45,7 +47,10 @@ export function StudioGeneratePanel({
   buttonLabel: string;
   error: string | null;
   warning?: string | null;
+  unavailableRevisions?: Record<string, string>;
+  allowedLocales?: string[];
 }) {
+  const availableLanguages = LANGUAGES.filter((item) => allowedLocales.includes(item.locale));
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-2">
@@ -57,7 +62,7 @@ export function StudioGeneratePanel({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {LANGUAGES.map((item) => (
+            {availableLanguages.map((item) => (
               <SelectItem key={item.value} value={item.value}>
                 {item.label}
               </SelectItem>
@@ -80,16 +85,18 @@ export function StudioGeneratePanel({
           )}
         </div>
         <div className="flex flex-wrap gap-2">
-          {REVISION_OPTIONS.slice(0, 4).map((option) => (
+          {REVISION_OPTIONS.slice(0, 4).map((option) => {
+            const unavailableReason = unavailableRevisions[option.key];
+            return (
             <button
               key={option.key}
               type="button"
               onClick={() =>
                 onRevisionChange(selectedRevision === option.key ? null : option.key)
               }
-              disabled={busy}
+              disabled={busy || Boolean(unavailableReason)}
               aria-pressed={selectedRevision === option.key}
-              title={option.instruction}
+              title={unavailableReason ?? option.instruction}
               className={cn(
                 "rounded-full border px-3.5 py-2 text-[13px] font-semibold transition-colors disabled:opacity-50",
                 selectedRevision === option.key
@@ -99,13 +106,14 @@ export function StudioGeneratePanel({
             >
               {option.label}
             </button>
-          ))}
+            );
+          })}
         </div>
         <details className="group">
           <summary className="cursor-pointer text-[12px] font-semibold text-ink-muted hover:text-brand">More directions</summary>
           <div className="mt-2 flex flex-wrap gap-2">
             {REVISION_OPTIONS.slice(4).map((option) => (
-              <button key={option.key} type="button" onClick={() => onRevisionChange(selectedRevision === option.key ? null : option.key)} disabled={busy} aria-pressed={selectedRevision === option.key} title={option.instruction} className={cn("rounded-full border px-3.5 py-2 text-[13px] font-semibold transition-colors disabled:opacity-50", selectedRevision === option.key ? "border-brand bg-brand-tint text-brand" : "border-edge-strong bg-surface text-ink-muted hover:border-brand hover:text-brand")}>{option.label}</button>
+              <button key={option.key} type="button" onClick={() => onRevisionChange(selectedRevision === option.key ? null : option.key)} disabled={busy || Boolean(unavailableRevisions[option.key])} aria-pressed={selectedRevision === option.key} title={unavailableRevisions[option.key] ?? option.instruction} className={cn("rounded-full border px-3.5 py-2 text-[13px] font-semibold transition-colors disabled:opacity-50", selectedRevision === option.key ? "border-brand bg-brand-tint text-brand" : "border-edge-strong bg-surface text-ink-muted hover:border-brand hover:text-brand")}>{option.label}</button>
             ))}
           </div>
         </details>

@@ -149,14 +149,8 @@ function highDensityPreviewSrc(src: string) {
   };
 
   if (src.includes("/api/creative/")) return makeScaledApiUrl(src);
-  if (!src.startsWith("/")) return src;
-  const [pathname, query = ""] = src.split("?");
-  if (
-    /\/template-(bundles|packages)\/contentgate\//.test(pathname) &&
-    pathname.toLowerCase().endsWith(".png")
-  ) {
-    return `${pathname.replace(/\.png$/i, "@2x.png")}${query ? `?${query}` : ""}`;
-  }
+  // Static references are already authored PNG exports. Keep their exact URL:
+  // swapping to a 2x companion delays the view and can display a stale export.
   return src;
 }
 

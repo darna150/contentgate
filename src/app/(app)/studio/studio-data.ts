@@ -16,6 +16,10 @@ import {
 } from "@/lib/template-platform/dam-bindings";
 import type { TemplateBundleManifest } from "@/lib/template-platform/manifest";
 import {
+  publicContentGateBundleVariantAssetPath,
+  publicTemplateStudioAssetPath,
+} from "@/lib/template-platform/public-contentgate-assets";
+import {
   getTemplateBundleVariantAssetChoiceFields,
   getTemplateBundleSupportedSizes,
   getTemplateBundleVariantDimensions,
@@ -23,7 +27,10 @@ import {
   resolveTemplateBundleRuntimeVariant,
 } from "@/lib/template-platform/runtime";
 import { createTemplateBundleAssetUrlMap } from "@/lib/template-platform/storage-urls";
-import { getTemplateVariantRenderAssetPaths } from "@/lib/template-platform/live-preview-assets";
+import {
+  getTemplateProductAssetPath,
+  getTemplateVariantRenderAssetPaths,
+} from "@/lib/template-platform/live-preview-assets";
 import type { FieldLimits } from "@/lib/template-fields";
 import { studioEditableTemplateFields } from "@/lib/generation-evidence";
 
@@ -61,6 +68,7 @@ export type StudioTemplate = {
   damAssetUrlById?: Record<string, string>;
   platformManifest?: TemplateBundleManifest;
   referenceAssetBySize?: Record<string, string>;
+  allowedLocales?: string[];
   editable_fields: string[];
   required_fields: string[];
   default_copy: Record<string, string>;
@@ -108,6 +116,7 @@ type PlatformAssignmentRow = {
   status: string;
   default_variant_key: string | null;
   default_payload: Record<string, string> | null;
+  allowed_locales: string[] | null;
   template_families:
     | { family_key: string; name: string }
     | { family_key: string; name: string }[]
@@ -235,9 +244,19 @@ async function platformAssignmentsToTemplates(rows: PlatformAssignmentRow[]): Pr
     if (!defaultVariantKey) return [];
     const runtime = resolveTemplateBundleRuntimeVariant(manifest, defaultVariantKey);
     if (!runtime) return [];
-    // Reference previews resolve through the generic server-side preview
-    // endpoint (platformTemplatePreviewUrl); no per-size override paths.
-    const referenceAssetBySize: Record<string, string> = {};
+    // Published ContentGate packages already include their authored PNG
+    // references. Use those files directly so opening Original design never
+    // waits on the authenticated server-side preview endpoint.
+    const referenceAssetBySize = Object.fromEntries(
+      supportedSizes.flatMap((size) => {
+        const path = publicContentGateBundleVariantAssetPath(
+          manifest,
+          size,
+          "reference"
+        );
+        return path ? [[size, path]] : [];
+      })
+    );
     const defaultCopy = row.default_payload ?? {};
     return [
       {
@@ -250,6 +269,9 @@ async function platformAssignmentsToTemplates(rows: PlatformAssignmentRow[]): Pr
         templateVersionId: version.id,
         platformManifest: manifest,
         referenceAssetBySize,
+        allowedLocales: Array.isArray(row.allowed_locales) && row.allowed_locales.length
+          ? row.allowed_locales
+          : ["en"],
         editable_fields: studioEditableTemplateFields(runtime.fields).map((field) => field.key),
         required_fields: runtime.fields
           .filter(
@@ -278,7 +300,7 @@ async function listActiveAssignments(supabase: ServerSupabaseClient) {
   const { data } = await supabase
     .from("product_template_assignments")
     .select(
-      "id, product_id, template_version_id, status, default_variant_key, default_payload, template_families!product_template_assignments_template_family_id_fkey(family_key, name), template_versions!product_template_assignments_template_version_id_fkey(id, version_label, status, manifest)"
+      "id, product_id, template_version_id, status, default_variant_key, default_payload, allowed_locales, template_families!product_template_assignments_template_family_id_fkey(family_key, name), template_versions!product_template_assignments_template_version_id_fkey(id, version_label, status, manifest)"
     )
     .eq("status", "active");
   return (data ?? []) as PlatformAssignmentRow[];
@@ -330,6 +352,13 @@ async function resolveTemplateDamOptions(input: {
           productId: input.productId,
           assets,
           previewUrlByStoragePath: previewUrls,
+        }).map((option) => {
+          if (option.previewUrl) return option;
+          const assetPath = getTemplateProductAssetPath(input.manifest, option.key);
+          const previewUrl = assetPath
+            ? publicTemplateStudioAssetPath(input.manifest, assetPath)
+            : null;
+          return previewUrl ? { ...option, previewUrl } : option;
         }),
       ])
     ),
@@ -356,7 +385,7 @@ async function findAssignmentForContent(
   let query = supabase
     .from("product_template_assignments")
     .select(
-      "id, product_id, template_version_id, status, default_variant_key, default_payload, template_families!product_template_assignments_template_family_id_fkey(family_key, name), template_versions!product_template_assignments_template_version_id_fkey(id, version_label, status, manifest)"
+      "id, product_id, template_version_id, status, default_variant_key, default_payload, allowed_locales, template_families!product_template_assignments_template_family_id_fkey(family_key, name), template_versions!product_template_assignments_template_version_id_fkey(id, version_label, status, manifest)"
     )
     .eq("status", "active")
     .limit(1);
@@ -583,9 +612,12 @@ export async function loadStudioState(input: {
       ? getTemplateVariantRenderAssetPaths(manifest, activeSize)
       : [];
     const signedUrls = Object.fromEntries(
-      await createTemplateBundleAssetUrlMap(supabase, profile.org_id, [manifest], {
+      [...(await createTemplateBundleAssetUrlMap(supabase, profile.org_id, [manifest], {
         assetPaths: requiredPaths,
-      })
+      }))].map(([assetPath, url]) => [
+        assetPath,
+        publicTemplateStudioAssetPath(manifest, assetPath) ?? url,
+      ])
     );
     selectedTemplate = {
       ...selectedTemplate,

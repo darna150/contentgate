@@ -77,6 +77,49 @@ const GENERIC_AI_MARKETING_PATTERNS = [
   /\bnext[- ]level\b/i,
 ];
 
+export function repairGeneratedCopyQualityText(value: unknown) {
+  let text = cleanText(value)
+    .replace(/\s*[—–]\s*/g, ". ")
+    .replace(UNRESOLVED_PLACEHOLDER_PATTERN, "")
+    .replace(/\bunlock\b/gi, "open")
+    .replace(/\belevate\b/gi, "strengthen")
+    .replace(/\bgame[- ]?changer\b/gi, "advantage")
+    .replace(/\brevolutionary\b/gi, "new")
+    .replace(/\bseamlessly\b/gi, "smoothly")
+    .replace(/\bnext[- ]level\b/gi, "stronger")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!hasBalancedPairs(text, "(", ")")) text = text.replace(/[()]/g, "");
+  if (!hasBalancedPairs(text, "[", "]")) text = text.replace(/[\[\]]/g, "");
+  text = text
+    .replace(/\b\w+-\s*$/, "")
+    .replace(/[,;:—–-]+\s*$/, "")
+    .trim();
+
+  let lastWord = terminalWord(text);
+  while (lastWord && DANGLING_END_WORDS.has(lastWord)) {
+    text = text
+      .replace(new RegExp(`\\b${lastWord}[.!?…"')\\]]*$`, "i"), "")
+      .replace(/[,;:—–-]+\s*$/, "")
+      .trim();
+    lastWord = terminalWord(text);
+  }
+
+  return text ? `${text.charAt(0).toUpperCase()}${text.slice(1)}` : "";
+}
+
+export function repairGeneratedCopyQualityFields(
+  fields: Record<string, string>,
+  fieldOrder: readonly string[]
+) {
+  const repaired = { ...fields };
+  for (const field of fieldOrder) {
+    repaired[field] = repairGeneratedCopyQualityText(repaired[field]);
+  }
+  return repaired;
+}
+
 export function generatedCopyQualityIssues(
   fields: Record<string, unknown>,
   fieldOrder: readonly string[]
