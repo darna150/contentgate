@@ -67,7 +67,7 @@ test("provider incidents report delivery without leaking the bearer token", asyn
   const outcome = await reportProviderIncident(incident, {
     config: {
       webhookUrl: "https://incident.example.test/contentgate",
-      webhookToken: "top-secret-token",
+      webhookToken: "test-provider-token-32-characters-long",
       owner: "release-primary",
     },
     fetchImplementation: async (_url, init) => {
@@ -81,8 +81,11 @@ test("provider incidents report delivery without leaking the bearer token", asyn
   });
 
   assert.equal(outcome, "delivered");
-  assert.equal(authorization, "Bearer top-secret-token");
-  assert.equal(messages.some((message) => message.includes("top-secret-token")), false);
+  assert.equal(authorization, "Bearer test-provider-token-32-characters-long");
+  assert.equal(
+    messages.some((message) => message.includes("test-provider-token-32-characters-long")),
+    false,
+  );
   assert.match(messages.join("\n"), /provider\.incident_delivered/);
 });
 
@@ -103,7 +106,7 @@ test("provider incident reporting distinguishes unconfigured and failed delivery
     await reportProviderIncident(incident, {
       config: {
         webhookUrl: "https://incident.example.test/contentgate",
-        webhookToken: "token",
+        webhookToken: "test-provider-token-32-characters-long",
         owner: "release-primary",
       },
       fetchImplementation: async () => new Response(null, { status: 503 }),

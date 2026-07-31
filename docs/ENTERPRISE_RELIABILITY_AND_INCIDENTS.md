@@ -73,8 +73,11 @@ acceptable substitute while it supports release certification.
 `/api/health` checks the database API, rendered/template Storage buckets,
 worker liveness, and overdue asset processing. The release candidate configures
 the protected Vercel cron to call it every five minutes on the Pro plan.
-`CRON_SECRET` is mandatory; missing configuration fails with 503 instead of
-silently exposing or skipping the monitor.
+`CRON_SECRET` must contain at least 32 characters. After authentication, the
+route also requires an HTTPS incident destination, a token of at least 32
+characters, and a named owner before it performs the health check. Missing or
+invalid configuration fails with 503 instead of silently presenting an
+unroutable monitor as healthy.
 
 When health fails, the route emits a structured error and sends a bounded
 five-second HTTPS webhook containing severity, service, timestamp, environment,

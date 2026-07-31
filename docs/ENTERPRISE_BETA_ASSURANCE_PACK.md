@@ -167,7 +167,9 @@ The incident severity model and authenticated webhook implementation exist.
 The release candidate now configures a protected five-minute Vercel cron after
 the project upgrade to Pro. It remains inactive until the candidate reaches
 production and `CRON_SECRET`, a real destination/token, and a named incident
-owner are installed. Human acknowledgement and the tabletop remain open.
+owner are installed. The cron fails closed before its health check when those
+alert controls are missing or invalid. Human acknowledgement and the tabletop
+remain open.
 
 ## Accessibility posture
 

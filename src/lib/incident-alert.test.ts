@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { deliverIncidentAlert } from "./incident-alert.ts";
+import {
+  deliverIncidentAlert,
+  incidentAlertConfigIssues,
+} from "./incident-alert.ts";
 
 const alert = {
   severity: "P1" as const,
@@ -12,6 +15,7 @@ const alert = {
   deployment: "sha-123",
   details: { status: 503 },
 };
+const webhookToken = "test-incident-token-32-characters-long";
 
 test("incident delivery fails visibly when no route or owner is configured", async () => {
   assert.deepEqual(
@@ -24,13 +28,56 @@ test("incident delivery fails visibly when no route or owner is configured", asy
   );
 });
 
+test("incident readiness requires HTTPS, a strong token, and a named owner", () => {
+  assert.deepEqual(
+    incidentAlertConfigIssues({
+      webhookUrl: undefined,
+      webhookToken: undefined,
+      owner: undefined,
+    }),
+    [
+      "CONTENTGATE_INCIDENT_WEBHOOK_URL",
+      "CONTENTGATE_INCIDENT_WEBHOOK_TOKEN",
+      "CONTENTGATE_INCIDENT_OWNER",
+    ],
+  );
+  assert.deepEqual(
+    incidentAlertConfigIssues({
+      webhookUrl: "http://incident.example.test/contentgate",
+      webhookToken: "short",
+      owner: " ",
+    }),
+    [
+      "CONTENTGATE_INCIDENT_WEBHOOK_URL",
+      "CONTENTGATE_INCIDENT_WEBHOOK_TOKEN",
+      "CONTENTGATE_INCIDENT_OWNER",
+    ],
+  );
+  assert.deepEqual(
+    incidentAlertConfigIssues({
+      webhookUrl: "https://incident.example.test/contentgate",
+      webhookToken: "a".repeat(32),
+      owner: "engineering-primary",
+    }),
+    [],
+  );
+  assert.deepEqual(
+    incidentAlertConfigIssues({
+      webhookUrl: "https://user:password@localhost/contentgate",
+      webhookToken: "a".repeat(32),
+      owner: "engineering-primary",
+    }),
+    ["CONTENTGATE_INCIDENT_WEBHOOK_URL"],
+  );
+});
+
 test("incident delivery uses a bounded authenticated HTTPS webhook", async () => {
   let request: RequestInit | undefined;
   const result = await deliverIncidentAlert(
     alert,
     {
       webhookUrl: "https://incident.example.test/contentgate",
-      webhookToken: "secret-token",
+      webhookToken,
       owner: "engineering-primary",
     },
     async (_url, init) => {
@@ -39,26 +86,26 @@ test("incident delivery uses a bounded authenticated HTTPS webhook", async () =>
     },
   );
   assert.deepEqual(result, { status: "delivered" });
-  assert.equal((request?.headers as Record<string, string>).Authorization, "Bearer secret-token");
+  assert.equal((request?.headers as Record<string, string>).Authorization, `Bearer ${webhookToken}`);
   assert.match(String(request?.body), /engineering-primary/);
   assert.ok(request?.signal, "webhook request must have a timeout signal");
 });
 
 test("incident delivery rejects insecure endpoints and non-success responses", async () => {
-  await assert.rejects(
-    deliverIncidentAlert(alert, {
+  assert.deepEqual(
+    await deliverIncidentAlert(alert, {
       webhookUrl: "http://incident.example.test/contentgate",
-      webhookToken: "secret-token",
+      webhookToken,
       owner: "engineering-primary",
     }),
-    /HTTPS/,
+    { status: "unconfigured" },
   );
   await assert.rejects(
     deliverIncidentAlert(
       alert,
       {
         webhookUrl: "https://incident.example.test/contentgate",
-        webhookToken: "secret-token",
+        webhookToken,
         owner: "engineering-primary",
       },
       async () => new Response(null, { status: 503 }),
