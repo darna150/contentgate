@@ -1580,6 +1580,7 @@ export function StudioWorkspace({
             downloadDisabled={downloadDisabled}
             downloadDisabledReason={downloadDisabledReason}
             canDownloadDraft={draftPreviewDownloadAllowed}
+            isBrandReference={isBrandReferenceView}
           />
         </section>
       </div>
