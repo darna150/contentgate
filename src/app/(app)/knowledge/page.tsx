@@ -63,7 +63,7 @@ export default async function KnowledgePage({
           <Button asChild>
             <Link href="/knowledge/new">
               <UploadIcon />
-              Add document
+              Add source
             </Link>
           </Button>
         }
@@ -71,9 +71,9 @@ export default async function KnowledgePage({
 
       {docs.length === 0 ? (
         <EmptyState
-          title="No documents yet"
-          description="Add a product's approved guides, claim sheets, and FAQs. Generated content can only draw on what lives here."
-          action={{ label: "Add your first document", href: "/knowledge/new" }}
+          title="No sources yet"
+          description="Add approved guides, claim sheets, FAQs, or public webpages. Generated content can only draw on what lives here."
+          action={{ label: "Add your first source", href: "/knowledge/new" }}
         />
       ) : (
         <div className="flex flex-col gap-3.5 rounded-card border border-edge bg-surface p-[22px]">
@@ -92,7 +92,7 @@ export default async function KnowledgePage({
                   className="-mx-2 flex items-center gap-3 rounded-control px-2 py-2.5 transition-colors hover:bg-page"
                 >
                   <span className="flex h-8 w-8 items-center justify-center rounded-[8px] bg-edge text-[9.5px] font-bold text-ink-muted">
-                    {doc.storagePath ? "FILE" : "TEXT"}
+                    {doc.sourceType === "website" ? "WEB" : doc.sourceType === "file" ? "FILE" : "TEXT"}
                   </span>
                   <span className="flex min-w-0 flex-1 flex-col">
                     <span className="truncate text-[13px] font-semibold">{doc.title}</span>

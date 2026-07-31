@@ -15,6 +15,8 @@ import {
   documentFileType,
   validateDocumentFile,
 } from "@/lib/document-files";
+import { importSourcePage } from "@/lib/source-url";
+import { normalizeSourceUrl } from "@/lib/source-url-shared";
 
 async function requireAdminProfile() {
   const supabase = await createClient();
@@ -81,6 +83,30 @@ async function indexApprovedDocument(input: {
   if (error) throw new Error(error.message);
 }
 
+export type ImportSourceUrlResult =
+  | {
+      ok: true;
+      url: string;
+      title: string;
+      content: string;
+      aiAssisted: boolean;
+    }
+  | { ok: false; error: string };
+
+export async function inspectSourceUrl(rawUrl: string): Promise<ImportSourceUrlResult> {
+  await requireAdminProfile();
+  try {
+    const page = await importSourcePage(rawUrl);
+    return { ok: true, ...page };
+  } catch (error) {
+    console.error("source URL import failed:", error);
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "That page could not be imported.",
+    };
+  }
+}
+
 export async function createDocument(
   _prev: CreateDocumentState,
   formData: FormData
@@ -89,11 +115,23 @@ export async function createDocument(
 
   const title = String(formData.get("title") ?? "").trim();
   const productId = String(formData.get("product_id") ?? "").trim();
+  const rawSourceUrl = String(formData.get("source_url") ?? "").trim();
   let content = String(formData.get("content") ?? "").trim();
   const file = formData.get("file");
   let uploadContentType: string | null = null;
+  let sourceUrl: string | null = null;
 
   if (!title) return { error: "Give the document a title." };
+  if (rawSourceUrl) {
+    try {
+      sourceUrl = normalizeSourceUrl(rawSourceUrl);
+    } catch (error) {
+      return { error: error instanceof Error ? error.message : "Invalid source URL." };
+    }
+  }
+  if (sourceUrl && file instanceof File && file.size > 0) {
+    return { error: "Choose either a website URL or an uploaded file for each source." };
+  }
   if (file instanceof File && file.size > 0) {
     try {
       uploadContentType = validateDocumentFile(file);
@@ -145,9 +183,14 @@ export async function createDocument(
     title,
     product_id: productId || null,
     storage_path: storagePath,
+    source_url: sourceUrl,
     content_text: content,
     paragraphs,
-    file_type: file instanceof File && file.size > 0 ? documentFileType(file) : "text",
+    file_type: sourceUrl
+      ? "web"
+      : file instanceof File && file.size > 0
+        ? documentFileType(file)
+        : "text",
   });
   if (error) {
     return { error: `Could not save the document: ${error.message}` };
@@ -165,7 +208,13 @@ export async function createDocument(
     action: "document.created",
     entity_type: "document",
     entity_id: id,
-    detail: { title, paragraphs: paragraphs.length, uploaded_file: !!storagePath, product_id: productId || null },
+    detail: {
+      title,
+      paragraphs: paragraphs.length,
+      uploaded_file: !!storagePath,
+      source_url: sourceUrl,
+      product_id: productId || null,
+    },
   });
 
   revalidatePath("/knowledge");
