@@ -1,4 +1,4 @@
-import { access, mkdir, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 
 import { buildContentGateTemplateBundle } from "../src/lib/template-platform/contentgate-bundle.ts";
@@ -54,10 +54,19 @@ async function main() {
 
   const bundle = await buildContentGateTemplateBundle("contentgate_local_premium");
   const square = bundle.manifest.variants.find((variant) => variant.key === "square");
-  const productImage = bundle.assets.find((asset) => asset.path === "products/charcoal.png");
-  if (!square || !productImage) {
-    throw new Error("The bundled ContentGate template is missing its square variant or product image.");
+  if (!square) {
+    throw new Error("The bundled ContentGate template is missing its square variant.");
   }
+  // Product choices are no longer embedded in the Set B template bundle: the
+  // rendered backgrounds carry locked artwork, while DAM packshots remain
+  // separate approved assets. Use the canonical transparent fixture directly
+  // so disposable onboarding exercises the current contract.
+  const productImage = await readFile(
+    resolve(
+      process.cwd(),
+      "public/template-packages/contentgate/products/charcoal.png",
+    ),
+  );
 
   const bundleRoot = "templates/local-premium-v1";
   await writePackageFile(
@@ -77,7 +86,7 @@ async function main() {
     "All records, users, and files in this workspace must be removed after the rehearsal.",
   ].join("\n");
   await writePackageFile(options.output, "knowledge/approved-brief.txt", `${knowledge}\n`);
-  await writePackageFile(options.output, "assets/atlas-qa-brewer.png", productImage.data);
+  await writePackageFile(options.output, "assets/atlas-qa-brewer.png", productImage);
 
   const blueprint: WorkspaceBlueprint = {
     schemaVersion: "contentgate-workspace-v1",

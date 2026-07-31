@@ -3,7 +3,6 @@ import { loadEnvConfig } from "@next/env";
 import { checkOnboardingEnvironment, currentOnboardingEnvironmentInput } from "../src/lib/onboarding/environment.ts";
 import { provisionWorkspace } from "../src/lib/onboarding/engine.ts";
 import { preflightWorkspacePackage } from "../src/lib/onboarding/package.ts";
-import { createSupabaseOnboardingRepository } from "../src/lib/onboarding/supabase-repository.ts";
 
 loadEnvConfig(process.cwd());
 
@@ -72,6 +71,13 @@ async function main() {
   if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
     throw new Error("SUPABASE_SERVICE_ROLE_KEY is required for provisioning.");
   }
+
+  // The read-only preflight command must remain runnable in a plain Node CLI.
+  // Load the server-only Supabase adapter only after the provision path and
+  // its environment guards have been selected.
+  const { createSupabaseOnboardingRepository } = await import(
+    "../src/lib/onboarding/supabase-repository.ts"
+  );
 
   const receipt = await provisionWorkspace({
     environment: environment.target,
