@@ -22,6 +22,39 @@ const FILTERS = [
 
 const LANGUAGES = ["English", "Filipino", "Spanish", "Portuguese", "Vietnamese", "Thai"];
 
+/**
+ * Shared by the header row and every data row so they cannot drift apart.
+ *
+ * Every track is minmax(0, …) rather than a bare fr. Each row is its own grid
+ * container, and a bare fr track keeps an automatic min-content floor — so a
+ * row holding a wide status pill ("Changes requested") sized its columns
+ * differently from its neighbours and the table visibly failed to line up.
+ * A zero minimum makes every row resolve to identical widths.
+ */
+const COLUMNS =
+  "minmax(0,2.3fr) minmax(0,1.6fr) minmax(0,0.8fr) minmax(0,1.4fr) minmax(0,0.45fr) minmax(0,1fr) minmax(0,0.7fr)";
+
+/** Campaign identity comes from the campaign field, never parsed out of a title. */
+const UNGROUPED = "Unassigned campaign";
+
+function campaignOf(row: FlattenedContentRow) {
+  return row.campaignName?.trim() || UNGROUPED;
+}
+
+function formatOf(row: FlattenedContentRow) {
+  return row.sizeKey ? sizeLabel(row.sizeKey) : "Custom size";
+}
+
+/**
+ * Supporting detail under the title, or null when there is nothing to add.
+ * Campaign, format, language and revision all have their own place now, so the
+ * only thing left worth a second line is the audience the piece was written
+ * for — which is often what separates two pieces built from one template.
+ */
+function secondaryLine(row: FlattenedContentRow) {
+  return row.audience?.trim() || null;
+}
+
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-US", {
     month: "short",
@@ -74,11 +107,14 @@ export default async function ContentPage({
   );
   if (activeSize !== "all") sizeKeysOnPage.add(activeSize);
   const sizeOptions = Array.from(sizeKeysOnPage);
+  // Grouped on the campaign the row actually belongs to. Titles are content
+  // identity and are never parsed for campaign membership.
   const campaigns = new Map<string, FlattenedContentRow[]>();
   for (const row of rows) {
-    const group = campaigns.get(row.title) ?? [];
+    const key = campaignOf(row);
+    const group = campaigns.get(key) ?? [];
     group.push(row);
-    campaigns.set(row.title, group);
+    campaigns.set(key, group);
   }
 
   function buildHref(overrides: {
@@ -136,28 +172,29 @@ export default async function ContentPage({
         />
       ) : (
         <Card className="gap-1 p-3">
-          {/* Desktop: 6-column grid table */}
+          {/* Desktop: 7-column grid table. Rows are grouped under the campaign
+              they belong to, and carry their own title, format and revision so
+              a reviewer can tell two pieces apart and see exactly which
+              revision an approval would apply to. */}
           <div className="hidden md:flex md:flex-col">
             <div
               className="grid gap-3 border-b border-edge px-3.5 pb-2"
-              style={{ gridTemplateColumns: "2.2fr 0.8fr 0.7fr 1.3fr 1fr 0.8fr" }}
+              style={{ gridTemplateColumns: COLUMNS }}
             >
               <span className="text-label text-ink-faint">Title</span>
+              <span className="text-label text-ink-faint">Format</span>
               <span className="text-label text-ink-faint">Language</span>
-              <span className="text-label text-ink-faint">Size</span>
               <span className="text-label text-ink-faint">Status</span>
+              <span className="text-label text-ink-faint">Rev</span>
               <span className="text-label text-ink-faint">Owner</span>
               <span className="text-label text-ink-faint">Updated</span>
             </div>
             {Array.from(campaigns.entries()).map(([campaign, campaignRows]) => (
               <div key={campaign} className="border-b border-edge last:border-b-0">
-                <div
-                  className="grid gap-3 bg-page/70 px-3.5 py-2"
-                  style={{ gridTemplateColumns: "2.2fr 0.8fr 0.7fr 1.3fr 1fr 0.8fr" }}
-                >
-                  <span className="truncate text-[12px] font-bold text-ink">{campaign}</span>
-                  <span className="col-span-5 text-[11.5px] text-ink-faint">
-                    {campaignRows.length} {campaignRows.length === 1 ? "format" : "formats"}
+                <div className="flex flex-wrap items-baseline gap-x-2 bg-page/70 px-3.5 py-2">
+                  <span className="text-[12px] font-bold text-ink">{campaign}</span>
+                  <span className="text-[11.5px] text-ink-faint">
+                    {campaignRows.length} {campaignRows.length === 1 ? "piece" : "pieces"}
                   </span>
                 </div>
                 {campaignRows.map((row) => (
@@ -165,20 +202,23 @@ export default async function ContentPage({
                 key={row.id}
                 href={studioContentUrl(row.id, row.sizeKey ?? undefined, contentReturnTo)}
                 className="grid items-center gap-3 rounded-control px-3.5 py-3 transition-colors hover:bg-page"
-                style={{ gridTemplateColumns: "2.2fr 0.8fr 0.7fr 1.3fr 1fr 0.8fr" }}
+                style={{ gridTemplateColumns: COLUMNS }}
               >
                 <span className="flex min-w-0 flex-col">
                   <span className="truncate text-[13.5px] font-semibold">{row.title}</span>
-                  <span className="truncate text-[11.5px] text-ink-faint">
-                    {row.templateName ?? "Custom format"}{row.sizeKey ? ` · ${sizeLabel(row.sizeKey)}` : ""}
-                  </span>
+                  {secondaryLine(row) && (
+                    <span className="truncate text-[11.5px] text-ink-faint">
+                      {secondaryLine(row)}
+                    </span>
+                  )}
                 </span>
+                <span className="truncate text-[12.5px] text-ink-muted">{formatOf(row)}</span>
                 <span className="truncate text-[12.5px] text-ink-muted">{row.targetLanguage}</span>
-                <span className="truncate text-[12.5px] text-ink-muted">
-                  {row.sizeKey ? sizeLabel(row.sizeKey) : "—"}
-                </span>
                 <span>
                   <StatusPill status={row.status} />
+                </span>
+                <span className="truncate text-[12.5px] tabular-nums text-ink-muted">
+                  <span className="sr-only">Revision </span>r{row.revisionNumber}
                 </span>
                 <span className="truncate text-[12.5px] text-ink-muted">
                   {row.creatorName ?? "—"}
@@ -199,7 +239,7 @@ export default async function ContentPage({
                 <p className="px-3.5 pb-1 pt-2 text-[12px] font-bold text-ink">
                   {campaign}
                   <span className="ml-2 text-[11px] font-normal text-ink-faint">
-                    {campaignRows.length} {campaignRows.length === 1 ? "format" : "formats"}
+                    {campaignRows.length} {campaignRows.length === 1 ? "piece" : "pieces"}
                   </span>
                 </p>
                 {campaignRows.map((row) => (
@@ -210,13 +250,14 @@ export default async function ContentPage({
               >
                 <span className="truncate text-[13.5px] font-semibold">{row.title}</span>
                 <span className="truncate text-[11.5px] text-ink-faint">
-                  {[row.productName, row.templateName ?? "Custom format", row.targetLanguage, row.sizeKey ? sizeLabel(row.sizeKey) : null]
+                  {[secondaryLine(row), formatOf(row), row.targetLanguage]
                     .filter(Boolean)
                     .join(" · ")}
                 </span>
-                <span className="flex items-center gap-2">
+                <span className="flex flex-wrap items-center gap-2">
                   <StatusPill status={row.status} />
                   <span className="text-[11.5px] text-ink-faint">
+                    <span className="sr-only">Revision </span>r{row.revisionNumber} ·{" "}
                     {row.creatorName ?? "—"} · {formatDate(row.updatedAt ?? row.createdAt)}
                   </span>
                 </span>

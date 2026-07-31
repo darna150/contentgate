@@ -106,7 +106,13 @@ export function DashboardSummaryPanel({
       <Card>
         <CardHeader className="flex-row items-center justify-between gap-3 space-y-0">
           <CardTitle>{activityTitle ?? "Recent activity"}</CardTitle>
-          <Link href={viewAllHref} className="text-[13px] font-semibold text-brand hover:underline">
+          {/* Standalone control rather than a link inside prose, so WCAG 2.2
+              SC 2.5.8 applies: it measured 117x20 and needs a 24px minimum.
+              Padding buys the height without changing the type or layout. */}
+          <Link
+            href={viewAllHref}
+            className="inline-flex min-h-6 items-center rounded-control py-0.5 text-[13px] font-semibold text-brand hover:underline"
+          >
             {viewAllLabel}
           </Link>
         </CardHeader>

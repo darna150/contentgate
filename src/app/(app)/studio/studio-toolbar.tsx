@@ -200,6 +200,7 @@ export function StudioExportBar({
   downloadDisabled,
   downloadDisabledReason,
   canDownloadDraft,
+  isBrandReference = false,
 }: {
   exportFormat: ExportFormat;
   onExportFormatChange: (format: ExportFormat) => void;
@@ -210,48 +211,69 @@ export function StudioExportBar({
   downloadDisabled: boolean;
   downloadDisabledReason?: string;
   canDownloadDraft: boolean;
+  /**
+   * The stage is showing the untouched template design rather than generated
+   * content. That download is neither a draft QA proof nor an approved export,
+   * so it must not borrow either label.
+   */
+  isBrandReference?: boolean;
 }) {
+  const qualifier = `${exportScale === "2" ? "2× " : ""}${exportFormat.toUpperCase()}`;
   const buttonLabel = downloading
     ? "Preparing…"
     : downloadDisabled
       ? "Export — locked until approved"
-      : canDownloadDraft
-        ? `Download draft ${exportScale === "2" ? "2× " : ""}${exportFormat.toUpperCase()}`
-        : `Export ${exportScale === "2" ? "2× " : ""}${exportFormat.toUpperCase()}`;
+      : isBrandReference
+        ? `Download original design ${qualifier}`
+        : canDownloadDraft
+          ? `Download draft ${qualifier}`
+          : `Export approved ${qualifier}`;
+
+  // A disabled button is not focusable, so a title tooltip is unreachable by
+  // keyboard and invisible on touch. The reason is rendered as text instead and
+  // still referenced by the button for the enabled case.
+  const reasonId = "studio-export-reason";
 
   return (
-    <div className="flex items-center justify-end gap-3 border-t border-edge bg-surface px-10 py-5">
-      <Select value={exportFormat} onValueChange={(value) => onExportFormatChange(value as ExportFormat)}>
-        <SelectTrigger className="h-11 w-[104px] rounded-[8px] text-[15px]" aria-label="Download format">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="png">PNG</SelectItem>
-          <SelectItem value="jpeg">JPEG</SelectItem>
-          <SelectItem value="pdf">PDF</SelectItem>
-        </SelectContent>
-      </Select>
-      <Select value={exportScale} onValueChange={(value) => onExportScaleChange(value as ExportScale)}>
-        <SelectTrigger className="h-11 w-[134px] rounded-[8px] text-[15px]" aria-label="Download quality">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="1">Exact size</SelectItem>
-          <SelectItem value="2">2× QA</SelectItem>
-        </SelectContent>
-      </Select>
-      <Button
-        type="button"
-        onClick={onDownload}
-        disabled={downloading || downloadDisabled}
-        title={downloadDisabled ? downloadDisabledReason : undefined}
-        className={cn(
-          "h-11 min-w-[260px] rounded-[8px] px-5 text-[14px] font-bold",
-          downloadDisabled && "bg-page text-ink-faint hover:bg-page"
-        )}
-      >
-        {buttonLabel}
-      </Button>
+    <div className="flex flex-col gap-2 border-t border-edge bg-surface px-4 py-4 md:px-10 md:py-5">
+      <div className="flex flex-wrap items-center justify-end gap-3">
+        <Select value={exportFormat} onValueChange={(value) => onExportFormatChange(value as ExportFormat)}>
+          <SelectTrigger className="h-11 w-[104px] rounded-[8px] text-[15px]" aria-label="Download format">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="png">PNG</SelectItem>
+            <SelectItem value="jpeg">JPEG</SelectItem>
+            <SelectItem value="pdf">PDF</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={exportScale} onValueChange={(value) => onExportScaleChange(value as ExportScale)}>
+          <SelectTrigger className="h-11 w-[134px] rounded-[8px] text-[15px]" aria-label="Download quality">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="1">Exact size</SelectItem>
+            <SelectItem value="2">2× QA</SelectItem>
+          </SelectContent>
+        </Select>
+        <Button
+          type="button"
+          onClick={onDownload}
+          disabled={downloading || downloadDisabled}
+          aria-describedby={downloadDisabledReason ? reasonId : undefined}
+          className={cn(
+            "h-11 w-full min-w-0 rounded-[8px] px-5 text-[14px] font-bold sm:w-auto sm:min-w-[260px]",
+            downloadDisabled && "bg-page text-ink-faint hover:bg-page"
+          )}
+        >
+          {buttonLabel}
+        </Button>
+      </div>
+      {downloadDisabledReason && (
+        <p id={reasonId} className="text-right text-caption text-ink-muted">
+          {downloadDisabledReason}
+        </p>
+      )}
     </div>
   );
 }

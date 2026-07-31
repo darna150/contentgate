@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ArrowRight, CheckCircle2, PackageCheck, ShieldCheck } from "lucide-react";
 
+import { OnboardingEnvironmentBanner } from "./environment-banner";
 import { OnboardingPanel } from "./onboarding-panel";
 import { PackageBuilder, type GeneratedOnboardingPackage } from "./package-builder";
 
@@ -17,6 +18,7 @@ export function OnboardingWorkflow({ environment }: { environment: string | null
 
   return (
     <div className="flex flex-col gap-6">
+      <OnboardingEnvironmentBanner environment={environment} />
       <ol className="grid gap-3 lg:grid-cols-[1fr_auto_1fr_auto_1fr] lg:items-center" aria-label="Client onboarding stages">
         {stages.map((stage, index) => {
           const Icon = stage.icon;

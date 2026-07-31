@@ -87,6 +87,7 @@ function issueDetail(issue: ImportIssue) {
 export function ImportBundlePanel() {
   const [manifestFile, setManifestFile] = useState<File | null>(null);
   const [manifestText, setManifestText] = useState("");
+  const needsManifest = !manifestFile && !manifestText.trim();
   const [assetFiles, setAssetFiles] = useState<File[]>([]);
   const [storagePrefix, setStoragePrefix] = useState("");
   const [busy, setBusy] = useState(false);
@@ -241,17 +242,27 @@ export function ImportBundlePanel() {
           <Button
             variant="outline"
             onClick={onPreflight}
-            disabled={preflighting || busy || (!manifestFile && !manifestText.trim())}
+            aria-describedby={needsManifest ? "import-actions-hint" : undefined}
+            disabled={preflighting || busy || needsManifest}
           >
             {preflighting ? "Checking…" : "Run preflight"}
           </Button>
           <Button
             onClick={onImport}
-            disabled={busy || (!manifestFile && !manifestText.trim())}
+            aria-describedby={needsManifest ? "import-actions-hint" : undefined}
+            disabled={busy || needsManifest}
           >
             {busy ? "Importing…" : "Import bundle"}
           </Button>
         </div>
+        {/* Both actions are inert until a manifest exists. Saying so beats
+            leaving an admin to guess why nothing responds to a click. */}
+        {needsManifest && (
+          <p id="import-actions-hint" className="text-caption text-ink-muted">
+            Choose a manifest file or paste manifest JSON above to enable
+            preflight and import.
+          </p>
+        )}
         {preflightError && (
           <p className="text-[12px] font-semibold text-reject">{preflightError}</p>
         )}
