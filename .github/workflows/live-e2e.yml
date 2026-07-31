@@ -23,10 +23,16 @@ jobs:
       CONTENTGATE_E2E_EMAIL: ${{ secrets.CONTENTGATE_E2E_EMAIL }}
       CONTENTGATE_E2E_PASSWORD: ${{ secrets.CONTENTGATE_E2E_PASSWORD }}
       CONTENTGATE_E2E_ASSIGNMENT_ID: ${{ secrets.CONTENTGATE_E2E_ASSIGNMENT_ID }}
+      CONTENTGATE_E2E_CONTENT_ID: ${{ secrets.CONTENTGATE_E2E_CONTENT_ID }}
+      CONTENTGATE_E2E_DOCUMENT_ID: ${{ secrets.CONTENTGATE_E2E_DOCUMENT_ID }}
       CONTENTGATE_E2E_PRODUCT_ID: ${{ secrets.CONTENTGATE_E2E_PRODUCT_ID }}
+      CONTENTGATE_E2E_PRODUCT_NAME: ${{ secrets.CONTENTGATE_E2E_PRODUCT_NAME }}
       CONTENTGATE_E2E_TEMPLATE_NAME: ${{ secrets.CONTENTGATE_E2E_TEMPLATE_NAME }}
-      CONTENTGATE_E2E_OUTPUT_SIZE: ${{ secrets.CONTENTGATE_E2E_OUTPUT_SIZE }}
+      CONTENTGATE_E2E_OUTPUT_SIZE_KEY: ${{ secrets.CONTENTGATE_E2E_OUTPUT_SIZE_KEY }}
       CONTENTGATE_E2E_OUTPUT_SIZE_LABEL: ${{ secrets.CONTENTGATE_E2E_OUTPUT_SIZE_LABEL }}
+      CONTENTGATE_E2E_OUTPUT_WIDTH: ${{ secrets.CONTENTGATE_E2E_OUTPUT_WIDTH }}
+      CONTENTGATE_E2E_OUTPUT_HEIGHT: ${{ secrets.CONTENTGATE_E2E_OUTPUT_HEIGHT }}
+      CONTENTGATE_E2E_KNOWLEDGE_QUESTION: ${{ secrets.CONTENTGATE_E2E_KNOWLEDGE_QUESTION }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v6
@@ -47,7 +53,8 @@ jobs:
         run: |
           test -n "$CONTENTGATE_E2E_EMAIL"
           test -n "$CONTENTGATE_E2E_PASSWORD"
-      - run: npm run test:e2e
+      - name: Run Playwright E2E and accessibility gate
+        run: npm run test:e2e
       - uses: actions/upload-artifact@v5
         if: always()
         with:

@@ -1,0 +1,56 @@
+{
+  "schemaVersion": "contentgate-workspace-v1",
+  "workspace": {
+    "key": "sample-client",
+    "name": "Sample Client",
+    "industry": "Animal health"
+  },
+  "users": [
+    {
+      "key": "owner",
+      "email": "owner@example.com",
+      "fullName": "Workspace Owner",
+      "role": "admin"
+    }
+  ],
+  "products": [
+    {
+      "key": "sample-product",
+      "name": "Sample Product",
+      "description": "Replace this example with the approved product description.",
+      "disclaimer": "For professional use only."
+    }
+  ],
+  "campaigns": [
+    {
+      "key": "launch",
+      "productKey": "sample-product",
+      "name": "Launch campaign",
+      "status": "active",
+      "brief": "Approved launch campaign identity and brief."
+    }
+  ],
+  "documents": [
+    {
+      "key": "approved-label",
+      "productKey": "sample-product",
+      "title": "Approved label",
+      "content": "Replace this paragraph with the approved source text.",
+      "approvalStatus": "approved"
+    }
+  ],
+  "claims": [
+    {
+      "key": "approved-claim",
+      "productKey": "sample-product",
+      "text": "Replace this with an approved claim.",
+      "sourceDocumentKey": "approved-label",
+      "sourceParagraph": 1,
+      "status": "approved"
+    }
+  ],
+  "qa": {
+    "productKey": "sample-product",
+    "knowledgeQuestion": "What is the approved claim for Sample Product?"
+  }
+}
