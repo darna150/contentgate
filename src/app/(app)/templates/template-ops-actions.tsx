@@ -178,7 +178,7 @@ export function ImportBundlePanel() {
   }
 
   return (
-    <Card>
+    <Card className="min-w-0">
       <CardHeader>
         <CardTitle>Import bundle</CardTitle>
         <CardDescription>
@@ -431,7 +431,7 @@ export function AssignTemplatePanel({
   const variantOptions = selectedVersion?.variants ?? [];
 
   return (
-    <Card>
+    <Card className="min-w-0">
       <CardHeader>
         <CardTitle>Assign to product</CardTitle>
         <CardDescription>

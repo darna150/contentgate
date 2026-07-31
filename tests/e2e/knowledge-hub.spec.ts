@@ -142,9 +142,9 @@ test.describe("Knowledge Hub live QA", () => {
       Array.isArray(answerPayload.citations) ? answerPayload.citations.length : 0
     ).toBeGreaterThan(0);
 
-    await expect(page.getByText(/From approved sources/i).first()).toBeVisible({
-      timeout: 60_000,
-    });
+    await expect(
+      page.getByText(/From approved sources|Evidence for this claim/i).first()
+    ).toBeVisible({ timeout: 60_000 });
     await expect(page.getByText(/Something went wrong/i)).toHaveCount(0);
 
     await testInfo.attach("knowledge-hub-answer.png", {

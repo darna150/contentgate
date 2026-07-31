@@ -48,22 +48,23 @@ is a separate dirty feature checkout and is not part of this release operation.
 
 ### Day 3 — publish a staging release candidate
 
-- [ ] Push the release branch and open the review PR.
-- [ ] Run remote CI and inspect every workflow result.
-- [ ] Deploy the preview/staging release candidate.
-- [ ] Apply the 85-file migration chain to the intended staging Supabase project.
-- [ ] Confirm the staging environment variables and operator allowlist.
+- [x] Push the release branch and open the review PR.
+- [x] Run remote CI and inspect every workflow result.
+- [x] Deploy the preview/staging release candidate.
+- [x] Reconcile the 85-file migration chain with the intended staging Supabase
+  project and apply the one pending retirement migration.
+- [x] Confirm the staging environment variables and operator allowlist.
 
 ### Day 4 — execute credentialed staging gates
 
-- [ ] Complete signed-out, expired/reused-link, and existing-session recovery QA.
-- [ ] Build, inspect, preflight, and provision a realistic disposable onboarding
+- [x] Complete signed-out, expired/reused-link, and existing-session recovery QA.
+- [x] Build, inspect, preflight, and provision a realistic disposable onboarding
   package through the signed-in operator UI.
-- [ ] Verify setup emails and the admin, approver, and member landing boundaries.
-- [ ] Replay the identical package and confirm that no duplicate tenant is created.
-- [ ] Exercise a failed package and confirm that no tenant, Auth, or Storage residue
+- [x] Verify setup emails and the admin, approver, and member landing boundaries.
+- [x] Replay the identical package and confirm that no duplicate tenant is created.
+- [x] Exercise a failed package and confirm that no tenant, Auth, or Storage residue
   remains.
-- [ ] Run guarded disposal and confirm that the immutable run receipt remains.
+- [x] Run guarded disposal and confirm that the immutable run receipt remains.
 
 ### Day 5 — complete launch acceptance
 
@@ -78,22 +79,17 @@ is a separate dirty feature checkout and is not part of this release operation.
 
 ### P0 — production blockers
 
-- Credentialed staging validation has not run against this consolidated commit.
-- The release branch has not yet been pushed, reviewed, or deployed as a staging
-  release candidate.
-- Staging migrations and environment configuration have not been confirmed for
-  this exact tree.
-
-There are no known local code/test P0 failures after consolidation.
+There are no open P0 findings from the Day 1–4 consolidation and credentialed
+staging work. This does not close the Day 5 production acceptance gate.
 
 ### P1 — required before go-live
 
-- Complete operator, admin, approver, and member role-boundary journeys in staging.
-- Complete the disposable onboarding/replay/failure/cleanup sequence.
-- Complete real setup and recovery email journeys while signed out and with an
-  existing browser session.
 - Complete the representative generate → review → approve → export acceptance
   journey and responsive/accessibility browser matrix.
+- Confirm the Studio scale-floor/scroll work across story, A4, portrait, and
+  poster at the required viewports.
+- Review staging logs, Ask quality gates, rollback readiness, support routing,
+  and obtain named production go/no-go approval.
 
 ### P2 — follow-up or tooling clarification
 
@@ -102,6 +98,37 @@ There are no known local code/test P0 failures after consolidation.
   `brace-expansion` advisory even though the installed dependency tree resolves
   patched `brace-expansion` 1.1.18 and 5.0.9; confirm the advisory result again in
   remote CI when the registry metadata settles.
+- Supabase security advisors report no errors. Warnings remain for authenticated
+  security-definer functions and disabled leaked-password protection; review
+  those as a post-candidate hardening task unless policy makes them go-live gates.
+- Defer the broad half-pixel/type-scale cleanup until after launch; it is not a
+  safe release-branch sweep.
+
+## Staging evidence
+
+- Review PR: `https://github.com/darna150/contentgate/pull/57`.
+- Staging application candidate: commit `a81b9ac`, deployed at
+  `https://contentgate-3yxpp55v8-debbies-projects-a8de6bb4.vercel.app`.
+- GitHub verify and tenant-isolation jobs passed after replaying all 85 migrations
+  in a fresh local Supabase stack. The preview browser gate is enforced on every
+  release-branch update.
+- Staging migration history is synchronized. The only pending release migration,
+  `20260728064953_retire_contentgate_local_friendly.sql`, was applied; queries
+  confirmed no active legacy family, version, assignment, or product template.
+- Disposable onboarding run `3eba015e-b3a0-45d4-924e-88f11c94bdf6` provisioned
+  2 users, 1 product, 1 campaign, 1 approved document, 1 approved claim, 1
+  approved asset, 1 active template assignment, and 60 storage objects.
+- Replaying the identical ZIP returned the same run and tenant. A deliberate
+  identity collision rolled back with no tenant, Auth, or Storage residue.
+- The operator receipt reported both setup emails sent. Admin, approver, and
+  member navigation boundaries were browser-verified.
+- Recovery passed for signed-out request, valid link, reused-link rejection, and
+  an existing authenticated session; the replacement password signed in.
+- Guarded staging disposal removed 2 Auth users and 60 storage objects. The
+  completed receipt/report remains immutable, the failed run remains
+  `rolled_back`, and final residue checks returned zero.
+- Temporary browser sessions, package ZIPs, screenshots, environment exports, and
+  helper scripts were removed after the durable evidence was recorded.
 
 ## Verified local gates
 

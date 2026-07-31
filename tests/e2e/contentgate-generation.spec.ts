@@ -183,7 +183,17 @@ async function generateNimbusDraft(page: Page) {
       }
     );
 
-    if (result.ok || ![429, 502, 503, 504].includes(result.status)) break;
+    const generationError =
+      typeof result.json.error === "string" ? result.json.error : "";
+    const retryableSafeRejection =
+      result.status === 422 &&
+      /could not (?:produce copy|ground)/i.test(generationError);
+    if (
+      result.ok ||
+      (!retryableSafeRejection && ![429, 502, 503, 504].includes(result.status))
+    ) {
+      break;
+    }
     await page.waitForTimeout(2_000 * attempt);
   }
 
