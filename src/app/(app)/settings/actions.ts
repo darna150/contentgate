@@ -2,25 +2,14 @@
 
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
-import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireAdminMfa } from "@/lib/auth/admin-mfa";
 import { isInvitableRole, normalizeInviteEmail } from "@/lib/invites";
 
 type InviteResult = { ok: true; email: string } | { error: string };
 
 async function requireAdmin() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("org_id, role")
-    .eq("id", user.id)
-    .single();
-  if (profile?.role !== "admin") return null;
-  return { userId: user.id, orgId: profile.org_id as string };
+  return requireAdminMfa();
 }
 
 async function requestOrigin() {
@@ -78,4 +67,22 @@ export async function inviteMember(formData: FormData): Promise<InviteResult> {
 
   revalidatePath("/settings");
   return { ok: true, email };
+}
+
+export async function enableAdminMfaRequirement(): Promise<
+  { ok: true } | { error: string; code?: "MFA_REQUIRED" }
+> {
+  const context = await requireAdminMfa({ alwaysRequireAal2: true });
+  if (!context) {
+    return {
+      error: "Verify this session with MFA before enabling workspace enforcement.",
+      code: "MFA_REQUIRED",
+    };
+  }
+
+  const { error } = await context.supabase.rpc("enable_admin_mfa_requirement");
+  if (error) return { error: "Could not enable administrator MFA enforcement." };
+
+  revalidatePath("/settings");
+  return { ok: true };
 }

@@ -1,5 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
+import { requireAdminMfaRequest } from "@/lib/auth/admin-mfa";
 import {
   AUDIT_EXPORT_MAX_ROWS,
   AUDIT_EXPORT_PAGE_SIZE,
@@ -13,36 +13,8 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-async function requireAdmin() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: Response.json({ error: "Unauthorized" }, { status: 401 }) };
-
-  const { data: profile, error } = await supabase
-    .from("profiles")
-    .select("org_id, role")
-    .eq("id", user.id)
-    .single();
-  if (error || !profile) {
-    return { error: Response.json({ error: "Unauthorized" }, { status: 401 }) };
-  }
-  if (profile.role !== "admin") {
-    return { error: Response.json({ error: "Admins only." }, { status: 403 }) };
-  }
-
-  return {
-    value: {
-      supabase,
-      userId: user.id,
-      orgId: profile.org_id as string,
-    },
-  };
-}
-
 export async function GET(request: Request) {
-  const auth = await requireAdmin();
+  const auth = await requireAdminMfaRequest();
   if ("error" in auth) return auth.error;
 
   let filters: AuditExportFilters;

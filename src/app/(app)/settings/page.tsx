@@ -10,7 +10,9 @@ import {
 } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { loadAdminMfaContext } from "@/lib/auth/admin-mfa";
 import { InviteForm } from "./invite-form";
+import { MfaRequirementControl } from "./mfa-requirement-control";
 
 type MemberRow = {
   id: string;
@@ -58,13 +60,14 @@ export default async function SettingsPage() {
 
   const { data: me } = await supabase
     .from("profiles")
-    .select("role, org_id, organizations(name, industry)")
+    .select("role, org_id, organizations(name, industry, require_admin_mfa)")
     .eq("id", user.id)
     .single();
   if (!me) redirect("/login");
   if (me.role !== "admin") redirect("/dashboard");
 
   const org = Array.isArray(me.organizations) ? me.organizations[0] : me.organizations;
+  const mfa = await loadAdminMfaContext();
 
   const { data: profiles } = await supabase
     .from("profiles")
@@ -94,6 +97,31 @@ export default async function SettingsPage() {
         title="Workspace settings"
         description={`Members and access for ${org?.name ?? "your workspace"}.`}
       />
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Administrator MFA</CardTitle>
+          <CardDescription>
+            Require a time-based authenticator code before protected
+            administration. Enable this only after your current session is
+            verified; the setting is intentionally one-way in the beta UI.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant={org?.require_admin_mfa ? "approve" : "warn"}>
+              {org?.require_admin_mfa ? "Required" : "Not enforced"}
+            </Badge>
+            <Badge variant={mfa?.currentLevel === "aal2" ? "approve" : "neutral"}>
+              {mfa?.currentLevel === "aal2" ? "Session verified" : "Session needs MFA"}
+            </Badge>
+          </div>
+          <MfaRequirementControl
+            required={org?.require_admin_mfa === true}
+            sessionVerified={mfa?.currentLevel === "aal2"}
+          />
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

@@ -21,7 +21,7 @@ present during beta procurement.
 | Exact build | Claude UI is integrated once; local, CI, Preview, browser, live-AI, role, recovery, onboarding, log, and security gates all name the same SHA | Claude `c007408` is integrated into release `94bf4a9`; the combined enterprise tree passes 334 local contracts, lint, typecheck, build, and production-dependency audit | In progress — exact remote gates pending |
 | Tenant isolation | Database, Storage, API, and generated outputs deny cross-workspace access | Permanent clean-migration two-tenant CI gate and composite tenant foreign keys | Existing; rerun after integration |
 | Roles | Admin, approver, and member permissions are server-enforced and browser-verified | Governance contracts, RLS, role-aware routes, and prior staging journey | Existing; rerun after integration |
-| Admin MFA | Every beta workspace administrator uses an MFA-backed session for sensitive administration | Supabase Auth is configured for password recovery; application MFA enrollment/enforcement is absent | Missing |
+| Admin MFA | Every beta workspace administrator uses an MFA-backed session for sensitive administration | TOTP enrollment/step-up, new-workspace default enforcement, AAL-aware RLS, protected admin APIs, and atomic enablement receipt are implemented on the enterprise branch | In progress — staging enrollment/enforcement evidence pending |
 | Enterprise SSO | One design-partner SAML/OIDC provider is verified, or the partner accepts a written password/MFA beta limitation | No application SSO implementation or partner IdP is selected | Partner-dependent |
 | User lifecycle | Invite, role assignment, removal/disable, session revocation, and access review are auditable | Invite/provisioning exists; complete removal, revocation, and periodic access review are not evidenced | Partial |
 | Audit history | Admins can retrieve tenant-scoped events; export is bounded, safe for spreadsheets, and the export itself is recorded | Admin-only CSV route, tenant/user-context filtering, 10,000-row fail-closed bound, formula shielding, and export receipt exist with unit evidence | In progress — runtime role/receipt verification pending |
@@ -40,8 +40,8 @@ present during beta procurement.
 
 - [ ] Certify the combined enterprise SHA through the complete remote Preview,
   browser, live-AI, role, recovery, onboarding, log, and security suite.
-- [ ] Require MFA for beta administrators and prove sensitive administration
-  rejects or steps up an insufficient session.
+- [ ] Deploy the additive MFA migration to staging, enroll the beta admin, and
+  prove AAL1 administration is rejected while AAL2 succeeds and is audited.
 - [ ] Complete auditable invite, role-change, disable/removal, session-revocation,
   and access-review procedures.
 - [ ] Ship and browser-verify tenant-scoped audit export, including export

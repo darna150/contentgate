@@ -162,3 +162,26 @@ test("Ask production telemetry separates environments and bounds operational dat
   assert.match(telemetrySql, /cached_input_tokens \+ cache_write_input_tokens <= input_tokens/);
   assert.match(telemetrySql, /knowledge_queries_org_environment_traffic_created_idx/);
 });
+
+test("enterprise admin MFA is an additive fail-closed authorization control", () => {
+  const mfaSql = compact(
+    readFileSync(
+      "supabase/migrations/20260731132045_enterprise_admin_mfa.sql",
+      "utf8"
+    )
+  );
+
+  assert.match(mfaSql, /add column if not exists require_admin_mfa boolean/);
+  assert.match(mfaSql, /alter column require_admin_mfa set default true/);
+  assert.match(mfaSql, /and organization\.require_admin_mfa/);
+  assert.match(mfaSql, /auth\.jwt\(\) ->> 'aal'/);
+  assert.match(mfaSql, /<> 'aal2'/);
+  assert.match(mfaSql, /then 'member'::public\.user_role/);
+  assert.match(mfaSql, /create or replace function public\.auth_admin_mfa_satisfied\(\)/);
+  assert.match(mfaSql, /revoke execute on function public\.auth_admin_mfa_satisfied\(\) from public, anon, service_role/);
+  assert.match(mfaSql, /grant execute on function public\.auth_admin_mfa_satisfied\(\) to authenticated/);
+  assert.match(mfaSql, /create or replace function public\.enable_admin_mfa_requirement\(\)/);
+  assert.match(mfaSql, /insert into public\.audit_log/);
+  assert.match(mfaSql, /'admin_mfa_required'/);
+  assert.match(mfaSql, /revoke all on function public\.enable_admin_mfa_requirement\(\) from public, anon, service_role/);
+});

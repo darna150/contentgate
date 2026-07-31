@@ -35,6 +35,13 @@
     "states": ["profile setup", "validation error", "busy submission"]
   },
   {
+    "source": "src/app/mfa/page.tsx",
+    "route": "/mfa",
+    "access": "admin",
+    "gate": "authenticated-mfa-browser",
+    "states": ["loading", "new enrollment", "existing-factor challenge", "invalid code", "verified session"]
+  },
+  {
     "source": "src/app/(app)/dashboard/page.tsx",
     "route": "/dashboard",
     "access": "member, approver, admin",
@@ -151,7 +158,7 @@
     "route": "/settings",
     "access": "admin",
     "gate": "authenticated-browser",
-    "states": ["member directory", "invite form", "invite error", "invite success", "non-admin redirect"]
+    "states": ["MFA unenforced", "MFA session verified", "MFA required", "member directory", "invite form", "invite error", "invite success", "non-admin redirect"]
   },
   {
     "source": "src/app/(app)/onboarding/page.tsx",

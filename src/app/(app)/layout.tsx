@@ -41,7 +41,7 @@ export default async function AppLayout({
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("full_name, role, org_id, organizations(name, industry)")
+    .select("full_name, role, org_id, organizations(name, industry, require_admin_mfa)")
     .eq("id", user.id)
     .single();
 
@@ -50,6 +50,12 @@ export default async function AppLayout({
   const org = Array.isArray(profile.organizations)
     ? profile.organizations[0]
     : profile.organizations;
+
+  if (profile.role === "admin" && org?.require_admin_mfa === true) {
+    const { data: assurance, error: assuranceError } =
+      await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+    if (assuranceError || assurance.currentLevel !== "aal2") redirect("/mfa");
+  }
 
   const { count } = await supabase
     .from("generated_content")
