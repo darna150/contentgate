@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 
-import { expect, test, type BrowserContext, type Page } from "@playwright/test";
+import { expect, test, type BrowserContext } from "@playwright/test";
+import { createBrowserClient } from "@supabase/ssr";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 const RUN_CAPACITY = process.env.CONTENTGATE_E2E_CAPACITY === "1";
@@ -14,6 +15,8 @@ type CapacityFixture = {
   users: Array<{ id: string; email: string }>;
 };
 
+type SessionCookie = { name: string; value: string };
+
 const ENVELOPE = {
   simultaneousLogins: boundedInteger("CONTENTGATE_CAPACITY_USERS", 5, 1, 10),
   concurrentHealthChecks: boundedInteger(
@@ -22,7 +25,7 @@ const ENVELOPE = {
     1,
     50,
   ),
-  authenticatedRoutes: ["/dashboard", "/content", "/reviews", "/ask"],
+  authenticatedRoutes: ["/dashboard", "/content", "/approvals", "/ask"],
   loginP95Ms: 15_000,
   routeP95Ms: 10_000,
   healthP95Ms: 5_000,
@@ -46,9 +49,10 @@ function percentile(values: number[], quantile: number) {
 function requireGuardedStagingTarget() {
   const projectUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!BASE_URL || !projectUrl || !serviceRoleKey) {
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!BASE_URL || !projectUrl || !serviceRoleKey || !anonKey) {
     throw new Error(
-      "Capacity QA requires CONTENTGATE_E2E_BASE_URL and the staging Supabase URL and service key.",
+      "Capacity QA requires CONTENTGATE_E2E_BASE_URL and the staging Supabase URL, anon key, and service key.",
     );
   }
   const projectRef = new URL(projectUrl).hostname.split(".")[0];
@@ -64,7 +68,7 @@ function requireGuardedStagingTarget() {
       `Enterprise capacity QA is staging Preview/local only; received app=${target.hostname}, project=${projectRef}.`,
     );
   }
-  return { projectUrl, serviceRoleKey };
+  return { projectUrl, serviceRoleKey, anonKey };
 }
 
 async function deleteFixture(fixture: CapacityFixture | null) {
@@ -138,40 +142,32 @@ async function createFixture(): Promise<CapacityFixture> {
   }
 }
 
-async function signIn(page: Page, email: string, password: string) {
+async function createSessionCookies(
+  projectUrl: string,
+  anonKey: string,
+  email: string,
+  password: string,
+) {
+  let cookieJar: SessionCookie[] = [];
+  const supabase = createBrowserClient(projectUrl, anonKey, {
+    cookies: {
+      getAll: () => cookieJar,
+      setAll: (cookies) => {
+        for (const cookie of cookies) {
+          cookieJar = cookieJar.filter((existing) => existing.name !== cookie.name);
+          if (cookie.value) {
+            cookieJar.push({ name: cookie.name, value: cookie.value });
+          }
+        }
+      },
+    },
+  });
   const startedAt = performance.now();
-  await page.goto("/login", { waitUntil: "domcontentloaded" });
-  await page.getByLabel("Work email").fill(email);
-  await page.getByLabel("Password").fill(password);
-  const authResponsePromise = page.waitForResponse(
-    (response) =>
-      response.url().includes("/auth/v1/token") &&
-      response.request().method() === "POST",
-    { timeout: 15_000 },
-  );
-  await page.getByRole("button", { name: /^(Sign in|Enter workspace)$/ }).click();
-  const authResponse = await authResponsePromise;
-  if (!authResponse.ok()) {
-    const payload = (await authResponse.json().catch(() => ({}))) as {
-      code?: unknown;
-      error_code?: unknown;
-    };
-    const code =
-      typeof payload.code === "string"
-        ? payload.code
-        : typeof payload.error_code === "string"
-          ? payload.error_code
-          : "unknown";
-    throw new Error(
-      `Supabase password sign-in returned ${authResponse.status()} (${code}).`,
-    );
+  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error) {
+    throw new Error(`Supabase password sign-in returned ${error.status} (${error.code}).`);
   }
-  await page.waitForFunction(
-    () => !window.location.pathname.startsWith("/login"),
-    undefined,
-    { timeout: 45_000 },
-  );
-  return performance.now() - startedAt;
+  return { durationMs: performance.now() - startedAt, cookies: cookieJar };
 }
 
 test.describe.serial("enterprise beta capacity @enterprise-capacity", () => {
@@ -215,6 +211,14 @@ test.describe.serial("enterprise beta capacity @enterprise-capacity", () => {
       contentType: "application/json",
       body: Buffer.from(JSON.stringify({ envelope: ENVELOPE, p95Ms, results }, null, 2)),
     });
+    console.log(
+      JSON.stringify({
+        capacity: "health",
+        concurrency: ENVELOPE.concurrentHealthChecks,
+        p95Ms,
+        statuses: [...new Set(results.map((result) => result.status))],
+      }),
+    );
 
     expect(new Set(results.map((result) => result.status))).toEqual(new Set([200]));
     expect(p95Ms).toBeLessThanOrEqual(ENVELOPE.healthP95Ms);
@@ -227,13 +231,27 @@ test.describe.serial("enterprise beta capacity @enterprise-capacity", () => {
     if (!fixture) throw new Error("Capacity fixture was not created.");
     const contexts: BrowserContext[] = [];
     try {
+      const { projectUrl, anonKey } = requireGuardedStagingTarget();
+      const authenticated = await Promise.all(
+        fixture.users.map(async (user, index) => ({
+          index,
+          ...(await createSessionCookies(
+            projectUrl,
+            anonKey,
+            user.email,
+            fixture!.password,
+          )),
+        })),
+      );
       const sessions = await Promise.all(
-        fixture.users.map(async (user, index) => {
+        authenticated.map(async (session) => {
           const context = await browser.newContext();
           contexts.push(context);
+          await context.addCookies(
+            session.cookies.map((cookie) => ({ ...cookie, url: BASE_URL })),
+          );
           const page = await context.newPage();
-          const loginMs = await signIn(page, user.email, fixture!.password);
-          return { index, page, loginMs };
+          return { index: session.index, page, loginMs: session.durationMs };
         }),
       );
 
@@ -287,6 +305,15 @@ test.describe.serial("enterprise beta capacity @enterprise-capacity", () => {
           ),
         ),
       });
+      console.log(
+        JSON.stringify({
+          capacity: "authenticated",
+          users: sessions.length,
+          routeLoads: routeResults.length,
+          loginP95Ms,
+          routeP95Ms,
+        }),
+      );
 
       expect(routeResults.every((result) => result.status >= 200 && result.status < 400)).toBe(true);
       expect(routeResults.every((result) => result.finalPath !== "/login")).toBe(true);

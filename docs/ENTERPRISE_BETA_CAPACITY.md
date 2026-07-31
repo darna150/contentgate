@@ -49,3 +49,30 @@ record the exact application SHA, Preview URL, staging project reference,
 envelope values, p95 results, status distribution, timestamp, and evidence
 owner. A passing read gate does not certify AI-provider capacity, mutation
 correctness, production capacity, or an SLA.
+
+## Candidate evidence
+
+- Evidence time: 2026-07-31T15:01Z
+- Application SHA: `2b74d931f8ae8f60eb248a6215db5b29c61b4308`
+- Preview: `https://contentgate-git-codex-enterpri-9a463e-debbies-projects-a8de6bb4.vercel.app`
+- Database: staging `bncwjibscptgijgmuhrn`
+- Evidence owner: Codex engineering task
+
+Result: **2 passed in 20.0 seconds**.
+
+| Measurement | Result | Threshold |
+|---|---:|---:|
+| Health burst | 20/20 returned 200; p95 2,312 ms | 0 errors; p95 at or below 5,000 ms |
+| Password authentication | 5/5 distinct disposable members; p95 954 ms | 0 errors; p95 at or below 15,000 ms |
+| Authenticated route waves | 20/20 loads; p95 2,388 ms | 0 errors/login bounces; p95 at or below 10,000 ms |
+
+The run found and closed a cold-page hydration race: the server-rendered login
+button was initially submittable before React attached the credential handler.
+The button now remains disabled until hydration, and a JavaScript-disabled
+Playwright contract permanently verifies that behavior. Concurrent Auth uses
+five distinct official Supabase SSR clients; their resulting cookies are then
+loaded into five isolated browser contexts for the route waves.
+
+Teardown and an independent post-run read found zero matching disposable
+organizations, profiles, and Auth users. Production was not used or mutated.
+The stateful capacity rows remain open.

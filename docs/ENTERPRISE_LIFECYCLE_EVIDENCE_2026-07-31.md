@@ -47,8 +47,8 @@ partner still needs a named human access-review owner and signed review record.
 
 ## Integrated candidate recertification
 
-- Evidence time: 2026-07-31T14:48Z
-- Application SHA: `795c860a54072626683a31a79e52ddc1ea8da840`
+- Evidence time: 2026-07-31T15:00Z
+- Application SHA: `2b74d931f8ae8f60eb248a6215db5b29c61b4308`
 - Preview: `https://contentgate-git-codex-enterpri-9a463e-debbies-projects-a8de6bb4.vercel.app`
 - Database: staging `bncwjibscptgijgmuhrn`
 - Evidence owner: Codex engineering task
@@ -63,7 +63,7 @@ journey, it proved that:
 - a restored non-admin member receives `403` from `/api/audit/export`;
 - the admin export still returns the lifecycle CSV and records `audit.exported`.
 
-Result: **1 passed in 49.9 seconds**. The exact remote `verify`, clean-migration
+Result: **1 passed in 43.8 seconds**. The exact remote `verify`, clean-migration
 `tenant-isolation`, `e2e-preview`, and Vercel checks all passed for this SHA, and
 the local repository suite passed **353 tests with 0 failures**.
 
