@@ -59,10 +59,10 @@ directory and removed after the synthetic test.
   tables produce expected informational `RLS enabled/no policy` notices because
   every browser grant is revoked and only `service_role` is allowed.
 
-The local machine did not have Docker/Podman, so clean-migration replay and the
-permanent two-tenant isolation test remain remote-CI gates for the pushed exact
-commit. This evidence must not be represented as final release certification
-until those checks pass against the remote SHA.
+The local machine did not have Docker/Podman for clean-migration replay. The
+later integrated candidate `795c860` passed the exact remote Vercel deployment,
+verify, permanent clean-migration two-tenant isolation, and Preview
+accessibility/E2E gates with these lifecycle migrations and contracts present.
 
 ## Current limitations and owner decisions
 
