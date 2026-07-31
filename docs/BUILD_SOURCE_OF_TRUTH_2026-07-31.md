@@ -38,8 +38,8 @@ existed only in the other Codex and Claude lines:
   overflow, and signed-in viewport coverage for story, A4, portrait, and poster;
 - DAM media, versioning, health, download, preview, and approval controls;
 - product campaign display and persistence, template import/preflight/publish
-  operations, document source URLs, Ask production telemetry, and client brand
-  voice;
+  operations, org-scoped generic bundle installation and asset-path repair,
+  document source URLs, Ask production telemetry, and client brand voice;
 - accessibility fixes for focus visibility, tabs, dialogs, heading hierarchy,
   contrast, route coverage, and credentialed axe/browser gates;
 - CI verification, clean migration replay plus tenant isolation, preview E2E,
@@ -71,7 +71,33 @@ match: no local-only and no staging-only versions.
 The Ask production telemetry migration is canonical at
 `20260728093230_ask_production_quality_telemetry.sql`. The competing file had
 the same SQL behavior with comment-only differences, so it was not added as a
-second migration. No database write was required during consolidation.
+second migration. No schema migration was required during consolidation.
+
+## Release data source of truth
+
+The new staging project was initially only a disposable accessibility fixture;
+it was not the environment where the Nimbus demo had been built. The established
+demo in Supabase project `egjssfcenboalijfdmsi` was therefore used as a read-only
+reference for release data. That source remains unchanged.
+
+The preview/staging project is `bncwjibscptgijgmuhrn`. Its release-facing state
+is now:
+
+- workspace `ContentGate Demo`;
+- product `Nimbus 1`;
+- active campaign and template family `Nimbus Air Campaign`;
+- published template version `figma-full-v7`, with 42 variants and 217
+  canonical org-scoped template assets;
+- five approved Nimbus product/background assets, four approved fictional
+  sources, and seven source-linked approved claims;
+- the existing credentialed fixture IDs retained so CI and reviewer links stay
+  stable.
+
+The disposable Accessibility QA template family/version was retired. Its 58
+visible test outputs were migrated to the Nimbus version and campaign with no
+Accessibility QA or Aerform labels remaining. Their immutable audit history was
+preserved rather than bypassing the database history guard. No Aerform family,
+assignment, or campaign exists in the release-facing staging state.
 
 ## Certification evidence
 
@@ -86,6 +112,11 @@ Local candidate gates completed on July 31, 2026:
 - `npm audit --omit=dev --audit-level=high` — zero production vulnerabilities
 - React quality review — no new blocking waterfall, cleanup, hook, image, or
   hydration finding; raw preview images remain intentional pixel-exact canvases
+- credentialed Nimbus generation/edit journey — pass against the exact Preview
+- credentialed data-backed route, axe, mobile reflow, and touch-target gate —
+  pass locally against the corrected Nimbus staging data
+- Studio viewport matrix — pass at 1366×768, 1280×800, and 1440×900 with
+  measured scales of 50.0%, 50.0%, and 58.4%
 
 Staging’s migration ledger is synchronized. Supabase advisors currently report
 no `ERROR` findings, plus pre-existing warnings for eight authenticated

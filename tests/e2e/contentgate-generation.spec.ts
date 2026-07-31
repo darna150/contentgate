@@ -140,7 +140,9 @@ async function openNimbusTemplate(page: Page) {
     await page.goto(`${page.url().split("?")[0]}?view=templates`);
   }
 
-  await expect(page.getByText(TEMPLATE_NAME)).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: TEMPLATE_NAME, exact: true })
+  ).toBeVisible();
 }
 
 async function generateNimbusDraft(page: Page) {

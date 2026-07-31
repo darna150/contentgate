@@ -1264,7 +1264,16 @@ export function StudioWorkspace({
         className="flex min-h-0 flex-1 flex-col-reverse overflow-visible md:grid md:overflow-hidden"
         style={{ gridTemplateColumns: "minmax(340px, 400px) minmax(0, 1fr)" }}
       >
-        <aside className="flex min-h-0 flex-col gap-6 overflow-visible border-r border-edge bg-surface px-4 py-6 md:overflow-y-auto md:px-8">
+        <aside
+          aria-label="Studio controls and review details"
+          className="flex min-h-0 flex-col gap-6 overflow-visible border-r border-edge bg-surface px-4 py-6 md:overflow-y-auto md:px-8"
+        >
+          <a
+            href="#studio-preview-stage"
+            className="sr-only focus:not-sr-only focus:rounded-[8px] focus:px-3 focus:py-2 focus:text-[13px] focus:font-semibold focus:text-brand focus:ring-2 focus:ring-brand"
+          >
+            Skip to template preview
+          </a>
           <div className="flex flex-col gap-3">
             <span className="text-label text-ink-faint">Product and campaign</span>
             <select
@@ -1484,7 +1493,10 @@ export function StudioWorkspace({
           )}
         </aside>
 
-        <section className="flex min-h-[52dvh] min-w-0 flex-col bg-[#f5f5f2] md:min-h-0">
+        <section
+          id="studio-preview-stage"
+          className="flex min-h-[52dvh] min-w-0 flex-col bg-[#f5f5f2] md:min-h-0"
+        >
           <StudioToolbar
             sizes={sizes}
             activeSize={size}
