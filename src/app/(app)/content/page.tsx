@@ -22,45 +22,37 @@ const FILTERS = [
 
 const LANGUAGES = ["English", "Filipino", "Spanish", "Portuguese", "Vietnamese", "Thai"];
 
-/** Shared by the header row and every data row so they cannot drift apart. */
-const COLUMNS = "2.4fr 0.9fr 1.3fr 1fr 0.8fr";
-
 /**
- * Supporting detail for a row, or null when there is nothing worth a second
- * line.
+ * Shared by the header row and every data row so they cannot drift apart.
  *
- * Template names are composed of dot-separated parts that in practice restate
- * the campaign and the format — e.g. "Nimbus Air Campaign · Instagram post
- * (square)" under a "Nimbus 1 · Nimbus Air Campaign" heading, next to an
- * "Instagram Post Square" label. Printing that whole string made every row in a
- * campaign look identical. Parts that are already on screen are dropped and
- * only genuinely new ones survive, so a template that really does distinguish
- * two rows still shows.
- *
- * Audience is the attribute that most often separates two pieces built from the
- * same template, so it leads when it is set.
+ * Every track is minmax(0, …) rather than a bare fr. Each row is its own grid
+ * container, and a bare fr track keeps an automatic min-content floor — so a
+ * row holding a wide status pill ("Changes requested") sized its columns
+ * differently from its neighbours and the table visibly failed to line up.
+ * A zero minimum makes every row resolve to identical widths.
  */
-/** The row's identity within its campaign group. */
+const COLUMNS =
+  "minmax(0,2.3fr) minmax(0,1.6fr) minmax(0,0.8fr) minmax(0,1.4fr) minmax(0,0.45fr) minmax(0,1fr) minmax(0,0.7fr)";
+
+/** Campaign identity comes from the campaign field, never parsed out of a title. */
+const UNGROUPED = "Unassigned campaign";
+
+function campaignOf(row: FlattenedContentRow) {
+  return row.campaignName?.trim() || UNGROUPED;
+}
+
 function formatOf(row: FlattenedContentRow) {
   return row.sizeKey ? sizeLabel(row.sizeKey) : "Custom size";
 }
 
-function secondaryLine(row: FlattenedContentRow, campaign: string, format: string) {
-  if (row.audience?.trim()) return row.audience.trim();
-
-  // Compared without case or punctuation so "Instagram post (square)" matches
-  // the "Instagram Post Square" label rendered above it.
-  const key = (part: string) => part.toLowerCase().replace(/[^a-z0-9]/g, "");
-
-  const shown = new Set(
-    [...campaign.split("·"), format].map(key).filter(Boolean)
-  );
-  const remaining = (row.templateName ?? "")
-    .split("·")
-    .map((part) => part.trim())
-    .filter((part) => part && !shown.has(key(part)));
-
-  return remaining.length ? remaining.join(" · ") : null;
+/**
+ * Supporting detail under the title, or null when there is nothing to add.
+ * Campaign, format, language and revision all have their own place now, so the
+ * only thing left worth a second line is the audience the piece was written
+ * for — which is often what separates two pieces built from one template.
+ */
+function secondaryLine(row: FlattenedContentRow) {
+  return row.audience?.trim() || null;
 }
 
 function formatDate(iso: string) {
@@ -115,11 +107,14 @@ export default async function ContentPage({
   );
   if (activeSize !== "all") sizeKeysOnPage.add(activeSize);
   const sizeOptions = Array.from(sizeKeysOnPage);
+  // Grouped on the campaign the row actually belongs to. Titles are content
+  // identity and are never parsed for campaign membership.
   const campaigns = new Map<string, FlattenedContentRow[]>();
   for (const row of rows) {
-    const group = campaigns.get(row.title) ?? [];
+    const key = campaignOf(row);
+    const group = campaigns.get(key) ?? [];
     group.push(row);
-    campaigns.set(row.title, group);
+    campaigns.set(key, group);
   }
 
   function buildHref(overrides: {
@@ -177,20 +172,20 @@ export default async function ContentPage({
         />
       ) : (
         <Card className="gap-1 p-3">
-          {/* Desktop: 5-column grid table.
-              Rows sit under a campaign heading, so repeating the campaign name
-              on every row told a reviewer nothing and pushed the one attribute
-              that does distinguish two rows — the format — into a column too
-              narrow to read. The format leads the row instead, and the former
-              separate Size column is folded into it. */}
+          {/* Desktop: 7-column grid table. Rows are grouped under the campaign
+              they belong to, and carry their own title, format and revision so
+              a reviewer can tell two pieces apart and see exactly which
+              revision an approval would apply to. */}
           <div className="hidden md:flex md:flex-col">
             <div
               className="grid gap-3 border-b border-edge px-3.5 pb-2"
               style={{ gridTemplateColumns: COLUMNS }}
             >
+              <span className="text-label text-ink-faint">Title</span>
               <span className="text-label text-ink-faint">Format</span>
               <span className="text-label text-ink-faint">Language</span>
               <span className="text-label text-ink-faint">Status</span>
+              <span className="text-label text-ink-faint">Rev</span>
               <span className="text-label text-ink-faint">Owner</span>
               <span className="text-label text-ink-faint">Updated</span>
             </div>
@@ -199,7 +194,7 @@ export default async function ContentPage({
                 <div className="flex flex-wrap items-baseline gap-x-2 bg-page/70 px-3.5 py-2">
                   <span className="text-[12px] font-bold text-ink">{campaign}</span>
                   <span className="text-[11.5px] text-ink-faint">
-                    {campaignRows.length} {campaignRows.length === 1 ? "format" : "formats"}
+                    {campaignRows.length} {campaignRows.length === 1 ? "piece" : "pieces"}
                   </span>
                 </div>
                 {campaignRows.map((row) => (
@@ -210,18 +205,20 @@ export default async function ContentPage({
                 style={{ gridTemplateColumns: COLUMNS }}
               >
                 <span className="flex min-w-0 flex-col">
-                  <span className="truncate text-[13.5px] font-semibold">
-                    {formatOf(row)}
-                  </span>
-                  {secondaryLine(row, campaign, formatOf(row)) && (
+                  <span className="truncate text-[13.5px] font-semibold">{row.title}</span>
+                  {secondaryLine(row) && (
                     <span className="truncate text-[11.5px] text-ink-faint">
-                      {secondaryLine(row, campaign, formatOf(row))}
+                      {secondaryLine(row)}
                     </span>
                   )}
                 </span>
+                <span className="truncate text-[12.5px] text-ink-muted">{formatOf(row)}</span>
                 <span className="truncate text-[12.5px] text-ink-muted">{row.targetLanguage}</span>
                 <span>
                   <StatusPill status={row.status} />
+                </span>
+                <span className="truncate text-[12.5px] tabular-nums text-ink-muted">
+                  <span className="sr-only">Revision </span>r{row.revisionNumber}
                 </span>
                 <span className="truncate text-[12.5px] text-ink-muted">
                   {row.creatorName ?? "—"}
@@ -242,7 +239,7 @@ export default async function ContentPage({
                 <p className="px-3.5 pb-1 pt-2 text-[12px] font-bold text-ink">
                   {campaign}
                   <span className="ml-2 text-[11px] font-normal text-ink-faint">
-                    {campaignRows.length} {campaignRows.length === 1 ? "format" : "formats"}
+                    {campaignRows.length} {campaignRows.length === 1 ? "piece" : "pieces"}
                   </span>
                 </p>
                 {campaignRows.map((row) => (
@@ -251,19 +248,16 @@ export default async function ContentPage({
                 href={studioContentUrl(row.id, row.sizeKey ?? undefined, contentReturnTo)}
                 className="flex flex-col gap-1.5 rounded-control px-3.5 py-3 transition-colors hover:bg-page"
               >
-                {/* Same reasoning as the desktop table: the campaign already
-                    heads the group, so the card leads with the format. */}
-                <span className="truncate text-[13.5px] font-semibold">
-                  {formatOf(row)}
-                </span>
+                <span className="truncate text-[13.5px] font-semibold">{row.title}</span>
                 <span className="truncate text-[11.5px] text-ink-faint">
-                  {[secondaryLine(row, campaign, formatOf(row)), row.targetLanguage]
+                  {[secondaryLine(row), formatOf(row), row.targetLanguage]
                     .filter(Boolean)
                     .join(" · ")}
                 </span>
-                <span className="flex items-center gap-2">
+                <span className="flex flex-wrap items-center gap-2">
                   <StatusPill status={row.status} />
                   <span className="text-[11.5px] text-ink-faint">
+                    <span className="sr-only">Revision </span>r{row.revisionNumber} ·{" "}
                     {row.creatorName ?? "—"} · {formatDate(row.updatedAt ?? row.createdAt)}
                   </span>
                 </span>
