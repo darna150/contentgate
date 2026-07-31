@@ -128,6 +128,7 @@ function PreviewStage({
       {overlay}
       <div
         ref={viewportRef}
+        data-testid="studio-preview-viewport"
         className={cn("h-full w-full", overflows ? "overflow-auto" : "overflow-hidden")}
       >
         <div className="flex min-h-full w-max min-w-full items-center justify-center p-4">
@@ -297,6 +298,8 @@ export function ServerPreviewFrame({
           alt="Generated template preview"
           className="block rounded-[3px] shadow-elevated"
           onError={() => setFailedSrc(displaySrc)}
+          data-testid="studio-preview-canvas"
+          data-preview-scale={scale}
           style={{
             width: Math.round(width * scale),
             height: Math.round(height * scale),
@@ -330,6 +333,8 @@ export function MissingDraftFrame({
     <PreviewStage viewportRef={viewportRef} overflows={overflows}>
       <div
         className="flex flex-col items-center justify-center rounded-[3px] border border-dashed border-edge-strong bg-surface px-6 py-8 text-center shadow-sm"
+        data-testid="studio-preview-canvas"
+        data-preview-scale={scale}
         style={{
           width: Math.round(width * scale),
           height: Math.round(height * scale),
@@ -492,6 +497,8 @@ export function LiveTemplatePreviewFrame({
     >
       <div
         className="rounded-[3px] shadow-elevated"
+        data-testid="studio-preview-canvas"
+        data-preview-scale={scale}
         style={{
           width: Math.round(width * scale),
           height: Math.round(height * scale),
