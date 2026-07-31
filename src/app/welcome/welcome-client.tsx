@@ -15,6 +15,12 @@ type Phase =
 
 type PasswordFlow = "invite" | "recovery";
 
+function invalidLinkMessage(flow: PasswordFlow) {
+  return flow === "invite"
+    ? "This invite link is invalid or has expired. Ask your workspace admin to send a new one."
+    : "This password reset link is invalid or has expired. Request a new one from the sign-in page.";
+}
+
 // Invite links can arrive as a PKCE `?code=` or as implicit-flow tokens in
 // the URL hash depending on how Supabase verified the email link, so both
 // are handled explicitly instead of relying on auto-detection.
@@ -53,15 +59,11 @@ export function PasswordSetupClient({ flow }: { flow: PasswordFlow }) {
       const url = new URL(window.location.href);
       const hashParams = new URLSearchParams(url.hash.replace(/^#/, ""));
       if (url.searchParams.get("error") === "invalid") {
-        return {
-          error: flow === "invite"
-            ? "This invite link is invalid or has expired. Ask your workspace admin to send a new one."
-            : "This password reset link is invalid or has expired. Request a new one from the sign-in page.",
-        };
+        return { error: invalidLinkMessage(flow) };
       }
       const failure =
         hashParams.get("error_description") ?? url.searchParams.get("error_description");
-      if (failure) return { error: failure };
+      if (failure) return { error: invalidLinkMessage(flow) };
 
       const accessToken = hashParams.get("access_token");
       const refreshToken = hashParams.get("refresh_token");
@@ -70,13 +72,13 @@ export function PasswordSetupClient({ flow }: { flow: PasswordFlow }) {
           access_token: accessToken,
           refresh_token: refreshToken,
         });
-        if (error) return { error: error.message };
+        if (error) return { error: invalidLinkMessage(flow) };
         window.history.replaceState(null, "", url.pathname);
       } else if (url.searchParams.get("code")) {
         const { error } = await supabase.auth.exchangeCodeForSession(
           window.location.href
         );
-        if (error) return { error: error.message };
+        if (error) return { error: invalidLinkMessage(flow) };
         window.history.replaceState(null, "", url.pathname);
       }
 
@@ -84,23 +86,28 @@ export function PasswordSetupClient({ flow }: { flow: PasswordFlow }) {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) {
-        return {
-          error: flow === "invite"
-            ? "This invite link is invalid or has expired. Ask your workspace admin to send a new one."
-            : "This password reset link is invalid or has expired. Request a new one from the sign-in page.",
-        };
+        return { error: invalidLinkMessage(flow) };
       }
       return { email: user.email ?? null };
     }
 
-    establishSession().then((result) => {
-      if (cancelled) return;
-      if ("error" in result) {
-        setPhase({ kind: "invalid", message: result.error });
-      } else {
-        setPhase({ kind: "ready", email: result.email });
-      }
-    });
+    establishSession()
+      .then((result) => {
+        if (cancelled) return;
+        if ("error" in result) {
+          setPhase({ kind: "invalid", message: result.error });
+        } else {
+          setPhase({ kind: "ready", email: result.email });
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setPhase({
+            kind: "invalid",
+            message: "We could not verify this link. Check your connection and try opening it again.",
+          });
+        }
+      });
 
     return () => {
       cancelled = true;
@@ -125,7 +132,9 @@ export function PasswordSetupClient({ flow }: { flow: PasswordFlow }) {
       const supabase = createClient();
       const { error } = await supabase.auth.updateUser({ password });
       if (error) {
-        setFormError(error.message);
+        setFormError(
+          "We could not update your password. Request a new link and try again."
+        );
         setPhase({ kind: "ready", email: phase.email });
         return;
       }
@@ -161,7 +170,7 @@ export function PasswordSetupClient({ flow }: { flow: PasswordFlow }) {
 
   if (phase.kind === "invalid") {
     return (
-      <p className="rounded-control border border-reject-border bg-reject-tint px-3.5 py-3 text-[13px] text-reject">
+      <p role="alert" className="rounded-control border border-reject-border bg-reject-tint px-3.5 py-3 text-[13px] text-reject">
         {phase.message}
       </p>
     );
@@ -193,7 +202,10 @@ export function PasswordSetupClient({ flow }: { flow: PasswordFlow }) {
           required
           minLength={8}
           value={password}
-          onChange={(e) => setPassword(e.target.value)}
+          onChange={(e) => {
+            setPassword(e.target.value);
+            if (invalidField === "password") setInvalidField(null);
+          }}
           placeholder="At least 8 characters"
           autoComplete="new-password"
           aria-invalid={invalidField === "password" || undefined}
@@ -214,7 +226,10 @@ export function PasswordSetupClient({ flow }: { flow: PasswordFlow }) {
           type="password"
           required
           value={confirm}
-          onChange={(e) => setConfirm(e.target.value)}
+          onChange={(e) => {
+            setConfirm(e.target.value);
+            if (invalidField === "confirm") setInvalidField(null);
+          }}
           placeholder="••••••••"
           autoComplete="new-password"
           aria-invalid={invalidField === "confirm" || undefined}

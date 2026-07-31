@@ -91,6 +91,12 @@ After applying the six migrations:
 - run tenant isolation and onboarding contract tests;
 - keep `CONTENTGATE_ALLOW_PRODUCTION_ONBOARDING` disabled.
 
+Local development is also fail-closed. `npm run dev` permits an env-free
+preview, local Supabase in `development`, or a remote `development`/`staging`
+project whose URL matches `CONTENTGATE_SUPABASE_PROJECT_REF`. It refuses
+production and unknown configured targets by default. Do not persist or use the
+production dev override during release certification.
+
 Historical ledger convergence is separate maintenance. Do not rewrite old
 migration files or repair dozens of production ledger entries during launch.
 
