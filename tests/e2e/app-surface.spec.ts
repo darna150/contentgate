@@ -72,7 +72,11 @@ const ACCESSIBILITY_SURFACES: Surface[] = [
   { name: "Approvals", path: "/approvals", expectedText: /Reviews|The queue is clear/i },
   { name: "Assets", path: "/assets", expectedText: /Assets/i },
   { name: "Ask notebook", path: "/ask", expectedText: /Ask notebook|All sources/i },
-  { name: "Ask quality", path: "/ask/quality", expectedText: /Evidence and feedback review/i },
+  {
+    name: "Ask quality",
+    path: "/ask/quality",
+    expectedText: /Production evidence and reliability/i,
+  },
   { name: "Source documents", path: "/knowledge", expectedText: /Brand knowledge|Sources/i },
   {
     name: "New source document",
@@ -340,14 +344,18 @@ async function evaluateWithNavigationRetry<T>(page: Page, evaluate: () => T) {
     try {
       return await page.evaluate(evaluate);
     } catch (error) {
+      const navigationRace =
+        error instanceof Error &&
+        (error.message.includes("Execution context was destroyed") ||
+          error.message.includes("Cannot read properties of null"));
       if (
         attempt === 2 ||
-        !(error instanceof Error) ||
-        !error.message.includes("Execution context was destroyed")
+        !navigationRace
       ) {
         throw error;
       }
       await page.waitForLoadState("domcontentloaded");
+      await page.locator("html").waitFor({ state: "attached" });
     }
   }
   throw new Error("Could not evaluate the settled page state.");

@@ -49,7 +49,7 @@ function PreviewZoomControl({
   const activeIndex = PREVIEW_ZOOM_OPTIONS.findIndex((option) => option.value === zoom);
 
   return (
-    <div className="flex shrink-0 flex-col gap-1">
+    <div className="flex min-w-0 shrink-0 flex-col gap-1">
       <span
         id="studio-preview-zoom-label"
         className="text-[10px] font-bold uppercase tracking-[0.1em] text-ink-faint"
@@ -89,7 +89,7 @@ function PreviewZoomControl({
                 optionRefs.current[next]?.focus();
               }}
               className={cn(
-                "rounded-[7px] px-3 py-2 text-[12.5px] font-bold transition-colors",
+                "min-h-11 min-w-11 rounded-[7px] px-3 py-2 text-[12.5px] font-bold transition-colors",
                 selected ? "bg-surface text-ink shadow-sm" : "text-ink-faint"
               )}
             >
@@ -130,14 +130,14 @@ export function StudioToolbar({
     return groups;
   }, {});
   return (
-    <div className="flex min-h-[64px] items-center justify-between gap-4 border-b border-edge bg-surface px-6 py-3">
-      <div className="flex min-w-0 flex-col gap-1">
+    <div className="flex flex-wrap items-end justify-between gap-3 border-b border-edge bg-surface px-4 py-3 md:min-h-[64px] md:flex-nowrap md:items-center md:gap-4 md:px-6">
+      <div className="flex w-full min-w-0 flex-col gap-1 md:w-auto">
         <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-ink-faint">
           Formats
         </span>
         <Select value={activeSize} onValueChange={onSelectSize} disabled={disabled}>
           <SelectTrigger
-            className="h-10 w-[340px] max-w-[52vw] rounded-[8px] border-edge-strong text-[13px] font-bold"
+            className="h-11 w-full rounded-[8px] border-edge-strong text-[13px] font-bold md:w-[340px] md:max-w-[52vw]"
             aria-label="Size and format"
           >
             <SelectValue />
@@ -155,36 +155,36 @@ export function StudioToolbar({
           </SelectContent>
         </Select>
       </div>
-      <div className="flex shrink-0 items-center gap-4">
-      {zoom && onZoomChange && (
-        <PreviewZoomControl zoom={zoom} onZoomChange={onZoomChange} disabled={disabled} />
-      )}
-      {viewToggle && (
-        <div className="flex shrink-0 items-center gap-1 rounded-[8px] bg-page p-1">
-          <button
-            type="button"
-            onClick={() => viewToggle.onShowOriginalChange(false)}
-            disabled={disabled}
-            className={cn(
-              "rounded-[7px] px-3.5 py-2 text-[12.5px] font-bold transition-colors",
-              !viewToggle.showOriginal ? "bg-surface text-ink shadow-sm" : "text-ink-faint"
-            )}
-          >
-            Working preview
-          </button>
-          <button
-            type="button"
-            onClick={() => viewToggle.onShowOriginalChange(true)}
-            disabled={disabled}
-            className={cn(
-              "rounded-[7px] px-3.5 py-2 text-[12.5px] font-bold transition-colors",
-              viewToggle.showOriginal ? "bg-surface text-ink shadow-sm" : "text-ink-faint"
-            )}
-          >
-            Original design
-          </button>
-        </div>
-      )}
+      <div className="flex w-full min-w-0 flex-wrap items-end gap-3 md:w-auto md:shrink-0 md:flex-nowrap md:items-center md:gap-4">
+        {zoom && onZoomChange && (
+          <PreviewZoomControl zoom={zoom} onZoomChange={onZoomChange} disabled={disabled} />
+        )}
+        {viewToggle && (
+          <div className="flex max-w-full shrink-0 items-center gap-1 rounded-[8px] bg-page p-1">
+            <button
+              type="button"
+              onClick={() => viewToggle.onShowOriginalChange(false)}
+              disabled={disabled}
+              className={cn(
+                "min-h-11 rounded-[7px] px-3.5 py-2 text-[12.5px] font-bold transition-colors",
+                !viewToggle.showOriginal ? "bg-surface text-ink shadow-sm" : "text-ink-faint"
+              )}
+            >
+              Working preview
+            </button>
+            <button
+              type="button"
+              onClick={() => viewToggle.onShowOriginalChange(true)}
+              disabled={disabled}
+              className={cn(
+                "min-h-11 rounded-[7px] px-3.5 py-2 text-[12.5px] font-bold transition-colors",
+                viewToggle.showOriginal ? "bg-surface text-ink shadow-sm" : "text-ink-faint"
+              )}
+            >
+              Original design
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

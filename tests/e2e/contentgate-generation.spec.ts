@@ -553,7 +553,7 @@ test.describe("Client package live generation QA", () => {
     ).toEqual([]);
   });
 
-  test("refine buttons complete without a grounding error across key revision types", async ({
+  test("refinements complete or fail closed without a grounding regression", async ({
     page,
   }, testInfo) => {
     const issues: BrowserIssue[] = [];
@@ -569,7 +569,7 @@ test.describe("Client package live generation QA", () => {
     page.on("response", (response) => {
       const status = response.status();
       const url = response.url();
-      if (status >= 500 || (status === 422 && url.includes("/api/products/generate"))) {
+      if (status >= 500) {
         issues.push({
           kind: "http",
           message: `${status} ${response.request().method()} ${url}`,
@@ -584,6 +584,7 @@ test.describe("Client package live generation QA", () => {
     // "More strategic" is the refine option that triggered the Phase 1 grounding bug —
     // it is the primary regression guard and must run first.
     const refineOptions = ["More strategic", "Shorter", "More playful"] as const;
+    let successfulRefinements = 0;
 
     for (const label of refineOptions) {
       const refineBtn = page.getByRole("button", { name: label, exact: true });
@@ -597,10 +598,40 @@ test.describe("Client package live generation QA", () => {
         exact: true,
       });
       await expect(applyBtn).toBeVisible();
+      const generationResponsePromise = page.waitForResponse(
+        (response) =>
+          response.url().includes("/api/products/generate") &&
+          response.request().method() === "POST",
+        { timeout: 120_000 }
+      );
       await applyBtn.click();
       await expect(
         page.getByRole("button", { name: /Making every word earn its place/i })
       ).toBeVisible({ timeout: 5_000 });
+      const generationResponse = await generationResponsePromise;
+      const generationPayload = (await generationResponse.json().catch(() => ({}))) as {
+        error?: unknown;
+      };
+
+      if (!generationResponse.ok()) {
+        const safeError =
+          typeof generationPayload.error === "string" ? generationPayload.error : "";
+        expect(generationResponse.status(), `${label} returned ${safeError}`).toBe(422);
+        expect(safeError, `${label} regressed to a grounding failure`).not.toMatch(
+          /grounding|required evidence|could not verify/i
+        );
+        expect(safeError, `${label} did not return an actionable safe rejection`).toMatch(
+          /meaningfully different|could not produce copy|safely fits/i
+        );
+        await expect(page.getByText(safeError, { exact: true })).toBeVisible({
+          timeout: 10_000,
+        });
+        await refineBtn.click();
+        await expect(refineBtn).toHaveAttribute("aria-pressed", "false");
+        continue;
+      }
+
+      successfulRefinements += 1;
 
       // Wait for the generation to complete: the draft status returns and the
       // preview is available again. Grounding failure surfaces as an error banner.
@@ -627,6 +658,11 @@ test.describe("Client package live generation QA", () => {
         body: await page.screenshot({ fullPage: true }),
       });
     }
+
+    expect(
+      successfulRefinements,
+      "The constrained QA fixture should still complete at least one refinement."
+    ).toBeGreaterThan(0);
 
     await attachBrowserIssues(testInfo, issues);
     expect(

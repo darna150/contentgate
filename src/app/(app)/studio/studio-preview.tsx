@@ -129,6 +129,9 @@ function PreviewStage({
       <div
         ref={viewportRef}
         data-testid="studio-preview-viewport"
+        role={overflows ? "region" : undefined}
+        aria-label={overflows ? "Scrollable template preview" : undefined}
+        tabIndex={overflows ? 0 : undefined}
         className={cn("h-full w-full", overflows ? "overflow-auto" : "overflow-hidden")}
       >
         <div className="flex min-h-full w-max min-w-full items-center justify-center p-4">
