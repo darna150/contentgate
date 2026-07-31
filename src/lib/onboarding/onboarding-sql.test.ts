@@ -23,7 +23,7 @@ const campaignIndexSql = readFileSync(
   "utf8",
 );
 const disposableCleanupSql = readFileSync(
-  new URL("../../../supabase/migrations/20260731133500_dispose_completed_staging_onboarding.sql", import.meta.url),
+  new URL("../../../supabase/migrations/20260731052439_dispose_completed_staging_onboarding.sql", import.meta.url),
   "utf8",
 );
 

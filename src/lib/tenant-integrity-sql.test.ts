@@ -151,7 +151,7 @@ test("Ask polish migration bounds operational metadata and feedback reasons", ()
 test("Ask production telemetry separates environments and bounds operational data", () => {
   const telemetrySql = compact(
     readFileSync(
-      "supabase/migrations/20260728092002_ask_production_quality_telemetry.sql",
+      "supabase/migrations/20260728093230_ask_production_quality_telemetry.sql",
       "utf8"
     )
   );
