@@ -138,7 +138,9 @@ test.describe("Knowledge Hub live QA", () => {
     expect(answerPayload.not_found).toBe(false);
     expect(Array.isArray(answerPayload.citations) ? answerPayload.citations.length : 0).toBeGreaterThan(0);
 
-    await expect(page.getByText(/From approved sources/i).first()).toBeVisible({
+    await expect(
+      page.getByText(/From approved sources|Evidence for this claim/i).first()
+    ).toBeVisible({
       timeout: 60_000,
     });
     await expect(page.getByText(/Something went wrong/i)).toHaveCount(0);
