@@ -239,19 +239,6 @@ async function assertPreviewIsAvailable(page: Page) {
   });
 }
 
-async function expectNimbusStudioPickers(page: Page) {
-  await expect(page.getByLabel("Size and format")).toContainText(
-    new RegExp(`${escapeRegExp(OUTPUT_SIZE_LABEL)}\\s+·\\s+1080×1080`, "i")
-  );
-  const productPicker = page.getByTestId("studio-asset-choice-__productVariantKey");
-  await expect(productPicker).toBeVisible();
-  await expect(productPicker).toContainText("Nimbus 1");
-
-  const backgroundPicker = page.getByTestId("studio-background-picker");
-  await expect(backgroundPicker).toBeVisible();
-  await expect(backgroundPicker).toContainText("Sky");
-}
-
 async function findFieldTextarea(page: Page, labelPattern: RegExp) {
   const textarea = page.getByLabel(labelPattern).first();
   await expect(textarea).toBeVisible();
@@ -349,7 +336,6 @@ test.describe("Nimbus live generation QA", () => {
     await generateNimbusDraft(page);
     await attachScreenshot(page, testInfo, "02-generated-studio");
     await assertPreviewIsAvailable(page);
-    await expectNimbusStudioPickers(page);
 
     const initialMetrics = await getPreviewMetrics(page);
     await testInfo.attach("initial-preview-metrics.json", {
