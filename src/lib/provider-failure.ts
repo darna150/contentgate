@@ -8,12 +8,25 @@ export type IncidentDeliveryOutcome = "delivered" | "unconfigured" | "failed";
 
 type FailureInjectionEnvironment = {
   CONTENTGATE_ENVIRONMENT?: string;
+  CONTENTGATE_SUPABASE_PROJECT_REF?: string;
+  NEXT_PUBLIC_SUPABASE_URL?: string;
   VERCEL_ENV?: string;
   NODE_ENV?: string;
 };
 
+const STAGING_PROJECT_REF = "bncwjibscptgijgmuhrn";
 const SYNTHETIC_PROVIDER_FAILURE_EMAIL =
   /^enterprise-provider-failure-[a-f0-9]{8}@contentgate\.example$/iu;
+
+function environmentProjectRef(environment: FailureInjectionEnvironment) {
+  const configured = environment.CONTENTGATE_SUPABASE_PROJECT_REF?.trim();
+  if (configured) return configured;
+  try {
+    return new URL(environment.NEXT_PUBLIC_SUPABASE_URL ?? "").hostname.split(".")[0];
+  } catch {
+    return "";
+  }
+}
 
 export function isSyntheticProviderFailureRequest(
   request: Request,
@@ -22,6 +35,7 @@ export function isSyntheticProviderFailureRequest(
 ) {
   const safeEnvironment =
     environment.CONTENTGATE_ENVIRONMENT === "staging" &&
+    environmentProjectRef(environment) === STAGING_PROJECT_REF &&
     (environment.VERCEL_ENV === "preview" ||
       ["development", "test"].includes(environment.NODE_ENV ?? ""));
   return (

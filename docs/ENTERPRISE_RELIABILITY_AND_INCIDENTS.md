@@ -95,6 +95,38 @@ or an external monitor polling `/api/health` at five-minute intervals with its
 own routed alert. Preview deployments validate the route, but Vercel cron
 executes only on production.
 
+## Provider-dependency failure evidence
+
+Ask and content generation use bounded provider attempts. Exhaustion returns a
+safe `502` or `503` response with `Retry-After`, records structured operational
+evidence, and attempts the same bounded authenticated incident route. Responses
+do not expose provider errors, prompts, source material, credentials, or user
+identifiers. The validation-only failure injector is fail-closed to all of the
+following at once:
+
+- the known staging Supabase project;
+- a Vercel Preview or local development/test runtime;
+- the exact `provider-failure` validation header; and
+- an ephemeral email identity matching the synthetic QA namespace.
+
+It cannot activate in production, for a normal user, or from the header alone.
+
+On 2026-07-31, application SHA
+`76d5fa58197c384fd78ec117f02b152530672e43` passed the guarded Preview gate:
+
+- Ask made two attempts, returned safe `502` plus retry guidance, wrote one
+  synthetic `provider_error` query with no citations, and created no content;
+- generation made four attempts and returned safe `503` plus retry guidance;
+- both routes attempted incident delivery and recorded
+  `provider.incident_unconfigured` against the exact deployment SHA; and
+- the subsequent happy-path capacity regression passed, proving the failure
+  controls did not break normal Ask or generation.
+
+`provider.incident_unconfigured` is intentionally a failing operational result,
+not proof of alert delivery. Engineering has therefore proven safe degradation
+and visible routing failure; a real destination, token, named owner, and human
+acknowledgement remain required before beta access.
+
 ## Severity and response
 
 | Severity | Trigger | Acknowledge target | First action |

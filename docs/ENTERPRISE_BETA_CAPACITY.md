@@ -97,23 +97,24 @@ loaded into five isolated browser contexts for the route waves.
 Teardown and an independent post-run read found zero matching disposable
 organizations, profiles, and Auth users. Production was not used or mutated.
 
-## Stateful candidate evidence
+## Latest stateful candidate evidence
 
-- Evidence time: 2026-07-31T15:41Z
-- Application SHA: `4f01b553e62bbf0a88ccb3752e1454c7d32880cc`
+- Evidence time: 2026-07-31T16:04Z
+- Application SHA: `76d5fa58197c384fd78ec117f02b152530672e43`
 - Preview: `https://contentgate-git-codex-enterpri-9a463e-debbies-projects-a8de6bb4.vercel.app`
 - Database: staging `bncwjibscptgijgmuhrn`
 - Evidence owner: Codex engineering task
 
-Result: **1 passed in 1.8 minutes**.
+Result: **1 passed in 1.7 minutes**, immediately after the controlled provider
+failure gate on the same deployment.
 
 | Measurement | Result | Threshold |
 |---|---:|---:|
-| Asset upload and processing | 2/2 approved; both jobs completed on attempt 1; p95 14,517 ms | No corrupt, cross-tenant, or incomplete asset |
-| Grounded Ask | 2/2 returned 200 with one verified citation each; p95 12,376 ms | 0 5xx; safe evidence; p95 at or below 15,000 ms |
-| Generation | 2/2 returned 200 on attempt 1; p95 7,485 ms; both created complete revisioned drafts | 0 5xx or corrupt draft; bounded retries |
+| Asset upload and processing | 2/2 approved; both jobs completed on attempt 1; p95 13,271 ms | No corrupt, cross-tenant, or incomplete asset |
+| Grounded Ask | 2/2 returned 200 with two verified citations each; p95 13,148 ms | 0 5xx; safe evidence; p95 at or below 15,000 ms |
+| Generation | 2/2 returned 200 on attempt 1; p95 6,668 ms; both created complete revisioned drafts | 0 5xx or corrupt draft; bounded retries |
 | Review workflow | Both submissions and approvals recorded once at revision 2 | No lost or duplicate transition; exact revision |
-| Approved export | 3/3 returned 200; p95 11,690 ms; each was a valid 637,035-byte 1080×1080 PNG | Valid output; exact approved revision; immutable receipt |
+| Approved export | 3/3 returned 200; p95 11,342 ms; each was a valid 637,035-byte 1080×1080 PNG | Valid output; exact approved revision; immutable receipt |
 
 This run also found and closed a second cold-page hydration race: the Assets
 page exposed its upload button before the client handler was attached. The
@@ -122,5 +123,6 @@ hydration. Export certification found that completed render jobs previously
 lacked the canonical `content.exported` event; render job creation and export
 evidence are now one database transaction.
 
-Teardown returned a bounded disposal receipt and an independent pre-run read
-found zero residual synthetic profiles. Production was not used or mutated.
+Teardown returned a bounded disposal receipt. An independent post-run read found
+zero residual synthetic profiles, assets, notebook sessions, workers, or Auth
+users. Production was not used or mutated.

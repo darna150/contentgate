@@ -20,7 +20,11 @@ test("provider failure injection is limited to synthetic staging identities", ()
   const request = new Request("https://preview.example.test/api/products/generate", {
     headers: { "x-contentgate-validation-run": "provider-failure" },
   });
-  const preview = { CONTENTGATE_ENVIRONMENT: "staging", VERCEL_ENV: "preview" };
+  const preview = {
+    CONTENTGATE_ENVIRONMENT: "staging",
+    CONTENTGATE_SUPABASE_PROJECT_REF: "bncwjibscptgijgmuhrn",
+    VERCEL_ENV: "preview",
+  };
 
   assert.equal(
     isSyntheticProviderFailureRequest(
@@ -31,6 +35,14 @@ test("provider failure injection is limited to synthetic staging identities", ()
     true,
   );
   assert.equal(isSyntheticProviderFailureRequest(request, "person@example.com", preview), false);
+  assert.equal(
+    isSyntheticProviderFailureRequest(
+      request,
+      "enterprise-provider-failure-a1b2c3d4@contentgate.example",
+      { ...preview, CONTENTGATE_SUPABASE_PROJECT_REF: "egjssfcenboalijfdmsi" },
+    ),
+    false,
+  );
   assert.equal(
     isSyntheticProviderFailureRequest(
       request,
