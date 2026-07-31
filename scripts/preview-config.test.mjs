@@ -18,3 +18,17 @@ test("the checked-in preview starts from the active checkout", async () => {
     "Do not commit a checkout-specific cwd; Preview must use the folder opened for the current session.",
   );
 });
+
+test("the enterprise health cron is configured for the five-minute Pro interval", async () => {
+  const configuration = JSON.parse(
+    await readFile(new URL("../vercel.json", import.meta.url), "utf8"),
+  );
+  const healthCron = configuration.crons?.find(
+    (cron) => cron.path === "/api/cron/asset-health",
+  );
+
+  assert.deepEqual(healthCron, {
+    path: "/api/cron/asset-health",
+    schedule: "*/5 * * * *",
+  });
+});

@@ -163,10 +163,11 @@ target—two-minute database RPO with PITR, 24-hour Storage RPO, one-hour
 application RTO, and four-hour complete-service RTO—requires commercial and
 owner approval plus a timed isolated restore drill.
 
-The incident severity model and authenticated webhook implementation exist,
-but a real destination, token, named incident owner, five-minute monitor, and
-human acknowledgement/tabletop are not yet configured. A daily Vercel cron is
-only a backstop and does not satisfy the five-minute target.
+The incident severity model and authenticated webhook implementation exist.
+The release candidate now configures a protected five-minute Vercel cron after
+the project upgrade to Pro. It remains inactive until the candidate reaches
+production and `CRON_SECRET`, a real destination/token, and a named incident
+owner are installed. Human acknowledgement and the tabletop remain open.
 
 ## Accessibility posture
 
@@ -200,7 +201,8 @@ or support processors used in the production configuration.
   certification is claimed.
 - SSO is not included unless a design partner makes it a contractual gate.
 - Backup/PITR and Storage recovery targets are proposed, not proven.
-- A named incident route, responder, five-minute monitor, and tabletop are open.
+- Five-minute monitoring is configured in the candidate but not yet activated;
+  its incident route, named responder, delivered alert, and tabletop are open.
 - Human assistive-technology review is open.
 - Processor DPAs, exact retention/regions, and privacy/legal approval are open.
 - The export is a sequential maintenance-window snapshot, not a transactionally

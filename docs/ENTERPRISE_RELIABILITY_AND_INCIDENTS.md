@@ -1,6 +1,6 @@
 # ContentGate enterprise-beta reliability and incident readiness
 
-Status date: July 31, 2026
+Status date: August 1, 2026
 
 Engineering owner: Release engineering
 
@@ -71,9 +71,10 @@ acceptable substitute while it supports release certification.
 ## Availability and alert routing
 
 `/api/health` checks the database API, rendered/template Storage buckets,
-worker liveness, and overdue asset processing. The protected Vercel cron calls
-it daily as a backstop. `CRON_SECRET` is mandatory; missing configuration fails
-with 503 instead of silently exposing or skipping the monitor.
+worker liveness, and overdue asset processing. The release candidate configures
+the protected Vercel cron to call it every five minutes on the Pro plan.
+`CRON_SECRET` is mandatory; missing configuration fails with 503 instead of
+silently exposing or skipping the monitor.
 
 When health fails, the route emits a structured error and sends a bounded
 five-second HTTPS webhook containing severity, service, timestamp, environment,
@@ -89,11 +90,14 @@ synthetic failure reaches the named owner:
 - `CONTENTGATE_INCIDENT_WEBHOOK_TOKEN`;
 - `CONTENTGATE_INCIDENT_OWNER`.
 
-The current Vercel plan rejected a five-minute cron schedule and permits only a
-daily run. Enterprise beta therefore still requires either a Vercel plan upgrade
-or an external monitor polling `/api/health` at five-minute intervals with its
-own routed alert. Preview deployments validate the route, but Vercel cron
-executes only on production.
+The project was upgraded to Vercel Pro on August 1, 2026. Vercel supports the
+candidate's `*/5 * * * *` schedule on that plan, although invocation timing is
+not a contractual availability guarantee. Preview deployment validates the
+configuration, but Vercel cron executes only on production. The five-minute
+monitor therefore remains **configured but inactive** until this candidate is
+released and the four production variables above are installed. A successful
+production deployment and one delivered, human-acknowledged synthetic alert are
+required before the monitoring gate can pass.
 
 ## Provider-dependency failure evidence
 
