@@ -13,7 +13,7 @@ export function KnowledgeView({ workspace }: { workspace: ProductWorkspace }) {
       <SectionEmpty
         code="add_approved_knowledge"
         actionHref={canManage ? `/knowledge/new?product=${product.id}` : null}
-        actionLabel={canManage ? "Add a source document" : undefined}
+        actionLabel={canManage ? "Add a source" : undefined}
       />
     );
   }
@@ -33,10 +33,10 @@ export function KnowledgeView({ workspace }: { workspace: ProductWorkspace }) {
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {/* Source documents */}
+        {/* Approved knowledge sources */}
         <div className="flex flex-col gap-3 rounded-card border border-edge bg-surface p-[22px]">
           <div className="flex items-center justify-between gap-2">
-            <h2 className="text-[15px] font-bold">Source documents</h2>
+            <h2 className="text-[15px] font-bold">Approved sources</h2>
             {canManage && (
               <Link
                 href={`/knowledge/new?product=${product.id}`}
