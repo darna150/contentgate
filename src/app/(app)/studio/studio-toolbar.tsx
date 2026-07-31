@@ -1,6 +1,12 @@
 "use client";
 
+import { useRef } from "react";
 import { Button } from "@/components/ui/button";
+import { nextRovingIndex } from "@/lib/roving-focus";
+import {
+  PREVIEW_ZOOM_OPTIONS,
+  type PreviewZoom,
+} from "@/lib/studio-preview-scale";
 import {
   Select,
   SelectContent,
@@ -23,6 +29,79 @@ function formatChannel(key: string, label: string) {
   return "Other";
 }
 
+/**
+ * Zoom selector for the preview stage.
+ *
+ * A radiogroup rather than a set of toggle buttons: the three levels are
+ * mutually exclusive, so arrow keys move between them and only the selected
+ * option is a tab stop.
+ */
+function PreviewZoomControl({
+  zoom,
+  onZoomChange,
+  disabled,
+}: {
+  zoom: PreviewZoom;
+  onZoomChange: (zoom: PreviewZoom) => void;
+  disabled: boolean;
+}) {
+  const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const activeIndex = PREVIEW_ZOOM_OPTIONS.findIndex((option) => option.value === zoom);
+
+  return (
+    <div className="flex shrink-0 flex-col gap-1">
+      <span
+        id="studio-preview-zoom-label"
+        className="text-[10px] font-bold uppercase tracking-[0.1em] text-ink-faint"
+      >
+        Zoom
+      </span>
+      <div
+        role="radiogroup"
+        aria-labelledby="studio-preview-zoom-label"
+        className="flex items-center gap-1 rounded-[8px] bg-page p-1"
+      >
+        {PREVIEW_ZOOM_OPTIONS.map((option, index) => {
+          const selected = option.value === zoom;
+          return (
+            <button
+              key={option.value}
+              ref={(node) => {
+                optionRefs.current[index] = node;
+              }}
+              type="button"
+              role="radio"
+              aria-checked={selected}
+              tabIndex={selected ? 0 : -1}
+              disabled={disabled}
+              onClick={() => onZoomChange(option.value)}
+              // Arrow keys move selection within the group (ARIA APG radiogroup);
+              // the handler sits on the radios because that is where focus is.
+              onKeyDown={(event) => {
+                const next = nextRovingIndex(
+                  activeIndex,
+                  event.key,
+                  PREVIEW_ZOOM_OPTIONS.length
+                );
+                if (next === null) return;
+                event.preventDefault();
+                onZoomChange(PREVIEW_ZOOM_OPTIONS[next].value);
+                optionRefs.current[next]?.focus();
+              }}
+              className={cn(
+                "rounded-[7px] px-3 py-2 text-[12.5px] font-bold transition-colors",
+                selected ? "bg-surface text-ink shadow-sm" : "text-ink-faint"
+              )}
+            >
+              {option.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function StudioToolbar({
   sizes,
   activeSize,
@@ -31,6 +110,8 @@ export function StudioToolbar({
   onSelectSize,
   disabled = false,
   viewToggle,
+  zoom,
+  onZoomChange,
 }: {
   sizes: string[];
   activeSize: string;
@@ -40,6 +121,8 @@ export function StudioToolbar({
   /** Keep the selected format stable while an in-flight generation owns it. */
   disabled?: boolean;
   viewToggle?: { showOriginal: boolean; onShowOriginalChange: (showOriginal: boolean) => void };
+  zoom?: PreviewZoom;
+  onZoomChange?: (zoom: PreviewZoom) => void;
 }) {
   const formatGroups = sizes.reduce<Record<string, string[]>>((groups, key) => {
     const channel = formatChannel(key, sizeLabel(key));
@@ -72,6 +155,10 @@ export function StudioToolbar({
           </SelectContent>
         </Select>
       </div>
+      <div className="flex shrink-0 items-center gap-4">
+      {zoom && onZoomChange && (
+        <PreviewZoomControl zoom={zoom} onZoomChange={onZoomChange} disabled={disabled} />
+      )}
       {viewToggle && (
         <div className="flex shrink-0 items-center gap-1 rounded-[8px] bg-page p-1">
           <button
@@ -98,6 +185,7 @@ export function StudioToolbar({
           </button>
         </div>
       )}
+      </div>
     </div>
   );
 }
