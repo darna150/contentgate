@@ -30,23 +30,32 @@ export function ForgotPasswordForm() {
       return;
     }
 
-    const supabase = createClient();
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      // The email template appends its token hash and flow type to this
-      // server endpoint. The server verifies the token before it establishes
-      // the recovery session and forwards the browser to the reset form.
-      redirectTo: `${window.location.origin}/auth/confirm`,
-    });
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        // The email template appends its token hash and flow type to this
+        // server endpoint. The server verifies the token before it establishes
+        // the recovery session and forwards the browser to the reset form.
+        redirectTo: `${window.location.origin}/auth/confirm`,
+      });
 
-    if (error) {
+      if (error) {
+        setStatus({
+          kind: "error",
+          message: "We could not send the reset email. Wait a moment and try again.",
+        });
+        return;
+      }
+
+      setStatus({ kind: "sent" });
+    } catch {
+      // A rejected promise would otherwise leave status on "busy" permanently,
+      // disabling the submit button until the page is reloaded.
       setStatus({
         kind: "error",
-        message: "We could not send the reset email. Wait a moment and try again.",
+        message: "We could not reach the server. Check your connection and try again.",
       });
-      return;
     }
-
-    setStatus({ kind: "sent" });
   }
 
   if (status.kind === "sent") {

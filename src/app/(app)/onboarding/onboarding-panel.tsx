@@ -206,18 +206,42 @@ export function OnboardingPanel({
           )}
 
           {preflight.ok && (
-            <Button
-              type="button"
-              className="mt-5"
-              onClick={createWorkspace}
-              disabled={
-                busy ||
-                Boolean(preflight.productionConfirmation && confirmation !== preflight.productionConfirmation)
-              }
-            >
-              <PackageCheck aria-hidden />
-              {phase === "provisioning" ? "Creating workspace…" : "Create workspace"}
-            </Button>
+            <>
+              <Button
+                type="button"
+                className="mt-5"
+                onClick={createWorkspace}
+                aria-describedby={
+                  preflight.productionConfirmation && confirmation !== preflight.productionConfirmation
+                    ? "create-blocked-reason"
+                    : undefined
+                }
+                disabled={
+                  busy ||
+                  Boolean(preflight.productionConfirmation && confirmation !== preflight.productionConfirmation)
+                }
+              >
+                <PackageCheck aria-hidden />
+                {phase === "provisioning" ? "Creating workspace…" : "Create workspace"}
+              </Button>
+              {preflight.productionConfirmation &&
+                confirmation !== preflight.productionConfirmation && (
+                  <p id="create-blocked-reason" className="mt-2 text-small text-ink-muted">
+                    Type the confirmation phrase above to enable workspace
+                    creation.
+                  </p>
+                )}
+              {phase === "provisioning" && (
+                // Provisioning writes tenant records and sends real setup email.
+                // A changed button label was the only signal that something
+                // irreversible was under way.
+                <p className="mt-3 text-small text-ink-muted" role="status">
+                  Creating the workspace and sending account setup emails. This
+                  can take a moment — keep this page open until the receipt
+                  appears.
+                </p>
+              )}
+            </>
           )}
         </section>
       )}
@@ -226,10 +250,30 @@ export function OnboardingPanel({
         <section className="rounded-card border border-approve-border bg-approve-tint p-5" aria-labelledby="receipt-heading">
           <div className="flex items-center gap-2 text-approve">
             <CheckCircle2 className="size-5" aria-hidden />
-            <h2 id="receipt-heading" className="text-h3 font-semibold">Workspace ready</h2>
+            <h2 id="receipt-heading" className="text-h3 font-semibold">
+              {/* A replayed run and a first run are materially different events.
+                  The receipt carries `resumed`, and reporting both as "created"
+                  told an operator a re-run had produced a second workspace. */}
+              {receipt.resumed ? "Workspace already provisioned" : "Workspace ready"}
+            </h2>
           </div>
           <p className="mt-2 text-small text-ink">
-            Run <code>{receipt.runId}</code> created {Object.keys(receipt.products).length} product(s), {Object.keys(receipt.campaigns).length} campaign(s), and {Object.keys(receipt.assets).length} asset record(s).
+            {receipt.resumed ? (
+              <>
+                Run <code>{receipt.runId}</code> resumed an existing provisioning
+                run and reconciled {Object.keys(receipt.products).length} product(s),{" "}
+                {Object.keys(receipt.campaigns).length} campaign(s), and{" "}
+                {Object.keys(receipt.assets).length} asset record(s). Nothing was
+                duplicated.
+              </>
+            ) : (
+              <>
+                Run <code>{receipt.runId}</code> created{" "}
+                {Object.keys(receipt.products).length} product(s),{" "}
+                {Object.keys(receipt.campaigns).length} campaign(s), and{" "}
+                {Object.keys(receipt.assets).length} asset record(s).
+              </>
+            )}
           </p>
           <ul className="mt-3 flex flex-col gap-1 text-small text-ink-muted">
             {receipt.setupEmails.map((delivery) => (
@@ -251,9 +295,31 @@ export function OnboardingPanel({
         </section>
       )}
 
-      <p className="min-h-5 text-small text-reject" role="status" aria-live="polite">
-        {error}
-      </p>
+      {/* A failed provisioning run is an error, not a status update, and it may
+          have left partial records behind. Saying so — and being explicit that
+          the audit trail is not erasable — is the difference between an
+          operator who can escalate and one who retries blindly. */}
+      {error ? (
+        <section
+          role="alert"
+          className="flex flex-col gap-1 rounded-card border border-reject-border bg-reject-tint p-4"
+        >
+          <p className="text-small font-semibold text-reject">
+            {phase === "failed" ? "Provisioning did not complete" : "That step did not complete"}
+          </p>
+          <p className="text-small text-reject">{error}</p>
+          {phase === "failed" && (
+            <p className="mt-1 text-small text-ink-muted">
+              Some records may already exist. Re-running the same package
+              resumes the existing run rather than creating a second workspace.
+              The run is recorded in the audit trail either way — that record is
+              immutable and is not removed by cleanup.
+            </p>
+          )}
+        </section>
+      ) : (
+        <p className="min-h-5" aria-live="polite" />
+      )}
     </div>
   );
 }

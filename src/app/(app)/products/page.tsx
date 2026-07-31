@@ -12,6 +12,11 @@ type ProductRow = {
   status: string;
 };
 
+/** "1 template", not "1 templates". */
+function countLabel(count: number, singular: string) {
+  return `${count} ${singular}${count === 1 ? "" : "s"}`;
+}
+
 export default async function ProductsPage() {
   let products: ProductRow[] = [];
   let counts: Record<string, { claims: number; templates: number }> = {};
@@ -90,8 +95,8 @@ export default async function ProductsPage() {
                 <p className="text-[13px] italic text-ink-faint">No description yet.</p>
               )}
               <div className="mt-auto flex gap-4 border-t border-edge pt-3 text-[12px] text-ink-faint">
-                <span>{counts[p.id]?.claims ?? 0} approved claims</span>
-                <span>{counts[p.id]?.templates ?? 0} templates</span>
+                <span>{countLabel(counts[p.id]?.claims ?? 0, "approved claim")}</span>
+                <span>{countLabel(counts[p.id]?.templates ?? 0, "template")}</span>
               </div>
             </Link>
           ))}

@@ -82,14 +82,20 @@ export function PackageBuilder({
   onPackageBuilt: (value: GeneratedOnboardingPackage) => void;
 }) {
   const [workspace, setWorkspace] = useState({ key: "", name: "", industry: "" });
+  // These three seed rows are rendered during SSR, so their ids must be stable
+  // across server and client. crypto.randomUUID() produced a different id on
+  // each side, and because the ids drive input id/htmlFor pairs that surfaced
+  // as a React hydration attribute mismatch on every load of this page. Rows
+  // added later are created in event handlers, client-side only, where a random
+  // id is fine.
   const [users, setUsers] = useState<UserRow[]>(() => [
-    { id: rowId(), key: "client-admin", email: "", fullName: "", role: "admin" },
+    { id: "client-admin", key: "client-admin", email: "", fullName: "", role: "admin" },
   ]);
   const [products, setProducts] = useState<ProductRow[]>(() => [
-    { id: rowId(), key: "primary-product", name: "", description: "", disclaimer: "" },
+    { id: "primary-product", key: "primary-product", name: "", description: "", disclaimer: "" },
   ]);
   const [campaigns, setCampaigns] = useState<CampaignRow[]>(() => [
-    { id: rowId(), key: "launch-campaign", productKey: "primary-product", name: "", status: "active", brief: "" },
+    { id: "launch-campaign", key: "launch-campaign", productKey: "primary-product", name: "", status: "active", brief: "" },
   ]);
   const [documents, setDocuments] = useState<DocumentRow[]>([]);
   const [claims, setClaims] = useState<ClaimRow[]>([]);
