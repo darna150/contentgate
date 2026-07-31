@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { requirePlatformOperator } from "@/lib/onboarding/operator";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { OnboardingPanel } from "./onboarding-panel";
+import { OnboardingWorkflow } from "./onboarding-workflow";
 
 export const runtime = "nodejs";
 
@@ -27,9 +27,9 @@ export default async function OnboardingPage() {
       <PageHeader
         eyebrow="Platform operations"
         title="Create a client workspace"
-        description="Upload one reviewed package, validate every reference without writes, then create the isolated workspace from the same immutable package."
+        description="Turn the signed client handoff into one reviewed package, validate it without tenant writes, then create the isolated workspace from the same immutable ZIP."
       />
-      <OnboardingPanel environment={process.env.CONTENTGATE_ENVIRONMENT ?? null} />
+      <OnboardingWorkflow environment={process.env.CONTENTGATE_ENVIRONMENT ?? null} />
       <Card>
         <CardHeader>
           <CardTitle>Recent runs</CardTitle>

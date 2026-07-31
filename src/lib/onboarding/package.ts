@@ -200,6 +200,24 @@ export async function preflightWorkspacePackage(
     }
   }
 
+  const preparedDocumentsByKey = new Map(
+    documents.map((document) => [document.key, document]),
+  );
+  for (const [index, claim] of (blueprint.claims ?? []).entries()) {
+    if (!claim.sourceDocumentKey || claim.sourceParagraph === undefined) continue;
+    const source = preparedDocumentsByKey.get(claim.sourceDocumentKey);
+    if (
+      source &&
+      !source.paragraphs.some((paragraph) => paragraph.n === claim.sourceParagraph)
+    ) {
+      issues.push({
+        code: "invalid_reference",
+        path: `claims.${index}.sourceParagraph`,
+        message: `Paragraph ${claim.sourceParagraph} does not exist in source document "${claim.sourceDocumentKey}".`,
+      });
+    }
+  }
+
   const templateBundles: PreparedTemplateBundle[] = [];
   for (const [index, template] of (blueprint.templateBundles ?? []).entries()) {
     try {

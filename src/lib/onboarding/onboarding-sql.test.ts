@@ -22,6 +22,10 @@ const campaignIndexSql = readFileSync(
   new URL("../../../supabase/migrations/20260730150146_onboarding_campaign_fk_indexes.sql", import.meta.url),
   "utf8",
 );
+const disposableCleanupSql = readFileSync(
+  new URL("../../../supabase/migrations/20260731133500_dispose_completed_staging_onboarding.sql", import.meta.url),
+  "utf8",
+);
 
 test("control-plane tables are RLS protected and service-role only", () => {
   assert.match(sql, /alter table public\.onboarding_runs enable row level security/i);
@@ -117,4 +121,19 @@ test("operator package storage has no browser policy and bounded ZIP inputs", ()
   assert.match(sql, /'onboarding-packages'[\s\S]+52428800/i);
   assert.match(sql, /array\['application\/zip', 'application\/x-zip-compressed'\]/i);
   assert.doesNotMatch(sql, /create policy[^;]+onboarding-packages/i);
+});
+
+test("completed-run disposal is staging-only, explicitly confirmed, and service-role only", () => {
+  assert.match(disposableCleanupSql, /environment <> 'staging'/i);
+  assert.match(disposableCleanupSql, /workspace_key !~ '\^qa-onboarding-'/i);
+  assert.match(disposableCleanupSql, /'DELETE STAGING ' \|\| target_run\.workspace_key/i);
+  assert.match(disposableCleanupSql, /Delete disposable Auth users before finalizing cleanup/i);
+  assert.match(
+    disposableCleanupSql,
+    /revoke all on function public\.dispose_completed_onboarding_run\(uuid, text, boolean\)[\s\S]+from public, anon, authenticated/i,
+  );
+  assert.match(
+    disposableCleanupSql,
+    /grant execute on function public\.dispose_completed_onboarding_run\(uuid, text, boolean\)[\s\S]+to service_role/i,
+  );
 });

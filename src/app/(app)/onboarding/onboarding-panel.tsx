@@ -13,12 +13,21 @@ import {
   preflightStagedOnboardingPackage,
   provisionStagedOnboardingPackage,
 } from "./actions";
+import type { GeneratedOnboardingPackage } from "./package-builder";
 
 type PreflightResult = Awaited<ReturnType<typeof preflightStagedOnboardingPackage>>;
 type Receipt = Awaited<ReturnType<typeof provisionStagedOnboardingPackage>>;
 type Phase = "idle" | "uploading" | "preflighting" | "ready" | "provisioning" | "completed" | "failed";
 
-export function OnboardingPanel({ environment }: { environment: string | null }) {
+export function OnboardingPanel({
+  environment,
+  generatedPackage,
+  onGeneratedPackageCleared,
+}: {
+  environment: string | null;
+  generatedPackage: GeneratedOnboardingPackage | null;
+  onGeneratedPackageCleared: () => void;
+}) {
   const fileInput = useRef<HTMLInputElement>(null);
   const [phase, setPhase] = useState<Phase>("idle");
   const [storagePath, setStoragePath] = useState<string | null>(null);
@@ -37,11 +46,12 @@ export function OnboardingPanel({ environment }: { environment: string | null })
     setConfirmation("");
     setError(null);
     setPhase("idle");
+    onGeneratedPackageCleared();
     if (fileInput.current) fileInput.current.value = "";
   }
 
   async function stageAndPreflight() {
-    const file = fileInput.current?.files?.[0];
+    const file = generatedPackage?.file ?? fileInput.current?.files?.[0];
     if (!file) {
       setError("Choose a workspace ZIP package.");
       return;
@@ -106,15 +116,22 @@ export function OnboardingPanel({ environment }: { environment: string | null })
             <UploadCloud aria-hidden />
           </span>
           <div>
-            <h2 className="text-h3 font-semibold text-ink">Upload a reviewed package</h2>
+            <p className="text-overline uppercase tracking-[0.16em] text-brand">Validate</p>
+            <h2 className="text-h3 font-semibold text-ink">Preflight the reviewed package</h2>
             <p className="mt-1 text-small text-ink-muted">
               Target: <span className="font-semibold text-ink">{environment ?? "not configured"}</span>. ZIP only, 50 MB maximum.
             </p>
           </div>
         </div>
 
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="onboarding-package">Workspace package</Label>
+        {generatedPackage ? (
+          <div className="rounded-control border border-approve-border bg-approve-tint p-3">
+            <p className="text-small font-semibold text-approve">Generated package selected</p>
+            <p className="mt-1 text-small text-ink">{generatedPackage.file.name} · {(generatedPackage.file.size / 1024 / 1024).toFixed(2)} MB</p>
+            <p className="mt-1 text-caption text-ink-muted">{generatedPackage.workspaceName} · {Object.entries(generatedPackage.counts).map(([name, count]) => `${count} ${name}`).join(" · ")}</p>
+          </div>
+        ) : <div className="flex flex-col gap-2">
+          <Label htmlFor="onboarding-package">Or upload an existing reviewed ZIP</Label>
           <Input
             ref={fileInput}
             id="onboarding-package"
@@ -122,12 +139,12 @@ export function OnboardingPanel({ environment }: { environment: string | null })
             accept=".zip,application/zip,application/x-zip-compressed"
             disabled={busy || phase === "completed"}
           />
-        </div>
+        </div>}
         <div className="mt-4 flex flex-wrap gap-2">
           <Button type="button" onClick={stageAndPreflight} disabled={busy || phase === "completed"}>
             {phase === "uploading" ? "Uploading…" : phase === "preflighting" ? "Checking…" : "Upload and preflight"}
           </Button>
-          {(storagePath || phase === "completed") && (
+          {(storagePath || generatedPackage || preflight || phase === "completed") && (
             <Button type="button" variant="outline" onClick={discardCurrentPackage} disabled={busy}>
               Start over
             </Button>
