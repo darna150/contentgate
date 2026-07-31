@@ -446,7 +446,7 @@ test.describe("ContentGate full app surface QA", () => {
     await signIn(page, false);
     await page.goto("/onboarding");
     await expect(page.getByRole("heading", { name: "Create a client workspace" })).toBeVisible();
-    await expect(page.getByLabel("Workspace package")).toBeVisible();
+    await expect(page.getByLabel(/upload an existing reviewed ZIP/i)).toBeVisible();
     await assertNoAxeViolations(page, "Client onboarding");
   });
 
@@ -487,7 +487,12 @@ test.describe("ContentGate full app surface QA", () => {
     test.skip(!packagePath, "Requires a disposable onboarding ZIP package path.");
     await signIn(page, false);
     await page.goto("/onboarding");
-    await page.getByLabel("Workspace package").setInputFiles(packagePath!);
+    const packageInput = page.getByLabel(/upload an existing reviewed ZIP/i);
+    await expect(page.getByRole("heading", { name: "Create a client workspace" })).toBeVisible({
+      timeout: 20_000,
+    });
+    await expect(packageInput).toBeVisible({ timeout: 20_000 });
+    await packageInput.setInputFiles(packagePath!);
     await page.getByRole("button", { name: "Upload and preflight" }).click();
     await expect(page.getByRole("heading", { name: "Preflight passed" })).toBeVisible({
       timeout: 60_000,

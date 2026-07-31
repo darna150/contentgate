@@ -45,6 +45,23 @@ different UI or SHA is not launch evidence.
   fatal request failure. Its only error-classified line was a malformed first
   provider attempt that automatically retried to a successful 200; recovered
   attempts are now warnings, while exhausted retries remain errors.
+- The exact `a74198d` Preview passed `verify`, clean migration replay/tenant
+  isolation, Vercel deployment, and the deterministic browser suite. Its
+  dedicated operator gate uploaded and preflighted a reviewed disposable ZIP,
+  provisioned the workspace in 34 seconds, and replayed the identical package
+  in 20 seconds. Database evidence showed one completed run—not a duplicate—
+  with two users and exactly one product, campaign, document, claim, asset, and
+  template assignment.
+- The guarded staging cleanup then deleted both disposable Auth users and 31
+  owned Storage objects. Post-cleanup evidence shows zero organization, user,
+  domain-record, assignment, Auth-user, or Storage residue while preserving the
+  immutable completed-run audit receipt. Production data and configuration
+  were not touched.
+- The Preview operator allowlist had drifted from the reviewed local staging
+  value, causing `/onboarding` to redirect despite valid credentials. Only the
+  encrypted Vercel Preview variable was corrected; the Production environment
+  was not changed. The onboarding gate now also fails within 20 seconds when
+  the operator surface or upload control is unavailable.
 
 ## Security and data evidence
 

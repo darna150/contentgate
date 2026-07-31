@@ -146,6 +146,10 @@ Local candidate gates completed on July 31, 2026:
   pass locally against the corrected Nimbus staging data
 - Studio viewport matrix — pass at 1366×768, 1280×800, and 1440×900 with
   measured scales of 50.0%, 50.0%, and 58.4%
+- exact-Preview operator onboarding — pass for ZIP upload, server preflight,
+  provisioning, idempotent replay, and guarded cleanup; the single preserved
+  audit receipt had two users and one of every packaged domain record before
+  cleanup, followed by zero tenant/Auth/Storage residue
 
 Staging’s migration ledger is synchronized. Supabase advisors currently report
 no `ERROR` findings, plus pre-existing warnings for eight authenticated
