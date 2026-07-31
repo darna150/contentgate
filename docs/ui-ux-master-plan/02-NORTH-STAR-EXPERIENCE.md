@@ -23,9 +23,22 @@ Product
           → Approved assets
 ```
 
-## User roles and primary goals
+## Three product faces and primary goals
 
-### Author
+ContentGate has three visible faces. The client-administration face contains
+two permission levels (`admin` and least-privilege `approver`), but it remains
+one client experience rather than a fourth product face. The authoritative
+mapping and onboarding ownership model live in
+[ContentGate product architecture](../ARCHITECTURE.md).
+
+### Platform operator
+
+- Qualify and preflight reviewed client packages
+- Provision isolated staging and production workspaces
+- Inspect receipts and recover onboarding failures
+- Keep platform implementation details outside client-facing navigation
+
+### Client user (author)
 
 - Start from an approved campaign
 - Generate or refine grounded copy
@@ -33,14 +46,14 @@ Product
 - Verify every required format
 - Submit a coherent campaign for review
 
-### Reviewer or approver
+### Client administration (reviewer or approver)
 
 - Understand what changed
 - Confirm evidence, fit, brand, and compliance
 - Approve or request actionable changes
 - Avoid editing author controls accidentally
 
-### Administrator
+### Client administration (workspace admin)
 
 - Prepare products, sources, assets, campaigns, and assignments
 - Resolve import, publishing, storage, and render failures

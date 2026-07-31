@@ -57,9 +57,20 @@ npm test
 npm run build
 ```
 
+`npm run lint` includes the recommended JSX accessibility rules. `npm test`
+also enforces the complete 24-route UI inventory. With a configured QA
+fixture, run `npm run test:a11y` to exercise axe, keyboard navigation, form
+labels, headings, landmarks, focus restoration, reflow, and mobile touch
+targets across public, authenticated, dynamic, and overlay states. The
+complete standard is documented in
+[`docs/accessibility.md`](docs/accessibility.md).
+
 Production operations and rollback steps live in `LAUNCH_RUNBOOK.md`.
 
 ## Architecture notes
+
+The product faces, trust boundaries, and complete new-client onboarding
+lifecycle are documented in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 - Multi-tenant: `org_id` on every table, RLS everywhere
   (migration is the source of truth).

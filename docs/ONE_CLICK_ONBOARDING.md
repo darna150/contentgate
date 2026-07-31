@@ -14,6 +14,13 @@ The production target is:
 
 “One click” describes the final operator action, not the package preparation. Source approval, asset rights, template design, and client sign-off remain explicit prerequisites.
 
+The complete intake-to-launch sequence and ownership gates are defined in
+[ContentGate product architecture](./ARCHITECTURE.md). In particular, the
+ContentGate team and client finalize and sign off campaign templates before the
+approved assets and knowledge are ingested into the workspace package.
+The operational, screen-by-screen procedure is in the
+[client onboarding runbook](./CLIENT_ONBOARDING_RUNBOOK.md).
+
 ## Package contract
 
 Every package is a directory with a `blueprint.json` at its root. Binary files and template bundles are referenced by relative path.
@@ -70,9 +77,38 @@ The first release is intentionally create-only. A changed package that reuses an
 
 ## Operator commands
 
-The normal UI flow is: open `/onboarding`, choose the reviewed ZIP, select **Upload and preflight**, review the immutable hash and counts, then select **Create workspace**. The page also shows the last ten audited runs. Production renders the exact confirmation phrase and keeps the final button disabled until it matches.
+The normal UI flow is: open `/onboarding`; complete the guided **Prepare**
+stage from the signed client handoff; select **Build reviewed ZIP**; run
+**Upload and preflight**; review the immutable hash and counts; then select
+**Create workspace**. A prebuilt reviewed ZIP can still be selected directly.
+The page also shows the last ten audited runs. Production renders the exact
+confirmation phrase and keeps the final button disabled until it matches.
 
 The CLI uses the same preflight and provisioning engine and is the recovery/automation interface.
+
+Build a deterministic, full-size disposable rehearsal package (two roles, one
+product/campaign/source/claim/asset, and the complete ten-format ContentGate
+template family):
+
+```sh
+npm run qa:build-disposable-onboarding -- /tmp/contentgate-onboarding-qa
+```
+
+After the UI journey and both role checks are complete, a staging service-role
+operator can dispose the rehearsal tenant while preserving its immutable run
+receipt:
+
+```sh
+npm run qa:cleanup-disposable-onboarding -- \
+  qa-onboarding-YYYYMMDD-HHMM \
+  "DELETE STAGING qa-onboarding-YYYYMMDD-HHMM"
+```
+
+Cleanup is deliberately limited to completed `staging` runs whose workspace key
+starts with `qa-onboarding-`. It removes run-owned Storage objects first, then
+uses the guarded database cleanup boundary, deletes only verified disposable
+Auth identities, and finally removes the empty organization. Production and
+ordinary client workspaces cannot pass these guards.
 
 Read-only preflight:
 
@@ -101,6 +137,10 @@ Production requires the temporary feature gate and exact confirmation. Do not ke
 6. Provision two different packages concurrently and verify complete isolation.
 7. Run the generic signed-in browser and axe journeys using the QA environment block from the receipt, including the resolved template assignment ID for generation coverage.
 8. Verify the internal upload-and-create operator page with axe and keyboard navigation, then consider enabling reviewed production runs.
+
+Password-setup email redirects must target `/auth/confirm`. `/welcome` also
+forwards legacy token-hash links through that verifier so already-issued setup
+emails remain usable during a rollout.
 
 ## Explicitly deferred
 
