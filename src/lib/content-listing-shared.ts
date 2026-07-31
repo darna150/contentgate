@@ -10,6 +10,7 @@ export type ContentListRow = {
   created_at: string;
   updated_at?: string | null;
   products: Joined<{ name: string }>;
+  campaigns?: Joined<{ name: string }>;
   templates?: Joined<{ name: string }>;
   product_templates: Joined<{ variant: string }>;
   template_versions: Joined<{
@@ -30,6 +31,7 @@ export type FlattenedContentRow = {
   createdAt: string;
   updatedAt: string | null;
   productName: string | null;
+  campaignName: string | null;
   templateName: string | null;
   sizeKey: string | null;
   creatorName: string | null;
@@ -81,6 +83,7 @@ export function flattenContentRow(row: ContentListRow): FlattenedContentRow {
     createdAt: row.created_at,
     updatedAt: row.updated_at ?? null,
     productName: one(row.products)?.name ?? null,
+    campaignName: one(row.campaigns)?.name ?? null,
     templateName:
       one(row.product_templates)?.variant ??
       (platformTemplateLabel || one(row.templates)?.name || null),

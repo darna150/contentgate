@@ -18,6 +18,7 @@ function baseRow(overrides: Partial<ContentListRow> = {}): ContentListRow {
     created_at: "2026-07-15T00:00:00.000Z",
     updated_at: "2026-07-15T00:10:00.000Z",
     products: { name: "ContentGate" },
+    campaigns: { name: "Nimbus Air Campaign" },
     templates: null,
     product_templates: null,
     template_versions: null,
@@ -40,6 +41,7 @@ test("flattenContentRow prefers legacy product template labels when present", ()
   );
 
   assert.equal(row.productName, "ContentGate");
+  assert.equal(row.campaignName, "Nimbus Air Campaign");
   assert.equal(row.templateName, "Legacy Social");
   assert.equal(row.creatorName, "Debbie Melgarejo");
   assert.equal(row.revisionNumber, 3);
