@@ -300,7 +300,7 @@ export default async function TemplatesPage({
             {families.length ? (
               <div className="grid gap-2">
                 {families.map((family) => (
-                  <div key={family.id} className="flex items-center gap-3 rounded-control border border-edge bg-page px-3.5 py-2.5">
+                  <div key={family.id} className="flex min-w-0 items-center gap-3 rounded-control border border-edge bg-page px-3.5 py-2.5">
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-[13px] font-semibold">{family.name}</p>
                       <p className="font-mono text-[11.5px] text-ink-faint">{family.family_key}</p>
@@ -363,7 +363,7 @@ export default async function TemplatesPage({
                   {versions.map((version) => {
                     const family = one(version.template_families);
                     return (
-                      <div key={version.id} className="flex items-center gap-3 rounded-control border border-edge bg-page px-3.5 py-2.5">
+                      <div key={version.id} className="flex min-w-0 items-center gap-3 rounded-control border border-edge bg-page px-3.5 py-2.5">
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-[13px] font-semibold">
                             {family?.name ?? "Template"} ·{" "}
@@ -398,7 +398,7 @@ export default async function TemplatesPage({
                     const version = one(variant.template_versions);
                     const family = one(version?.template_families);
                     return (
-                      <div key={variant.id} className="flex items-center gap-3 rounded-control border border-edge bg-page px-3.5 py-2.5">
+                      <div key={variant.id} className="flex min-w-0 items-center gap-3 rounded-control border border-edge bg-page px-3.5 py-2.5">
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-[13px] font-semibold">{family?.name ?? "Template"} · {variant.label}</p>
                           <p className="font-mono text-[11.5px] text-ink-faint">
@@ -430,7 +430,7 @@ export default async function TemplatesPage({
                   const family = one(assignment.template_families);
                   const version = one(assignment.template_versions);
                   return (
-                    <div key={assignment.id} className="flex items-center gap-3 rounded-control border border-edge bg-page px-3.5 py-2.5">
+                    <div key={assignment.id} className="flex min-w-0 items-center gap-3 rounded-control border border-edge bg-page px-3.5 py-2.5">
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-[13px] font-semibold">{product?.name ?? "Product"} → {family?.name ?? "Template"}</p>
                         <p className="text-[11.5px] text-ink-faint">
@@ -466,7 +466,7 @@ export default async function TemplatesPage({
             {renderJobs.length ? (
               <div className="grid gap-2">
                 {renderJobs.map((job) => (
-                  <div key={job.id} className="flex items-center gap-3 rounded-control border border-edge bg-page px-3.5 py-2.5">
+                  <div key={job.id} className="flex min-w-0 items-center gap-3 rounded-control border border-edge bg-page px-3.5 py-2.5">
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-[13px] font-semibold">{job.contentTitle ?? "Rendered content"}</p>
                       <p className="text-[11.5px] text-ink-faint">

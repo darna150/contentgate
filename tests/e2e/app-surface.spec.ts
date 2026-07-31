@@ -74,7 +74,11 @@ const ACCESSIBILITY_SURFACES: Surface[] = [
   { name: "Ask notebook", path: "/ask", expectedText: /Ask notebook|All sources/i },
   { name: "Ask quality", path: "/ask/quality", expectedText: /Evidence and feedback review/i },
   { name: "Source documents", path: "/knowledge", expectedText: /Brand knowledge|Sources/i },
-  { name: "New source document", path: "/knowledge/new", expectedText: /Add source document/i },
+  {
+    name: "New source document",
+    path: "/knowledge/new",
+    expectedText: /Add brand knowledge source/i,
+  },
   { name: "Template Ops", path: "/templates", expectedText: /Template Ops/i },
   { name: "Settings", path: "/settings", expectedText: /Workspace settings/i },
 ];
@@ -526,9 +530,9 @@ test.describe("ContentGate full app surface QA", () => {
     await page.keyboard.press("Tab"); // Skip link
     await page.keyboard.press("Tab"); // Work email
     await page.keyboard.type(E2E_EMAIL ?? "");
+    await page.keyboard.press("Tab"); // Forgot password
     await page.keyboard.press("Tab"); // Password
     await page.keyboard.type(E2E_PASSWORD ?? "");
-    await page.keyboard.press("Tab"); // Forgot password
     await page.keyboard.press("Tab"); // Enter workspace
     await page.keyboard.press("Enter");
     await page.waitForFunction(() => !window.location.pathname.startsWith("/login"));
