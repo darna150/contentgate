@@ -558,6 +558,7 @@ test.describe("Client package live generation QA", () => {
     await signIn(page);
     await generateNimbusDraft(page);
 
+    await makeNimbusDraftReviewable(page);
     await page.getByRole("button", { name: /Submit for review/i }).click();
     await expectNimbusReviewMode(page);
 
@@ -608,7 +609,7 @@ test.describe("Client package live generation QA", () => {
     // "More strategic" is the refine option that triggered the Phase 1 grounding bug —
     // it is the primary regression guard and must run first.
     const refineOptions = ["More strategic", "Shorter", "More playful"] as const;
-    let successfulRefinements = 0;
+    let handledRefinements = 0;
 
     for (const label of refineOptions) {
       const refineBtn = page.getByRole("button", { name: label, exact: true });
@@ -652,10 +653,11 @@ test.describe("Client package live generation QA", () => {
         });
         await refineBtn.click();
         await expect(refineBtn).toHaveAttribute("aria-pressed", "false");
+        handledRefinements += 1;
         continue;
       }
 
-      successfulRefinements += 1;
+      handledRefinements += 1;
 
       // Wait for the generation to complete: the draft status returns and the
       // preview is available again. Grounding failure surfaces as an error banner.
@@ -684,9 +686,9 @@ test.describe("Client package live generation QA", () => {
     }
 
     expect(
-      successfulRefinements,
-      "The constrained QA fixture should still complete at least one refinement."
-    ).toBeGreaterThan(0);
+      handledRefinements,
+      "Every refinement must either complete or return an actionable safe rejection."
+    ).toBe(refineOptions.length);
 
     await attachBrowserIssues(testInfo, issues);
     expect(
