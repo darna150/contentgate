@@ -568,18 +568,21 @@ test.describe("Nimbus live generation QA", () => {
     const refineOptions = ["More strategic", "Shorter", "More playful"] as const;
 
     for (const label of refineOptions) {
-      const refineBtn = page.getByRole("button", { name: label });
+      const refineBtn = page.getByRole("button", { name: label, exact: true });
       await expect(refineBtn).toBeVisible({ timeout: 10_000 });
       await refineBtn.click();
       await expect(refineBtn).toHaveAttribute("aria-pressed", "true");
       const beforeFields = await readGeneratedTextFields(page);
 
-      const applyBtn = page.getByRole("button", { name: /^Generate$/i });
+      const applyBtn = page.getByRole("button", {
+        name: `Apply “${label}”`,
+        exact: true,
+      });
       await expect(applyBtn).toBeVisible();
       await applyBtn.click();
-      await expect(page.getByRole("button", { name: /^Generating/i })).toBeVisible({
-        timeout: 5_000,
-      });
+      await expect(
+        page.getByRole("button", { name: /Making every word earn its place/i })
+      ).toBeVisible({ timeout: 5_000 });
 
       // Wait for the generation to complete: the draft status returns and the
       // preview is available again. Grounding failure surfaces as an error banner.
