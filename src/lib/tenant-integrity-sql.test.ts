@@ -211,6 +211,43 @@ test("enterprise member lifecycle cuts off live JWT data access and audits admin
   assert.match(lifecycleSql, /grant execute on function public\.admin_restore_member\(uuid\) to authenticated/);
 });
 
+test("enterprise stale sessions cannot invoke legacy SECURITY DEFINER RPCs", () => {
+  const cutoffSql = compact(
+    readFileSync(
+      "supabase/migrations/20260801014500_enterprise_stale_session_rpc_cutoff.sql",
+      "utf8"
+    )
+  );
+
+  for (const functionName of [
+    "enable_admin_mfa_requirement",
+    "consume_api_rate_limit",
+    "transition_generated_content",
+    "record_generated_content_export",
+    "record_product_asset_download",
+    "record_uiux_measurement_event",
+  ]) {
+    assert.match(
+      cutoffSql,
+      new RegExp(`create or replace function public\\.${functionName}`)
+    );
+  }
+  assert.equal(
+    (cutoffSql.match(/profile\.access_status = 'active'/g) ?? []).length,
+    6
+  );
+  assert.equal(
+    (cutoffSql.match(/active account access is required/g) ?? []).length,
+    5
+  );
+  assert.match(cutoffSql, /active administrator access is required/);
+  assert.match(cutoffSql, /set search_path = ''/);
+  assert.match(
+    cutoffSql,
+    /revoke all on function public\.record_product_asset_download\(uuid\) from public, anon, service_role/
+  );
+});
+
 test("validated lifecycle RPC can cross the direct profile membership guard", () => {
   const bridgeSql = compact(
     readFileSync(

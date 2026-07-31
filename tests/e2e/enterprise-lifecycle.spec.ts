@@ -251,6 +251,38 @@ test.describe.serial("enterprise identity and lifecycle @enterprise-live", () =>
     expect(disabledProfilesError).toBeNull();
     expect(disabledProfiles).toEqual([]);
 
+    const staleSessionRpcChecks = [
+      fixture.memberSession.rpc("consume_api_rate_limit", {
+        p_scope: "knowledge.ask",
+      }),
+      fixture.memberSession.rpc("transition_generated_content", {
+        p_content_id: randomUUID(),
+        p_action: "submit",
+        p_note: null,
+      }),
+      fixture.memberSession.rpc("record_generated_content_export", {
+        p_content_id: randomUUID(),
+        p_format: "md",
+        p_size: null,
+        p_surface: "api",
+      }),
+      fixture.memberSession.rpc("record_product_asset_download", {
+        p_asset_id: randomUUID(),
+      }),
+      fixture.memberSession.rpc("record_uiux_measurement_event", {
+        p_event_name: "studio_opened",
+        p_properties: {},
+      }),
+    ];
+    for (const [index, rpcResult] of (
+      await Promise.all(staleSessionRpcChecks)
+    ).entries()) {
+      expect(rpcResult.error, `stale-session RPC ${index + 1}`).not.toBeNull();
+      expect(rpcResult.error?.message).toContain(
+        "active account access is required"
+      );
+    }
+
     const memberPage = await browser.newPage();
     await signIn(memberPage, fixture.memberEmail, fixture.password);
     await expect(memberPage.locator('p[role="alert"]')).toContainText(
