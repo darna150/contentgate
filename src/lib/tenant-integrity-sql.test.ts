@@ -185,3 +185,28 @@ test("enterprise admin MFA is an additive fail-closed authorization control", ()
   assert.match(mfaSql, /'admin_mfa_required'/);
   assert.match(mfaSql, /revoke all on function public\.enable_admin_mfa_requirement\(\) from public, anon, service_role/);
 });
+
+test("enterprise member lifecycle cuts off live JWT data access and audits admin changes", () => {
+  const lifecycleSql = compact(
+    readFileSync(
+      "supabase/migrations/20260731132952_enterprise_user_lifecycle.sql",
+      "utf8"
+    )
+  );
+
+  assert.match(lifecycleSql, /add column access_status text/);
+  assert.match(lifecycleSql, /profiles_access_status_check/);
+  assert.match(lifecycleSql, /profile\.access_status = 'active'/);
+  assert.match(lifecycleSql, /create or replace function public\.admin_change_member_role/);
+  assert.match(lifecycleSql, /create or replace function public\.admin_disable_member/);
+  assert.match(lifecycleSql, /create or replace function public\.admin_restore_member/);
+  assert.match(lifecycleSql, /auth\.jwt\(\) ->> 'aal'/);
+  assert.match(lifecycleSql, /<> 'aal2'/);
+  assert.match(lifecycleSql, /target_profile_id = actor_id/);
+  assert.match(lifecycleSql, /active_admin_count <= 1/);
+  assert.match(lifecycleSql, /'member_role_changed'/);
+  assert.match(lifecycleSql, /'member_disabled'/);
+  assert.match(lifecycleSql, /'member_restored'/);
+  assert.match(lifecycleSql, /revoke all on function public\.admin_disable_member\(uuid\) from public, anon, service_role/);
+  assert.match(lifecycleSql, /grant execute on function public\.admin_restore_member\(uuid\) to authenticated/);
+});

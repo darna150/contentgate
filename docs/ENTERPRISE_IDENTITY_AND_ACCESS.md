@@ -40,6 +40,35 @@ shell, service-role-backed admin APIs, knowledge administration, member invites,
 and cross-tenant platform onboarding independently verify AAL2. Platform
 onboarding requires AAL2 even before the operator's workspace opts in.
 
+## Member lifecycle
+
+Migration `20260731132952_enterprise_user_lifecycle.sql` adds reversible member
+disablement and three authenticated administration RPCs:
+
+- `admin_change_member_role()`;
+- `admin_disable_member()`;
+- `admin_restore_member()`.
+
+Every lifecycle action requires an active administrator using an AAL2 session,
+is limited to the administrator's workspace, rejects self-administration, and
+will not demote or disable the final active administrator. Role, disable, and
+restore receipts are inserted into `audit_log` in the same database transaction
+as the profile change.
+
+Disablement is intentionally two-layered. `profiles.access_status` is checked by
+`auth_org_id()` and `auth_role()`, so a disabled user's database and Storage
+capabilities disappear immediately even if a previously issued access-token JWT
+has not expired. The server then applies a long Supabase Auth ban to prevent new
+sign-in and token refresh. Supabase does not provide a user-ID-only operation
+that invalidates every already-issued access-token JWT; ContentGate does not
+overstate the Auth ban as instantaneous JWT revocation.
+
+The beta UI uses soft disablement, not profile deletion, so governed content and
+audit history retain their user references. Cancelling a pending invitation uses
+the same disable-and-ban path. Restoring a member first lifts the Auth ban and
+then restores the profile; a failed database restore triggers a best-effort
+re-ban and leaves the database capability disabled.
+
 ## Recovery and break glass
 
 The beta UI does not allow an administrator to disable workspace MFA or remove
@@ -69,10 +98,14 @@ separate production change approval.
 
 ## Still required for lifecycle closure
 
-- auditable role changes;
-- disable/removal with session revocation;
-- pending-invite cancellation and resend controls;
-- a documented periodic access review with named owner and evidence;
+- exact-Preview browser evidence for role change, disable, cancelled invite,
+  blocked disabled-user access, and restore;
+- a named owner and first completed evidence record using
+  `ENTERPRISE_ACCESS_REVIEW.md`;
+- a supported pending-invite resend flow. Supabase Auth's current typed resend
+  API does not support `invite`, so the beta does not expose an unreliable
+  resend control; an admin can cancel the invitation and an operator must
+  reconcile the Auth identity before another invitation is issued;
 - browser evidence for admin, approver, and member after the final migration.
 
 No production identity or database configuration is changed by this document

@@ -13,13 +13,15 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { loadAdminMfaContext } from "@/lib/auth/admin-mfa";
 import { InviteForm } from "./invite-form";
 import { MfaRequirementControl } from "./mfa-requirement-control";
+import { MemberAccessControl } from "./member-access-control";
+import type { InvitableRole } from "@/lib/invites";
 
 type MemberRow = {
   id: string;
   fullName: string | null;
-  role: string;
+  role: InvitableRole;
   email: string | null;
-  status: "active" | "invited";
+  status: "active" | "invited" | "disabled";
 };
 
 // Emails and sign-in state live in auth.users, which has no Data API surface;
@@ -71,7 +73,7 @@ export default async function SettingsPage() {
 
   const { data: profiles } = await supabase
     .from("profiles")
-    .select("id, full_name, role")
+    .select("id, full_name, role, access_status")
     .order("role")
     .order("full_name");
 
@@ -84,9 +86,14 @@ export default async function SettingsPage() {
     return {
       id: profile.id,
       fullName: profile.full_name,
-      role: profile.role,
+      role: profile.role as InvitableRole,
       email: entry?.email ?? null,
-      status: entry && !entry.lastSignInAt ? "invited" : "active",
+      status:
+        profile.access_status === "disabled"
+          ? "disabled"
+          : entry && !entry.lastSignInAt
+            ? "invited"
+            : "active",
     };
   });
 
@@ -141,7 +148,9 @@ export default async function SettingsPage() {
         <CardHeader>
           <CardTitle>Members</CardTitle>
           <CardDescription>
-            Everyone with access to {org?.name ?? "this workspace"}.
+            Everyone with current or historical access to {org?.name ?? "this workspace"}.
+            Role and access changes require an MFA-verified administrator session
+            and are written to the audit log.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -164,12 +173,21 @@ export default async function SettingsPage() {
                     <p className="truncate text-xs text-ink-muted">{member.email}</p>
                   )}
                 </div>
-                {member.status === "invited" && (
-                  <Badge variant="warn">Invited</Badge>
+                {member.status === "invited" && <Badge variant="warn">Invited</Badge>}
+                {member.status === "disabled" && <Badge variant="reject">Disabled</Badge>}
+                {member.id === user.id ? (
+                  <Badge variant="neutral" className="capitalize">
+                    {member.role}
+                  </Badge>
+                ) : (
+                  <MemberAccessControl
+                    memberId={member.id}
+                    memberLabel={member.fullName ?? member.email ?? "Pending member"}
+                    role={member.role}
+                    status={member.status}
+                    sessionVerified={mfa?.currentLevel === "aal2"}
+                  />
                 )}
-                <Badge variant="neutral" className="capitalize">
-                  {member.role}
-                </Badge>
               </li>
             ))}
           </ul>
