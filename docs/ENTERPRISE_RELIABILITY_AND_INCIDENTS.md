@@ -85,6 +85,14 @@ deployment SHA, health detail, and the configured incident owner. The webhook
 requires a bearer token. Delivery failure is itself a structured error and does
 not convert the failed health result to success.
 
+The repository also contains the first-party receiver at
+`/api/internal/incident-email`. It validates the same bearer token using a
+constant-time comparison, rejects malformed or oversized payloads, HTML-escapes
+operator-visible detail, and sends an idempotent transactional email through
+Resend. Its provider key and sender/recipient settings are server-only. Preview
+and Development are connected to the verified `contentgate.app` sending domain;
+Production is deliberately not connected or configured yet.
+
 Production is not monitor-ready until all four variables are present and a
 synthetic failure reaches the named owner:
 
@@ -92,6 +100,13 @@ synthetic failure reaches the named owner:
 - `CONTENTGATE_INCIDENT_WEBHOOK_URL`;
 - `CONTENTGATE_INCIDENT_WEBHOOK_TOKEN`;
 - `CONTENTGATE_INCIDENT_OWNER`.
+
+When the first-party email receiver is used, these are also required:
+
+- `RESEND_API_KEY`;
+- `CONTENTGATE_INCIDENT_EMAIL_FROM`;
+- `CONTENTGATE_INCIDENT_EMAIL_TO`;
+- optional `CONTENTGATE_INCIDENT_EMAIL_REPLY_TO`.
 
 The project was upgraded to Vercel Pro on August 1, 2026. Vercel supports the
 candidate's `*/5 * * * *` schedule on that plan, although invocation timing is

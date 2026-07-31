@@ -156,20 +156,20 @@ Storage buckets, worker liveness, and overdue media processing. Provider calls
 use bounded attempts and safe retryable errors. Release and rollback procedures
 name the exact deployment and prohibit blind database rollback.
 
-The current Supabase Pro posture supports a daily database-backup assumption;
-Storage object bytes are not included in database backups. No timed restore has
-been completed, so no RTO/RPO is represented as achieved. The recommended beta
-target—two-minute database RPO with PITR, 24-hour Storage RPO, one-hour
-application RTO, and four-hour complete-service RTO—requires commercial and
-owner approval plus a timed isolated restore drill.
+The current Supabase projects expose completed daily database backups; Storage
+object bytes are not included in that evidence. The owner selected a lean-pilot
+target of up to 24-hour database RPO and four-hour service RTO, declined paid
+PITR, and did not approve a temporary restore target. No timed restore has been
+completed, so these remain accepted targets rather than achieved measurements.
 
-The incident severity model and authenticated webhook implementation exist.
-The release candidate now configures a protected five-minute Vercel cron after
-the project upgrade to Pro. It remains inactive until the candidate reaches
-production and `CRON_SECRET`, a real destination/token, and a named incident
-owner are installed. The cron fails closed before its health check when those
-alert controls are missing or invalid. Human acknowledgement and the tabletop
-remain open.
+The incident severity model, authenticated webhook, and first-party
+webhook-to-email adapter exist. Preview/Development use a verified Resend sender
+and route alerts to `support@contentgate.app`, with
+`security@contentgate.app` as the reply/escalation address. The protected
+five-minute Vercel cron remains inactive until production authorization and
+configuration. The cron fails closed before its health check when alert
+controls are missing or invalid. Human acknowledgement and the tabletop remain
+open until the staged synthetic alert is acknowledged.
 
 ## Accessibility posture
 
@@ -193,6 +193,7 @@ ContentGate must not claim WCAG certification from automated evidence alone.
 | Supabase | Database, Auth, Storage, API, backups | Legal entity/DPA, PITR/Storage recovery, retention, support access |
 | OpenAI | Generation, Ask, import, embeddings | DPA/API data controls, model allowlist, transfer/region position |
 | GitHub | Source control and CI | Access owner, Action/artifact retention, branch protection evidence |
+| Resend | Transactional incident-email delivery | DPA, retention, support access, production approval |
 
 The approved schedule must also name any email delivery, domain, monitoring,
 or support processors used in the production configuration.
@@ -203,8 +204,8 @@ or support processors used in the production configuration.
   certification is claimed.
 - SSO is not included unless a design partner makes it a contractual gate.
 - Backup/PITR and Storage recovery targets are proposed, not proven.
-- Five-minute monitoring is configured in the candidate but not yet activated;
-  its incident route, named responder, delivered alert, and tabletop are open.
+- Five-minute monitoring is configured in the candidate but not yet activated
+  in production; its human acknowledgement and tabletop remain open.
 - Human assistive-technology review is open.
 - Processor DPAs, exact retention/regions, and privacy/legal approval are open.
 - The export is a sequential maintenance-window snapshot, not a transactionally
@@ -222,10 +223,10 @@ Complete this section before granting client access.
 |---|---|---|---|
 | Client business owner accepts beta scope | **Open** |  |  |
 | Client security/privacy owner accepts limitations | **Open** |  |  |
-| ContentGate engineering incident owner | **Open** |  |  |
-| ContentGate client-contact owner | **Open** |  |  |
-| ContentGate go/no-go approver | **Open** |  |  |
-| Retention/deletion policy owner | **Open** |  |  |
+| ContentGate engineering incident owner | Debbie Melgarejo | PR #60 operating-decision record | 2026-08-01 |
+| ContentGate client-contact owner | Debbie Melgarejo | PR #60 operating-decision record | 2026-08-01 |
+| ContentGate go/no-go approver | Debbie Melgarejo | PR #60 operating-decision record | 2026-08-01 |
+| Retention/deletion policy owner | Debbie Melgarejo | PR #60 operating-decision record | 2026-08-01 |
 | Accessibility reviewer | **Open** |  |  |
 | Independent security reviewer | **Open** |  |  |
 

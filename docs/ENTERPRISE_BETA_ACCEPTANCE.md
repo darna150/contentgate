@@ -27,14 +27,14 @@ present during beta procurement.
 | Audit history | Admins can retrieve tenant-scoped events; export is bounded, safe for spreadsheets, and the export itself is recorded | Candidate `a5e1408` passed exact-Preview tenant-scoped CSV export, `audit.exported` receipt, and a restored non-admin member's `403`; unit contracts prove the 10,000-row bound and spreadsheet-formula shielding | Pass on final application candidate |
 | Data inventory | Stored customer data, subprocessors, regions, and purpose are documented | Machine-checked 29-table/control-plane/Auth/Storage inventory and processor-purpose record exist; exact processor regions, DPAs, and retention require owner approval | Partial — technical inventory complete; procurement inputs open |
 | Retention and deletion | Defaults, legal holds, customer export, deletion approval, and deletion receipt are documented and tested | Bounded hashed export, service-only receipts, legal-hold block, dual approval, exact confirmation, supported Storage/Auth deletion, and surviving global evidence passed the disposable staging drill; candidate `2b74d93` passes the exact remote migration and contract gates | In progress — policy-owner approval pending |
-| Backup and recovery | Backup/PITR is configured and a staging restore drill proves the documented RTO/RPO | Pro daily database backup posture and exact Supabase region are documented; recommended RTO/RPO, PITR/Storage requirements, and drill procedure are defined | Missing — purchase/owner approval and timed restore drill required |
-| Availability | Health, worker liveness, queue recovery, provider retry, and failure alerts have owners | Health/worker checks, structured logs, a Pro-compatible five-minute protected Vercel cron, and a bounded authenticated incident webhook are implemented. Candidate `76d5fa5` passed safe Ask/generation exhaustion paths and visibly reported both incident attempts as unconfigured | In progress — production cron/incident variables, release activation, named owner, and a delivered acknowledged synthetic alert are required |
+| Backup and recovery | Backup/PITR is configured and a staging restore drill proves the documented RTO/RPO | Completed daily database backups were observed on both projects. The owner selected a lean-pilot target of up to 24-hour database RPO and four-hour service RTO, declined paid PITR, and did not approve a temporary restore target | Accepted limitation for platform readiness; unproven Storage recovery and the lack of a timed restore require first-client acceptance |
+| Availability | Health, worker liveness, queue recovery, provider retry, and failure alerts have owners | Health/worker checks, structured logs, a Pro-compatible five-minute protected Vercel cron, a bounded authenticated incident webhook, and an authenticated idempotent Resend email adapter are implemented. Preview has a verified sender plus named owner and support destination | In progress — exact-Preview delivery/acknowledgement and later production activation remain required |
 | Capacity | Concurrent login, upload, Ask, generation, review, and export meet an approved beta envelope | Read gate: 20 health probes, 5 simultaneous sign-ins, and 20 authenticated route loads. Candidate `4f01b55` also passed 2 simultaneous uploads, 2 grounded Ask requests, 2 generations, 2 distinct approval workflows, and 3 approved exports; all bounded data was disposed and production was untouched | Pass for the documented design-partner beta envelope; not an SLA or general-scale claim |
-| Incident response | Severity model, rollback, communications, evidence preservation, and an exercised tabletop exist | Production release/rollback steps and severity table exist. Candidate `76d5fa5` proves safe provider degradation and visible incident-routing failure; owners, delivered alert, and tabletop evidence are absent | Partial |
+| Incident response | Severity model, rollback, communications, evidence preservation, and an exercised tabletop exist | Production release/rollback steps and severity table exist. Debbie Melgarejo is the named engineering, client-contact, and go/no-go owner; support and escalation mailboxes plus a verified Preview sender are configured | Partial — delivered alert acknowledgement and tabletop evidence remain |
 | Security | No known P0/P1, no high production dependency vulnerability, advisors reviewed, leaked-password protection enabled, and scoped independent testing has no unresolved critical/high finding | Dependency audit, CodeQL security-extended, Dependabot, and secret scanning report zero open findings; Supabase advisors report zero errors. Leaked-password protection and independent testing remain open | Partial |
 | Accessibility | Automated WCAG-oriented checks plus keyboard, 200% zoom, reduced-motion, touch-target, announcement, and representative assistive-technology evidence pass | Claude's integrated UI SHA passed the route/viewport and manual keyboard/zoom/motion/touch checks. Exact-Preview automation passes, and a representative Chrome accessibility-tree audit exposes correct landmarks, headings, named controls, and live regions across five primary surfaces | In progress — human assistive-technology observation remains |
 | Privacy and customer assurance | Security overview, data flow, retention/deletion, incident contact, DPA/subprocessor inputs, and known beta limitations are reviewable | [Enterprise-beta assurance pack](./ENTERPRISE_BETA_ASSURANCE_PACK.md) consolidates the technical controls, data flow, processor inputs, security/recovery/accessibility posture, limitations, reviewer scope, and acceptance record | In progress — named owner review, processor/legal inputs, and design-partner acceptance remain |
-| Beta operations | Named engineering owner, client-contact owner, go/no-go approver, support hours, escalation path, and design-partner acceptance are recorded | Roles and external pilot acceptance are not yet named | Missing |
+| Beta operations | Named engineering owner, client-contact owner, go/no-go approver, support hours, escalation path, and design-partner acceptance are recorded | Debbie Melgarejo owns engineering incidents, client contact, and go/no-go. Support is Monday–Friday, 09:00–18:00 Asia/Manila; `security@contentgate.app` is the escalation contact. Client acceptance moves to the per-pilot onboarding gate | Pass for client-independent readiness; first-client acceptance remains onboarding work |
 
 ## Required beta gates
 
@@ -45,20 +45,23 @@ present during beta procurement.
 - [ ] Enroll both named beta-workspace administrators before client access.
 - [x] Browser-verify invite, role change, disable/restore, immediate blocked
   data access, Auth re-entry blocking, and receipts on the exact Preview.
-- [ ] Assign the access-review owner and complete the first signed review record.
+- [x] Assign Debbie Melgarejo as access-review owner; complete the first signed
+  review before client access.
 - [x] Ship and browser-verify tenant-scoped audit export, including export
   receipts and spreadsheet-injection protection.
 - [x] Test customer data export and guarded workspace deletion on a disposable
   staging workspace.
-- [ ] Approve the data inventory and retention/deletion policy.
-- [ ] Set RTO/RPO, perform a staging restore drill, and attach timing/evidence.
+- [x] Assign Debbie Melgarejo as retention-policy owner; final policy review
+  remains required before client access.
+- [x] Record lean-pilot targets and the explicit no-PITR/no-temporary-restore
+  decision; timed restore evidence is an accepted open limitation.
 - [x] Establish the beta capacity envelope and pass representative login,
   upload, Ask, generation, review, and export concurrency.
 - [x] Exercise controlled provider timeout/failure paths and attach bounded
   retry, safe-error, telemetry, and incident-routing-attempt evidence without
   disrupting production.
-- [ ] Configure a real incident destination and named owner, then prove one
-  delivered synthetic alert and human acknowledgement.
+- [ ] Prove one delivered synthetic alert and human acknowledgement on the
+  exact candidate; the real Preview destination and named owner are configured.
 - [ ] Route health and error signals to a named incident owner and exercise one
   rollback/communications tabletop.
 - [ ] Enable leaked-password protection and close every critical/high finding
