@@ -102,15 +102,11 @@ jobs:
             echo "Timed out waiting for Vercel preview deployment (6 min)" >&2
             exit 1
           fi
-      - name: Refuse to run against production
-        run: |
-          case "${{ steps.preview.outputs.preview_url }}" in
-            https://contentgate-delta.vercel.app*)
-              echo "E2E preview gate must not target production." >&2
-              exit 1
-              ;;
-          esac
-      - name: Run Playwright E2E and accessibility gate against preview
+      - name: Verify the stateful E2E target is not production
+        env:
+          CONTENTGATE_E2E_BASE_URL: ${{ steps.preview.outputs.preview_url }}
+        run: node scripts/assert-safe-e2e-target.mjs
+      - name: Run deterministic Playwright E2E and accessibility gate against preview
         env:
           CONTENTGATE_E2E_BASE_URL: ${{ steps.preview.outputs.preview_url }}
           CONTENTGATE_E2E_EMAIL: ${{ secrets.CONTENTGATE_E2E_EMAIL }}
@@ -126,7 +122,7 @@ jobs:
           CONTENTGATE_E2E_OUTPUT_WIDTH: ${{ secrets.CONTENTGATE_E2E_OUTPUT_WIDTH }}
           CONTENTGATE_E2E_OUTPUT_HEIGHT: ${{ secrets.CONTENTGATE_E2E_OUTPUT_HEIGHT }}
           CONTENTGATE_E2E_KNOWLEDGE_QUESTION: ${{ secrets.CONTENTGATE_E2E_KNOWLEDGE_QUESTION }}
-        run: npm run test:e2e
+        run: npm run test:e2e:deterministic
       - uses: actions/upload-artifact@v5
         if: always()
         with:

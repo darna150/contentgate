@@ -52,7 +52,7 @@ async function attachBrowserIssues(testInfo: TestInfo, issues: BrowserIssue[]) {
   });
 }
 
-test.describe("Knowledge Hub live QA", () => {
+test.describe("Knowledge Hub live QA @live-ai", () => {
   test("mobile Ask composer is not clipped and answers with approved sources", async ({
     page,
   }, testInfo) => {

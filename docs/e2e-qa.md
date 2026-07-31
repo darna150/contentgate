@@ -1,10 +1,18 @@
 # End-to-end browser QA
 
-ContentGate has a Playwright suite for the workflows most likely to regress in
-front of a client:
+ContentGate has two Playwright lanes for the workflows most likely to regress
+in front of a client:
+
+- a deterministic, merge-blocking PR lane for routes, accessibility, responsive
+  behavior, authorization failures, Studio viewport behavior, the content
+  ledger, approvals, and asset delivery;
+- a credentialed live-AI lane for generation, refinement, fit behavior, export,
+  and grounded Ask responses. This lane is launch-required evidence, but is kept
+  separate so an upstream model refusal does not make a healthy build wait for
+  the full PR retry window.
 
 - major app surface loading and broken-image checks
-- all 24 declared UI routes and their public, authenticated, dynamic,
+- all 26 declared UI routes and their public, authenticated, dynamic,
   redirect, not-found, modal, and mobile accessibility states
 - ContentGate template generation
 - Studio size switching, missing-size draft guardrails, and live text updates
@@ -17,7 +25,9 @@ front of a client:
 Use a disposable QA account that belongs to the demo organization. **Never run
 against `contentgate-delta.vercel.app` (production)** — the `live-e2e.yml`
 workflow hard-blocks that URL and the test suite will refuse to run against it.
-Instead target a PR preview or a dedicated staging deployment.
+Instead target a PR preview or a dedicated staging deployment. The executable
+target guard blocks `contentgate.app`, all of its subdomains, and the production
+Vercel alias before a stateful suite starts.
 
 ```sh
 CONTENTGATE_E2E_BASE_URL="https://contentgate-<pr-id>-debbies-projects-a8de6bb4.vercel.app" \
@@ -34,11 +44,19 @@ CONTENTGATE_E2E_OUTPUT_SIZE_LABEL="..." \
 CONTENTGATE_E2E_OUTPUT_WIDTH="1080" \
 CONTENTGATE_E2E_OUTPUT_HEIGHT="1080" \
 CONTENTGATE_E2E_KNOWLEDGE_QUESTION="..." \
-npm run test:e2e
+npm run test:e2e:deterministic
 ```
 
 The CI E2E gate (`.github/workflows/ci.yml`) discovers the Vercel preview URL
-automatically via `vercel-action` and runs the suite against it on every PR.
+through the GitHub Deployments API and runs the deterministic suite against it
+on every PR. Its independent read-only route scenarios use four workers. Run
+the live-AI lane separately against the same exact candidate:
+
+```sh
+npm run test:e2e:live-ai
+```
+
+`npm run test:e2e` remains available when both lanes are intentionally required.
 
 For a visible browser:
 
@@ -46,7 +64,7 @@ For a visible browser:
 CONTENTGATE_E2E_BASE_URL="..." \
 CONTENTGATE_E2E_EMAIL="qa-user@example.com" \
 CONTENTGATE_E2E_PASSWORD="..." \
-npm run test:e2e -- --headed
+npm run test:e2e:deterministic -- --headed
 ```
 
 ## Run against local dev
@@ -62,7 +80,7 @@ Then run Playwright in another terminal:
 ```sh
 CONTENTGATE_E2E_EMAIL="qa-user@example.com" \
 CONTENTGATE_E2E_PASSWORD="..." \
-npm run test:e2e
+npm run test:e2e:deterministic
 ```
 
 `CONTENTGATE_E2E_BASE_URL` defaults to `http://localhost:3000`.
@@ -115,8 +133,8 @@ against production.
 ## GitHub Actions
 
 The `Live E2E QA` workflow is intentionally separate from normal CI because it
-uses live credentials and can create generated content. Configure these
-repository secrets:
+uses live credentials, invokes model providers, and creates generated content.
+It runs the `@live-ai` tests only. Configure these repository secrets:
 
 - `CONTENTGATE_E2E_EMAIL`
 - `CONTENTGATE_E2E_PASSWORD`

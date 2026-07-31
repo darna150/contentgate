@@ -41,20 +41,14 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps chromium
-      - name: Refuse to run against production
-        run: |
-          case "$CONTENTGATE_E2E_BASE_URL" in
-            https://contentgate-delta.vercel.app*)
-              echo "Live E2E may not target production." >&2
-              exit 1
-              ;;
-          esac
+      - name: Verify the stateful E2E target is not production
+        run: node scripts/assert-safe-e2e-target.mjs
       - name: Require live QA credentials
         run: |
           test -n "$CONTENTGATE_E2E_EMAIL"
           test -n "$CONTENTGATE_E2E_PASSWORD"
-      - name: Run Playwright E2E and accessibility gate
-        run: npm run test:e2e
+      - name: Run live AI generation and grounded Ask validation
+        run: npm run test:e2e:live-ai
       - uses: actions/upload-artifact@v5
         if: always()
         with:

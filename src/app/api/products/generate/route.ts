@@ -1008,7 +1008,12 @@ export async function POST(req: Request) {
           break;
         }
       } catch (err) {
-        console.error("platform generation provider failed:", err);
+        console.warn("platform generation provider attempt failed; retrying:", {
+          platformAssignmentId,
+          outputSize: outputSizeKey,
+          attempt: attempt + 1,
+          error: err instanceof Error ? err.message : "provider request failed",
+        });
         providerFailure = err instanceof Error ? err.message : "provider request failed";
         // A malformed response, transient provider failure, or failed
         // semantic-verifier call should consume one internal attempt, not
@@ -1024,6 +1029,11 @@ export async function POST(req: Request) {
       !groundingIssues.length &&
       !variationIssues.length
     ) {
+      console.error("platform generation provider exhausted retries:", {
+        platformAssignmentId,
+        outputSize: outputSizeKey,
+        error: providerFailure,
+      });
       return Response.json(
         {
           error: "Generation service is temporarily unavailable. ContentGate already retried automatically.",
@@ -1114,7 +1124,7 @@ export async function POST(req: Request) {
 
     if (!out) {
       if (fitReasons.length) {
-        console.error("platform generated copy failed template fit validation:", {
+        console.warn("platform generated copy failed template fit validation:", {
           platformAssignmentId,
           outputSize: outputSizeKey,
           reasons: fitReasons,
@@ -1128,7 +1138,7 @@ export async function POST(req: Request) {
         );
       }
       if (variationIssues.length) {
-        console.error("platform generated copy failed variation validation:", {
+        console.warn("platform generated copy failed variation validation:", {
           platformAssignmentId,
           outputSize: outputSizeKey,
           reasons: variationIssues,
@@ -1144,7 +1154,7 @@ export async function POST(req: Request) {
       const ungroundedFields = groundingIssues
         .map((issue) => issue.split(":")[0]?.trim())
         .filter(Boolean);
-      console.error("platform generated copy failed evidence validation:", {
+      console.warn("platform generated copy failed evidence validation:", {
         platformAssignmentId,
         outputSize: outputSizeKey,
         reasons: groundingIssues,
@@ -1250,7 +1260,7 @@ export async function POST(req: Request) {
         ...finalQualityReasons,
         ...finalGroundingIssues,
       ];
-      console.error("platform generation final contract validation failed:", {
+      console.warn("platform generation final contract validation failed:", {
         platformAssignmentId,
         outputSize: outputSizeKey,
         reasons,
