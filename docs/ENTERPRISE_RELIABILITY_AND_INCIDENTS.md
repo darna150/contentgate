@@ -72,7 +72,7 @@ acceptable substitute while it supports release certification.
 
 `/api/health` checks the database API, rendered/template Storage buckets,
 worker liveness, and overdue asset processing. The protected Vercel cron calls
-it every five minutes. `CRON_SECRET` is mandatory; missing configuration fails
+it daily as a backstop. `CRON_SECRET` is mandatory; missing configuration fails
 with 503 instead of silently exposing or skipping the monitor.
 
 When health fails, the route emits a structured error and sends a bounded
@@ -89,8 +89,11 @@ synthetic failure reaches the named owner:
 - `CONTENTGATE_INCIDENT_WEBHOOK_TOKEN`;
 - `CONTENTGATE_INCIDENT_OWNER`.
 
-The five-minute schedule requires Vercel Pro. Preview deployments validate the
-configuration but Vercel cron executes only on production.
+The current Vercel plan rejected a five-minute cron schedule and permits only a
+daily run. Enterprise beta therefore still requires either a Vercel plan upgrade
+or an external monitor polling `/api/health` at five-minute intervals with its
+own routed alert. Preview deployments validate the route, but Vercel cron
+executes only on production.
 
 ## Severity and response
 
