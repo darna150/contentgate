@@ -34,7 +34,7 @@ export function AssetCard({
         type="button"
         onClick={onPreview}
         aria-label={`Preview ${asset.title}`}
-        className="group relative aspect-square w-full overflow-hidden rounded-[6px] border border-edge bg-page focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
+        className="group relative aspect-square w-full overflow-hidden rounded-[6px] border border-edge bg-page focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
       >
         {asset.mediaKind === "video" ? (
           <>

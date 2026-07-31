@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient, hasSupabaseBrowserConfig } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -33,6 +33,10 @@ export function PasswordSetupClient({ flow }: { flow: PasswordFlow }) {
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
+  const [invalidField, setInvalidField] = useState<"password" | "confirm" | null>(null);
+  const passwordRef = useRef<HTMLInputElement>(null);
+  const confirmRef = useRef<HTMLInputElement>(null);
+  const errorId = `${passwordId}-error`;
 
   useEffect(() => {
     let cancelled = false;
@@ -107,24 +111,44 @@ export function PasswordSetupClient({ flow }: { flow: PasswordFlow }) {
     e.preventDefault();
     if (phase.kind !== "ready") return;
     if (password.length < 8) {
-      setFormError("Password must be at least 8 characters.");
+      failValidation("password", "Password must be at least 8 characters.");
       return;
     }
     if (password !== confirm) {
-      setFormError("Passwords do not match.");
+      failValidation("confirm", "Passwords do not match.");
       return;
     }
     setFormError(null);
+    setInvalidField(null);
     setPhase({ kind: "saving", email: phase.email });
-    const supabase = createClient();
-    const { error } = await supabase.auth.updateUser({ password });
-    if (error) {
-      setFormError(error.message);
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.auth.updateUser({ password });
+      if (error) {
+        setFormError(error.message);
+        setPhase({ kind: "ready", email: phase.email });
+        return;
+      }
+      router.replace("/dashboard");
+      router.refresh();
+    } catch {
+      // Without this a dropped connection leaves the form stuck on "Saving…"
+      // with the submit button disabled until the page is reloaded.
+      setFormError("We could not reach the server. Check your connection and try again.");
       setPhase({ kind: "ready", email: phase.email });
-      return;
     }
-    router.replace("/dashboard");
-    router.refresh();
+  }
+
+  /**
+   * Points the error at the field that caused it. The message was previously
+   * rendered after the submit button with no role and no association, so it was
+   * neither announced nor attached to anything — a screen reader user was told
+   * the form had failed but not which control to fix.
+   */
+  function failValidation(field: "password" | "confirm", message: string) {
+    setFormError(message);
+    setInvalidField(field);
+    (field === "password" ? passwordRef : confirmRef).current?.focus();
   }
 
   if (phase.kind === "verifying") {
@@ -163,6 +187,7 @@ export function PasswordSetupClient({ flow }: { flow: PasswordFlow }) {
           Password
         </Label>
         <Input
+          ref={passwordRef}
           id={passwordId}
           type="password"
           required
@@ -171,6 +196,8 @@ export function PasswordSetupClient({ flow }: { flow: PasswordFlow }) {
           onChange={(e) => setPassword(e.target.value)}
           placeholder="At least 8 characters"
           autoComplete="new-password"
+          aria-invalid={invalidField === "password" || undefined}
+          aria-describedby={invalidField === "password" ? errorId : undefined}
           className="h-auto py-3 text-sm"
         />
       </div>
@@ -182,6 +209,7 @@ export function PasswordSetupClient({ flow }: { flow: PasswordFlow }) {
           Confirm password
         </Label>
         <Input
+          ref={confirmRef}
           id={confirmId}
           type="password"
           required
@@ -189,6 +217,8 @@ export function PasswordSetupClient({ flow }: { flow: PasswordFlow }) {
           onChange={(e) => setConfirm(e.target.value)}
           placeholder="••••••••"
           autoComplete="new-password"
+          aria-invalid={invalidField === "confirm" || undefined}
+          aria-describedby={invalidField === "confirm" ? errorId : undefined}
           className="h-auto py-3 text-sm"
         />
       </div>
@@ -202,7 +232,11 @@ export function PasswordSetupClient({ flow }: { flow: PasswordFlow }) {
       </Button>
 
       {formError && (
-        <p className="rounded-control border border-reject-border bg-reject-tint px-3.5 py-3 text-[13px] text-reject">
+        <p
+          id={errorId}
+          role="alert"
+          className="rounded-control border border-reject-border bg-reject-tint px-3.5 py-3 text-[13px] text-reject"
+        >
           {formError}
         </p>
       )}
