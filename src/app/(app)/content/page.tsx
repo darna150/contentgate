@@ -22,6 +22,47 @@ const FILTERS = [
 
 const LANGUAGES = ["English", "Filipino", "Spanish", "Portuguese", "Vietnamese", "Thai"];
 
+/** Shared by the header row and every data row so they cannot drift apart. */
+const COLUMNS = "2.4fr 0.9fr 1.3fr 1fr 0.8fr";
+
+/**
+ * Supporting detail for a row, or null when there is nothing worth a second
+ * line.
+ *
+ * Template names are composed of dot-separated parts that in practice restate
+ * the campaign and the format — e.g. "Nimbus Air Campaign · Instagram post
+ * (square)" under a "Nimbus 1 · Nimbus Air Campaign" heading, next to an
+ * "Instagram Post Square" label. Printing that whole string made every row in a
+ * campaign look identical. Parts that are already on screen are dropped and
+ * only genuinely new ones survive, so a template that really does distinguish
+ * two rows still shows.
+ *
+ * Audience is the attribute that most often separates two pieces built from the
+ * same template, so it leads when it is set.
+ */
+/** The row's identity within its campaign group. */
+function formatOf(row: FlattenedContentRow) {
+  return row.sizeKey ? sizeLabel(row.sizeKey) : "Custom size";
+}
+
+function secondaryLine(row: FlattenedContentRow, campaign: string, format: string) {
+  if (row.audience?.trim()) return row.audience.trim();
+
+  // Compared without case or punctuation so "Instagram post (square)" matches
+  // the "Instagram Post Square" label rendered above it.
+  const key = (part: string) => part.toLowerCase().replace(/[^a-z0-9]/g, "");
+
+  const shown = new Set(
+    [...campaign.split("·"), format].map(key).filter(Boolean)
+  );
+  const remaining = (row.templateName ?? "")
+    .split("·")
+    .map((part) => part.trim())
+    .filter((part) => part && !shown.has(key(part)));
+
+  return remaining.length ? remaining.join(" · ") : null;
+}
+
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-US", {
     month: "short",
@@ -136,27 +177,28 @@ export default async function ContentPage({
         />
       ) : (
         <Card className="gap-1 p-3">
-          {/* Desktop: 6-column grid table */}
+          {/* Desktop: 5-column grid table.
+              Rows sit under a campaign heading, so repeating the campaign name
+              on every row told a reviewer nothing and pushed the one attribute
+              that does distinguish two rows — the format — into a column too
+              narrow to read. The format leads the row instead, and the former
+              separate Size column is folded into it. */}
           <div className="hidden md:flex md:flex-col">
             <div
               className="grid gap-3 border-b border-edge px-3.5 pb-2"
-              style={{ gridTemplateColumns: "2.2fr 0.8fr 0.7fr 1.3fr 1fr 0.8fr" }}
+              style={{ gridTemplateColumns: COLUMNS }}
             >
-              <span className="text-label text-ink-faint">Title</span>
+              <span className="text-label text-ink-faint">Format</span>
               <span className="text-label text-ink-faint">Language</span>
-              <span className="text-label text-ink-faint">Size</span>
               <span className="text-label text-ink-faint">Status</span>
               <span className="text-label text-ink-faint">Owner</span>
               <span className="text-label text-ink-faint">Updated</span>
             </div>
             {Array.from(campaigns.entries()).map(([campaign, campaignRows]) => (
               <div key={campaign} className="border-b border-edge last:border-b-0">
-                <div
-                  className="grid gap-3 bg-page/70 px-3.5 py-2"
-                  style={{ gridTemplateColumns: "2.2fr 0.8fr 0.7fr 1.3fr 1fr 0.8fr" }}
-                >
-                  <span className="truncate text-[12px] font-bold text-ink">{campaign}</span>
-                  <span className="col-span-5 text-[11.5px] text-ink-faint">
+                <div className="flex flex-wrap items-baseline gap-x-2 bg-page/70 px-3.5 py-2">
+                  <span className="text-[12px] font-bold text-ink">{campaign}</span>
+                  <span className="text-[11.5px] text-ink-faint">
                     {campaignRows.length} {campaignRows.length === 1 ? "format" : "formats"}
                   </span>
                 </div>
@@ -165,18 +207,19 @@ export default async function ContentPage({
                 key={row.id}
                 href={studioContentUrl(row.id, row.sizeKey ?? undefined, contentReturnTo)}
                 className="grid items-center gap-3 rounded-control px-3.5 py-3 transition-colors hover:bg-page"
-                style={{ gridTemplateColumns: "2.2fr 0.8fr 0.7fr 1.3fr 1fr 0.8fr" }}
+                style={{ gridTemplateColumns: COLUMNS }}
               >
                 <span className="flex min-w-0 flex-col">
-                  <span className="truncate text-[13.5px] font-semibold">{row.title}</span>
-                  <span className="truncate text-[11.5px] text-ink-faint">
-                    {row.templateName ?? "Custom format"}{row.sizeKey ? ` · ${sizeLabel(row.sizeKey)}` : ""}
+                  <span className="truncate text-[13.5px] font-semibold">
+                    {formatOf(row)}
                   </span>
+                  {secondaryLine(row, campaign, formatOf(row)) && (
+                    <span className="truncate text-[11.5px] text-ink-faint">
+                      {secondaryLine(row, campaign, formatOf(row))}
+                    </span>
+                  )}
                 </span>
                 <span className="truncate text-[12.5px] text-ink-muted">{row.targetLanguage}</span>
-                <span className="truncate text-[12.5px] text-ink-muted">
-                  {row.sizeKey ? sizeLabel(row.sizeKey) : "—"}
-                </span>
                 <span>
                   <StatusPill status={row.status} />
                 </span>
@@ -208,9 +251,13 @@ export default async function ContentPage({
                 href={studioContentUrl(row.id, row.sizeKey ?? undefined, contentReturnTo)}
                 className="flex flex-col gap-1.5 rounded-control px-3.5 py-3 transition-colors hover:bg-page"
               >
-                <span className="truncate text-[13.5px] font-semibold">{row.title}</span>
+                {/* Same reasoning as the desktop table: the campaign already
+                    heads the group, so the card leads with the format. */}
+                <span className="truncate text-[13.5px] font-semibold">
+                  {formatOf(row)}
+                </span>
                 <span className="truncate text-[11.5px] text-ink-faint">
-                  {[row.productName, row.templateName ?? "Custom format", row.targetLanguage, row.sizeKey ? sizeLabel(row.sizeKey) : null]
+                  {[secondaryLine(row, campaign, formatOf(row)), row.targetLanguage]
                     .filter(Boolean)
                     .join(" · ")}
                 </span>
