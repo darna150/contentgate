@@ -1,7 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import {
+  PREVIEW_VIEWPORT_PADDING,
+  previewFitScale,
+  previewOverlayScale,
+  resolvePreviewScale,
+  type PreviewZoom,
+} from "@/lib/studio-preview-scale";
 import type { TemplateBundleManifest } from "@/lib/template-platform/manifest";
 import {
   renderTemplateBundleVariant,
@@ -54,22 +62,80 @@ function loadPreviewFont(input: {
   return pending;
 }
 
-function previewScale(input: {
-  availableWidth: number;
-  availableHeight: number;
+/**
+ * Single source of truth for preview sizing across all three frames (server
+ * image, missing-draft placeholder, live editable canvas). Previously each one
+ * carried its own copy of this effect, which let them drift.
+ */
+function usePreviewScale(input: {
   width: number;
   height: number;
+  zoom: PreviewZoom;
 }) {
-  const raw = Math.min(
-    1,
-    input.availableWidth / input.width,
-    input.availableHeight / input.height
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const [fitScale, setFitScale] = useState(0.72);
+
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    const updateFit = () => {
+      setFitScale(
+        previewFitScale({
+          availableWidth: Math.max(1, viewport.clientWidth - PREVIEW_VIEWPORT_PADDING),
+          availableHeight: Math.max(1, viewport.clientHeight - PREVIEW_VIEWPORT_PADDING),
+          width: input.width,
+          height: input.height,
+        })
+      );
+    };
+    updateFit();
+    const observer = new ResizeObserver(updateFit);
+    observer.observe(viewport);
+    return () => observer.disconnect();
+  }, [input.height, input.width]);
+
+  const { scale, overflows } = resolvePreviewScale({
+    zoom: input.zoom,
+    fitScale,
+    width: input.width,
+  });
+  return { viewportRef, scale, overflows };
+}
+
+/**
+ * Scrollable, centred preview stage.
+ *
+ * Overlays (status badges, loading states) are siblings of the scroll container
+ * rather than children, so they stay pinned instead of scrolling away with the
+ * artwork. The inner `w-max min-w-full` wrapper keeps the artwork centred when
+ * it fits and prevents flexbox from clipping the leading edge when it does not
+ * — plain `justify-center` makes overflow on that side unreachable by scroll.
+ */
+function PreviewStage({
+  viewportRef,
+  overlay,
+  children,
+  overflows,
+  ...rest
+}: {
+  viewportRef: RefObject<HTMLDivElement | null>;
+  overlay?: ReactNode;
+  children: ReactNode;
+  overflows: boolean;
+} & React.HTMLAttributes<HTMLDivElement>) {
+  return (
+    <div className="relative h-full min-h-0 w-full bg-[#f5f5f2]" {...rest}>
+      {overlay}
+      <div
+        ref={viewportRef}
+        className={cn("h-full w-full", overflows ? "overflow-auto" : "overflow-hidden")}
+      >
+        <div className="flex min-h-full w-max min-w-full items-center justify-center p-4">
+          {children}
+        </div>
+      </div>
+    </div>
   );
-  // Snap the displayed frame to whole CSS pixels. Fractional image sizes make
-  // raster-locked Figma exports (logos, texture, baked layout) look soft while
-  // overlaid live text remains crisp.
-  const displayedWidth = Math.max(1, Math.floor(input.width * raw));
-  return displayedWidth / input.width;
 }
 
 function highDensityPreviewSrc(src: string) {
@@ -144,14 +210,15 @@ export function ServerPreviewFrame({
   width,
   height,
   updating,
+  zoom = "fit",
 }: {
   src: string;
   width: number;
   height: number;
   updating: boolean;
+  zoom?: PreviewZoom;
 }) {
-  const viewportRef = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState(0.72);
+  const { viewportRef, scale, overflows } = usePreviewScale({ width, height, zoom });
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
   const displaySrc = highDensityPreviewSrc(src);
   const [loadedSrc, setLoadedSrc] = useState(displaySrc);
@@ -190,30 +257,18 @@ export function ServerPreviewFrame({
     };
   }, [displaySrc, loadedSrc]);
 
-  useEffect(() => {
-    const viewport = viewportRef.current;
-    if (!viewport) return;
-    const updateScale = () => {
-      const availableWidth = Math.max(1, viewport.clientWidth - 32);
-      const availableHeight = Math.max(1, viewport.clientHeight - 32);
-      setScale(previewScale({ availableWidth, availableHeight, width, height }));
-    };
-    updateScale();
-    const observer = new ResizeObserver(updateScale);
-    observer.observe(viewport);
-    return () => observer.disconnect();
-  }, [height, width]);
-
   return (
-    <div
-      ref={viewportRef}
-      className="relative flex h-full min-h-0 w-full items-center justify-center overflow-hidden bg-[#f5f5f2] p-4"
+    <PreviewStage
+      viewportRef={viewportRef}
+      overflows={overflows}
+      overlay={
+        (updating || loadingNext) && (
+          <div className="absolute right-4 top-4 z-10 rounded-full bg-surface/90 px-3 py-1.5 text-[11px] font-semibold text-ink-muted shadow-sm">
+            {loadingNext ? "Loading reference…" : "Updating preview…"}
+          </div>
+        )
+      }
     >
-      {(updating || loadingNext) && (
-        <div className="absolute right-4 top-4 z-10 rounded-full bg-surface/90 px-3 py-1.5 text-[11px] font-semibold text-ink-muted shadow-sm">
-          {loadingNext ? "Loading reference…" : "Updating preview…"}
-        </div>
-      )}
       {imageFailed ? (
         <div className="flex max-w-[420px] flex-col items-center gap-3 rounded-card border border-edge bg-surface px-7 py-6 text-center shadow-elevated">
           <div className="flex size-11 items-center justify-center rounded-full bg-brand-tint text-[18px] text-brand">
@@ -248,7 +303,7 @@ export function ServerPreviewFrame({
           }}
         />
       )}
-    </div>
+    </PreviewStage>
   );
 }
 
@@ -259,6 +314,7 @@ export function MissingDraftFrame({
   busy,
   onGenerate,
   onCopyFromCampaign,
+  zoom = "fit",
 }: {
   width: number;
   height: number;
@@ -266,29 +322,12 @@ export function MissingDraftFrame({
   busy: boolean;
   onGenerate: () => void;
   onCopyFromCampaign: () => void;
+  zoom?: PreviewZoom;
 }) {
-  const viewportRef = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState(0.72);
-
-  useEffect(() => {
-    const viewport = viewportRef.current;
-    if (!viewport) return;
-    const updateScale = () => {
-      const availableWidth = Math.max(1, viewport.clientWidth - 32);
-      const availableHeight = Math.max(1, viewport.clientHeight - 32);
-      setScale(previewScale({ availableWidth, availableHeight, width, height }));
-    };
-    updateScale();
-    const observer = new ResizeObserver(updateScale);
-    observer.observe(viewport);
-    return () => observer.disconnect();
-  }, [height, width]);
+  const { viewportRef, scale, overflows } = usePreviewScale({ width, height, zoom });
 
   return (
-    <div
-      ref={viewportRef}
-      className="relative flex h-full min-h-0 w-full items-center justify-center overflow-hidden bg-[#f5f5f2] p-4"
-    >
+    <PreviewStage viewportRef={viewportRef} overflows={overflows}>
       <div
         className="flex flex-col items-center justify-center rounded-[3px] border border-dashed border-edge-strong bg-surface px-6 py-8 text-center shadow-sm"
         style={{
@@ -317,7 +356,7 @@ export function MissingDraftFrame({
           Copy from campaign
         </Button>
       </div>
-    </div>
+    </PreviewStage>
   );
 }
 
@@ -332,6 +371,7 @@ export function LiveTemplatePreviewFrame({
   height,
   updating,
   original = false,
+  zoom = "fit",
 }: {
   manifest: TemplateBundleManifest;
   variantKey: string;
@@ -350,9 +390,9 @@ export function LiveTemplatePreviewFrame({
   height: number;
   updating: boolean;
   original?: boolean;
+  zoom?: PreviewZoom;
 }) {
-  const viewportRef = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState(0.72);
+  const { viewportRef, scale, overflows } = usePreviewScale({ width, height, zoom });
   const [fontsReady, setFontsReady] = useState(false);
   const renderScale = 2;
   const rendered = renderTemplateBundleVariant({
@@ -365,20 +405,6 @@ export function LiveTemplatePreviewFrame({
     scale: renderScale,
     original,
   });
-
-  useEffect(() => {
-    const viewport = viewportRef.current;
-    if (!viewport) return;
-    const updateScale = () => {
-      const availableWidth = Math.max(1, viewport.clientWidth - 32);
-      const availableHeight = Math.max(1, viewport.clientHeight - 32);
-      setScale(previewScale({ availableWidth, availableHeight, width, height }));
-    };
-    updateScale();
-    const observer = new ResizeObserver(updateScale);
-    observer.observe(viewport);
-    return () => observer.disconnect();
-  }, [height, width]);
 
   // The editable canvas must use the same embedded font files as the fit
   // service and ImageResponse export. A CSS family name by itself falls back
@@ -440,26 +466,30 @@ export function LiveTemplatePreviewFrame({
   }
 
   return (
-    <div
-      ref={viewportRef}
-      className="relative flex h-full min-h-0 w-full items-center justify-center overflow-hidden bg-[#f5f5f2] p-4"
+    <PreviewStage
+      viewportRef={viewportRef}
+      overflows={overflows}
       aria-busy={!fontsReady}
+      overlay={
+        <>
+          {!fontsReady && (
+            <div
+              className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-[#f5f5f2]/90 text-center"
+              role="status"
+              aria-live="polite"
+            >
+              <span className="size-7 animate-spin rounded-full border-2 border-brand/25 border-t-brand motion-reduce:animate-none" aria-hidden="true" />
+              <p className="text-[12.5px] font-semibold text-ink-muted">Loading locked preview…</p>
+            </div>
+          )}
+          {updating && (
+            <div className="absolute right-4 top-4 z-10 rounded-full bg-surface/90 px-3 py-1.5 text-[11px] font-semibold text-ink-muted shadow-sm">
+              Saving…
+            </div>
+          )}
+        </>
+      }
     >
-      {!fontsReady && (
-        <div
-          className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-[#f5f5f2]/90 text-center"
-          role="status"
-          aria-live="polite"
-        >
-          <span className="size-7 animate-spin rounded-full border-2 border-brand/25 border-t-brand motion-reduce:animate-none" aria-hidden="true" />
-          <p className="text-[12.5px] font-semibold text-ink-muted">Loading locked preview…</p>
-        </div>
-      )}
-      {updating && (
-        <div className="absolute right-4 top-4 z-10 rounded-full bg-surface/90 px-3 py-1.5 text-[11px] font-semibold text-ink-muted shadow-sm">
-          Saving…
-        </div>
-      )}
       <div
         className="rounded-[3px] shadow-elevated"
         style={{
@@ -471,7 +501,9 @@ export function LiveTemplatePreviewFrame({
           style={{
             width: rendered.width,
             height: rendered.height,
-            transform: `scale(${scale / renderScale})`,
+            // Composed with the outer box this lands on exactly the same pixel
+            // width; studio-preview-scale.test.ts guards that identity.
+            transform: `scale(${previewOverlayScale(scale, renderScale)})`,
             transformOrigin: "top left",
             // Do not flash a system-font layout before the bundle fonts are
             // present; the explicit loading state above keeps this from
@@ -482,6 +514,6 @@ export function LiveTemplatePreviewFrame({
           {rendered.element}
         </div>
       </div>
-    </div>
+    </PreviewStage>
   );
 }

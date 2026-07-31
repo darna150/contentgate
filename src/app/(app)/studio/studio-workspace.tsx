@@ -53,6 +53,7 @@ import {
   MissingDraftFrame,
   ServerPreviewFrame,
 } from "./studio-preview";
+import type { PreviewZoom } from "@/lib/studio-preview-scale";
 import { StudioBackgroundPicker } from "./studio-background-picker";
 import { StudioFields } from "./studio-fields";
 import { StudioGeneratePanel } from "./studio-generate-panel";
@@ -475,6 +476,9 @@ export function StudioWorkspace({
       ? platformTemplatePreviewUrl(selectedTemplate.platformAssignmentId, size)
       : templatePreviewUrl(selectedTemplate.id, size));
   const [showOriginal, setShowOriginal] = useState(false);
+  // Shared by every preview frame, so switching format or toggling the original
+  // keeps the reviewer's chosen zoom instead of snapping back to fit.
+  const [previewZoom, setPreviewZoom] = useState<PreviewZoom>("fit");
   // A size switch is always a reference-first operation. Keeping the size
   // key separately prevents an old draft renderer from flashing while React
   // reconciles the newly selected dimensions.
@@ -1357,6 +1361,8 @@ export function StudioWorkspace({
             }
             onSelectSize={selectSize}
             disabled={busy}
+            zoom={previewZoom}
+            onZoomChange={setPreviewZoom}
             viewToggle={
               hasAnyGeneratedDraft
                 ? {
@@ -1380,6 +1386,7 @@ export function StudioWorkspace({
                 busy={busy}
                 onGenerate={generate}
                 onCopyFromCampaign={() => generate(true)}
+                zoom={previewZoom}
               />
             ) : content && !isBrandReferenceView && selectedTemplate.platformManifest ? (
               <LiveTemplatePreviewFrame
@@ -1392,6 +1399,7 @@ export function StudioWorkspace({
                 width={dims.w}
                 height={dims.h}
                 updating={saveState === "saving"}
+                zoom={previewZoom}
               />
             ) : isBrandReferenceView ? (
               <ServerPreviewFrame
@@ -1399,6 +1407,7 @@ export function StudioWorkspace({
                 width={dims.w}
                 height={dims.h}
                 updating={false}
+                zoom={previewZoom}
               />
             ) : (
             <ServerPreviewFrame
@@ -1406,6 +1415,7 @@ export function StudioWorkspace({
                 width={dims.w}
                 height={dims.h}
                 updating={false}
+                zoom={previewZoom}
               />
             )}
           </div>
