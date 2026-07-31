@@ -1,6 +1,6 @@
 # ContentGate enterprise-beta acceptance
 
-Status date: July 31, 2026
+Status date: August 1, 2026
 
 ## Release definition
 
@@ -18,7 +18,7 @@ present during beta procurement.
 
 | Control | Beta requirement | Current evidence | Status |
 |---|---|---|---|
-| Exact build | Claude UI is integrated once; local, CI, Preview, browser, live-AI, role, recovery, onboarding, log, and security gates all name the same SHA | Claude `c007408` is integrated once; candidate `76d5fa5` passes the full local suite/build, remote verify, 93-migration tenant-isolation, Preview accessibility/E2E, Vercel deployment, controlled provider-failure gate, and live stateful happy-path regression | In progress — candidate engineering gates pass; recovery, security, and remaining operational gates are still open |
+| Exact build | Claude UI is integrated once; local, CI, Preview, browser, live-AI, role, recovery, onboarding, log, and security gates all name the same SHA | Claude `c007408` is integrated once. Application SHA `602edbd` passed the exact Preview provider-failure and stateful happy-path regressions plus the full remote gate set. SHA `606626d` changes only the CodeQL workflow; its CodeQL, verify, 93-migration tenant-isolation, Preview accessibility/E2E, and Vercel gates all pass | In progress — the application candidate is certified and content-equivalent through the security-workflow head; final owner-controlled recovery, security, and operational gates remain open |
 | Tenant isolation | Database, Storage, API, and generated outputs deny cross-workspace access | Candidate `2b74d93` passes the permanent clean-migration two-tenant CI gate; composite tenant foreign keys and Storage/output assertions are included | Pass on candidate SHA |
 | Roles | Admin, approver, and member permissions are server-enforced and browser-verified | Candidate `4f01b55` combines the admin/member lifecycle journey with distinct authenticated admin/author and approver browser sessions for concurrent generation, submission, approval, and export; every approval was recorded once at the exact revision | Pass on candidate SHA |
 | Admin MFA | Every beta workspace administrator uses an MFA-backed session for sensitive administration | Candidate `2b74d93` proved AAL1 redirect, TOTP enrollment, AAL2 step-up, and sensitive administration on its exact Preview | Pass on candidate SHA; named beta admins still require enrollment |
@@ -31,9 +31,9 @@ present during beta procurement.
 | Availability | Health, worker liveness, queue recovery, provider retry, and failure alerts have owners | Health/worker checks, structured logs, a daily authenticated backstop, and bounded authenticated incident webhook are implemented. Candidate `76d5fa5` passed safe Ask/generation exhaustion paths and visibly reported both incident attempts as unconfigured | In progress — five-minute external/plan-backed monitor, real route, named owner, and delivered synthetic alert required |
 | Capacity | Concurrent login, upload, Ask, generation, review, and export meet an approved beta envelope | Read gate: 20 health probes, 5 simultaneous sign-ins, and 20 authenticated route loads. Candidate `4f01b55` also passed 2 simultaneous uploads, 2 grounded Ask requests, 2 generations, 2 distinct approval workflows, and 3 approved exports; all bounded data was disposed and production was untouched | Pass for the documented design-partner beta envelope; not an SLA or general-scale claim |
 | Incident response | Severity model, rollback, communications, evidence preservation, and an exercised tabletop exist | Production release/rollback steps and severity table exist. Candidate `76d5fa5` proves safe provider degradation and visible incident-routing failure; owners, delivered alert, and tabletop evidence are absent | Partial |
-| Security | No known P0/P1, no high production dependency vulnerability, advisors reviewed, leaked-password protection enabled, and scoped independent testing has no unresolved critical/high finding | Dependency audit and Supabase advisor review pass without security errors; leaked-password protection and independent testing remain open | Partial |
-| Accessibility | Automated WCAG-oriented checks plus keyboard, 200% zoom, reduced-motion, touch-target, announcement, and representative assistive-technology evidence pass | Claude's integrated UI SHA passed the route/viewport sweep and manual keyboard, 200% zoom, reduced-motion, and touch-target checks; candidate `2b74d93` passes the exact remote accessibility/E2E gate | In progress — representative assistive-technology evidence remains |
-| Privacy and customer assurance | Security overview, data flow, retention/deletion, incident contact, DPA/subprocessor inputs, and known beta limitations are reviewable | Technical architecture/runbooks exist; customer-facing assurance pack is absent | Missing |
+| Security | No known P0/P1, no high production dependency vulnerability, advisors reviewed, leaked-password protection enabled, and scoped independent testing has no unresolved critical/high finding | Dependency audit, CodeQL security-extended, Dependabot, and secret scanning report zero open findings; Supabase advisors report zero errors. Leaked-password protection and independent testing remain open | Partial |
+| Accessibility | Automated WCAG-oriented checks plus keyboard, 200% zoom, reduced-motion, touch-target, announcement, and representative assistive-technology evidence pass | Claude's integrated UI SHA passed the route/viewport and manual keyboard/zoom/motion/touch checks. Exact-Preview automation passes, and a representative Chrome accessibility-tree audit exposes correct landmarks, headings, named controls, and live regions across five primary surfaces | In progress — human assistive-technology observation remains |
+| Privacy and customer assurance | Security overview, data flow, retention/deletion, incident contact, DPA/subprocessor inputs, and known beta limitations are reviewable | [Enterprise-beta assurance pack](./ENTERPRISE_BETA_ASSURANCE_PACK.md) consolidates the technical controls, data flow, processor inputs, security/recovery/accessibility posture, limitations, reviewer scope, and acceptance record | In progress — named owner review, processor/legal inputs, and design-partner acceptance remain |
 | Beta operations | Named engineering owner, client-contact owner, go/no-go approver, support hours, escalation path, and design-partner acceptance are recorded | Roles and external pilot acceptance are not yet named | Missing |
 
 ## Required beta gates
@@ -63,8 +63,10 @@ present during beta procurement.
   from a scoped independent security assessment.
 - [ ] Complete manual accessibility evidence and record any contractual
   limitation without overstating certification.
-- [ ] Publish the customer-facing beta security/privacy/operations pack and get
-  written design-partner acceptance of beta limitations.
+- [x] Publish the design-partner-review draft of the customer-facing beta
+  security/privacy/operations assurance pack.
+- [ ] Complete named owner, processor/legal, and independent-review inputs and
+  get written design-partner acceptance of beta limitations.
 
 ## Partner-dependent identity gate
 
