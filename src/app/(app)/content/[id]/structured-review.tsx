@@ -9,6 +9,7 @@ import { fieldLimitText, type FieldLimits } from "@/lib/template-fields";
 export function StructuredReview({
   id,
   status,
+  initialUpdatedAt,
   initialFields,
   order,
   evidence,
@@ -17,6 +18,7 @@ export function StructuredReview({
 }: {
   id: string;
   status: string;
+  initialUpdatedAt: string | null;
   initialFields: Record<string, string>;
   order: string[];
   evidence: Evidence[];
@@ -26,6 +28,7 @@ export function StructuredReview({
   const router = useRouter();
   const [fields, setFields] = useState(initialFields);
   const [savedFields, setSavedFields] = useState(initialFields);
+  const [updatedAt, setUpdatedAt] = useState(initialUpdatedAt);
   const [message, setMessage] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -44,10 +47,11 @@ export function StructuredReview({
   function onSave() {
     setMessage(null);
     startTransition(async () => {
-      const res = await updateStructuredFields(id, fields);
+      const res = await updateStructuredFields(id, fields, updatedAt);
       if ("error" in res) setMessage({ kind: "error", text: res.error });
       else {
         setSavedFields(fields);
+        setUpdatedAt(res.savedAt ?? updatedAt);
         setMessage({
           kind: "ok",
           text:

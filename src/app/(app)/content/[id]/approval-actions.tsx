@@ -6,6 +6,7 @@ import { approveContent, rejectContent } from "../actions";
 export function ApprovalActions({ id }: { id: string }) {
   const [rejecting, setRejecting] = useState(false);
   const [note, setNote] = useState("");
+  const [feedbackCategory, setFeedbackCategory] = useState("Claim or evidence");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -20,7 +21,7 @@ export function ApprovalActions({ id }: { id: string }) {
   function onReject() {
     setError(null);
     startTransition(async () => {
-      const result = await rejectContent(id, note);
+      const result = await rejectContent(id, `${feedbackCategory}: ${note.trim()}`);
       if ("error" in result) setError(result.error);
     });
   }
@@ -48,11 +49,25 @@ export function ApprovalActions({ id }: { id: string }) {
             disabled={pending}
             className="flex-1 rounded-control border border-reject-border px-4 py-2.5 text-[13.5px] font-semibold text-reject transition-colors hover:bg-reject-tint disabled:opacity-50"
           >
-            Reject
+            Request changes
           </button>
         </div>
       ) : (
         <div className="flex flex-col gap-2.5">
+          <label className="flex flex-col gap-1.5 text-[12px] font-semibold text-ink">
+            Feedback category
+            <select
+              value={feedbackCategory}
+              onChange={(event) => setFeedbackCategory(event.target.value)}
+              className="h-10 rounded-control border border-edge-strong bg-surface px-3 text-[13px] font-normal text-ink outline-none focus:border-reject"
+            >
+              <option>Claim or evidence</option>
+              <option>Copy or message</option>
+              <option>Visual choice</option>
+              <option>Fit or layout</option>
+              <option>Other</option>
+            </select>
+          </label>
           <textarea
             value={note}
             onChange={(e) => setNote(e.target.value)}
@@ -68,7 +83,7 @@ export function ApprovalActions({ id }: { id: string }) {
               disabled={pending || !note.trim()}
               className="flex-1 rounded-control bg-reject px-4 py-2.5 text-[13.5px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
             >
-              {pending ? "Working…" : "Reject with note"}
+              {pending ? "Working…" : "Request changes"}
             </button>
             <button
               type="button"

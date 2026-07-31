@@ -2,6 +2,7 @@ import { createRequire } from "node:module";
 import type { Font, Glyph } from "opentype.js";
 
 import { trimDanglingCopyEnd } from "../generated-copy-quality.ts";
+import { fieldIssues, type FieldIssue } from "../template-fields.ts";
 import type { TemplateBundleManifest, TemplateBundleTextSlot } from "./manifest.ts";
 import {
   templateBundleFontDescription,
@@ -101,6 +102,25 @@ function textSlots(manifest: TemplateBundleManifest, variantKey: string) {
   return (
     variant?.slots.filter((slot): slot is TemplateBundleTextSlot => slot.kind === "text") ??
     []
+  );
+}
+
+/** Return only required-field issues here; measured fit is evaluated separately. */
+export function templatePlatformRequiredFieldIssues(
+  manifest: TemplateBundleManifest,
+  variantKey: string,
+  fields: Record<string, unknown>
+): Record<string, FieldIssue[]> {
+  const requiredByKey = new Map(
+    manifest.fields.map((field) => [field.key, field.required !== false])
+  );
+  return Object.fromEntries(
+    textSlots(manifest, variantKey)
+      .map((slot) => [
+        slot.field,
+        fieldIssues(fields[slot.field], undefined, requiredByKey.get(slot.field) ?? false),
+      ] as const)
+      .filter(([, issues]) => issues.length > 0)
   );
 }
 

@@ -24,7 +24,12 @@ const DB_URL = process.env.DB_URL;
 // Tables that intentionally have no org_id column. Adding a table here is a
 // deliberate decision that it holds no tenant data — anything new that is
 // missing from both this list and an org_id column fails the test.
-const GLOBAL_TABLES = new Set(["organizations"]);
+const GLOBAL_TABLES = new Set([
+  "organizations",
+  // Worker liveness is an operator-only deployment signal; it is RLS-enabled
+  // and revoked from every client role, but intentionally carries no tenant data.
+  "asset_media_worker_heartbeats",
+]);
 
 // 1x1 transparent PNG so image-restricted buckets accept the marker object.
 const MARKER_PNG = Buffer.from(

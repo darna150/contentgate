@@ -16,7 +16,7 @@ function getAttentionItem(workspace: ProductWorkspace): AttentionItem {
     return {
       tone: "info",
       title: "This product is archived",
-      body: "Templates and content stay visible for reference, but new generation and Studio are disabled.",
+      body: "Campaigns and content stay visible for reference, but new generation and Studio are disabled.",
       actionHref: null,
       actionLabel: undefined,
     };
@@ -33,10 +33,10 @@ function getAttentionItem(workspace: ProductWorkspace): AttentionItem {
   if (sections.templates.isEmpty) {
     return {
       tone: "info",
-      title: "No active template yet",
-      body: "Configure a locked template before content can be generated for this product.",
+      title: "No active campaign yet",
+      body: "Configure a locked campaign before content can be generated for this product.",
       actionHref: sections.templates.actionHref,
-      actionLabel: sections.templates.canAct ? "Configure a template" : undefined,
+      actionLabel: sections.templates.canAct ? "Configure a campaign" : undefined,
     };
   }
   if (sections.knowledge.isEmpty) {
@@ -61,9 +61,9 @@ function getAttentionItem(workspace: ProductWorkspace): AttentionItem {
     return {
       tone: "info",
       title: "Ready to generate your first piece",
-      body: "Pick a template and size in the Templates tab to create the first draft.",
+      body: "Pick a campaign and format in the Campaigns tab to create the first draft.",
       actionHref: `/products/${product.id}?view=templates`,
-      actionLabel: "Go to templates",
+      actionLabel: "Go to campaigns",
     };
   }
   return {
@@ -81,7 +81,7 @@ export function OverviewView({ workspace }: { workspace: ProductWorkspace }) {
   const recent = content.slice(0, 5);
 
   const stats = [
-    { label: "Templates", value: counts.activeTemplates, caption: "Active locked layouts" },
+    { label: "Campaigns", value: counts.activeTemplates, caption: "Active locked layouts" },
     { label: "Content", value: counts.content, caption: "Generated drafts" },
     { label: "In review", value: counts.inReview, caption: "Awaiting sign-off" },
   ];

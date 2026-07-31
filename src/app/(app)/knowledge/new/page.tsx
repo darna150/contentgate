@@ -27,7 +27,7 @@ export default async function NewDocumentPage({
   }
 
   const backHref = productId ? `/products/${productId}` : "/knowledge";
-  const backLabel = presetName ? `← ${presetName}` : "← Knowledge";
+  const backLabel = presetName ? `← ${presetName}` : "← Brand knowledge";
 
   return (
     <div className="mx-auto flex max-w-[1280px] flex-col gap-6 px-4 py-9 sm:px-10">
@@ -35,7 +35,7 @@ export default async function NewDocumentPage({
         <Link href={backHref} className="text-[13px] font-semibold text-brand hover:underline">
           {backLabel}
         </Link>
-        <h1 className="text-h1 text-ink">Add source document</h1>
+        <h1 className="text-h1 text-ink">Add brand knowledge source</h1>
         <p className="text-[14.5px] text-ink-muted">
           {presetName
             ? `Add approved source knowledge to ${presetName} from a document, pasted text, or public webpage.`

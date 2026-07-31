@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { DeleteDocumentButton } from "./delete-button";
+import { DocumentApprovalStatusButton } from "./approval-status-button";
 import { Badge } from "@/components/ui/badge";
 import { ParagraphMark } from "@/components/citation";
 import {
@@ -23,7 +24,7 @@ export default async function DocumentDetailPage({
     supabase
       .from("documents")
       .select(
-        "id, title, file_type, storage_path, source_url, content_text, paragraphs, created_at, uploaded_by, products!documents_product_id_fkey(name), profiles!documents_uploaded_by_fkey(full_name)"
+        "id, title, file_type, storage_path, source_url, content_text, paragraphs, created_at, uploaded_by, approval_status, products!documents_product_id_fkey(name), profiles!documents_uploaded_by_fkey(full_name)"
       )
       .eq("id", id)
       .single(),
@@ -65,7 +66,7 @@ export default async function DocumentDetailPage({
             href={isAdmin ? "/knowledge" : "/ask"}
             className="text-[13px] font-semibold text-brand hover:underline"
           >
-            {isAdmin ? "← Source Documents" : "← Ask"}
+            {isAdmin ? "← Brand knowledge" : "← Ask Brand Knowledge"}
           </Link>
           <div className="flex items-center gap-2.5">
             <h1 className="text-h1 truncate text-ink">
@@ -107,14 +108,22 @@ export default async function DocumentDetailPage({
             Original webpage ↗
           </a>
         )}
-        {isAdmin && <DeleteDocumentButton id={doc.id} />}
+        {isAdmin && (
+          <>
+            <DocumentApprovalStatusButton
+              id={doc.id}
+              approvalStatus={doc.approval_status as "approved" | "inactive"}
+            />
+            <DeleteDocumentButton id={doc.id} />
+          </>
+        )}
       </div>
 
       <div className="flex flex-col gap-4 rounded-card border border-edge bg-surface p-6">
         <div className="flex items-center gap-2">
           <h2 className="text-[15px] font-bold">Source text</h2>
           <span className="rounded-[5px] bg-brand-tint px-[7px] py-0.5 text-[10.5px] font-bold uppercase tracking-[0.08em] text-brand">
-            Approved source
+            {doc.approval_status === "approved" ? "Approved source" : "Inactive source"}
           </span>
         </div>
         <ol className="flex flex-col gap-4">

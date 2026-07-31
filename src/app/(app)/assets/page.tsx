@@ -8,6 +8,7 @@ import { AssetLibrary } from "@/components/assets/asset-library";
 import type { AssetItem, ProductOption } from "@/components/assets/types";
 import type {
   ProductAssetApprovalStatus,
+  ProductAssetMediaKind,
   ProductAssetType,
 } from "@/lib/product-assets";
 
@@ -32,6 +33,16 @@ type AssetRow = {
   created_at: string;
   updated_at: string;
   previewUrl: string;
+  media_kind: ProductAssetMediaKind | null;
+  checksum_sha256: string | null;
+  duration_seconds: number | string | null;
+  aspect_ratio: number | string | null;
+  poster_storage_path: string | null;
+  preview_storage_path: string | null;
+  transcoded_storage_path: string | null;
+  category: string | null;
+  download_count: number | null;
+  last_downloaded_at: string | null;
   products: Joined<{ id: string; name: string }>;
 };
 
@@ -58,14 +69,20 @@ export default async function AssetsPage({
             { id: "brand", label: "Brand", count: 0 },
           ]}
           filters={filters}
-          isAdmin={false}
+        isAdmin={false}
+        totalCount={0}
+        nextCursor={null}
         />
       </div>
     );
   }
 
   const supabase = await createClient();
-  const [{ assets: rawAssets, role }, { data: productRows }, { data: allAssetProductIds }] =
+  const [
+    { assets: rawAssets, role, totalCount, nextCursor },
+    { data: productRows },
+    { data: assetScopeCounts },
+  ] =
     await Promise.all([
       listProductAssets({
         productId: filters.product === "brand" ? null : filters.product || undefined,
@@ -73,19 +90,23 @@ export default async function AssetsPage({
         approvalStatus: filters.status || undefined,
         tag: filters.tag || undefined,
         search: filters.q || undefined,
+        cursor: filters.cursor || undefined,
       }),
       supabase.from("products").select("id, name, status").order("name"),
-      supabase.from("product_assets").select("product_id"),
+      supabase.rpc("product_asset_scope_counts"),
     ]);
 
   const products: ProductOption[] = productRows ?? [];
   const countsByProduct = new Map<string, number>();
-  for (const row of allAssetProductIds ?? []) {
+  let allAssetsCount = 0;
+  for (const row of assetScopeCounts ?? []) {
     const key = row.product_id ?? "brand";
-    countsByProduct.set(key, (countsByProduct.get(key) ?? 0) + 1);
+    const count = Number(row.asset_count);
+    countsByProduct.set(key, count);
+    allAssetsCount += count;
   }
   const collections = [
-    { id: "", label: "All assets", count: allAssetProductIds?.length ?? 0 },
+    { id: "", label: "All assets", count: allAssetsCount },
     { id: "brand", label: "Brand", count: countsByProduct.get("brand") ?? 0 },
     ...products.map((p) => ({ id: p.id, label: p.name, count: countsByProduct.get(p.id) ?? 0 })),
   ];
@@ -110,6 +131,14 @@ export default async function AssetsPage({
       createdAt: row.created_at,
       updatedAt: row.updated_at,
       previewUrl: row.previewUrl,
+      mediaKind: row.media_kind ?? (row.mime_type.startsWith("video/") ? "video" : "image"),
+      checksumSha256: row.checksum_sha256,
+      durationSeconds: row.duration_seconds === null ? null : Number(row.duration_seconds),
+      aspectRatio: row.aspect_ratio === null ? null : Number(row.aspect_ratio),
+      posterStoragePath: row.poster_storage_path,
+      category: row.category,
+      downloadCount: row.download_count ?? 0,
+      lastDownloadedAt: row.last_downloaded_at,
     };
   });
 
@@ -121,6 +150,8 @@ export default async function AssetsPage({
         collections={collections}
         filters={filters}
         isAdmin={role === "admin"}
+        totalCount={totalCount}
+        nextCursor={nextCursor}
       />
     </div>
   );

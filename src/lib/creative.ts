@@ -10,9 +10,10 @@ export type SizeKey = string;
 
 // Which sizes each asset category may export at.
 export const CATEGORY_SIZES: Record<string, SizeKey[]> = {
-  social: ["square", "story", "feed"],
-  flyer: ["a4"],
-  one_pager: ["a4"],
+  social: ["portrait", "square", "story", "linkedin_square", "link_ad"],
+  display_ad: ["leaderboard", "medium_rectangle"],
+  flyer: ["us_letter", "poster", "rack_card", "a4"],
+  one_pager: ["us_letter", "a4"],
   presentation: ["feed"],
 };
 
@@ -38,9 +39,10 @@ export function platformTemplatePreviewUrl(assignmentId: string, size: SizeKey):
   return `/api/creative/template-preview?assignment=${assignmentId}&size=${size}`;
 }
 
-export function studioContentUrl(contentId: string, size?: SizeKey | null): string {
+export function studioContentUrl(contentId: string, size?: SizeKey | null, returnTo?: string | null): string {
   const params = new URLSearchParams();
   if (size) params.set("size", size);
+  if (returnTo?.startsWith("/")) params.set("returnTo", returnTo);
   const query = params.toString();
   return `/studio/${contentId}${query ? `?${query}` : ""}`;
 }
@@ -76,7 +78,9 @@ export function knownSizeDimensions(size: SizeKey): { w: number; h: number } | n
 function assetFormatForSize(size: SizeKey): "square" | "story" | "feed" | "flyer" {
   if (size === "story") return "story";
   if (size === "feed") return "feed";
-  if (size === "a4") return "flyer";
+  if (size === "a4" || size === "us_letter" || size === "poster" || size === "rack_card") {
+    return "flyer";
+  }
   return "square";
 }
 

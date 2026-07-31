@@ -56,3 +56,23 @@ test("generated copy quality allows concise ad fragments and CTAs", () => {
 
   assert.deepEqual(issues, {});
 });
+
+test("generated copy quality rejects em dashes and generic AI phrasing", () => {
+  const issues = generatedCopyQualityIssues(
+    {
+      headline: "Elevate every run — starting now",
+      subheadline: "A specific, source-grounded support line.",
+    },
+    ["headline", "subheadline"]
+  );
+
+  assert.deepEqual(Object.keys(issues), ["headline"]);
+  assert.match(
+    formatGeneratedCopyQualityIssues(issues).join("\n"),
+    /em dash or en dash/
+  );
+  assert.match(
+    formatGeneratedCopyQualityIssues(issues).join("\n"),
+    /generic AI marketing language/
+  );
+});

@@ -4,6 +4,10 @@ import {
   preflightTemplateBundle,
   type TemplateBundlePreflightSample,
 } from "@/lib/template-platform/preflight";
+import {
+  logTemplatePipelineEvent,
+  templatePipelineDuration,
+} from "@/lib/template-platform/observability";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -63,6 +67,7 @@ async function requireAdmin() {
 }
 
 export async function POST(req: Request) {
+  const startedAt = Date.now();
   const admin = await requireAdmin();
   if ("error" in admin) return admin.error;
 
@@ -92,6 +97,18 @@ export async function POST(req: Request) {
       assets,
       samples: body.samples,
     });
+    logTemplatePipelineEvent({
+      event: "template.preflight",
+      ok: report.ok,
+      familyKey: body.manifest.family?.key,
+      versionName: body.manifest.version?.name,
+      issueCount: report.issues.length,
+      assetCount: body.assets.length,
+      damBoundFieldCount: body.manifest.fields?.filter(
+        (field) => field.assetBinding?.source === "product_assets"
+      ).length,
+      durationMs: templatePipelineDuration(startedAt),
+    });
 
     return Response.json({
       report,
@@ -100,6 +117,14 @@ export async function POST(req: Request) {
     });
   } catch (error) {
     console.error("template bundle preflight failed:", error);
+    logTemplatePipelineEvent({
+      event: "template.preflight",
+      ok: false,
+      familyKey: body?.manifest?.family?.key,
+      versionName: body?.manifest?.version?.name,
+      durationMs: templatePipelineDuration(startedAt),
+      reason: "exception",
+    });
     return Response.json({ error: "Template bundle preflight failed." }, { status: 500 });
   }
 }

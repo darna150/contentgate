@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { Button } from "@/components/ui/button";
+import { useUiUxMeasurement } from "@/components/uiux-measurement-provider";
 import { Textarea } from "@/components/ui/textarea";
 import { approveContent, rejectContent } from "../content/actions";
 
@@ -15,8 +16,10 @@ export function StudioReviewActions({
   onReviewed?: (status: "approved" | "rejected", note?: string | null) => void;
 }) {
   const router = useRouter();
+  const { track } = useUiUxMeasurement();
   const [rejecting, setRejecting] = useState(false);
   const [note, setNote] = useState("");
+  const [feedbackCategory, setFeedbackCategory] = useState("Claim or evidence");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -29,6 +32,7 @@ export function StudioReviewActions({
         return;
       }
       onReviewed?.("approved");
+      track("review_decision", { decision: "approved" });
       router.refresh();
     });
   }
@@ -36,12 +40,14 @@ export function StudioReviewActions({
   function onReject() {
     setError(null);
     startTransition(async () => {
-      const result = await rejectContent(contentId, note);
+      const formattedNote = `${feedbackCategory}: ${note.trim()}`;
+      const result = await rejectContent(contentId, formattedNote);
       if ("error" in result) {
         setError(result.error);
         return;
       }
-      onReviewed?.("rejected", note.trim());
+      onReviewed?.("rejected", formattedNote);
+      track("review_decision", { decision: "request_changes", change_reason: feedbackCategory });
       router.refresh();
     });
   }
@@ -51,7 +57,7 @@ export function StudioReviewActions({
       <div className="flex flex-col gap-1">
         <p className="text-h2 text-ink">Review this draft</p>
         <p className="text-caption text-ink-muted">
-          Check every claim against its evidence before approving. Approval unlocks export.
+          Check changed copy, visual choices, fit, and evidence before deciding. Approval unlocks export for this exact revision.
         </p>
       </div>
       {!rejecting ? (
@@ -72,11 +78,26 @@ export function StudioReviewActions({
             onClick={() => setRejecting(true)}
             disabled={pending}
           >
-            Reject
+            Request changes
           </Button>
         </div>
       ) : (
         <div className="flex flex-col gap-2.5">
+          <p className="text-[13px] leading-5 text-ink-muted">Requesting changes returns this exact revision to the author. An explanation is required so they can act safely.</p>
+          <label className="flex flex-col gap-1.5 text-[13px] font-semibold text-ink">
+            Feedback category
+            <select
+              value={feedbackCategory}
+              onChange={(event) => setFeedbackCategory(event.target.value)}
+              className="h-10 rounded-control border border-edge-strong bg-surface px-3 text-[13px] font-normal text-ink outline-none focus:border-reject"
+            >
+              <option>Claim or evidence</option>
+              <option>Copy or message</option>
+              <option>Visual choice</option>
+              <option>Fit or layout</option>
+              <option>Other</option>
+            </select>
+          </label>
           <Textarea
             value={note}
             onChange={(event) => setNote(event.target.value)}
@@ -93,7 +114,7 @@ export function StudioReviewActions({
               onClick={onReject}
               disabled={pending || !note.trim()}
             >
-              {pending ? "Working…" : "Reject with note"}
+              {pending ? "Working…" : "Request changes"}
             </Button>
             <Button
               type="button"

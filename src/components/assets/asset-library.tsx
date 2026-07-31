@@ -34,9 +34,19 @@ type Props = {
   collections: Collection[];
   filters: AssetLibraryFilterState;
   isAdmin: boolean;
+  totalCount: number;
+  nextCursor: string | null;
 };
 
-export function AssetLibrary({ assets, products, collections, filters, isAdmin }: Props) {
+export function AssetLibrary({
+  assets,
+  products,
+  collections,
+  filters,
+  isAdmin,
+  totalCount,
+  nextCursor,
+}: Props) {
   const router = useRouter();
   const [dialog, setDialog] = useState<DialogState>({ type: "closed" });
   const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
@@ -79,7 +89,11 @@ export function AssetLibrary({ assets, products, collections, filters, isAdmin }
         <nav aria-label="Collections" className="flex shrink-0 flex-row gap-1 overflow-x-auto md:w-56 md:flex-col md:overflow-visible">
           {collections.map((collection) => {
             const active = filters.product === collection.id;
-            const href = `?${assetLibraryFiltersToSearch({ ...filters, product: collection.id }).replace(/^\?/, "")}`;
+            const href = assetLibraryFiltersToSearch({
+              ...filters,
+              product: collection.id,
+              cursor: "",
+            });
             return (
               <Link
                 key={collection.id || "all"}
@@ -102,7 +116,7 @@ export function AssetLibrary({ assets, products, collections, filters, isAdmin }
         </nav>
 
         <div className="flex min-w-0 flex-1 flex-col gap-5">
-          <AssetFilterToolbar filters={filters} resultCount={visibleAssets.length} />
+          <AssetFilterToolbar filters={filters} resultCount={totalCount} />
 
           {visibleAssets.length === 0 ? (
             <EmptyState
@@ -132,6 +146,22 @@ export function AssetLibrary({ assets, products, collections, filters, isAdmin }
               onEdit={(asset) => setDialog({ type: "edit", asset })}
               onDelete={(asset) => setDialog({ type: "delete", asset })}
             />
+          )}
+
+          {nextCursor && (
+            <div className="flex items-center justify-between gap-3 border-t border-edge pt-4">
+              <p className="text-sm text-ink-faint">
+                Showing {visibleAssets.length} of {totalCount} assets on this page.
+              </p>
+              <Button asChild variant="outline">
+                <Link
+                  href={assetLibraryFiltersToSearch({ ...filters, cursor: nextCursor })}
+                  scroll={false}
+                >
+                  Next page
+                </Link>
+              </Button>
+            </div>
           )}
         </div>
       </div>

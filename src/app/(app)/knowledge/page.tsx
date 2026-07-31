@@ -30,6 +30,20 @@ function IndexStatusBadge({ status }: { status: DocumentIndexStatus }) {
   );
 }
 
+function SourceStatusBadge({ status }: { status: "approved" | "inactive" }) {
+  return (
+    <Badge
+      className={
+        status === "approved"
+          ? "border-transparent bg-approve-tint text-approve"
+          : "border-transparent bg-edge text-ink-muted"
+      }
+    >
+      {status === "approved" ? "Approved source" : "Inactive source"}
+    </Badge>
+  );
+}
+
 export default async function KnowledgePage({
   searchParams,
 }: {
@@ -57,8 +71,8 @@ export default async function KnowledgePage({
   return (
     <div className="mx-auto flex max-w-[1280px] flex-col gap-6 px-4 py-9 sm:px-10">
       <PageHeader
-        title="Source documents"
-        description="Every approved document across your products, in one place."
+        title="Brand knowledge"
+        description="Sources and approved knowledge across your products, in one place."
         actions={
           <Button asChild>
             <Link href="/knowledge/new">
@@ -78,7 +92,7 @@ export default async function KnowledgePage({
       ) : (
         <div className="flex flex-col gap-3.5 rounded-card border border-edge bg-surface p-[22px]">
           <div className="flex items-center">
-            <h2 className="text-[15px] font-bold">Document library</h2>
+            <h2 className="text-[15px] font-bold">Sources</h2>
             <div className="flex-1" />
             <span className="text-[12.5px] text-ink-faint">
               {docs.length} document{docs.length === 1 ? "" : "s"}
@@ -106,7 +120,10 @@ export default async function KnowledgePage({
                       })}
                     </span>
                   </span>
-                  <IndexStatusBadge status={doc.indexStatus} />
+                  <span className="flex shrink-0 items-center gap-1.5">
+                    <SourceStatusBadge status={doc.approvalStatus} />
+                    <IndexStatusBadge status={doc.indexStatus} />
+                  </span>
                 </Link>
               </li>
             ))}

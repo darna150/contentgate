@@ -6,11 +6,15 @@ export const TEMPLATE_OUTPUT_SIZES = {
   square: { label: "Square", w: 1080, h: 1080 },
   portrait: { label: "Portrait", w: 1080, h: 1350 },
   story: { label: "Story", w: 1080, h: 1920 },
+  linkedin_square: { label: "LinkedIn Square", w: 1200, h: 1200 },
   feed: { label: "Feed", w: 1200, h: 630 },
   link_ad: { label: "Link Ad", w: 1200, h: 628 },
   leaderboard: { label: "Leaderboard", w: 728, h: 90 },
   medium_rectangle: { label: "Medium Rectangle", w: 300, h: 250 },
   a4: { label: "A4 Flyer", w: 1240, h: 1754 },
+  us_letter: { label: "US Letter", w: 816, h: 1056 },
+  poster: { label: "Poster", w: 900, h: 1350 },
+  rack_card: { label: "Rack Card", w: 440, h: 864 },
 } as const;
 
 export type TemplateSizeKey = keyof typeof TEMPLATE_OUTPUT_SIZES;

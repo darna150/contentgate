@@ -339,8 +339,11 @@ export function NotebookClient({
     const q = (questionOverride ?? question).trim();
     if (!q || loading) return;
 
-    if (!activeSession) return;
-    const productId = activeSession.product_id;
+    const productId =
+      activeSession?.product_id ??
+      (selectedProductId && selectedProductId !== WORKSPACE_NOTEBOOK_ID
+        ? selectedProductId
+        : null);
 
     let sessionId = activeId;
 
@@ -919,7 +922,7 @@ export function NotebookClient({
         </div>
 
         {/* Input */}
-        {activeSession && (
+        {(activeSession || selectedProduct) && (
           <div className="border-t border-edge bg-surface px-6 py-4">
             <div className="mx-auto max-w-[740px]">
               <form
@@ -940,7 +943,7 @@ export function NotebookClient({
                   placeholder="Ask a question… (Enter to send, Shift+Enter for new line)"
                   disabled={loading}
                   rows={1}
-                  className="min-h-[64px] flex-1 resize-none overflow-y-auto rounded-control border border-edge bg-page px-4 py-2.5 text-[13.5px] leading-5 placeholder:text-ink-faint focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 disabled:opacity-50 sm:min-h-[44px]"
+                  className="ask-composer-input flex-1 resize-none overflow-y-auto rounded-control border border-edge bg-page px-4 py-2.5 text-[13.5px] leading-5 placeholder:text-ink-faint focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 disabled:opacity-50"
                 />
                 {loading ? <Button type="button" variant="outline" onClick={cancelAnswer} className="self-end px-4"><Square className="size-3.5" aria-hidden />Cancel</Button> : <Button type="submit" disabled={!question.trim()} className="self-end px-5">Ask</Button>}
               </form>

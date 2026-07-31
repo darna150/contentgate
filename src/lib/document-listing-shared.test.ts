@@ -13,6 +13,7 @@ function baseDocument(overrides: Partial<DocumentListRow> = {}): DocumentListRow
     storage_path: "org/document/source.pdf",
     source_url: null,
     content_text: "Approved source text",
+    approval_status: "approved",
     created_at: "2026-07-15T00:00:00.000Z",
     paragraphs: [{ n: 1, text: "Approved source text" }],
     products: { name: "ContentGate" },
@@ -26,6 +27,7 @@ test("flattenDocumentRow includes product, paragraph count, and indexed status",
   assert.equal(row.productName, "ContentGate");
   assert.equal(row.paragraphCount, 1);
   assert.equal(row.indexStatus, "indexed");
+  assert.equal(row.approvalStatus, "approved");
   assert.equal(row.sourceType, "file");
 });
 

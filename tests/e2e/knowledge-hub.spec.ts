@@ -136,7 +136,9 @@ test.describe("Knowledge Hub live QA", () => {
     };
     expect(answerPayload.query_id).toEqual(expect.any(String));
     expect(answerPayload.not_found).toBe(false);
-    expect(Array.isArray(answerPayload.citations) ? answerPayload.citations.length : 0).toBeGreaterThan(0);
+    expect(
+      Array.isArray(answerPayload.citations) ? answerPayload.citations.length : 0
+    ).toBeGreaterThan(0);
 
     await expect(
       page.getByText(/From approved sources|Evidence for this claim/i).first()

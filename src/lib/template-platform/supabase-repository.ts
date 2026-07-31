@@ -31,6 +31,7 @@ type SupabaseTemplatePlatformClient = {
       options?: { onConflict?: string; ignoreDuplicates?: boolean }
     ): Promise<SupabaseWriteResult>;
   };
+  rpc(fn: string, args: Record<string, unknown>): Promise<SupabaseWriteResult>;
   storage: {
     from(bucket: string): {
       upload(
@@ -38,6 +39,7 @@ type SupabaseTemplatePlatformClient = {
         data: Uint8Array,
         options?: { contentType?: string; upsert?: boolean }
       ): Promise<SupabaseWriteResult>;
+      remove(paths: readonly string[]): Promise<SupabaseWriteResult>;
     };
   };
 };
@@ -47,8 +49,7 @@ function throwOnSupabaseError(result: SupabaseWriteResult, action: string) {
 }
 
 export function createSupabaseTemplateBundleRepository(
-  client: SupabaseTemplatePlatformClient = createAdminClient() as unknown as SupabaseTemplatePlatformClient,
-  options: { uploadUpsert?: boolean } = {}
+  client: SupabaseTemplatePlatformClient = createAdminClient() as unknown as SupabaseTemplatePlatformClient
 ): TemplateBundleImportRepository {
   return {
     async findTemplateFamilyId(input) {
@@ -64,39 +65,50 @@ export function createSupabaseTemplateBundleRepository(
       return result.data?.id ?? null;
     },
 
+    async findTemplateVersionId(input) {
+      const result = await client
+        .from("template_versions")
+        .select("id")
+        .eq("org_id", input.orgId)
+        .eq("family_id", input.familyId)
+        .eq("version_label", input.versionLabel)
+        .maybeSingle();
+      if (result.error) {
+        throw new Error(`Find template version: ${result.error.message}`);
+      }
+      return result.data?.id ?? null;
+    },
+
     async uploadTemplateAsset(input) {
       const result = await client.storage
         .from(input.bucket)
         .upload(input.path, input.data, {
           contentType: input.contentType ?? undefined,
-          upsert: options.uploadUpsert ?? false,
+          // Import cleanup may only remove objects created by the current
+          // attempt. Preventing replacement makes that statement true.
+          upsert: false,
         });
       throwOnSupabaseError(result, `Upload template asset ${input.path}`);
     },
 
+    async removeTemplateAssets(input) {
+      if (input.paths.length === 0) return;
+      throwOnSupabaseError(
+        await client.storage.from(input.bucket).remove(input.paths),
+        "Remove uploaded template assets"
+      );
+    },
+
     async insertCompiledTemplateBundle(rows: CompiledTemplateBundleImport["rows"]) {
       throwOnSupabaseError(
-        await client.from("template_families").upsert(rows.family, {
-          onConflict: "org_id,family_key",
-          ignoreDuplicates: true,
+        await client.rpc("commit_template_bundle_import", {
+          p_family: rows.family,
+          p_version: rows.version,
+          p_variants: rows.variants,
+          p_assets: rows.assets,
+          p_import_run: rows.importRun,
         }),
-        "Upsert template family"
-      );
-      throwOnSupabaseError(
-        await client.from("template_versions").insert(rows.version),
-        "Insert template version"
-      );
-      throwOnSupabaseError(
-        await client.from("template_variants").insert(rows.variants),
-        "Insert template variants"
-      );
-      throwOnSupabaseError(
-        await client.from("template_assets").insert(rows.assets),
-        "Insert template assets"
-      );
-      throwOnSupabaseError(
-        await client.from("template_import_runs").insert(rows.importRun),
-        "Insert template import run"
+        "Commit template bundle import"
       );
     },
 

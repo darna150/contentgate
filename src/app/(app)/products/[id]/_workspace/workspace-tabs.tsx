@@ -22,10 +22,10 @@ export function parseWorkspaceView(value: string | undefined): WorkspaceView {
 
 const LABELS: Record<WorkspaceView, string> = {
   overview: "Overview",
-  templates: "Templates",
+  templates: "Campaigns",
   content: "Content",
-  approvals: "Approvals",
-  knowledge: "Knowledge",
+  approvals: "Reviews",
+  knowledge: "Brand knowledge",
   assets: "Assets",
 };
 

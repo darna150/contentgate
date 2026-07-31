@@ -46,7 +46,12 @@ export function AssetFilterToolbar({ filters, resultCount }: Props) {
   }, []);
 
   function updateFilters(patch: Partial<AssetLibraryFilterState>) {
-    const next: AssetLibraryFilterState = { ...filtersRef.current, ...patch };
+    const next: AssetLibraryFilterState = {
+      ...filtersRef.current,
+      ...patch,
+      // A cursor is only valid for the exact filter set that created it.
+      cursor: "cursor" in patch ? (patch.cursor ?? "") : "",
+    };
     filtersRef.current = next;
     router.replace(`${pathname}${assetLibraryFiltersToSearch(next)}`, { scroll: false });
   }

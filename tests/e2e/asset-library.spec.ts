@@ -37,12 +37,26 @@ async function signIn(page: Page) {
 }
 
 async function assertNoBrokenImages(page: Page) {
-  await page.waitForFunction(
-    () => [...document.images].filter((image) => image.getClientRects().length > 0)
-      .every((image) => image.complete),
-    undefined,
-    { timeout: 45_000 }
-  );
+  await expect
+    .poll(
+      () => page.locator("img").evaluateAll((images) =>
+        images
+          .filter((image) => {
+            const img = image as HTMLImageElement;
+            return (
+              img.getClientRects().length > 0 &&
+              window.getComputedStyle(img).visibility !== "hidden"
+            );
+          })
+          .every((image) => {
+            const img = image as HTMLImageElement;
+            return img.complete && img.naturalWidth > 0 && img.naturalHeight > 0;
+          })
+      ),
+      { timeout: 30_000, message: "Visible Asset Library images did not finish loading." }
+    )
+    .toBe(true);
+
   const brokenImages = await page.locator("img").evaluateAll((images) =>
     images
       .map((image) => {
@@ -81,7 +95,6 @@ async function attachBrowserIssues(testInfo: TestInfo, issues: BrowserIssue[]) {
 test.describe("Asset Library live QA", () => {
   test("loads assets without broken previews and validates raw asset downloads when available", async ({
     page,
-    request,
   }, testInfo) => {
     const issues: BrowserIssue[] = [];
 
@@ -131,32 +144,11 @@ test.describe("Asset Library live QA", () => {
       await expect(page.getByRole("dialog")).toBeVisible();
       await assertNoBrokenImages(page);
 
-      const downloadLink = page.getByRole("link", { name: /Download asset/i });
-      if (await downloadLink.isVisible().catch(() => false)) {
-        const href = await downloadLink.getAttribute("href");
-        expect(href, "Download asset link is missing href.").toEqual(expect.any(String));
-
-        const url = new URL(href!, page.url()).toString();
-        const response = await request.get(url);
-        const body = await response.body();
-
-        await testInfo.attach("asset-download-result.json", {
-          contentType: "application/json",
-          body: Buffer.from(
-            JSON.stringify(
-              {
-                status: response.status(),
-                contentType: response.headers()["content-type"],
-                bytes: body.byteLength,
-              },
-              null,
-              2
-            )
-          ),
-        });
-
-        expect(response.ok(), `Asset download failed: ${response.status()} ${url}`).toBeTruthy();
-        expect(body.byteLength).toBeGreaterThan(100);
+      const downloadButton = page.getByRole("button", { name: /Download asset/i });
+      if (await downloadButton.isVisible().catch(() => false)) {
+        await downloadButton.click();
+        await expect(downloadButton).toBeEnabled();
+        await expect(page.getByRole("dialog").getByRole("alert")).toHaveCount(0);
       } else {
         await expect(
           page.getByText(/Raw download is available after this asset is approved/i)

@@ -102,7 +102,7 @@ export async function GET(req: Request) {
     const { data: assignmentRow } = await supabase
       .from("product_template_assignments")
       .select(
-        "id, default_payload, template_families!product_template_assignments_template_family_id_fkey(name), template_versions!product_template_assignments_template_version_id_fkey(id, manifest)"
+        "id, default_payload, template_families!product_template_assignments_template_family_id_fkey(name), template_versions!product_template_assignments_template_version_id_fkey(manifest)"
       )
       .eq("id", platformAssignmentId)
       .eq("org_id", profile.org_id)
@@ -124,10 +124,28 @@ export async function GET(req: Request) {
     if (!runtime) {
       return new Response("Unsupported size for this template", { status: 400 });
     }
+    // The Brand reference view is the authored Figma export for this one
+    // selected size. Serve that image directly instead of signing every one
+    // of the bundle's assets and rebuilding it through ImageResponse.
+    if (format === "png" && !download) {
+      const assets = await createTemplateBundleAssetUrlMap(supabase, profile.org_id, [manifest], {
+        assetPaths: [runtime.referenceAssetPath],
+      });
+      const referenceUrl = assets.get(runtime.referenceAssetPath);
+      if (!referenceUrl) return new Response("Reference asset is unavailable.", { status: 404 });
+      return new Response(null, {
+        status: 307,
+        headers: {
+          Location: referenceUrl,
+          // Reference exports are immutable for a published bundle version.
+          // Let the browser retain the selected Figma image rather than
+          // re-signing and downloading it on every Studio state change.
+          "Cache-Control": "private, max-age=300",
+        },
+      });
+    }
     const assetUrlByPath = Object.fromEntries(
-      await createTemplateBundleAssetUrlMap(supabase, profile.org_id, [
-        { versionId: version.id, manifest },
-      ])
+      await createTemplateBundleAssetUrlMap(supabase, profile.org_id, [manifest])
     );
     const rendered = renderTemplateBundleVariant({
       manifest,

@@ -17,7 +17,7 @@ const STYLES: Record<string, { label: string; className: string; dotClassName: s
     dotClassName: "bg-brand",
   },
   rejected: {
-    label: "Rejected",
+    label: "Changes requested",
     className: "border-reject-border bg-reject-tint text-reject",
     dotClassName: "bg-reject",
   },

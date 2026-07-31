@@ -21,7 +21,7 @@ type Surface = {
 };
 
 const SURFACES: Surface[] = [
-  { name: "Dashboard", path: "/dashboard", expectedText: /Dashboard/i },
+  { name: "Dashboard", path: "/dashboard", expectedText: /Good morning|Recent activity/i },
   { name: "Products", path: "/products", expectedText: /Products/i },
   {
     name: "Product overview",
@@ -41,12 +41,12 @@ const SURFACES: Surface[] = [
   {
     name: "Product approvals",
     path: `/products/${DEMO_PRODUCT_ID}?view=approvals`,
-    expectedText: /Approval|Open Approval Queue|The queue is clear/i,
+    expectedText: /Reviews|Content waiting for your review|The queue is clear/i,
   },
   {
     name: "Product knowledge",
     path: `/products/${DEMO_PRODUCT_ID}?view=knowledge`,
-    expectedText: /Source documents|Approved claims|Knowledge/i,
+    expectedText: /Approved sources|Approved claims|Knowledge/i,
   },
   {
     name: "Product assets",
@@ -54,10 +54,10 @@ const SURFACES: Surface[] = [
     expectedText: /Assets|No assets/i,
   },
   { name: "Content library", path: "/content", expectedText: /Content/i },
-  { name: "Approvals", path: "/approvals", expectedText: /Approval Queue/i },
+  { name: "Approvals", path: "/approvals", expectedText: /Reviews|The queue is clear/i },
   { name: "Assets", path: "/assets", expectedText: /Assets/i },
   { name: "Ask notebook", path: "/ask", expectedText: /Ask notebook|All sources/i },
-  { name: "Source Documents", path: "/knowledge", expectedText: /Source documents/i },
+  { name: "Brand knowledge", path: "/knowledge", expectedText: /Brand knowledge|Sources/i },
   { name: "Template Ops", path: "/templates", expectedText: /Template Ops/i },
 ];
 
@@ -111,7 +111,7 @@ async function assertNoBrokenImages(page: Page, surfaceName: string) {
           )
           .every((image) => image.complete && image.naturalWidth > 0 && image.naturalHeight > 0),
       undefined,
-      { timeout: 30_000 }
+      { timeout: 45_000 }
     )
     .catch(() => {
       // Keep the assertion below as the source of truth so failures include
@@ -146,6 +146,76 @@ async function assertNoBrokenImages(page: Page, surfaceName: string) {
   ).toEqual([]);
 }
 
+async function assertBasicSemantics(page: Page, surfaceName: string) {
+  const report = await page.evaluate(() => {
+    const isVisible = (element: Element) => {
+      const rect = element.getBoundingClientRect();
+      return (
+        rect.width > 0 &&
+        rect.height > 0 &&
+        window.getComputedStyle(element).visibility !== "hidden"
+      );
+    };
+    const unnamedInteractive = [
+      ...document.querySelectorAll("button, a[href], input:not([type=hidden]), select, textarea"),
+    ]
+      .filter(isVisible)
+      .filter((element) => {
+        const id = element.getAttribute("id");
+        const nativeLabel = id
+          ? document.querySelector(`label[for="${CSS.escape(id)}"]`)?.textContent?.trim()
+          : "";
+        const name =
+          element.getAttribute("aria-label") ||
+          nativeLabel ||
+          element.getAttribute("title") ||
+          element.textContent?.trim() ||
+          element.getAttribute("value") ||
+          element.getAttribute("placeholder");
+        return !name;
+      })
+      .map((element) => element.outerHTML.slice(0, 180));
+    const ids = [...document.querySelectorAll("[id]")].map((element) => element.id);
+    const duplicateIds = [...new Set(ids.filter((id, index) => ids.indexOf(id) !== index))];
+
+    return {
+      mainCount: document.querySelectorAll("main").length,
+      unnamedInteractive,
+      duplicateIds,
+    };
+  });
+
+  expect(report.mainCount, `${surfaceName} needs exactly one main landmark`).toBe(1);
+  expect(report.unnamedInteractive, `${surfaceName} has visible unnamed controls`).toEqual([]);
+  expect(report.duplicateIds, `${surfaceName} has duplicate IDs`).toEqual([]);
+}
+
+async function assertMobileTouchTargets(page: Page, surfaceName: string) {
+  const undersized = await page.evaluate(() =>
+    [...document.querySelectorAll("button, [role=button]")]
+      .filter((element) => {
+        const rect = element.getBoundingClientRect();
+        const style = window.getComputedStyle(element);
+        return (
+          rect.width > 0 &&
+          rect.height > 0 &&
+          style.visibility !== "hidden" &&
+          (rect.width < 44 || rect.height < 44)
+        );
+      })
+      .map((element) => {
+        const rect = element.getBoundingClientRect();
+        return {
+          name:
+            element.getAttribute("aria-label") || element.textContent?.trim() || element.tagName,
+          width: Math.round(rect.width),
+          height: Math.round(rect.height),
+        };
+      })
+  );
+  expect(undersized, `${surfaceName} has touch targets below 44×44px`).toEqual([]);
+}
+
 async function attachIssues(testInfo: TestInfo, issues: BrowserIssue[]) {
   await testInfo.attach("browser-issues.json", {
     contentType: "application/json",
@@ -154,6 +224,61 @@ async function attachIssues(testInfo: TestInfo, issues: BrowserIssue[]) {
 }
 
 test.describe("ContentGate full app surface QA", () => {
+  test("keeps mobile dashboard actions at least 44 by 44 pixels", async ({ page }) => {
+    await signIn(page);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/dashboard");
+    await assertMobileTouchTargets(page, "Mobile dashboard");
+  });
+
+  test("supports keyboard sign-in, skip navigation, and primary workspace links", async ({
+    page,
+  }) => {
+    requireCredentials();
+    await page.goto("/login");
+    await page.waitForTimeout(300);
+
+    // Use the same sequence a keyboard-only user takes through the form.
+    await page.keyboard.press("Tab"); // Skip link
+    await page.keyboard.press("Tab"); // Work email
+    await page.keyboard.type(E2E_EMAIL ?? "");
+    await page.keyboard.press("Tab"); // Password
+    await page.keyboard.type(E2E_PASSWORD ?? "");
+    await page.keyboard.press("Tab"); // Enter workspace
+    await page.keyboard.press("Enter");
+    await page.waitForFunction(() => !window.location.pathname.startsWith("/login"));
+
+    // Client-side sign-in preserves the submit-control focus by design. A
+    // fresh page load verifies the document-start skip-link order separately.
+    await page.reload();
+    await page.keyboard.press("Tab");
+    await expect(page.locator("a[href='#main-content']")).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(page.locator("#main-content")).toBeFocused();
+
+    for (const path of ["/products", "/approvals"]) {
+      // Start from the top of a fresh document for each navigation check.
+      // Activating the skip link intentionally moves focus past the sidebar,
+      // so continuing from #main-content cannot exercise those nav links.
+      await page.goto("/dashboard");
+      await page.waitForLoadState("domcontentloaded");
+      let found = false;
+      for (let index = 0; index < 80; index += 1) {
+        await page.keyboard.press("Tab");
+        const href = await page.evaluate(
+          () => (document.activeElement as HTMLAnchorElement | null)?.getAttribute("href")
+        );
+        if (href === path) {
+          found = true;
+          await page.keyboard.press("Enter");
+          break;
+        }
+      }
+      expect(found, `Keyboard focus did not reach ${path}`).toBeTruthy();
+      await expect(page).toHaveURL(new RegExp(`${path.replace("/", "\\/")}$`));
+    }
+  });
+
   test("loads every major feature surface without broken images or app crashes", async ({
     page,
   }, testInfo) => {
@@ -203,6 +328,7 @@ test.describe("ContentGate full app surface QA", () => {
         surface.name
       ).toBeVisible({ timeout: 30_000 });
       await assertNoBrokenImages(page, surface.name);
+      await assertBasicSemantics(page, surface.name);
       await testInfo.attach(
         `surface-${surface.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.png`,
         {

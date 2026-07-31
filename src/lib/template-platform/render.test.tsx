@@ -169,7 +169,7 @@ test("ContentGate figwright bundles use versioned public assets for browser and 
   assert.ok(browserRendered);
   assert.match(
     renderToStaticMarkup(browserRendered.element),
-    /\/template-bundles\/contentgate-local-premium\/figwright-v1\/variants\/portrait\/background\.png\?v=vector-figwright-/
+    /\/template-packages\/contentgate\/set-b\/backgrounds\/portrait\.png\?v=vector-figwright-/
   );
 
   const exportRendered = renderTemplateBundleVariant({
@@ -181,7 +181,7 @@ test("ContentGate figwright bundles use versioned public assets for browser and 
   assert.ok(exportRendered);
   assert.match(
     renderToStaticMarkup(exportRendered.element),
-    /https:\/\/contentgate\.example\/template-bundles\/contentgate-local-premium\/figwright-v1\/variants\/portrait\/background\.png\?v=vector-figwright-/
+    /https:\/\/contentgate\.example\/template-packages\/contentgate\/set-b\/backgrounds\/portrait\.png\?v=vector-figwright-/
   );
 });
 
@@ -217,12 +217,12 @@ test("ContentGate figwright bundles render true 2x exports with high-density ass
   const html = renderToStaticMarkup(rendered.element);
   assert.match(
     html,
-    /https:\/\/contentgate\.example\/template-bundles\/contentgate-local-premium\/figwright-v1\/variants\/medium_rectangle\/background@2x\.png\?v=vector-figwright-/
+    /https:\/\/contentgate\.example\/template-packages\/contentgate\/set-b\/backgrounds\/medium-rectangle@2x\.png\?v=vector-figwright-/
   );
   assert.match(html, /font-size:\d+(?:\.\d+)?px/);
 });
 
-test("ContentGate figwright bundles also support legacy public package asset paths", async () => {
+test("ContentGate figwright bundles honor explicit signed asset URLs", async () => {
   const bundle = await buildContentGateTemplateBundle("contentgate_local_premium");
   const manifest = {
     ...bundle.manifest,
@@ -246,9 +246,8 @@ test("ContentGate figwright bundles also support legacy public package asset pat
   const html = renderToStaticMarkup(rendered.element);
   assert.match(
     html,
-    /\/template-bundles\/contentgate-local-premium\/figwright-v1\/variants\/portrait\/background\.png\?v=vector-figwright-/
+    /https:\/\/storage\.example\.test\/signed-background\.png/
   );
-  assert.doesNotMatch(html, /storage\.example\.test/);
 });
 
 test("ContentGate figwright bundles are recognized as public assets", async () => {

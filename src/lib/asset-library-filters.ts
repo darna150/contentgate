@@ -13,6 +13,7 @@ export type AssetLibraryFilterState = {
   type: ProductAssetType | "";
   status: ProductAssetApprovalStatus | "";
   tag: string;
+  cursor: string;
   view: AssetLibraryView;
 };
 
@@ -31,6 +32,7 @@ export function parseAssetLibrarySearchParams(
   const typeRaw = firstValue(raw.type).trim();
   const statusRaw = firstValue(raw.status).trim();
   const tag = firstValue(raw.tag).trim().slice(0, 40).toLowerCase();
+  const cursor = firstValue(raw.cursor).trim().slice(0, 400);
   const viewRaw = firstValue(raw.view).trim();
 
   return {
@@ -39,6 +41,7 @@ export function parseAssetLibrarySearchParams(
     type: isProductAssetType(typeRaw) ? typeRaw : "",
     status: isProductAssetApprovalStatus(statusRaw) ? statusRaw : "",
     tag,
+    cursor,
     view: viewRaw === "list" ? "list" : "grid",
   };
 }
@@ -52,6 +55,7 @@ export function assetLibraryFiltersToSearch(
   if (filters.type) params.set("type", filters.type);
   if (filters.status) params.set("status", filters.status);
   if (filters.tag) params.set("tag", filters.tag);
+  if (filters.cursor) params.set("cursor", filters.cursor);
   if (filters.view && filters.view !== "grid") params.set("view", filters.view);
   const search = params.toString();
   return search ? `?${search}` : "";

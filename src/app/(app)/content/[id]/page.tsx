@@ -253,6 +253,7 @@ export default async function ContentDetailPage({
             <StructuredReview
               id={content.id}
               status={content.status}
+              initialUpdatedAt={content.updated_at}
               initialFields={structuredFields}
               order={order}
               evidence={evidence}
