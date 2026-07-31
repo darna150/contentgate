@@ -11,8 +11,8 @@ must be certified before launch?
 - Repository: `darna150/contentgate`
 - Integration base: `origin/main` at `29c5e2a`
 - Candidate branch: `codex/complete-build-source-of-truth`
-- Candidate worktree:
-  `/Users/debbiemelgarejo/Documents/Content Gate/contentgate-phase1-accessibility`
+- Candidate location: PR #58 and the remote branch above. Local worktree paths
+  are disposable and are not release identity.
 - Production remains unchanged. This branch must pass the PR preview gates and
   receive named go/no-go approval before it may be merged into `main`.
 - After that merge, `main` becomes the sole build source of truth. Feature work
@@ -46,6 +46,20 @@ existed only in the other Codex and Claude lines:
   production smoke, and manual live-QA workflows.
 
 ## Release-gate stabilization
+
+Claude's enterprise UI pass was independently certified at `c007408`: verify,
+clean migration replay/tenant isolation, Vercel deployment, and the exact
+Preview E2E/accessibility job all passed. Codex then reviewed and integrated
+that branch through merge `16b4cb9` without merging to `main`.
+
+The code-bearing integration head `b8e6000` adds the release-captain
+corrections found during review: onboarding replay/failure wording now matches
+the control-plane state machine; QA receipt values are identified as non-secret
+fixtures; Auth link/password failures no longer expose provider text or remain
+stuck after rejected requests; and the default dev command refuses unknown,
+mismatched, or production Supabase targets. Local verification at this state
+passed all 330 contract tests, lint, typecheck, the Next.js production build,
+and a zero-vulnerability production dependency audit.
 
 Commit `6ad1d35` separates the credentialed browser evidence into two explicit
 lanes without reducing launch scope:

@@ -260,11 +260,11 @@ export function OnboardingPanel({
           <p className="mt-2 text-small text-ink">
             {receipt.resumed ? (
               <>
-                Run <code>{receipt.runId}</code> resumed an existing provisioning
-                run and reconciled {Object.keys(receipt.products).length} product(s),{" "}
+                Run <code>{receipt.runId}</code> returned the existing completed
+                receipt for {Object.keys(receipt.products).length} product(s),{" "}
                 {Object.keys(receipt.campaigns).length} campaign(s), and{" "}
-                {Object.keys(receipt.assets).length} asset record(s). Nothing was
-                duplicated.
+                {Object.keys(receipt.assets).length} asset record(s). No
+                provisioning steps were rerun and nothing was duplicated.
               </>
             ) : (
               <>
@@ -284,7 +284,9 @@ export function OnboardingPanel({
           </ul>
           {Object.keys(receipt.qaEnvironment).length > 0 && (
             <details className="mt-4 text-small text-ink">
-              <summary className="cursor-pointer font-semibold">QA environment values</summary>
+              <summary className="cursor-pointer font-semibold">
+                QA fixture values (non-secret)
+              </summary>
               <pre className="mt-2 overflow-x-auto rounded-control bg-surface p-3 text-caption">
                 {Object.entries(receipt.qaEnvironment)
                   .map(([name, value]) => `${name}=${value}`)
@@ -310,10 +312,11 @@ export function OnboardingPanel({
           <p className="text-small text-reject">{error}</p>
           {phase === "failed" && (
             <p className="mt-1 text-small text-ink-muted">
-              Some records may already exist. Re-running the same package
-              resumes the existing run rather than creating a second workspace.
-              The run is recorded in the audit trail either way — that record is
-              immutable and is not removed by cleanup.
+              The system attempted to remove records created by this run, but
+              partial records may remain if cleanup also failed. Do not retry
+              blindly: review the immutable audit trail and recovery guidance
+              first. A compensated package may need to be rebuilt before it can
+              be run again.
             </p>
           )}
         </section>
