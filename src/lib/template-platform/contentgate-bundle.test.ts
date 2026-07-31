@@ -5,13 +5,24 @@ import { compileTemplateBundleImport } from "./compiler.ts";
 import { buildContentGateTemplateBundle } from "./contentgate-bundle.ts";
 import { validateTemplateBundleManifest } from "./manifest.ts";
 
-test("builds a valid ContentGate premium template bundle from Figma exports", async () => {
+test("builds a valid ContentGate Set B template bundle from Figma exports", async () => {
   const bundle = await buildContentGateTemplateBundle("contentgate_local_premium");
 
-  assert.equal(bundle.manifest.family.key, "contentgate-local-premium");
+  assert.equal(bundle.manifest.family.key, "aerform-air01-campaign");
   assert.deepEqual(
     bundle.manifest.variants.map((variant) => variant.key),
-    ["square", "portrait", "story", "link_ad", "medium_rectangle"]
+    [
+      "portrait",
+      "square",
+      "story",
+      "linkedin_square",
+      "link_ad",
+      "medium_rectangle",
+      "leaderboard",
+      "us_letter",
+      "poster",
+      "rack_card",
+    ]
   );
   assert.equal(
     bundle.manifest.fonts.every((font) => font.family === "Inter"),
@@ -21,30 +32,30 @@ test("builds a valid ContentGate premium template bundle from Figma exports", as
     bundle.manifest.assets.some(
       (asset) =>
         asset.kind === "background" &&
-        asset.path === "template-packages/contentgate/set-b/backgrounds/portrait.png"
+        asset.path === "variants/leaderboard/background.png"
     ),
     true
   );
   assert.deepEqual(bundle.manifest.variants[0].backgroundOptions, [
     {
       key: "classic-cream",
-      label: "Classic cream",
-      asset: "square-background",
+      label: "Warm editorial studio",
+      asset: "variants-portrait-background-classic-cream-png-background",
     },
     {
       key: "mint-glow",
-      label: "Mint glow",
-      asset: "square-mint-glow-background",
+      label: "Transit concourse",
+      asset: "variants-portrait-background-mint-glow-png-background",
     },
     {
       key: "terracotta-edge",
-      label: "Terracotta edge",
-      asset: "square-terracotta-edge-background",
+      label: "Dark threshold",
+      asset: "variants-portrait-background-terracotta-edge-png-background",
     },
     {
       key: "sage-grid",
-      label: "Sage grid",
-      asset: "square-sage-grid-background",
+      label: "Coastal overlook",
+      asset: "variants-portrait-background-sage-grid-png-background",
     },
   ]);
   assert.deepEqual(validateTemplateBundleManifest(bundle.manifest), []);
@@ -59,16 +70,27 @@ test("builds a valid ContentGate premium template bundle from Figma exports", as
 test("builds a valid ContentGate Set B template bundle with portrait support", async () => {
   const bundle = await buildContentGateTemplateBundle("contentgate_local_premium");
 
-  assert.equal(bundle.manifest.family.key, "contentgate-local-premium");
+  assert.equal(bundle.manifest.family.key, "aerform-air01-campaign");
   assert.deepEqual(
     bundle.manifest.variants.map((variant) => variant.key),
-    ["square", "portrait", "story", "link_ad", "medium_rectangle"]
+    [
+      "portrait",
+      "square",
+      "story",
+      "linkedin_square",
+      "link_ad",
+      "medium_rectangle",
+      "leaderboard",
+      "us_letter",
+      "poster",
+      "rack_card",
+    ]
   );
   assert.equal(
     bundle.manifest.assets.some(
       (asset) =>
         asset.kind === "reference" &&
-        asset.path === "template-packages/contentgate/set-b/portrait.png"
+        asset.path === "variants/portrait/reference.png"
     ),
     true
   );

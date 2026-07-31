@@ -207,8 +207,16 @@ export function NotebookClient({
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const renameInputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const lastQuestionBySession = useRef<Record<string, string>>({});
+
+  useEffect(() => {
+    if (renamingId) {
+      renameInputRef.current?.focus();
+      renameInputRef.current?.select();
+    }
+  }, [renamingId]);
   const activeSession = sessions.find((s) => s.id === activeId) ?? null;
   const activeError = activeId ? errorsBySession[activeId] ?? null : null;
   const selectedProduct =
@@ -627,7 +635,8 @@ export function NotebookClient({
             >
               {renamingId === s.id ? (
                 <input
-                  autoFocus
+                  ref={renameInputRef}
+                  aria-label={`Rename ${s.title}`}
                   value={renameValue}
                   onChange={(e) => setRenameValue(e.target.value)}
                   onBlur={() => commitRename(s.id)}
@@ -639,7 +648,7 @@ export function NotebookClient({
                   className="flex-1 rounded border border-brand bg-surface px-1.5 py-0.5 text-[12px] outline-none"
                 />
               ) : (
-                <span className={`flex-1 truncate text-[12.5px] leading-snug ${activeId === s.id ? "font-semibold text-brand" : "font-medium text-ink"}`}>
+                <span className={`flex-1 truncate text-[12.5px] leading-snug ${activeId === s.id ? "font-semibold text-brand-on-tint" : "font-medium text-ink"}`}>
                   {s.title}
                 </span>
               )}
@@ -683,6 +692,7 @@ export function NotebookClient({
 
   return (
     <div className="flex h-full overflow-hidden">
+      <h1 className="sr-only">Ask notebook</h1>
 
       {/* ── Mobile sessions drawer (below `lg`) ── */}
       {sessionsOpen && (

@@ -2,8 +2,8 @@ import { createRequire } from "node:module";
 import type { Font, Glyph } from "opentype.js";
 
 import { trimDanglingCopyEnd } from "../generated-copy-quality.ts";
-import { fieldIssues, type FieldIssue } from "../template-fields.ts";
 import type { TemplateBundleManifest, TemplateBundleTextSlot } from "./manifest.ts";
+import { fieldIssues, type FieldIssue } from "../template-fields.ts";
 import {
   templateBundleFontDescription,
   templateBundleFontForSlot,
@@ -105,7 +105,12 @@ function textSlots(manifest: TemplateBundleManifest, variantKey: string) {
   );
 }
 
-/** Return only required-field issues here; measured fit is evaluated separately. */
+/**
+ * Platform templates are governed by actual glyph measurement, not an
+ * unrelated character-count proxy. Keep only required-field validation here;
+ * width, wrapping, and height are returned by templatePlatformFieldFitIssues
+ * below and shared by generation, live editing, preview, and export.
+ */
 export function templatePlatformRequiredFieldIssues(
   manifest: TemplateBundleManifest,
   variantKey: string,
@@ -304,6 +309,14 @@ export async function templatePlatformFieldFitIssues(
         { assetUrlByPath: input.assetUrlByPath, assetDataByPath: input.assetDataByPath }
       );
       const issues: TemplatePlatformFitIssue[] = [];
+      const value = cleanText(input.fields[slot.field]);
+      if (slot.maxChars && value.length > slot.maxChars) {
+        issues.push({
+          field: slot.field,
+          type: "lines",
+          message: `${slot.field.replace(/_/g, " ")} is ${value.length} characters; maximum is ${slot.maxChars}.`,
+        });
+      }
       if (layout.overlongWords.length) {
         issues.push({
           field: slot.field,

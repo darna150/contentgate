@@ -87,13 +87,17 @@ export function StructuredReview({
             const rows = limits[key]?.max_lines ?? (key === "body" ? 4 : 2);
             return (
               <div key={key} className="flex flex-col gap-1.5">
-                <label className="text-[12px] font-semibold uppercase tracking-[0.06em] text-ink-faint">
+                <label
+                  htmlFor={`review-field-${id}-${key}`}
+                  className="text-[12px] font-semibold uppercase tracking-[0.06em] text-ink-faint"
+                >
                   {fieldLabel(key)}{" "}
                   <span className="font-normal normal-case tracking-normal">
                     · {fieldLimitText(limits[key])}
                   </span>
                 </label>
                 <textarea
+                  id={`review-field-${id}-${key}`}
                   value={fields[key] ?? ""}
                   onChange={(e) => setField(key, e.target.value)}
                   readOnly={!editable}
@@ -145,6 +149,7 @@ export function StructuredReview({
           )}
           {message && (
             <span
+              role={message.kind === "error" ? "alert" : "status"}
               className={`text-[12.5px] font-semibold ${
                 message.kind === "ok" ? "text-approve" : "text-reject"
               }`}

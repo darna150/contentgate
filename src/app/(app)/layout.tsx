@@ -4,6 +4,7 @@ import { Sidebar } from "@/components/sidebar";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { UiUxMeasurementProvider } from "@/components/uiux-measurement-provider";
+import { isPlatformOperator } from "@/lib/onboarding/environment";
 
 export default async function AppLayout({
   children,
@@ -22,6 +23,7 @@ export default async function AppLayout({
             userName="Preview User"
             userRole="admin"
             pendingCount={0}
+            platformOperator={false}
           />
           <main id="main-content" tabIndex={-1} className="min-w-0 flex-1">{children}</main>
         </div>
@@ -71,6 +73,7 @@ export default async function AppLayout({
           userName={profile.full_name ?? user.email ?? "User"}
           userRole={profile.role}
           pendingCount={count ?? 0}
+          platformOperator={isPlatformOperator(user.email)}
         />
         <main id="main-content" tabIndex={-1} className="min-w-0 flex-1">{children}</main>
       </div>

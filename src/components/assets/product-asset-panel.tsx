@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -36,6 +36,7 @@ export function ProductAssetPanel({
   isAdmin,
 }: Props) {
   const router = useRouter();
+  const uploadButtonRef = useRef<HTMLButtonElement>(null);
   const [dialog, setDialog] = useState<DialogState>({ type: "closed" });
   const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
 
@@ -43,6 +44,11 @@ export function ProductAssetPanel({
 
   function closeDialog() {
     setDialog({ type: "closed" });
+  }
+
+  function closeUploadDialog() {
+    closeDialog();
+    requestAnimationFrame(() => uploadButtonRef.current?.focus());
   }
 
   function refresh() {
@@ -59,7 +65,7 @@ export function ProductAssetPanel({
           </p>
         </div>
         {isAdmin && productStatus === "active" && (
-          <Button size="sm" onClick={() => setDialog({ type: "upload" })} className="flex-shrink-0">
+          <Button ref={uploadButtonRef} size="sm" onClick={() => setDialog({ type: "upload" })} className="flex-shrink-0">
             <UploadIcon className="h-3.5 w-3.5" /> Upload
           </Button>
         )}
@@ -86,7 +92,7 @@ export function ProductAssetPanel({
         <AssetPreviewDialog
           asset={dialog.asset}
           isAdmin={isAdmin}
-          onClose={closeDialog}
+          onClose={closeUploadDialog}
           onEdit={() => setDialog({ type: "edit", asset: dialog.asset })}
           onDelete={() => setDialog({ type: "delete", asset: dialog.asset })}
         />

@@ -31,11 +31,36 @@ const GLOBAL_TABLES = new Set([
   "asset_media_worker_heartbeats",
 ]);
 
+// The onboarding control plane is service-role-only. Runs acquire an
+// organization_id during provisioning, while uploads and steps are scoped via
+// their run relationship; browser roles have no table privileges or policies.
+const SERVICE_ROLE_CONTROL_PLANE_TABLES = new Set([
+  "onboarding_package_uploads",
+  "onboarding_run_steps",
+  "onboarding_runs",
+]);
+
 // 1x1 transparent PNG so image-restricted buckets accept the marker object.
 const MARKER_PNG = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
   "base64"
 );
+
+// Empty ZIP archive accepted by the private onboarding-packages bucket.
+const MARKER_ZIP = Buffer.from(
+  "504b0506000000000000000000000000000000000000",
+  "hex"
+);
+
+const STORAGE_MARKERS = [
+  { extension: "png", bytes: MARKER_PNG, contentType: "image/png" },
+  { extension: "zip", bytes: MARKER_ZIP, contentType: "application/zip" },
+  {
+    extension: "txt",
+    bytes: Buffer.from("isolation marker"),
+    contentType: "text/plain",
+  },
+];
 
 function psql(query) {
   return execFileSync("psql", [DB_URL, "-At", "-F", "\t", "-c", query], {
@@ -151,15 +176,18 @@ test("tenant isolation", async (t) => {
       "where table_schema = 'public' and column_name = 'org_id' order by table_name"
   );
 
-  await t.test("every public table is org-scoped or explicitly global", () => {
+  await t.test("every public table is org-scoped or explicitly non-browser", () => {
     const orgScoped = new Set(orgScopedTables);
     const unaccounted = allTables.filter(
-      (table) => !orgScoped.has(table) && !GLOBAL_TABLES.has(table)
+      (table) =>
+        !orgScoped.has(table) &&
+        !GLOBAL_TABLES.has(table) &&
+        !SERVICE_ROLE_CONTROL_PLANE_TABLES.has(table)
     );
     assert.deepEqual(
       unaccounted,
       [],
-      `Tables with no org_id and no explicit global-table entry: ${unaccounted.join(", ")}`
+      `Tables with no org_id and no explicit isolation classification: ${unaccounted.join(", ")}`
     );
     assert.ok(
       orgScopedTables.length >= 10,
@@ -265,19 +293,18 @@ test("tenant isolation", async (t) => {
     assert.ok(buckets.length >= 1, "no storage buckets found — enumeration looks broken");
 
     for (const bucket of buckets) {
-      // Buckets may restrict MIME types; try an image marker first, then text.
-      let markerPath = `${orgB.orgId}/isolation-check.png`;
-      let { error: uploadError } = await admin.storage
-        .from(bucket)
-        .upload(markerPath, MARKER_PNG, { contentType: "image/png", upsert: true });
-      if (uploadError) {
-        markerPath = `${orgB.orgId}/isolation-check.txt`;
+      // Buckets restrict MIME types, so select the first accepted marker.
+      let markerPath = "";
+      let uploadError = null;
+      for (const marker of STORAGE_MARKERS) {
+        markerPath = `${orgB.orgId}/isolation-check.${marker.extension}`;
         ({ error: uploadError } = await admin.storage
           .from(bucket)
-          .upload(markerPath, Buffer.from("isolation marker"), {
-            contentType: "text/plain",
+          .upload(markerPath, marker.bytes, {
+            contentType: marker.contentType,
             upsert: true,
           }));
+        if (!uploadError) break;
       }
       assert.ifError(uploadError);
 

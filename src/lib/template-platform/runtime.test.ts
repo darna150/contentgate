@@ -4,79 +4,67 @@ import test from "node:test";
 import { buildContentGateTemplateBundle } from "./contentgate-bundle";
 import { validTemplateBundleManifest } from "./test-fixtures";
 import {
+  getTemplateBundleVariantAssetChoiceFields,
   getTemplateBundleVariantBackgroundOptions,
-  getTemplateBundleVariantEditableFields,
-  getTemplateBundleVariantGeneratedFields,
+  getTemplateBundleVariantPersistedFields,
   getTemplateBundleSupportedSizes,
   getTemplateBundleVariantDimensions,
+  getTemplateBundleVariantFieldLimits,
+  getTemplateBundleVariantFields,
   resolveTemplateBundleRuntimeVariant,
 } from "./runtime";
 
-test("keeps system asset controls out of editable and AI-generated copy", () => {
-  const manifest = {
-    ...validTemplateBundleManifest,
-    fields: [
-      ...validTemplateBundleManifest.fields,
-      {
-        key: "__productVariantKey",
-        label: "Product variant",
-        type: "asset_choice" as const,
-        source: "user" as const,
-        required: false,
-      },
-    ],
-    variants: validTemplateBundleManifest.variants.map((variant) => ({
-      ...variant,
-      slots: [
-        ...variant.slots,
-        {
-          key: "product",
-          field: "__productVariantKey",
-          kind: "image" as const,
-          x: 0,
-          y: 0,
-          width: 100,
-          height: 100,
-          fit: "contain" as const,
-        },
-      ],
-    })),
-  };
-
-  assert.equal(
-    getTemplateBundleVariantEditableFields(manifest, "square").some(
-      (field) => field.key === "__productVariantKey"
-    ),
-    false
-  );
-  assert.equal(
-    getTemplateBundleVariantGeneratedFields(manifest, "square").some(
-      (field) => field.key === "__productVariantKey"
-    ),
-    false
-  );
-});
-
-test("resolves ContentGate Set B without exposing unsupported leaderboard", async () => {
+test("resolves ContentGate Set B size-specific fields and limits", async () => {
   const bundle = await buildContentGateTemplateBundle("contentgate_local_premium");
 
   assert.deepEqual(getTemplateBundleSupportedSizes(bundle.manifest), [
-    "square",
     "portrait",
+    "square",
     "story",
+    "linkedin_square",
     "link_ad",
     "medium_rectangle",
+    "leaderboard",
+    "us_letter",
+    "poster",
+    "rack_card",
   ]);
-  assert.equal(resolveTemplateBundleRuntimeVariant(bundle.manifest, "leaderboard"), null);
+  assert.deepEqual(
+    getTemplateBundleVariantFields(bundle.manifest, "leaderboard").map((field) => field.key),
+    ["headline", "subheadline", "cta"]
+  );
+  assert.deepEqual(getTemplateBundleVariantFieldLimits(bundle.manifest, "leaderboard"), {
+    headline: { max_chars: 56, max_words: undefined, max_lines: 2 },
+    subheadline: { max_chars: 96, max_words: undefined, max_lines: 2 },
+    cta: { max_chars: 24, max_words: undefined, max_lines: 1 },
+  });
+});
+
+test("resolves ContentGate Set B with the full Aerform package", async () => {
+  const bundle = await buildContentGateTemplateBundle("contentgate_local_premium");
+
+  assert.deepEqual(getTemplateBundleSupportedSizes(bundle.manifest), [
+    "portrait",
+    "square",
+    "story",
+    "linkedin_square",
+    "link_ad",
+    "medium_rectangle",
+    "leaderboard",
+    "us_letter",
+    "poster",
+    "rack_card",
+  ]);
+  assert.ok(resolveTemplateBundleRuntimeVariant(bundle.manifest, "leaderboard"));
 
   const story = resolveTemplateBundleRuntimeVariant(bundle.manifest, "story");
   assert.ok(story);
   assert.equal(
     story.backgroundAssetPath,
-    "template-packages/contentgate/set-b/backgrounds/story.png"
+    "variants/story/background.png"
   );
-  assert.equal(story.fieldLimits.headline.max_chars, 64);
-  assert.equal(story.fieldLimits.headline.max_lines, 3);
+  assert.equal(story.fieldLimits.headline.max_chars, 56);
+  assert.equal(story.fieldLimits.headline.max_lines, 2);
 });
 
 test("exposes arbitrary manifest variant keys instead of filtering through the legacy size enum", () => {
@@ -168,5 +156,24 @@ test("resolves designer-approved background options and selected background path
     resolveTemplateBundleRuntimeVariant(validTemplateBundleManifest, "square", "unknown")
       ?.backgroundAssetPath,
     "variants/square/background.png"
+  );
+});
+
+test("separates copy fields from image asset-choice fields for Studio persistence", () => {
+  assert.deepEqual(
+    getTemplateBundleVariantFields(validTemplateBundleManifest, "square").map((field) => field.key),
+    ["headline"]
+  );
+  assert.deepEqual(
+    getTemplateBundleVariantAssetChoiceFields(validTemplateBundleManifest, "square").map(
+      (field) => field.key
+    ),
+    ["hero_image"]
+  );
+  assert.deepEqual(
+    getTemplateBundleVariantPersistedFields(validTemplateBundleManifest, "square").map(
+      (field) => field.key
+    ),
+    ["headline", "hero_image"]
   );
 });

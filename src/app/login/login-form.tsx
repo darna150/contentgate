@@ -1,8 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useId, useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+import { createClient, hasSupabaseBrowserConfig } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,6 +21,13 @@ export function LoginForm() {
   async function signInWithPassword(e: React.FormEvent) {
     e.preventDefault();
     setStatus({ kind: "busy" });
+    if (!hasSupabaseBrowserConfig()) {
+      setStatus({
+        kind: "error",
+        message: "Authentication is not configured for this environment.",
+      });
+      return;
+    }
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
@@ -52,15 +60,24 @@ export function LoginForm() {
         />
       </div>
       <div className="flex flex-col gap-1.5">
-        <Label
-          htmlFor={passwordId}
-          className="text-[13px] font-semibold normal-case tracking-normal text-ink"
-        >
-          Password
-        </Label>
+        <div className="flex items-center justify-between gap-3">
+          <Label
+            htmlFor={passwordId}
+            className="text-[13px] font-semibold normal-case tracking-normal text-ink"
+          >
+            Password
+          </Label>
+          <Link
+            href="/forgot-password"
+            className="text-[13px] font-semibold text-brand underline-offset-4 hover:underline"
+          >
+            Forgot password?
+          </Link>
+        </div>
         <Input
           id={passwordId}
           type="password"
+          autoComplete="current-password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           placeholder="••••••••"
@@ -73,12 +90,12 @@ export function LoginForm() {
       </Button>
 
       {status.kind === "sent" && (
-        <p className="rounded-control border border-approve-border bg-approve-tint px-3.5 py-3 text-[13px] text-approve">
+        <p role="status" className="rounded-control border border-approve-border bg-approve-tint px-3.5 py-3 text-[13px] text-approve">
           Check your inbox — we sent you a sign-in link.
         </p>
       )}
       {status.kind === "error" && (
-        <p className="rounded-control border border-reject-border bg-reject-tint px-3.5 py-3 text-[13px] text-reject">
+        <p role="alert" className="rounded-control border border-reject-border bg-reject-tint px-3.5 py-3 text-[13px] text-reject">
           {status.message}
         </p>
       )}

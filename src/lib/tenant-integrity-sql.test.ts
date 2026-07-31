@@ -147,3 +147,18 @@ test("Ask polish migration bounds operational metadata and feedback reasons", ()
   assert.match(polishSql, /knowledge_query_feedback_reason_check/);
   assert.match(polishSql, /'wrong_source'/);
 });
+
+test("Ask production telemetry separates environments and bounds operational data", () => {
+  const telemetrySql = compact(
+    readFileSync(
+      "supabase/migrations/20260728093230_ask_production_quality_telemetry.sql",
+      "utf8"
+    )
+  );
+
+  assert.match(telemetrySql, /deployment_environment text not null default 'unknown'/);
+  assert.match(telemetrySql, /traffic_class text not null default 'user'/);
+  assert.match(telemetrySql, /knowledge_queries_token_usage_check/);
+  assert.match(telemetrySql, /cached_input_tokens \+ cache_write_input_tokens <= input_tokens/);
+  assert.match(telemetrySql, /knowledge_queries_org_environment_traffic_created_idx/);
+});

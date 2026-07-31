@@ -1,6 +1,12 @@
 # ContentGate Build Handoff
 
-Last updated: July 21, 2026
+Last updated: July 31, 2026
+
+> Release status, current worktree/branch, checked Days 1–2, and remaining
+> launch gates are maintained in
+> [`docs/RELEASE_CONSOLIDATION_2026-07-31.md`](docs/RELEASE_CONSOLIDATION_2026-07-31.md).
+> Where this historical architecture guide conflicts with that record, the
+> release-consolidation record is authoritative.
 
 This file is a full orientation guide for continuing ContentGate work from a new Codex/Claude/account session without needing the original chat history.
 

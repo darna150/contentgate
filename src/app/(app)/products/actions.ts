@@ -30,7 +30,6 @@ const SHARP_IMAGE_MIME_TYPES: Record<string, string> = {
   webp: "image/webp",
 };
 
-const VIDEO_ASSET_MIME_TYPES = new Set(["video/mp4", "video/quicktime", "video/webm"]);
 type SourceParagraph = { n: number; text: string };
 
 export type ProductAssetUploadIntentInput = {

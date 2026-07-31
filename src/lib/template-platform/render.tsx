@@ -342,20 +342,19 @@ function resolveImageSource(
   assetOrigin?: string
 ) {
   const signedUrl = assetUrlByPath?.[path];
-  // A signed URL is the current tenant-authorized asset and must always win.
-  if (signedUrl) return signedUrl;
+  if (signedUrl && !isPublicContentGateBundle(manifest)) return signedUrl;
   const publicPath = publicContentGateBundleAssetPath(manifest, path);
   if (publicPath) {
     return assetOrigin ? new URL(publicPath, assetOrigin).toString() : publicPath;
   }
+  if (signedUrl) return signedUrl;
   if (path.startsWith("http://") || path.startsWith("https://") || path.startsWith("/")) {
     return assetOrigin && path.startsWith("/")
       ? new URL(path, assetOrigin).toString()
       : path;
   }
-  // Relative paths are used by verified bundle fixtures and local development;
-  // production private bundles provide a signed URL above.
-  return assetOrigin ? new URL(`/${path}`, assetOrigin).toString() : `/${path}`;
+  if (isPublicContentGateBundle(manifest)) return `/${path}`;
+  return null;
 }
 
 function highDensityImageSource(src: string | null) {

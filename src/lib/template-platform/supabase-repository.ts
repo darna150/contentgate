@@ -1,7 +1,3 @@
-import "server-only";
-
-import { createAdminClient } from "@/lib/supabase/admin";
-
 import type { CompiledTemplateBundleImport } from "./compiler";
 import type {
   FailedTemplateImportRunInsert,
@@ -49,7 +45,7 @@ function throwOnSupabaseError(result: SupabaseWriteResult, action: string) {
 }
 
 export function createSupabaseTemplateBundleRepository(
-  client: SupabaseTemplatePlatformClient = createAdminClient() as unknown as SupabaseTemplatePlatformClient
+  client: SupabaseTemplatePlatformClient
 ): TemplateBundleImportRepository {
   return {
     async findTemplateFamilyId(input) {

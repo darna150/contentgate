@@ -64,8 +64,10 @@ export function AssetPreviewDialog({ asset, isAdmin, onClose, onEdit, onDelete }
             {asset.mediaKind === "video" ? (
               <video
                 src={asset.previewUrl}
+                aria-label={`Muted visual preview of ${asset.title}`}
                 className="max-h-full w-full rounded-[6px]"
                 controls
+                muted
                 preload="metadata"
               />
             ) : asset.mediaKind === "document" ? (

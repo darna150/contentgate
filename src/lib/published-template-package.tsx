@@ -107,12 +107,10 @@ type PackageDefinition = {
 };
 
 const GREEN = "#12312B";
-const FOREST = "#0B2A24";
 const TEAL = "#0E5F58";
 const MINT = "#DDEDE5";
 const WARM = "#F7F2E8";
 const RUST = "#B85D40";
-const MUTED = "#52615B";
 const WHITE = "#FFFFFF";
 const LINE = "#DCE5DE";
 const INTER_STACK = '"Inter", "ContentGate Sans", ui-sans-serif, system-ui, sans-serif';
@@ -545,111 +543,203 @@ function frame(
   return { size, background, layers, textSlots, imageSlots, ...options };
 }
 
-function premiumPackage(): PublishedTemplatePackage {
+function aerformTextSlots(size: TemplateSizeKey): PublishedTextSlot[] {
+  const dims = TEMPLATE_OUTPUT_SIZES[size];
+  const lightInk = "#0A0A0A";
+  const muted = "#4B4842";
+  const print = size === "us_letter" || size === "poster" || size === "rack_card";
+  const compact = size === "leaderboard" || size === "medium_rectangle";
+
+  const headline =
+    size === "leaderboard"
+      ? { x: 178, y: 18, w: 250, h: 26, fontSize: 19, maxChars: 34, maxLines: 1 }
+      : size === "medium_rectangle"
+        ? { x: 24, y: 62, w: 154, h: 58, fontSize: 25, maxChars: 38, maxLines: 2 }
+        : size === "link_ad"
+          ? { x: 648, y: 110, w: 410, h: 92, fontSize: 38, maxChars: 56, maxLines: 2 }
+          : print
+            ? {
+                x: dims.w * 0.08,
+                y: dims.h * 0.13,
+                w: dims.w * 0.42,
+                h: dims.h * 0.18,
+                fontSize: size === "rack_card" ? 30 : size === "poster" ? 56 : 48,
+                maxChars: 64,
+                maxLines: 3,
+              }
+            : {
+                x: dims.w * 0.08,
+                y: dims.h * 0.17,
+                w: dims.w * 0.55,
+                h: dims.h * 0.16,
+                fontSize: size === "story" ? 82 : size === "portrait" ? 74 : 70,
+                maxChars: 56,
+                maxLines: 2,
+              };
+
+  const subheadline =
+    size === "leaderboard"
+      ? { x: 178, y: 46, w: 300, h: 16, fontSize: 9, maxChars: 78, maxLines: 1 }
+      : size === "medium_rectangle"
+        ? { x: 24, y: 128, w: 156, h: 34, fontSize: 10, maxChars: 64, maxLines: 2 }
+        : size === "link_ad"
+          ? { x: 648, y: 228, w: 360, h: 46, fontSize: 16, maxChars: 100, maxLines: 2 }
+          : print
+            ? {
+                x: dims.w * 0.08,
+                y: dims.h * 0.34,
+                w: dims.w * 0.36,
+                h: dims.h * 0.06,
+                fontSize: size === "rack_card" ? 11 : size === "poster" ? 18 : 16,
+                maxChars: 110,
+                maxLines: 2,
+              }
+            : {
+                x: dims.w * 0.08,
+                y: dims.h * (size === "story" ? 0.33 : 0.39),
+                w: dims.w * 0.44,
+                h: dims.h * 0.07,
+                fontSize: size === "story" ? 31 : size === "portrait" ? 27 : 25,
+                maxChars: 96,
+                maxLines: 2,
+              };
+
+  const cta =
+    size === "leaderboard"
+      ? { x: 504, y: 28, w: 96, h: 20, fontSize: 11, maxChars: 18, maxLines: 1 }
+      : size === "medium_rectangle"
+        ? { x: 24, y: 194, w: 86, h: 20, fontSize: 10, maxChars: 18, maxLines: 1 }
+        : print
+          ? {
+              x: dims.w * 0.65,
+              y: dims.h * 0.82,
+              w: dims.w * 0.22,
+              h: dims.h * 0.03,
+              fontSize: size === "rack_card" ? 9 : 14,
+              maxChars: 24,
+              maxLines: 1,
+            }
+          : {
+              x: dims.w * 0.08,
+              y: dims.h * (size === "story" ? 0.54 : 0.72),
+              w: dims.w * 0.18,
+              h: dims.h * 0.035,
+              fontSize: compact ? 10 : 18,
+              maxChars: 24,
+              maxLines: 1,
+            };
+
+  const slots: PublishedTextSlot[] = [
+    {
+      field: "headline",
+      ...headline,
+      lineHeight: size === "leaderboard" ? 1.05 : 0.94,
+      weight: 400,
+      color: lightInk,
+      lineChars: size === "leaderboard" ? 34 : 20,
+      family: "Inter",
+      fallback: print ? "Built for lighter movement." : "Carry lighter. Move quieter.",
+    },
+    {
+      field: "subheadline",
+      ...subheadline,
+      lineHeight: 1.18,
+      weight: 400,
+      color: muted,
+      lineChars: size === "leaderboard" ? 48 : 34,
+      family: "Inter",
+      fallback: "Technical carry for commute, studio, and travel.",
+    },
+    {
+      field: "cta",
+      ...cta,
+      lineHeight: 1.05,
+      weight: 600,
+      color: lightInk,
+      family: "Inter",
+      fallback: print ? "Explore Air 01" : "Explore",
+    },
+  ];
+
+  if (print) {
+    slots.push({
+      field: "product_specs",
+      x: dims.w * 0.08,
+      y: dims.h * 0.48,
+      w: dims.w * 0.45,
+      h: dims.h * 0.2,
+      fontSize: size === "rack_card" ? 6.5 : size === "poster" ? 12 : 10.5,
+      lineHeight: 1.28,
+      weight: 500,
+      color: lightInk,
+      maxChars: size === "rack_card" ? 150 : 240,
+      maxLines: size === "rack_card" ? 7 : 8,
+      lineChars: size === "rack_card" ? 28 : 42,
+      family: "Inter",
+      fallback:
+        "PRODUCT SPECIFICATIONS\nCapacity 24L daily / 32L expanded\nLaptop fit Fits up to 16-inch laptop\nAccess Quick side pocket\nMaterials Recycled nylon shell",
+    });
+    slots.push({
+      field: "proof_note",
+      x: dims.w * 0.12,
+      y: dims.h * 0.79,
+      w: dims.w * 0.46,
+      h: dims.h * 0.04,
+      fontSize: size === "rack_card" ? 7 : 12,
+      lineHeight: 1.15,
+      weight: 400,
+      color: muted,
+      maxChars: 120,
+      maxLines: 2,
+      lineChars: 56,
+      family: "Inter",
+      fallback: "Recycled technical fabric with structured support and weather-ready finishing.",
+    });
+  }
+
+  return slots;
+}
+
+function aerformFrame(
+  size: TemplateSizeKey,
+  fileName: string,
+  set: "set-b"
+): PublishedFrame {
+  return frame(
+    size,
+    "#F5F5F7",
+    [],
+    aerformTextSlots(size),
+    [],
+    {
+      referenceImage: `/template-packages/contentgate/${set}/${fileName}.png`,
+      generatedImage: `/template-packages/contentgate/${set}/backgrounds/${fileName}.png`,
+    }
+  );
+}
+
+function aerformPackage(set: "set-b"): PublishedTemplatePackage {
   return {
     packageVersion: 1,
-    packageKey: "contentgate-localized-ads-set-b-v1",
-    publicName: "Set B - Local Content Premium",
+    packageKey: `aerform-air01-campaign-${set}-v1`,
+    publicName: "Aerform Air 01 Campaign System",
     frames: {
-      square: frame(
-        "square",
-        WARM,
-        [
-          { kind: "rect", x: 0, y: 0, w: 1080, h: 1080, color: FOREST },
-          { kind: "rect", x: 62, y: 62, w: 956, h: 956, color: WARM, radius: 34 },
-          { kind: "brand", x: 100, y: 102, scale: 1.18 },
-          { kind: "dashboard", x: 550, y: 220, w: 390, h: 310, dark: true },
-          { kind: "rule", x: 100, y: 430, w: 116, h: 12, color: RUST },
-          { kind: "rect", x: 72.36, y: 912.6, w: 324, h: 59.4, color: GREEN, radius: 999 },
-        ],
-        [
-          { field: "headline", x: 72, y: 591, w: 864, h: 151.2, fontSize: 62.64, lineHeight: 0.96, weight: 700, color: GREEN, maxChars: 64, maxLines: 2, lineChars: 27, family: "Inter" },
-          { field: "subheadline", x: 72.36, y: 772.2, w: 723.6, h: 86.4, fontSize: 24.84, lineHeight: 1.22, weight: 400, color: MUTED, maxChars: 132, maxLines: 2, lineChars: 48, family: "Inter" },
-          { field: "cta", x: 72.36, y: 912.6, w: 324, h: 59.4, fontSize: 21.6, lineHeight: 1.04, weight: 600, color: WHITE, maxChars: 30, maxLines: 1, align: "center", family: "Inter" },
-          { field: "proof_note", x: 432, y: 912.6, w: 496.8, h: 59.4, fontSize: 19.44, lineHeight: 1.12, weight: 500, color: TEAL, maxChars: 64, maxLines: 1, lineChars: 44, family: "Inter" },
-        ],
-        [],
-        {
-          referenceImage: "/template-packages/contentgate/set-b/square.png",
-          generatedImage: "/template-packages/contentgate/set-b/backgrounds/square.png",
-        }
-      ),
-      portrait: frame(
-        "portrait",
-        WARM,
-        [
-          { kind: "rect", x: 0, y: 0, w: 1080, h: 1350, color: FOREST },
-          { kind: "brand", x: 82, y: 80, scale: 1.3, light: true },
-          { kind: "dashboard", x: 82, y: 210, w: 916, h: 500, dark: true },
-          { kind: "rule", x: 82, y: 780, w: 112, h: 12, color: RUST },
-          { kind: "rect", x: 81, y: 1140.75, w: 432, h: 70.2, color: GREEN, radius: 999 },
-        ],
-        [
-          { field: "headline", x: 81, y: 742.5, w: 842.4, h: 189, fontSize: 64.8, lineHeight: 0.96, weight: 700, color: GREEN, maxChars: 64, maxLines: 3, lineChars: 22, family: "Inter" },
-          { field: "subheadline", x: 81, y: 965.25, w: 799.2, h: 108, fontSize: 27, lineHeight: 1.22, weight: 400, color: MUTED, maxChars: 132, maxLines: 3, lineChars: 46, family: "Inter" },
-          { field: "cta", x: 81, y: 1140.75, w: 432, h: 70.2, fontSize: 21.6, lineHeight: 1.04, weight: 600, color: WHITE, maxChars: 30, maxLines: 1, align: "center", family: "Inter" },
-          { field: "proof_note", x: 550.8, y: 1140.75, w: 399.6, h: 70.2, fontSize: 19.44, lineHeight: 1.12, weight: 500, color: TEAL, maxChars: 64, maxLines: 2, lineChars: 34, family: "Inter" },
-        ],
-        [],
-        {
-          referenceImage: "/template-packages/contentgate/set-b/portrait.png",
-          generatedImage: "/template-packages/contentgate/set-b/backgrounds/portrait.png",
-        }
-      ),
-      story: frame(
-        "story",
-        WARM,
-        [],
-        [
-          { field: "headline", x: 86.4, y: 1171.2, w: 885.6, h: 249.6, fontSize: 79.92, lineHeight: 0.94, weight: 700, color: GREEN, maxChars: 64, maxLines: 3, lineChars: 20, family: "Inter" },
-          { field: "subheadline", x: 86.4, y: 1468.8, w: 842.4, h: 144, fontSize: 35.64, lineHeight: 1.22, weight: 400, color: MUTED, maxChars: 132, maxLines: 3, lineChars: 40, family: "Inter" },
-          { field: "cta", x: 86.4, y: 1680, w: 907.2, h: 103.68, fontSize: 32.4, lineHeight: 1.04, weight: 600, color: WHITE, maxChars: 30, maxLines: 1, align: "center", family: "Inter" },
-          { field: "proof_note", x: 86.4, y: 1814.4, w: 907.2, h: 48, fontSize: 23.76, lineHeight: 1.1, weight: 500, color: TEAL, maxChars: 64, maxLines: 1, lineChars: 46, align: "center", family: "Inter" },
-        ],
-        [],
-        {
-          referenceImage: "/template-packages/contentgate/set-b/story.png",
-          generatedImage: "/template-packages/contentgate/set-b/backgrounds/story.png",
-        }
-      ),
-      link_ad: frame(
-        "link_ad",
-        WARM,
-        [],
-        [
-          { field: "headline", x: 66, y: 176, w: 528, h: 126, fontSize: 50, lineHeight: 1.04, weight: 700, color: GREEN, maxChars: 58, maxLines: 2, lineChars: 23, family: "Inter" },
-          { field: "subheadline", x: 66, y: 332, w: 480, h: 75.36, fontSize: 21.98, lineHeight: 1.22, weight: 400, color: MUTED, maxChars: 112, maxLines: 2, lineChars: 40, family: "Inter" },
-          { field: "cta", x: 66, y: 461.58, w: 264, h: 53.38, fontSize: 18.84, lineHeight: 1.04, weight: 600, color: WHITE, maxChars: 28, maxLines: 1, align: "center", family: "Inter" },
-          { field: "proof_note", x: 360, y: 461.58, w: 264, h: 53.38, fontSize: 15.7, lineHeight: 1.12, weight: 500, color: TEAL, maxChars: 64, maxLines: 2, lineChars: 32, family: "Inter" },
-        ],
-        [],
-        {
-          referenceImage: "/template-packages/contentgate/set-b/link-ad.png",
-          generatedImage: "/template-packages/contentgate/set-b/backgrounds/link-ad.png",
-        }
-      ),
-      medium_rectangle: frame(
-        "medium_rectangle",
-        WARM,
-        [],
-        [
-          { field: "headline", x: 22, y: 76, w: 156, h: 62, fontSize: 27, lineHeight: 0.95, weight: 700, color: GREEN, maxChars: 34, maxLines: 2, lineChars: 9, family: "Inter" },
-          { field: "subheadline", x: 22, y: 151, w: 244, h: 34, fontSize: 13, lineHeight: 1.16, weight: 400, color: MUTED, maxChars: 54, maxLines: 2, lineChars: 29, family: "Inter" },
-          { field: "cta", x: 22, y: 198, w: 98, h: 31, fontSize: 13, lineHeight: 1.04, weight: 600, color: WHITE, maxChars: 18, maxLines: 1, align: "center", family: "Inter" },
-          { field: "proof_note", x: 132, y: 198, w: 134, h: 31, fontSize: 10, lineHeight: 1.1, weight: 500, color: TEAL, maxChars: 24, maxLines: 1, family: "Inter" },
-        ],
-        [],
-        {
-          referenceImage: "/template-packages/contentgate/set-b/medium-rectangle.png",
-          generatedImage: "/template-packages/contentgate/set-b/backgrounds/medium-rectangle.png",
-        }
-      ),
+      portrait: aerformFrame("portrait", "portrait", set),
+      square: aerformFrame("square", "square", set),
+      story: aerformFrame("story", "story", set),
+      linkedin_square: aerformFrame("linkedin_square", "linkedin-square", set),
+      link_ad: aerformFrame("link_ad", "link-ad", set),
+      leaderboard: aerformFrame("leaderboard", "leaderboard", set),
+      medium_rectangle: aerformFrame("medium_rectangle", "medium-rectangle", set),
+      us_letter: aerformFrame("us_letter", "us-letter", set),
+      poster: aerformFrame("poster", "poster", set),
+      rack_card: aerformFrame("rack_card", "rack-card", set),
     },
   };
 }
 
 const PACKAGE_REGISTRY: Record<string, PublishedTemplatePackage> = {
-  contentgate_local_premium: premiumPackage(),
+  contentgate_local_premium: aerformPackage("set-b"),
 };
 
 function isPackage(value: unknown): value is PublishedTemplatePackage {

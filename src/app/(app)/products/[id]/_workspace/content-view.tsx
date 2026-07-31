@@ -60,7 +60,7 @@ export function ContentView({ workspace }: { workspace: ProductWorkspace }) {
         <p className="text-[13px] text-ink-muted">
           Every piece generated for this product, from draft to approved.
         </p>
-        <Link href="/content" className="text-[13px] font-semibold text-brand hover:underline">
+        <Link href="/content" className="text-[13px] font-semibold text-brand-strong hover:underline">
           Open in Content →
         </Link>
       </div>
@@ -74,7 +74,7 @@ export function ContentView({ workspace }: { workspace: ProductWorkspace }) {
             <section key={campaign} className="rounded-card border border-edge bg-surface p-3">
               <div className="flex items-center justify-between gap-3 px-2 pb-2">
                 <div className="min-w-0"><h2 className="truncate text-[14px] font-bold text-ink">{campaign}</h2><p className="text-[12px] text-ink-faint">{meta.join(" · ")}</p><p className="mt-0.5 text-[11px] text-ink-muted">{readiness.join(" · ") || "No formats yet"}</p></div>
-                <Link href={studioContentUrl(items[0].id, undefined, returnTo)} className="shrink-0 text-[12px] font-semibold text-brand hover:underline">Open campaign →</Link>
+                <Link href={studioContentUrl(items[0].id, undefined, returnTo)} className="shrink-0 text-[12px] font-semibold text-brand-strong hover:underline">Open campaign →</Link>
               </div>
               {items.map((item) => <Link key={item.id} href={studioContentUrl(item.id, undefined, returnTo)} className="flex items-center gap-3.5 rounded-control px-2 py-2.5 transition-colors hover:bg-page"><span className="min-w-0 flex-1"><span className="text-[13px] font-semibold">{item.templateVariant ?? "Format"}</span><span className="ml-2 text-[12px] text-ink-faint">{item.targetLanguage} · {formatDate(item.updatedAt)}</span></span><StatusPill status={item.status} /></Link>)}
             </section>

@@ -30,11 +30,14 @@ export function StudioPageView({ state, returnTo }: { state: StudioState; return
           returnTo={returnTo?.startsWith("/") ? returnTo : undefined}
         />
       ) : (
-        <EmptyState
-          title="Nothing to generate yet"
-          description="Add an active product and an approved template before Studio can generate anything."
-          action={{ label: "Go to products", href: "/products" }}
-        />
+        <>
+          <h1 className="sr-only">Studio</h1>
+          <EmptyState
+            title="Nothing to generate yet"
+            description="Add an active product and an approved template before Studio can generate anything."
+            action={{ label: "Go to products", href: "/products" }}
+          />
+        </>
       )}
     </div>
   );

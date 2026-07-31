@@ -177,56 +177,74 @@ export default async function TemplatesPage({
   searchParams: Promise<Partial<Record<TemplateOpsCursorKey, string>>>;
 }) {
   const cursors = await searchParams;
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  let families: FamilyRow[] = [];
+  let versions: VersionRow[] = [];
+  let variants: VariantRow[] = [];
+  let assignments: AssignmentRow[] = [];
+  let importRuns: ImportRunRow[] = [];
+  let renderJobs: TemplateExportHistoryItem[] = [];
+  let products: ProductRow[] = [];
+  let versionNextCursor: string | null = null;
+  let assignmentNextCursor: string | null = null;
+  let importNextCursor: string | null = null;
+  let renderNextCursor: string | null = null;
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-  if (profile?.role !== "admin") redirect("/dashboard");
+  if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) redirect("/login");
 
-  const [
-    { data: familyRows },
-    versionPage,
-    { data: variantRows },
-    assignmentPage,
-    importRunPage,
-    renderJobPage,
-    { data: productRows },
-  ] = await Promise.all([
-    supabase
-      .from("template_families")
-      .select("id, name, family_key, status, created_at")
-      .order("created_at", { ascending: false }),
-    getTemplateVersionsPage({ cursor: cursors.versionCursor, pageSize: 10 }),
-    supabase
-      .from("template_variants")
-      .select(
-        "id, variant_key, label, width, height, template_versions!template_variants_template_version_id_fkey(version_label, template_families!template_versions_family_id_fkey(name))"
-      )
-      .order("variant_key"),
-    getProductTemplateAssignmentsPage({ cursor: cursors.assignmentCursor, pageSize: 20 }),
-    getTemplateImportRunsPage({ cursor: cursors.importCursor, pageSize: 8 }),
-    getTemplateExportHistory({ cursor: cursors.renderCursor, limit: 8 }),
-    supabase
-      .from("products")
-      .select("id, name")
-      .eq("status", "active")
-      .order("name"),
-  ]);
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+    if (profile?.role !== "admin") redirect("/dashboard");
 
-  const families = (familyRows ?? []) as FamilyRow[];
-  const versions = versionPage.rows as VersionRow[];
-  const variants = (variantRows ?? []) as VariantRow[];
-  const assignments = assignmentPage.rows as AssignmentRow[];
-  const importRuns = importRunPage.rows as ImportRunRow[];
-  const renderJobs = renderJobPage.rows as TemplateExportHistoryItem[];
-  const products = (productRows ?? []) as ProductRow[];
+    const [
+      { data: familyRows },
+      versionPage,
+      { data: variantRows },
+      assignmentPage,
+      importRunPage,
+      renderJobPage,
+      { data: productRows },
+    ] = await Promise.all([
+      supabase
+        .from("template_families")
+        .select("id, name, family_key, status, created_at")
+        .order("created_at", { ascending: false }),
+      getTemplateVersionsPage({ cursor: cursors.versionCursor, pageSize: 10 }),
+      supabase
+        .from("template_variants")
+        .select(
+          "id, variant_key, label, width, height, template_versions!template_variants_template_version_id_fkey(version_label, template_families!template_versions_family_id_fkey(name))"
+        )
+        .order("variant_key"),
+      getProductTemplateAssignmentsPage({ cursor: cursors.assignmentCursor, pageSize: 20 }),
+      getTemplateImportRunsPage({ cursor: cursors.importCursor, pageSize: 8 }),
+      getTemplateExportHistory({ cursor: cursors.renderCursor, limit: 8 }),
+      supabase
+        .from("products")
+        .select("id, name")
+        .eq("status", "active")
+        .order("name"),
+    ]);
+
+    families = (familyRows ?? []) as FamilyRow[];
+    versions = versionPage.rows as VersionRow[];
+    variants = (variantRows ?? []) as VariantRow[];
+    assignments = assignmentPage.rows as AssignmentRow[];
+    importRuns = importRunPage.rows as ImportRunRow[];
+    renderJobs = renderJobPage.rows as TemplateExportHistoryItem[];
+    products = (productRows ?? []) as ProductRow[];
+    versionNextCursor = versionPage.nextCursor;
+    assignmentNextCursor = assignmentPage.nextCursor;
+    importNextCursor = importRunPage.nextCursor;
+    renderNextCursor = renderJobPage.nextCursor;
+  }
   const versionOptions = versions
     .filter((version) => version.manifest)
     .map((version) => {
@@ -282,7 +300,7 @@ export default async function TemplatesPage({
             {families.length ? (
               <div className="grid gap-2">
                 {families.map((family) => (
-                  <div key={family.id} className="flex items-center gap-3 rounded-control border border-edge bg-page px-3.5 py-2.5">
+                  <div key={family.id} className="flex min-w-0 items-center gap-3 rounded-control border border-edge bg-page px-3.5 py-2.5">
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-[13px] font-semibold">{family.name}</p>
                       <p className="font-mono text-[11.5px] text-ink-faint">{family.family_key}</p>
@@ -315,10 +333,10 @@ export default async function TemplatesPage({
                     </p>
                   </div>
                 ))}
-                {importRunPage.nextCursor && (
+                {importNextCursor && (
                   <PageLink
                     href={templateOpsHref(cursors, {
-                      importCursor: importRunPage.nextCursor,
+                      importCursor: importNextCursor,
                     })}
                   >
                     Load more import runs
@@ -345,7 +363,7 @@ export default async function TemplatesPage({
                   {versions.map((version) => {
                     const family = one(version.template_families);
                     return (
-                      <div key={version.id} className="flex items-center gap-3 rounded-control border border-edge bg-page px-3.5 py-2.5">
+                      <div key={version.id} className="flex min-w-0 items-center gap-3 rounded-control border border-edge bg-page px-3.5 py-2.5">
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-[13px] font-semibold">
                             {family?.name ?? "Template"} ·{" "}
@@ -358,10 +376,10 @@ export default async function TemplatesPage({
                       </div>
                     );
                   })}
-                  {versionPage.nextCursor && (
+                  {versionNextCursor && (
                     <PageLink
                       href={templateOpsHref(cursors, {
-                        versionCursor: versionPage.nextCursor,
+                        versionCursor: versionNextCursor,
                       })}
                     >
                       Load more versions
@@ -380,7 +398,7 @@ export default async function TemplatesPage({
                     const version = one(variant.template_versions);
                     const family = one(version?.template_families);
                     return (
-                      <div key={variant.id} className="flex items-center gap-3 rounded-control border border-edge bg-page px-3.5 py-2.5">
+                      <div key={variant.id} className="flex min-w-0 items-center gap-3 rounded-control border border-edge bg-page px-3.5 py-2.5">
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-[13px] font-semibold">{family?.name ?? "Template"} · {variant.label}</p>
                           <p className="font-mono text-[11.5px] text-ink-faint">
@@ -412,7 +430,7 @@ export default async function TemplatesPage({
                   const family = one(assignment.template_families);
                   const version = one(assignment.template_versions);
                   return (
-                    <div key={assignment.id} className="flex items-center gap-3 rounded-control border border-edge bg-page px-3.5 py-2.5">
+                    <div key={assignment.id} className="flex min-w-0 items-center gap-3 rounded-control border border-edge bg-page px-3.5 py-2.5">
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-[13px] font-semibold">{product?.name ?? "Product"} → {family?.name ?? "Template"}</p>
                         <p className="text-[11.5px] text-ink-faint">
@@ -424,10 +442,10 @@ export default async function TemplatesPage({
                     </div>
                   );
                 })}
-                {assignmentPage.nextCursor && (
+                {assignmentNextCursor && (
                   <PageLink
                     href={templateOpsHref(cursors, {
-                      assignmentCursor: assignmentPage.nextCursor,
+                      assignmentCursor: assignmentNextCursor,
                     })}
                   >
                     Load more assignments
@@ -448,7 +466,7 @@ export default async function TemplatesPage({
             {renderJobs.length ? (
               <div className="grid gap-2">
                 {renderJobs.map((job) => (
-                  <div key={job.id} className="flex items-center gap-3 rounded-control border border-edge bg-page px-3.5 py-2.5">
+                  <div key={job.id} className="flex min-w-0 items-center gap-3 rounded-control border border-edge bg-page px-3.5 py-2.5">
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-[13px] font-semibold">{job.contentTitle ?? "Rendered content"}</p>
                       <p className="text-[11.5px] text-ink-faint">
@@ -473,10 +491,10 @@ export default async function TemplatesPage({
                     <StatusBadge status={job.status} variants={RENDER_JOB_STATUS_VARIANT} />
                   </div>
                 ))}
-                {renderJobPage.nextCursor && (
+                {renderNextCursor && (
                   <PageLink
                     href={templateOpsHref(cursors, {
-                      renderCursor: renderJobPage.nextCursor,
+                      renderCursor: renderNextCursor,
                     })}
                   >
                     Load more render jobs
