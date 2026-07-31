@@ -519,9 +519,9 @@ test.describe("Nimbus live generation QA", () => {
     await page.getByRole("button", { name: /Submit for review/i }).click();
     await expectNimbusReviewMode(page);
 
-    await page.getByRole("button", { name: /^Reject$/i }).click();
+    await page.getByRole("button", { name: /^Request changes$/i }).click();
     await page.getByPlaceholder(/What needs to change/i).fill(rejectionNote);
-    await page.getByRole("button", { name: /Reject with note/i }).click();
+    await page.getByRole("button", { name: /^Request changes$/i }).click();
 
     await expectStudioDraftState(page, "Rejected");
     await expect(page.getByText("Changes requested")).toBeVisible();
