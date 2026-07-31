@@ -26,7 +26,7 @@ export function KnowledgeView({ workspace }: { workspace: ProductWorkspace }) {
         </span>
         <Link
           href={`/ask?product=${product.id}`}
-          className="text-[13px] font-semibold text-brand hover:underline"
+          className="text-[13px] font-semibold text-brand-strong hover:underline"
         >
           Open Ask →
         </Link>

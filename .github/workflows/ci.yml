@@ -110,12 +110,14 @@ jobs:
               exit 1
               ;;
           esac
-      - name: Run Playwright E2E against preview
+      - name: Run Playwright E2E and accessibility gate against preview
         env:
           CONTENTGATE_E2E_BASE_URL: ${{ steps.preview.outputs.preview_url }}
           CONTENTGATE_E2E_EMAIL: ${{ secrets.CONTENTGATE_E2E_EMAIL }}
           CONTENTGATE_E2E_PASSWORD: ${{ secrets.CONTENTGATE_E2E_PASSWORD }}
           CONTENTGATE_E2E_ASSIGNMENT_ID: ${{ secrets.CONTENTGATE_E2E_ASSIGNMENT_ID }}
+          CONTENTGATE_E2E_CONTENT_ID: ${{ secrets.CONTENTGATE_E2E_CONTENT_ID }}
+          CONTENTGATE_E2E_DOCUMENT_ID: ${{ secrets.CONTENTGATE_E2E_DOCUMENT_ID }}
           CONTENTGATE_E2E_PRODUCT_ID: ${{ secrets.CONTENTGATE_E2E_PRODUCT_ID }}
           CONTENTGATE_E2E_PRODUCT_NAME: ${{ secrets.CONTENTGATE_E2E_PRODUCT_NAME }}
           CONTENTGATE_E2E_TEMPLATE_NAME: ${{ secrets.CONTENTGATE_E2E_TEMPLATE_NAME }}

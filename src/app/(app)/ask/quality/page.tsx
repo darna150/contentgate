@@ -48,7 +48,7 @@ export default async function AskQualityPage() {
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-6 py-8">
       <div className="flex items-center justify-between gap-4">
-        <div><p className="text-label text-brand">Ask quality</p><h1 className="mt-1 text-2xl font-semibold text-ink">Evidence and feedback review</h1></div>
+        <div><p className="text-label text-brand-strong">Ask quality</p><h1 className="mt-1 text-2xl font-semibold text-ink">Evidence and feedback review</h1></div>
         <Button asChild variant="outline"><Link href="/ask">Back to Ask</Link></Button>
       </div>
       <div className="grid gap-4 sm:grid-cols-4">

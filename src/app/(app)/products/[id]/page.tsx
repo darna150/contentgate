@@ -47,7 +47,7 @@ export default async function ProductWorkspacePage({
       <div className="flex flex-col gap-3">
         <Link
           href="/products"
-          className="text-label text-brand hover:underline"
+          className="text-label text-brand-strong hover:underline"
         >
           ← Products
         </Link>

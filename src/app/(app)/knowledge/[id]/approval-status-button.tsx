@@ -33,7 +33,7 @@ export function DocumentApprovalStatusButton({
       >
         {pending ? "Updating…" : deactivate ? "Deactivate source" : "Reactivate source"}
       </button>
-      {error && <p className="max-w-[230px] text-right text-[11px] text-reject">{error}</p>}
+      {error && <p role="alert" className="max-w-[230px] text-right text-[11px] text-reject">{error}</p>}
     </div>
   );
 }

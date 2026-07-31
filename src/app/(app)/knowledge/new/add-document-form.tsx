@@ -122,7 +122,7 @@ export function AddDocumentForm({
         </label>
 
         {state?.error && (
-          <p className="rounded-control border border-reject-border bg-reject-tint px-3.5 py-3 text-[13px] text-reject">
+          <p role="alert" className="rounded-control border border-reject-border bg-reject-tint px-3.5 py-3 text-[13px] text-reject">
             {state.error}
           </p>
         )}
@@ -144,7 +144,7 @@ export function AddDocumentForm({
       <div className="flex flex-col gap-3.5 rounded-card border border-edge bg-surface p-[22px]">
         <div className="flex items-center gap-2">
           <h2 className="text-[15px] font-bold">Paragraph preview</h2>
-          <span className="rounded-[5px] bg-brand-tint px-[7px] py-0.5 text-[10.5px] font-bold uppercase tracking-[0.08em] text-brand">
+          <span className="rounded-[5px] bg-brand-tint px-[7px] py-0.5 text-[10.5px] font-bold uppercase tracking-[0.08em] text-brand-on-tint">
             {paragraphs.length} citable
           </span>
         </div>
@@ -158,7 +158,7 @@ export function AddDocumentForm({
           <ol className="flex max-h-[480px] flex-col gap-2.5 overflow-y-auto">
             {paragraphs.map((p) => (
               <li key={p.n} className="flex gap-2.5">
-                <span className="mt-0.5 shrink-0 text-[11.5px] font-bold text-brand">
+                <span className="mt-0.5 shrink-0 text-[11.5px] font-bold text-brand-strong">
                   ¶{p.n}
                 </span>
                 <span className="line-clamp-3 text-[12.5px] leading-relaxed text-ink-muted">

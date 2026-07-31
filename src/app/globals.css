@@ -5,7 +5,7 @@
      base + one teal functional accent). Token NAMES are unchanged from v1 to
      avoid touching every call site — only hex values move. */
   --color-brand-dark: #0a0a0a;
-  --color-brand: #00807a;
+  --color-brand: #007a74;
   --color-brand-strong: #006b66;
   --color-brand-tint: #e6f7f5;
   --color-brand-on-tint: #00635e;
@@ -33,7 +33,7 @@
      accent (teal) — so accent now aliases straight onto brand/teal rather
      than introducing a second hue. Kept as separate tokens (not removed)
      since call sites still reference --color-accent*. */
-  --color-accent: #00807a;
+  --color-accent: #007a74;
   --color-accent-dark: #006b66;
   --color-accent-tint: #e6f7f5;
   --color-accent-border: #b9e9e4;

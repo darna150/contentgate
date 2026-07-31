@@ -37,8 +37,7 @@ type Props = {
 
 export function WorkspaceTabs({ productId, active, counts }: Props) {
   return (
-    <div
-      role="tablist"
+    <nav
       aria-label="Product workspace views"
       className="-mx-1 flex gap-1.5 overflow-x-auto border-b border-edge px-1 pb-3"
     >
@@ -49,8 +48,7 @@ export function WorkspaceTabs({ productId, active, counts }: Props) {
           <Link
             key={view}
             href={`/products/${productId}?view=${view}`}
-            role="tab"
-            aria-selected={isActive}
+            aria-current={isActive ? "page" : undefined}
             scroll={false}
             className={cn(
               "flex flex-shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[13.5px] font-semibold transition-colors",
@@ -73,6 +71,6 @@ export function WorkspaceTabs({ productId, active, counts }: Props) {
           </Link>
         );
       })}
-    </div>
+    </nav>
   );
 }

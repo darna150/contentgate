@@ -259,6 +259,7 @@ export default async function EditProductPage({
                         <form key={state.status} action={action}>
                           <button
                             type="submit"
+                            aria-pressed={active}
                             className={`rounded-[7px] px-2.5 py-1 text-[11px] font-semibold transition-colors ${
                               active ? activeClass : "text-ink-faint hover:text-ink"
                             }`}

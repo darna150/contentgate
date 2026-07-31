@@ -30,7 +30,7 @@ export function EmptyState({
     >
       {Icon && (
         <span className="flex size-11 items-center justify-center rounded-full bg-brand-tint text-brand-on-tint">
-          <Icon className="size-5" />
+          <Icon className="size-5" aria-hidden />
         </span>
       )}
       <div className="flex flex-col gap-1.5">

@@ -313,6 +313,7 @@ export function UploadAssetDialog({
               <video
                 src={videoPreviewUrl}
                 className="hidden"
+                muted
                 preload="metadata"
                 onLoadedMetadata={(event) => {
                   const seconds = event.currentTarget.duration;

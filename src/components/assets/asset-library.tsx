@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ImageOff } from "lucide-react";
@@ -48,6 +48,7 @@ export function AssetLibrary({
   nextCursor,
 }: Props) {
   const router = useRouter();
+  const uploadButtonRef = useRef<HTMLButtonElement>(null);
   const [dialog, setDialog] = useState<DialogState>({ type: "closed" });
   const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
 
@@ -65,6 +66,11 @@ export function AssetLibrary({
     setDialog({ type: "closed" });
   }
 
+  function closeUploadDialog() {
+    closeDialog();
+    requestAnimationFrame(() => uploadButtonRef.current?.focus());
+  }
+
   function refresh() {
     router.refresh();
   }
@@ -77,6 +83,7 @@ export function AssetLibrary({
         actions={
           isAdmin ? (
             <Button
+              ref={uploadButtonRef}
               onClick={() => setDialog({ type: "upload" })}
             >
               <UploadIcon className="h-4 w-4" /> Upload asset
@@ -200,7 +207,7 @@ export function AssetLibrary({
       )}
 
       {dialog.type === "upload" && (
-        <UploadAssetDialog products={uploadProducts} onClose={closeDialog} onUploaded={refresh} />
+        <UploadAssetDialog products={uploadProducts} onClose={closeUploadDialog} onUploaded={refresh} />
       )}
     </div>
   );
