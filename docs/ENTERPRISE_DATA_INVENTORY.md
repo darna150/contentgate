@@ -17,7 +17,7 @@ fails if an org-scoped table is added without updating that source.
 | System | Purpose | Customer data handled | Technical location | Contract record required before beta |
 |---|---|---|---|---|
 | Vercel | Web application, server routes, deployment logs, analytics, and performance telemetry | Request metadata; user and workspace data processed transiently by server routes; operational logs | Project `prj_grjyPK0Jc6Ng7ojBzHRXSOxGaxDL`; deployment region/configuration must be exported and approved | DPA/subprocessor entry, selected function regions, log retention, support-access owner |
-| Supabase | Postgres database, Auth, private Storage, API | All persisted workspace records, member identities, source documents, assets, templates, renders, and audit history | Staging `bncwjibscptgijgmuhrn`; production `egjssfcenboalijfdmsi`; exact database/Auth/Storage regions must be verified in project settings | DPA/subprocessor entry, project regions, backup/PITR retention, support-access owner |
+| Supabase | Postgres database, Auth, private Storage, API | All persisted workspace records, member identities, source documents, assets, templates, renders, and audit history | Staging `bncwjibscptgijgmuhrn` and production `egjssfcenboalijfdmsi` are healthy in `ap-northeast-1` | DPA/subprocessor entry, approved backup/PITR and Storage recovery, support-access owner |
 | OpenAI API | Ask, generation, knowledge import, and embeddings | Prompt instructions, selected source/claim context, generated text, and embedding inputs | Server-to-server calls from Vercel; configured models are environment variables | DPA/subprocessor entry, approved API data controls, region/transfer position, model allowlist |
 | GitHub | Source control and CI | Source and synthetic test evidence; customer secrets and customer exports are prohibited | Private repository and Actions | Access owner, log/artifact retention, branch protection evidence |
 
@@ -73,7 +73,7 @@ retention.
 ## Open procurement inputs
 
 Before a design partner is onboarded, the assurance owner must record exact
-processor legal entities, DPAs, configured regions, international-transfer
+processor legal entities, DPAs, remaining configured regions, international-transfer
 position, infrastructure log retention, backup/PITR retention, support access,
 and deletion propagation. Unknown values must be disclosed as beta limitations,
 not inferred from the codebase.
