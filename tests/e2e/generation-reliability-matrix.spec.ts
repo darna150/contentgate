@@ -122,16 +122,8 @@ async function createFixture(): Promise<MatrixFixture> {
 async function deleteFixture(fixture: MatrixFixture | null) {
   if (!fixture?.userId) return;
   const { error: disposalError } = await fixture.admin.rpc(
-    "dispose_enterprise_stateful_capacity_fixture",
-    {
-      p_org_id: fixture.orgId,
-      p_user_ids: [fixture.userId],
-      p_content_ids: fixture.contentIds,
-      p_asset_ids: [],
-      p_session_ids: [],
-      p_query_ids: [],
-      p_worker_id: null,
-    }
+    "dispose_generation_matrix_fixture",
+    { p_org_id: fixture.orgId, p_user_id: fixture.userId }
   );
   if (disposalError) throw disposalError;
   const { error: authError } = await fixture.admin.auth.admin.deleteUser(fixture.userId, false);

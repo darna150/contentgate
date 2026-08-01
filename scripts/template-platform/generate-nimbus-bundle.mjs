@@ -35,6 +35,44 @@ async function copyAsset(inputPath, outputPath) {
   return sha256(await readFile(outputPath));
 }
 
+// Product variants come from separate exports whose transparent canvases and
+// faint edge pixels are not identical. `object-fit: contain` therefore made
+// the visible shoe change size/position even though the locked image slot did
+// not change. Normalize the visible alpha bounds onto one canonical canvas so
+// a variant click swaps only the product pixels.
+async function normalizeProductAsset(inputPath, outputPath) {
+  const source = sharp(inputPath).ensureAlpha();
+  const { data, info } = await source.raw().toBuffer({ resolveWithObject: true });
+  for (let offset = 3; offset < data.length; offset += info.channels) {
+    if (data[offset] < 16) data[offset] = 0;
+  }
+  const canonicalWidth = 1404;
+  const canonicalHeight = 1200;
+  const visibleWidth = 1190;
+  const visibleHeight = 1015;
+  const buffer = await sharp(data, {
+    raw: { width: info.width, height: info.height, channels: info.channels },
+  })
+    .trim({ background: { r: 0, g: 0, b: 0, alpha: 0 }, threshold: 2 })
+    .resize(visibleWidth, visibleHeight, {
+      fit: "contain",
+      withoutEnlargement: false,
+      background: { r: 0, g: 0, b: 0, alpha: 0 },
+    })
+    .extend({
+      top: Math.floor((canonicalHeight - visibleHeight) / 2),
+      bottom: Math.ceil((canonicalHeight - visibleHeight) / 2),
+      left: Math.floor((canonicalWidth - visibleWidth) / 2),
+      right: Math.ceil((canonicalWidth - visibleWidth) / 2),
+      background: { r: 0, g: 0, b: 0, alpha: 0 },
+    })
+    .png()
+    .toBuffer();
+  await mkdir(dirname(outputPath), { recursive: true });
+  await writeFile(outputPath, buffer);
+  return { hash: sha256(buffer), width: canonicalWidth, height: canonicalHeight };
+}
+
 // Nimbus was designed as one responsive Figma system, not 42 unrelated
 // canvases. These values are the design-system equations used by the Figma
 // frames (geometric-mean scale preserves both very wide and very tall
@@ -120,8 +158,7 @@ async function main() {
 
   for (const productVariant of source.productVariants) {
     const productPath = join(baseAssetRoot, productVariant.asset);
-    const productMeta = await sharp(productPath).metadata();
-    const productHash = await copyAsset(
+    const product = await normalizeProductAsset(
       productPath,
       join(outputRoot, "products", `${productVariant.key}.png`)
     );
@@ -129,9 +166,9 @@ async function main() {
       key: `product-${productVariant.key}`,
       kind: "image",
       path: `products/${productVariant.key}.png`,
-      sha256: productHash,
-      width: productMeta.width,
-      height: productMeta.height,
+      sha256: product.hash,
+      width: product.width,
+      height: product.height,
       mimeType: "image/png",
     });
   }
@@ -218,7 +255,7 @@ async function main() {
       // A bundle version is immutable after import. Bump this whenever the
       // checked-in Figma reference exports or locked layout contract changes,
       // otherwise the importer correctly reuses stale storage assets.
-      name: "figma-full-v8-calibrated-copy",
+      name: "figma-full-v9-stable-assets",
       source: "figma",
       sourceFileKey: source.sourceFileKey,
       sourcePageNodeId: source.sourcePageNodeId,

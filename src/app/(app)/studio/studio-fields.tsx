@@ -3,6 +3,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { graphemeCount } from "@/lib/graphemes";
 import { fieldLabel } from "@/lib/templates";
 import type { FieldIssue, FieldLimits } from "@/lib/template-fields";
+import type { TemplateBundleTextLayout } from "@/lib/template-platform/render";
 import { cn } from "@/lib/utils";
 
 function compactFieldLabel(key: string) {
@@ -18,18 +19,25 @@ function fitIndicator(input: {
   issues: FieldIssue[];
   overflowing: boolean;
   empty: boolean;
+  layout?: TemplateBundleTextLayout;
+  pending: boolean;
 }) {
   const max = input.limit?.max_chars;
   const count = graphemeCount(input.value);
+  const maxLines = input.limit?.max_lines;
+  const lineStatus = input.layout && maxLines
+    ? `${input.layout.lines.length}/${maxLines} line${maxLines === 1 ? "" : "s"}`
+    : null;
   if (max) {
     if (count > max) return `${count}/${max} · over by ${count - max}`;
+    if (input.pending) return `${count}/${max} · measuring…`;
     if (input.overflowing) return `${count}/${max} · layout over`;
     // An untouched required field is an outstanding step, not a mistake the
     // author has made. Saying "needs edit" in red on arrival reads as a failure
     // before anyone has typed, so state the requirement plainly instead.
     if (input.empty) return input.required ? `0/${max} · required` : `0/${max}`;
     if (input.issues.length) return `${count}/${max} · needs edit`;
-    return `${count}/${max} ✓ fits`;
+    return `${count}/${max}${lineStatus ? ` · ${lineStatus}` : ""} ✓ fits`;
   }
   if (input.empty) return input.required ? "Required" : "Optional";
   if (input.overflowing) return "Layout over";
@@ -45,6 +53,8 @@ export function StudioFields({
   editable,
   issuesByField,
   overflowFields,
+  textLayoutByField,
+  fitCheckPending = false,
   onChange,
 }: {
   fields: string[];
@@ -54,6 +64,8 @@ export function StudioFields({
   editable: boolean;
   issuesByField: Record<string, FieldIssue[]>;
   overflowFields: string[];
+  textLayoutByField?: Record<string, TemplateBundleTextLayout>;
+  fitCheckPending?: boolean;
   onChange?: (key: string, value: string) => void;
 }) {
   const required = new Set(requiredFields);
@@ -76,6 +88,8 @@ export function StudioFields({
           issues,
           overflowing,
           empty,
+          layout: textLayoutByField?.[key],
+          pending: fitCheckPending,
         });
         const rows = Math.min(4, Math.max(1, limits[key]?.max_lines ?? (key === "cta" ? 1 : 2)));
         return (

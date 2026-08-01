@@ -16,20 +16,19 @@ const previousFields = {
   optional: "",
 };
 
-test("Shorter rejects any existing copy field that becomes the same length or longer", () => {
+test("Shorter allows a concise protected field to remain unchanged when the copy is shorter overall", () => {
   const issues = revisionLengthIssues({
     revision: "shorter",
     editableFields: ["headline", "subheadline_1", "optional"],
     previousFields,
     generatedFields: {
-      headline: "RUN LIGHT. FEEL FAST.",
+      headline: "RUN ON AIR",
       subheadline_1: "Nimbus 1 is here.",
       optional: "",
     },
   });
 
-  assert.equal(issues.length, 1);
-  assert.match(issues[0], /^headline: must be shorter/);
+  assert.deepEqual(issues, []);
 });
 
 test("Shorter does not add copy to a previously empty optional field", () => {
@@ -45,7 +44,7 @@ test("Shorter does not add copy to a previously empty optional field", () => {
   ]);
 });
 
-test("Shorter accepts a rewrite only when every existing copy field is shorter", () => {
+test("Shorter accepts a rewrite when at least one field and the total copy are shorter", () => {
   assert.deepEqual(
     revisionLengthIssues({
       revision: "shorter",
@@ -60,19 +59,32 @@ test("Shorter accepts a rewrite only when every existing copy field is shorter",
   );
 });
 
-test("Longer rejects any existing copy field that does not expand", () => {
+test("Shorter rejects a result that is not shorter overall", () => {
+  const issues = revisionLengthIssues({
+    revision: "shorter",
+    editableFields: ["headline", "subheadline_1"],
+    previousFields,
+    generatedFields: {
+      headline: "RUN ON AIR TODAY",
+      subheadline_1: "Introducing the new Nimbus 1",
+    },
+  });
+  assert.ok(issues.some((issue) => issue.startsWith("headline: became longer")));
+  assert.ok(issues.some((issue) => issue.startsWith("copy: must be shorter overall")));
+});
+
+test("Longer allows a concise protected field to remain unchanged when the copy is longer overall", () => {
   const issues = revisionLengthIssues({
     revision: "longer",
     editableFields: ["headline", "subheadline_1"],
     previousFields,
     generatedFields: {
-      headline: "RUN AIR",
+      headline: "RUN ON AIR",
       subheadline_1: "Meet the new, cloud-soft Nimbus 1 running shoe.",
     },
   });
 
-  assert.equal(issues.length, 1);
-  assert.match(issues[0], /^headline: must be longer/);
+  assert.deepEqual(issues, []);
 });
 
 test("Non-length refinements do not impose a character-count contract", () => {

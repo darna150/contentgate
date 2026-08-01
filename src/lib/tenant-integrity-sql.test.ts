@@ -332,3 +332,20 @@ test("stateful asset cleanup detaches only its bounded synthetic current version
   assert.match(cleanupSql, /asset\.title like 'enterprise stateful qa %'/);
   assert.match(cleanupSql, /return public\.dispose_enterprise_stateful_capacity_fixture_v1/);
 });
+
+test("generation matrix cleanup is restricted to one exact synthetic staging identity", () => {
+  const cleanupSql = compact(
+    readFileSync(
+      "supabase/migrations/20260801124500_generation_matrix_cleanup.sql",
+      "utf8"
+    )
+  );
+
+  assert.match(cleanupSql, /expected_org_id constant uuid := '77777777-7777-4777-8777-777777777777'/);
+  assert.match(cleanupSql, /profile\.id = p_user_id/);
+  assert.match(cleanupSql, /profile\.full_name like 'generation matrix %'/);
+  assert.match(cleanupSql, /auth_user\.email ~ '\^generation-matrix-/);
+  assert.match(cleanupSql, /cardinality\(target_content_ids\) > 64/);
+  assert.match(cleanupSql, /content\.created_by = p_user_id/);
+  assert.match(cleanupSql, /grant execute on function public\.dispose_generation_matrix_fixture[^;]+to service_role/);
+});

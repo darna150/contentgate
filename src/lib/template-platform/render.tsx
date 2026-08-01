@@ -213,7 +213,7 @@ function renderTextSlot(
       <span
         data-template-content
         style={{
-          display: resolved ? "block" : "-webkit-box",
+          display: "block",
           // Keep the text measure box identical in the browser and Satori.
           // With centered/right-aligned flex children, an auto-width span
           // shrink-wrapped to its text in ImageResponse, so Satori re-wrapped
@@ -226,11 +226,9 @@ function renderTextSlot(
           paddingBottom: descenderPadding(slot, fontSize, scale),
           overflow: "hidden",
           textAlign: slot.align ?? "left",
-          whiteSpace: resolved ? "pre-wrap" : "normal",
+          whiteSpace: "pre-wrap",
           wordBreak: "normal",
           overflowWrap: resolved ? "normal" : "break-word",
-          WebkitBoxOrient: "vertical",
-          WebkitLineClamp: resolved ? resolved.lines.length : slot.maxLines,
         }}
       >
         {content}
@@ -295,43 +293,27 @@ function renderImageSlot(
       ? selectedProductAsset(manifest, fields, assetUrlByPath, assetOrigin)
       : cleanText(fields[slot.field]));
   if (!src) return null;
-  const shadowWidth = scaledNumber(slot.width * 0.68, scale);
-  const shadowHeight = scaledNumber(Math.max(10, slot.height * 0.085), scale);
-  const shadowLeft = scaledNumber(slot.x + slot.width * 0.16, scale);
-  const shadowTop = scaledNumber(slot.y + slot.height * 0.87, scale);
   return (
-    <React.Fragment key={slot.key}>
-      <div
-        aria-hidden="true"
-        style={{
-          position: "absolute",
-          left: shadowLeft,
-          top: shadowTop,
-          width: shadowWidth,
-          height: shadowHeight,
-          borderRadius: "50%",
-          background: "rgba(0,0,0,.34)",
-          filter: `blur(${scaledNumber(Math.max(4, slot.width * 0.035), scale)}px)`,
-          transform: "translateY(12%)",
-        }}
-      />
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={src}
-        alt=""
-        data-template-field={slot.field}
-        style={{
-          position: "absolute",
-          left: scaledNumber(slot.x, scale),
-          top: scaledNumber(slot.y, scale),
-          width: scaledNumber(slot.width, scale),
-          height: scaledNumber(slot.height, scale),
-          display: "block",
-          objectFit: slot.fit,
-          ...(slot.rotation ? { transform: `rotate(${slot.rotation}deg)` } : {}),
-        }}
-      />
-    </React.Fragment>
+    /* Image treatments belong to the approved asset or template background.
+     * A renderer-created shadow used to appear as a dark rectangle beneath
+     * transparent packshots and changed shape between product variants. */
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      key={slot.key}
+      src={src}
+      alt=""
+      data-template-field={slot.field}
+      style={{
+        position: "absolute",
+        left: scaledNumber(slot.x, scale),
+        top: scaledNumber(slot.y, scale),
+        width: scaledNumber(slot.width, scale),
+        height: scaledNumber(slot.height, scale),
+        display: "block",
+        objectFit: slot.fit,
+        ...(slot.rotation ? { transform: `rotate(${slot.rotation}deg)` } : {}),
+      }}
+    />
   );
 }
 

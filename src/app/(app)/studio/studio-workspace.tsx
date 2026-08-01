@@ -322,6 +322,7 @@ export function StudioWorkspace({
   const [textLayoutByField, setTextLayoutByField] = useState<
     Record<string, TemplateBundleTextLayout> | undefined
   >(undefined);
+  const [fitCheckPending, setFitCheckPending] = useState(Boolean(initialContent));
   const [platformAssetUrlByPath, setPlatformAssetUrlByPath] = useState(
     selectedTemplate.platformAssetUrlByPath
   );
@@ -653,6 +654,7 @@ export function StudioWorkspace({
     setCopied(false);
     setOverflowFields([]);
     setTextLayoutByField(undefined);
+    setFitCheckPending(Boolean(nextContent));
     setPlatformAssetUrlByPath(selectedTemplate.platformAssetUrlByPath);
     setSaveState("idle");
     setSavedAt(null);
@@ -681,6 +683,7 @@ export function StudioWorkspace({
         if (!cancelled) {
           setOverflowFields([]);
           setTextLayoutByField(undefined);
+          setFitCheckPending(false);
         }
       }, 0);
       return () => {
@@ -699,6 +702,7 @@ export function StudioWorkspace({
       }));
       if (cancelled) return;
       if ("error" in result) {
+        setFitCheckPending(false);
         if (result.error.startsWith("Your session expired")) {
           router.push("/login");
           return;
@@ -707,9 +711,10 @@ export function StudioWorkspace({
         return;
       }
       setTextLayoutByField(result.textLayoutByField);
+      setFitCheckPending(false);
       if (showOverflowAdvisory) setOverflowFields(result.overflowFields);
       else if (mode === "edit") setOverflowFields([]);
-    }, 900);
+    }, 250);
     return () => {
       cancelled = true;
       window.clearTimeout(timer);
@@ -863,7 +868,13 @@ export function StudioWorkspace({
     );
     setSaveState(nextDirty ? "unsaved" : "saved");
     setHasManualEdits(nextDirty ? true : (content?.manuallyEdited ?? false));
-    if (key !== BACKGROUND_CHOICE_FIELD) setTextLayoutByField(undefined);
+    // Asset pickers are layout-invariant: they may swap pixels, but must not
+    // discard measured copy layout or make the canvas jump/ellipsize. Only an
+    // editable text field invalidates the glyph measurement.
+    if (activeEditableFields.includes(key)) {
+      setTextLayoutByField(undefined);
+      setFitCheckPending(Boolean(content && selectedTemplate.platformManifest));
+    }
     setDraftFields(nextFields);
     if (key === BACKGROUND_CHOICE_FIELD || activeAssetChoiceFieldKeys.includes(key)) {
       track("studio_picker_selected", {
@@ -1352,6 +1363,8 @@ export function StudioWorkspace({
               editable={editable && !busy}
               issuesByField={issuesByField}
               overflowFields={overflowFields}
+              textLayoutByField={textLayoutByField}
+              fitCheckPending={fitCheckPending}
               onChange={updateField}
             />
 

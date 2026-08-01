@@ -100,25 +100,49 @@ export function revisionLengthIssues(input: {
   previousFields: Record<string, string>;
 }) {
   if (input.revision !== "shorter" && input.revision !== "longer") return [];
+  const issues: string[] = [];
+  let previousTotal = 0;
+  let generatedTotal = 0;
+  let directionalChanges = 0;
 
-  return input.editableFields.flatMap((key) => {
+  for (const key of input.editableFields) {
     const previousLength = normalizedLength(input.previousFields[key]);
     const generatedLength = normalizedLength(input.generatedFields[key]);
     if (previousLength === 0) {
-      return input.revision === "shorter" && generatedLength > 0
-        ? [`${key}: must remain empty when making the current copy shorter`]
-        : [];
+      if (input.revision === "shorter" && generatedLength > 0) {
+        issues.push(`${key}: must remain empty when making the current copy shorter`);
+      }
+      continue;
     }
-    const satisfiesDirection =
-      input.revision === "shorter"
-        ? generatedLength < previousLength
-        : generatedLength > previousLength;
-    if (satisfiesDirection) return [];
+    previousTotal += previousLength;
+    generatedTotal += generatedLength;
+    if (
+      (input.revision === "shorter" && generatedLength < previousLength) ||
+      (input.revision === "longer" && generatedLength > previousLength)
+    ) {
+      directionalChanges += 1;
+    }
+    if (input.revision === "shorter" && generatedLength > previousLength) {
+      issues.push(
+        `${key}: became longer (${generatedLength} characters versus ${previousLength})`
+      );
+    }
+    if (input.revision === "longer" && generatedLength < previousLength) {
+      issues.push(
+        `${key}: became shorter (${generatedLength} characters versus ${previousLength})`
+      );
+    }
+  }
 
-    return [
-      `${key}: must be ${input.revision} than the current ${previousLength}-character copy (received ${generatedLength} characters)`,
-    ];
-  });
+  const totalMovesInDirection = input.revision === "shorter"
+    ? generatedTotal < previousTotal
+    : generatedTotal > previousTotal;
+  if (previousTotal > 0 && (!totalMovesInDirection || directionalChanges === 0)) {
+    issues.push(
+      `copy: must be ${input.revision} overall (${generatedTotal} characters versus ${previousTotal})`
+    );
+  }
+  return issues;
 }
 
 export function revisionAvailabilityIssue(input: {

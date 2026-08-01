@@ -387,7 +387,10 @@ async function evaluateGeneratedEvidenceSupportWithOpenAI(input: {
       field,
       input.evidence
         .filter((item) => item.field === field)
-        .map((item) => citationQuote(item)),
+        .map((item) => ({
+          approved_source: item.approved_source,
+          cited_excerpt: citationQuote(item),
+        })),
     ])
   );
   const response = await fetch("https://api.openai.com/v1/responses", {
@@ -403,7 +406,7 @@ async function evaluateGeneratedEvidenceSupportWithOpenAI(input: {
         {
           role: "system",
           content:
-            "You are a strict marketing-claim evidence verifier. Decide only whether each generated field is directly supported by its cited approved source text. Reject added capabilities, guarantees, comparisons, performance claims, or benefits not entailed by the citation. Do not judge style. Return structured JSON only.",
+            "You are a marketing-claim entailment verifier. For each field, evaluate the combined meaning of all cited approved sources. Accept faithful paraphrases, compression, changes in voice, and combinations of claims that are individually supported by those sources; the generated wording does not need to appear verbatim. Generic creative phrasing that introduces no factual proposition is also acceptable. Reject only a material capability, guarantee, comparison, performance claim, quantified claim, or benefit that is not entailed by the cited sources. The cited excerpt is audit evidence; the fuller approved source supplies its context. Do not judge style, originality, or exact wording. Return structured JSON only.",
         },
         {
           role: "user",
@@ -1195,11 +1198,13 @@ export async function POST(req: Request) {
           ),
           editableFields
         );
-        const unchangedIssues = meaningfulVariationIssues({
-            editableFields,
-            generatedFields,
-            previousFields: comparisonFields,
-          });
+        const unchangedIssues = selectedRevisionKind === "length"
+          ? []
+          : meaningfulVariationIssues({
+              editableFields,
+              generatedFields,
+              previousFields: comparisonFields,
+            });
         const lengthIssues = revisionLengthIssues({
             revision: selectedRevision,
             editableFields,
@@ -1533,7 +1538,7 @@ export async function POST(req: Request) {
           evidence: fallbackCandidate.evidence,
           approvedSources: approvedSourceTexts,
         });
-        const fallbackVariationIssues = isRegeneration
+        const fallbackVariationIssues = isRegeneration && selectedRevisionKind !== "length"
           ? meaningfulVariationIssues({
               editableFields,
               generatedFields: coerced.fields,
@@ -1812,11 +1817,13 @@ export async function POST(req: Request) {
         ];
       }
     }
-    const finalVariationIssues = meaningfulVariationIssues({
-        editableFields,
-        generatedFields: structured,
-        previousFields: comparisonFields,
-      });
+    const finalVariationIssues = selectedRevisionKind === "length"
+      ? []
+      : meaningfulVariationIssues({
+          editableFields,
+          generatedFields: structured,
+          previousFields: comparisonFields,
+        });
     const finalRevisionIssues = revisionLengthIssues({
       revision: selectedRevision,
       editableFields,
@@ -1875,7 +1882,7 @@ export async function POST(req: Request) {
       return Response.json(
         {
           error: finalRevisionIssues.length
-            ? `ContentGate could not produce copy that is ${selectedRevision} in every field. Please try again.`
+            ? `ContentGate could not make the copy ${selectedRevision} overall while preserving the approved meaning. Please try again.`
             : finalVariationIssues.length
               ? "ContentGate could not produce a meaningfully different alternate. Please try Generate again."
               : finalGroundingIssues.length || finalSemanticGroundingIssues.length
