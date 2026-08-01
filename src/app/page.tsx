@@ -310,7 +310,10 @@ export default function LandingPage() {
                   body: "It looks like the brand whether headquarters made it on Tuesday or a franchisee made it at eleven on a Sunday night.",
                 },
                 {
-                  title: "Nothing unapproved ships",
+                  // Not "nothing unapproved ships": admins can download
+                  // filename-labelled draft previews for internal QA, so the
+                  // absolute is false. §4, and the Codex brief bans it too.
+                  title: "Export is gated on approval",
                   body: "The gate is in the database, not in a process someone can click past when the quarter is ending.",
                 },
                 {
@@ -495,6 +498,54 @@ export default function LandingPage() {
                 </article>
               ))}
             </div>
+          </div>
+        </section>
+
+        {/* ── Managed implementation ───────────────────────────────────── */}
+        {/* From the Codex product & services brief §10.6. Onboarding is a real
+            part of the offer, not a footnote — template install and assignment
+            are still an engineering workflow, so saying so is both accurate and
+            better positioning than implying self-serve. Pricing deliberately
+            omitted; that is a separate decision. */}
+        <section aria-labelledby="managed-heading" className="bg-page">
+          <div className="mx-auto w-full max-w-6xl px-5 py-20 sm:px-8 sm:py-24">
+            <div className="anim-rise max-w-3xl">
+              <SectionLabel>Getting live</SectionLabel>
+              <h2
+                id="managed-heading"
+                className="mt-4 text-display text-balance text-ink"
+              >
+                We do more than hand you another login.
+              </h2>
+              <p className="mt-5 text-lede text-pretty text-ink-muted-strong">
+                We structure your source knowledge, bring across your approved
+                assets, build the templates, set up roles and approvals, and
+                train the people who will use it.
+              </p>
+            </div>
+
+            <ol className="anim-rise mt-12 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+              {[
+                { n: "01", phase: "Discover" },
+                { n: "02", phase: "Organize" },
+                { n: "03", phase: "Build" },
+                { n: "04", phase: "Configure" },
+                { n: "05", phase: "Train" },
+                { n: "06", phase: "Launch" },
+              ].map((step) => (
+                <li
+                  key={step.phase}
+                  className="flex items-baseline gap-3 rounded-card border border-edge bg-surface px-5 py-4 lg:flex-col lg:gap-2"
+                >
+                  <span className="text-label text-accent-dark">{step.n}</span>
+                  <span className="text-subhead text-ink">{step.phase}</span>
+                </li>
+              ))}
+            </ol>
+
+            <p className="anim-rise mt-8 max-w-3xl text-lede text-pretty text-ink">
+              Easy for local teams. Controlled for the brand.
+            </p>
           </div>
         </section>
 
