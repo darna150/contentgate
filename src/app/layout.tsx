@@ -11,6 +11,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://contentgate.app"),
   title: "ContentGate",
   description:
     "Approved knowledge in, compliant content out. Generate localized marketing content from approved documents, gated by approval.",

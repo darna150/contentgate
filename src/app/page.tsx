@@ -1,5 +1,611 @@
-import { redirect } from "next/navigation";
+import type { Metadata } from "next";
+import Link from "next/link";
 
-export default function Home() {
-  redirect("/dashboard");
+import { CampaignShowcase } from "@/components/landing/campaign-showcase";
+
+/*
+ * Public marketing landing page at "/". Kept static and unauthenticated —
+ * `src/proxy.ts` allows "/" through without a session.
+ *
+ * Copy discipline: claims must remain aligned with the implemented guarantees
+ * recorded in the enterprise assurance pack. Nothing on this page may state a
+ * speed number, imply self-serve signup, or show customer logos/testimonials
+ * before supporting evidence exists.
+ *
+ * Localization is deliberately NOT a headline feature here — no language
+ * picker, no language count, no named languages. Keep it that way.
+ */
+
+const CONTACT_EMAIL = "debbie@contentgate.app";
+const DEMO_HREF = `mailto:${CONTACT_EMAIL}?subject=ContentGate%20demo%20request`;
+
+export const metadata: Metadata = {
+  title: "ContentGate — You don’t need to be a marketer to market well",
+  description:
+    "Your franchisees, distributors, and field reps have to make marketing, and none of them were hired to. ContentGate hands them a system where the design and the claims are already settled — and proves where every claim came from.",
+  alternates: { canonical: "/" },
+  openGraph: {
+    title: "ContentGate — You don’t need to be a marketer to market well",
+    description:
+      "Approved knowledge and locked templates go in. On-claim, on-brand, export-ready content comes out — with proof of where every claim came from and who approved it.",
+    siteName: "ContentGate",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "ContentGate — You don’t need to be a marketer to market well",
+    description:
+      "Approved knowledge and locked templates go in. On-claim, on-brand, export-ready content comes out — with proof.",
+  },
+};
+
+const NAV = [
+  { href: "#problem", label: "The problem" },
+  { href: "#how", label: "How it works" },
+  { href: "#who", label: "Who it’s for" },
+  { href: "#proof", label: "What holds it together" },
+];
+
+// Focus indication comes from the global `:focus-visible` outline in
+// globals.css. Do not add per-element rings here — an
+// `outline-none` + ring pair would suppress it and double the affordance.
+
+const ctaOnDark =
+  "inline-flex items-center justify-center rounded-control bg-white px-5 py-3 text-base font-semibold text-brand-dark transition-colors hover:bg-brand-tint";
+const ctaGhostOnDark =
+  "inline-flex items-center justify-center rounded-control border border-white/30 px-5 py-3 text-base font-semibold text-white transition-colors hover:border-white hover:bg-white/10";
+const ctaOnLight =
+  "inline-flex items-center justify-center rounded-control bg-brand-dark px-5 py-3 text-base font-semibold text-white transition-colors hover:bg-ink/85";
+
+function Logo({ tone }: { tone: "light" | "dark" }) {
+  return (
+    <span className="flex items-center gap-2.5">
+      {/* The shared brand teal is dark enough to support this white mark. */}
+      <span className="flex h-[26px] w-[26px] items-center justify-center rounded-[7px] bg-brand text-sm font-extrabold leading-none text-white">
+        C
+      </span>
+      <span
+        className={`text-lg font-bold tracking-[-0.03em] ${
+          tone === "light" ? "text-white" : "text-ink"
+        }`}
+      >
+        contentgate
+      </span>
+    </span>
+  );
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return <p className="text-label text-accent-dark">{children}</p>;
+}
+
+export default function LandingPage() {
+  return (
+    <>
+      <header className="sticky top-0 z-40 border-b border-white/10 bg-brand-dark/95 backdrop-blur">
+        <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-6 px-5 py-3.5 sm:px-8">
+          <Link
+            href="/"
+            aria-label="ContentGate home"
+            className="rounded-control"
+          >
+            <Logo tone="light" />
+          </Link>
+
+          <nav aria-label="Sections" className="hidden lg:block">
+            <ul className="flex items-center gap-7">
+              {NAV.map((item) => (
+                <li key={item.href}>
+                  <a
+                    href={item.href}
+                    className="rounded text-sm font-medium text-sidebar-text transition-colors hover:text-white"
+                  >
+                    {item.label}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </nav>
+
+          <div className="flex items-center gap-2 sm:gap-3">
+            <Link
+              href="/login"
+              className="rounded-control px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-white/10"
+            >
+              Log in
+            </Link>
+            <a
+              href={DEMO_HREF}
+              className="hidden rounded-control bg-white px-4 py-2 text-sm font-semibold text-brand-dark transition-colors hover:bg-brand-tint sm:inline-flex"
+            >
+              Request a demo
+            </a>
+          </div>
+        </div>
+      </header>
+
+      <main id="main-content" tabIndex={-1} className="flex-1">
+        {/* ── Hero ─────────────────────────────────────────────────────── */}
+        <section className="relative overflow-hidden bg-brand-dark">
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute -right-40 -top-40 hidden h-[520px] w-[520px] rounded-full bg-brand/15 blur-3xl sm:block"
+          />
+          <div className="relative mx-auto w-full max-w-6xl px-5 py-20 sm:px-8 sm:py-28">
+            <div className="max-w-3xl">
+              <p className="text-label text-brand-on-dark">
+                Governed marketing production
+              </p>
+              <h1 className="mt-5 text-hero text-balance text-white">
+                You don’t need to be a marketer to market well.
+              </h1>
+              <p className="mt-6 max-w-2xl text-lede text-pretty text-sidebar-text">
+                Your franchisees, distributors, and field reps have to make
+                marketing. Not one of them was hired to. Hand them a system
+                where the design and the claims are already settled, and let
+                them get back to selling.
+              </p>
+              <div className="mt-9 flex flex-wrap gap-3">
+                <a href={DEMO_HREF} className={ctaOnDark}>
+                  Request a demo
+                </a>
+                <Link href="/login" className={ctaGhostOnDark}>
+                  Log in
+                </Link>
+              </div>
+              <p className="mt-10 max-w-2xl border-l-2 border-brand pl-4 text-prose text-sidebar-text">
+                Approved knowledge and locked templates go in. On-claim,
+                on-brand, export-ready content comes out — with proof of where
+                every claim came from and who approved it.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {/* ── Showcase ─────────────────────────────────────────────────── */}
+        <section
+          aria-labelledby="showcase-heading"
+          className="border-t border-white/10 bg-brand-dark"
+        >
+          <div className="mx-auto w-full max-w-6xl px-5 py-20 sm:px-8 sm:py-24">
+            <div className="max-w-2xl">
+              <p className="text-label text-brand-on-dark">
+                One brand, every market
+              </p>
+              <h2
+                id="showcase-heading"
+                className="mt-4 text-display text-balance text-white"
+              >
+                One campaign. Every size the channel asks for. Nobody touches
+                the layout.
+              </h2>
+              <p className="mt-5 text-lede text-pretty text-sidebar-text">
+                Pick a format. That is the entire decision. No blank canvas, no
+                design tool, no judgement call about what the brand is allowed
+                to say.
+              </p>
+            </div>
+
+            <div className="mt-14">
+              <CampaignShowcase />
+            </div>
+          </div>
+        </section>
+
+        {/* ── Problem ──────────────────────────────────────────────────── */}
+        <section
+          id="problem"
+          aria-labelledby="problem-heading"
+          className="scroll-mt-20 bg-page"
+        >
+          <div className="mx-auto w-full max-w-6xl px-5 py-20 sm:px-8 sm:py-24">
+            <div className="max-w-3xl">
+              <SectionLabel>The problem</SectionLabel>
+              <h2
+                id="problem-heading"
+                className="mt-4 text-display text-balance text-ink"
+              >
+                You approved all of it. Then it left the building.
+              </h2>
+              <p className="mt-5 text-lede text-pretty text-ink-muted-strong">
+                The claims, the artwork, the regulatory wording — settled at
+                headquarters. The selling happens somewhere else entirely, in
+                fifteen markets, through people who need something usable this
+                week. You have three options. All three are bad.
+              </p>
+            </div>
+
+            <ol className="mt-12 grid gap-5 md:grid-cols-3">
+              {[
+                {
+                  n: "01",
+                  title: "Headquarters makes everything",
+                  body: "You keep control and lose the year. A market waits six weeks for one social post, and the queue never empties.",
+                },
+                {
+                  n: "02",
+                  title: "Local teams make their own",
+                  body: "Fast, and off-brand inside a month. Stretched logos, retyped claims, a statistic someone half-remembered. Not carelessness — nobody gave them a tool that assumed they weren’t designers.",
+                },
+                {
+                  n: "03",
+                  title: "Agencies in-market",
+                  body: "You pay per asset, wait anyway, get a different brand in every country — and still nobody is checking the claims.",
+                },
+              ].map((option) => (
+                <li
+                  key={option.n}
+                  className="flex flex-col gap-3 rounded-card border border-edge bg-surface p-6"
+                >
+                  <span className="text-label text-ink-muted-strong">
+                    {option.n}
+                  </span>
+                  <h3 className="text-subhead text-ink">{option.title}</h3>
+                  <p className="text-prose text-ink-muted-strong">
+                    {option.body}
+                  </p>
+                </li>
+              ))}
+            </ol>
+
+            <div className="mt-6 rounded-card border border-edge bg-brand-dark p-8 sm:p-10">
+              <p className="text-label text-brand-on-dark">Option four</p>
+              <p className="mt-4 max-w-3xl text-h1 text-balance text-white">
+                The real constraint is not effort. It is expertise.
+              </p>
+              <p className="mt-4 max-w-3xl text-prose text-pretty text-sidebar-text">
+                Put the design skill in the template. Put the regulatory skill
+                in the approved sources. Now the person at the edge only has to
+                know the one thing you don’t — their own customer. They move at
+                their own speed, while off-claim output is blocked from
+                approval and final export.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {/* ── Four messages ────────────────────────────────────────────── */}
+        <section aria-labelledby="promise-heading" className="bg-surface">
+          <div className="mx-auto w-full max-w-6xl px-5 py-20 sm:px-8 sm:py-24">
+            <div className="max-w-3xl">
+              <SectionLabel>What changes</SectionLabel>
+              <h2
+                id="promise-heading"
+                className="mt-4 text-display text-balance text-ink"
+              >
+                Four things change at once.
+              </h2>
+            </div>
+
+            <div className="mt-12 grid gap-5 sm:grid-cols-2">
+              {[
+                {
+                  title: "Local teams stop waiting",
+                  body: "The bottleneck is gone. Nobody sits in a queue in another time zone for a one-pager they need before tomorrow’s call.",
+                },
+                {
+                  title: "One brand, every market",
+                  body: "It looks like the brand whether headquarters made it on Tuesday or a franchisee made it at eleven on a Sunday night.",
+                },
+                {
+                  title: "Only approved revisions reach final export",
+                  body: "The final-export gate is in the database, not in a process someone can click past when the quarter is ending.",
+                },
+                {
+                  title: "Agency quality, in-house",
+                  body: "The design skill sits in the template. One more size is not one more invoice.",
+                },
+              ].map((message, index) => (
+                <div
+                  key={message.title}
+                  className="flex flex-col gap-3 rounded-card border border-edge bg-page p-7"
+                >
+                  <span className="text-label text-accent-dark">
+                    {String(index + 1).padStart(2, "0")}
+                  </span>
+                  <h3 className="text-h1 text-balance text-ink">
+                    {message.title}
+                  </h3>
+                  <p className="text-prose text-pretty text-ink-muted-strong">
+                    {message.body}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* ── How it works ─────────────────────────────────────────────── */}
+        <section
+          id="how"
+          aria-labelledby="how-heading"
+          className="scroll-mt-20 bg-page"
+        >
+          <div className="mx-auto w-full max-w-6xl px-5 py-20 sm:px-8 sm:py-24">
+            <div className="max-w-3xl">
+              <SectionLabel>How it works</SectionLabel>
+              <h2
+                id="how-heading"
+                className="mt-4 text-display text-balance text-ink"
+              >
+                Five steps, and only one of them belongs to the person at the
+                edge.
+              </h2>
+            </div>
+
+            <ol className="mt-12 flex flex-col gap-4">
+              {[
+                {
+                  n: "01",
+                  who: "Brand & compliance",
+                  title: "Approve the sources",
+                  body: "Upload the documents and claims, or paste a URL and let the server pull the page. Nothing becomes citable until a human signs it off.",
+                },
+                {
+                  n: "02",
+                  who: "Design",
+                  title: "Publish templates from Figma",
+                  body: "Lock the layout, declare the fields that open. Bundles are checksummed on the way in. Nobody hand-codes a coordinate to add a brand.",
+                },
+                {
+                  n: "03",
+                  who: "The local team",
+                  title: "Fill in what only they know",
+                  body: "Their customer, their offer, their week. That is the whole job. They never restyle anything and never decide what may be claimed.",
+                },
+                {
+                  n: "04",
+                  who: "The system",
+                  title: "Draft, cite, fit-check",
+                  body: "Copy is drafted against the approved sources. Every claim carries a citation checked word for word. Real glyph metrics catch the headline that won’t fit — before the render, not after.",
+                },
+                {
+                  n: "05",
+                  who: "An approver",
+                  title: "Release it. Only then export",
+                  body: "A named person approves one exact revision, and export will accept nothing else. Edit an approved asset and it falls back to draft on the spot.",
+                },
+              ].map((step) => (
+                <li
+                  key={step.n}
+                  className="grid gap-4 rounded-card border border-edge bg-surface p-6 sm:grid-cols-[auto_180px_minmax(0,1fr)] sm:items-start sm:gap-8 sm:p-7"
+                >
+                  <span className="text-label text-accent-dark">{step.n}</span>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-label text-ink-muted-strong">
+                      {step.who}
+                    </span>
+                    <h3 className="text-subhead text-ink">{step.title}</h3>
+                  </div>
+                  <p className="text-prose text-pretty text-ink-muted-strong">
+                    {step.body}
+                  </p>
+                </li>
+              ))}
+            </ol>
+
+            <p className="mt-8 max-w-3xl text-lede text-pretty text-ink">
+              Step five is the one worth watching in a demo. Change a single
+              word of approved copy and the asset reverts to draft in front of
+              you. Everything before that is a content tool. That keystroke is
+              the product.
+            </p>
+            <div className="mt-7">
+              <a href={DEMO_HREF} className={ctaOnLight}>
+                Watch it happen on your own brand
+              </a>
+            </div>
+          </div>
+        </section>
+
+        {/* ── Who it’s for ─────────────────────────────────────────────── */}
+        <section
+          id="who"
+          aria-labelledby="who-heading"
+          className="scroll-mt-20 bg-surface"
+        >
+          <div className="mx-auto w-full max-w-6xl px-5 py-20 sm:px-8 sm:py-24">
+            <div className="max-w-3xl">
+              <SectionLabel>Who it’s for</SectionLabel>
+              <h2
+                id="who-heading"
+                className="mt-4 text-display text-balance text-ink"
+              >
+                Five people. One broken process. It breaks each of their jobs
+                differently.
+              </h2>
+              <p className="mt-5 text-lede text-pretty text-ink-muted-strong">
+                Three of them make marketing with no marketing training at all.
+                That isn’t a discipline problem. They were handed a job that
+                assumed a skill nobody ever gave them.
+              </p>
+            </div>
+
+            <div className="mt-12 grid gap-5 md:grid-cols-2">
+              {[
+                {
+                  role: "CEO, country GM, commercial director",
+                  quote:
+                    "Every market moves at its own speed. None of them go off-script.",
+                  body: "Right now you choose between moving fast and keeping control, and you have stopped noticing you’re choosing. You shouldn’t have to. Ask what was said about your product eighteen months ago and the answer takes seconds, not a fortnight of email.",
+                },
+                {
+                  role: "Brand & regional marketing",
+                  quote: "Set the rules once. Stop enforcing them by hand.",
+                  body: "Open your inbox and count the resize requests. That is your week, and you didn’t take this job to run a production queue. Lock the layouts, approve the sources, step out of the path. The template says no so you don’t have to — at 2am, in Manila, without you.",
+                },
+                {
+                  role: "Field sales",
+                  quote:
+                    "The right material, in your hand, before your next call.",
+                  body: "You’re in a car park, fifteen minutes early, and the options are a two-year-old PDF or something you rebuild in PowerPoint. Pick the product, pick the format, done. Current, correct, already approved. You stop apologising for the leaflet.",
+                },
+                {
+                  role: "Franchisees, distributors, local partners",
+                  quote:
+                    "Look like the brand. Sound like your market. Stay in your own job.",
+                  body: "They sent you a folder of files and a PDF of guidelines. No designer came with it. Now you get real templates sized for the channels you actually use — and you fill in the one part you know better than headquarters ever will.",
+                },
+                {
+                  role: "Compliance, regulatory, legal",
+                  quote: "Approve the source once. Every asset proves itself.",
+                  body: "You spend weeks getting a claim exactly right, then watch the qualifier fall off by the fourth copy. Now the copy has to quote your material word for word and the server checks it — at generation, and again at approval. You stop being the department of no.",
+                },
+              ].map((persona) => (
+                <article
+                  key={persona.role}
+                  className="flex flex-col gap-4 rounded-card border border-edge bg-page p-7"
+                >
+                  <p className="text-label text-ink-muted-strong">
+                    {persona.role}
+                  </p>
+                  <blockquote className="text-h1 text-balance text-ink">
+                    {persona.quote}
+                  </blockquote>
+                  <p className="text-prose text-pretty text-ink-muted-strong">
+                    {persona.body}
+                  </p>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* ── Proof ────────────────────────────────────────────────────── */}
+        <section
+          id="proof"
+          aria-labelledby="proof-heading"
+          className="scroll-mt-20 bg-brand-dark"
+        >
+          <div className="mx-auto w-full max-w-6xl px-5 py-20 sm:px-8 sm:py-24">
+            <div className="max-w-3xl">
+              <p className="text-label text-brand-on-dark">
+                What holds it together
+              </p>
+              <h2
+                id="proof-heading"
+                className="mt-4 text-display text-balance text-white"
+              >
+                Everyone says their AI is grounded in your content. This one
+                proves it — claim by claim, and again a year later.
+              </h2>
+              <p className="mt-5 text-lede text-pretty text-sidebar-text">
+                None of the below is policy. It is enforcement, and it holds
+                whether or not anyone is watching.
+              </p>
+            </div>
+
+            <ul className="mt-12 grid gap-4 md:grid-cols-2">
+              {[
+                {
+                  title: "Every claim shows its source",
+                  body: "Generated copy must carry server-verified verbatim citations to approved sources. Not a similarity score — the actual span, matched word for word, and checked again at submit, approve, export, and render.",
+                },
+                {
+                  title: "Export is gated on the approved revision",
+                  body: "Final exports require the current approved revision. Admins can download clearly filename-labelled draft previews for internal QA.",
+                },
+                {
+                  title: "You cannot click past the workflow",
+                  body: "The authenticated client surface cannot bypass the workflow. Write to the row directly and a trigger puts the status, the approver, and the timestamps straight back. One guarded path in, checked under a row lock.",
+                },
+                {
+                  title: "The history does not move",
+                  body: "Generated-content revision and workflow-event history is append-only, including for service-role access. Who approved exactly what, and when — still answerable in eighteen months, by anyone who asks.",
+                },
+                {
+                  title: "The layout cannot break",
+                  body: "Locked layouts, checksum-verified template bundles, and font-aware fit checking. Geometry, line limits, and fonts are declared up front, and fit is measured on real glyphs rather than guessed at.",
+                },
+                {
+                  title: "The AI never gets the last word",
+                  body: "AI output is always a draft. Only a human can approve. Generation writes draft at every insert site, and the security policy refuses anything else — independently, even if the code forgot.",
+                },
+              ].map((item) => (
+                <li
+                  key={item.title}
+                  className="flex flex-col gap-3 rounded-card border border-white/10 bg-white/[0.03] p-7"
+                >
+                  <h3 className="text-subhead text-white">{item.title}</h3>
+                  <p className="text-prose text-pretty text-sidebar-text">
+                    {item.body}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+
+        {/* ── Closing CTA ──────────────────────────────────────────────── */}
+        {/* Continues the dark block above rather than starting a new one: the
+            proof section earns the trust, this closes on it. Hence no top
+            border and a tighter top pad than the light-section rhythm. */}
+        <section aria-labelledby="cta-heading" className="bg-brand-dark">
+          <div className="mx-auto w-full max-w-6xl px-5 pb-20 pt-8 sm:px-8 sm:pb-24 sm:pt-12">
+            <div className="max-w-3xl">
+              <h2
+                id="cta-heading"
+                className="text-display text-balance text-white"
+              >
+                See the revert.
+              </h2>
+              <p className="mt-5 text-lede text-pretty text-sidebar-text">
+                A working session, not a slide deck. Generate an asset from an
+                approved source. Open the citation and read the exact line it
+                stands on. Approve it. Export it. Then change one approved word
+                and watch the export shut.
+              </p>
+              <p className="mt-5 text-prose text-pretty text-sidebar-text">
+                Everyone starts with a setup session, not a signup form. We
+                install your templates with you, so the first thing you see is
+                your own brand rather than somebody’s sample.
+              </p>
+              <div className="mt-9 flex flex-wrap items-center gap-3">
+                <a href={DEMO_HREF} className={ctaOnDark}>
+                  Request a demo
+                </a>
+                <a
+                  href={`mailto:${CONTACT_EMAIL}`}
+                  className="rounded text-sm font-semibold text-brand-on-dark underline-offset-4 hover:underline"
+                >
+                  {CONTACT_EMAIL}
+                </a>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <footer className="border-t border-edge bg-surface">
+        <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-5 py-10 sm:flex-row sm:items-center sm:justify-between sm:px-8">
+          <Logo tone="dark" />
+          <nav aria-label="Footer">
+            <ul className="flex flex-wrap items-center gap-x-6 gap-y-2">
+              {NAV.map((item) => (
+                <li key={item.href}>
+                  <a
+                    href={item.href}
+                    className="rounded text-body font-medium text-ink-muted-strong transition-colors hover:text-ink"
+                  >
+                    {item.label}
+                  </a>
+                </li>
+              ))}
+              <li>
+                <Link
+                  href="/login"
+                  className="rounded text-body font-semibold text-ink transition-colors hover:text-accent-dark"
+                >
+                  Log in
+                </Link>
+              </li>
+            </ul>
+          </nav>
+          <p className="text-caption text-ink-muted-strong">
+            © 2026 ContentGate
+          </p>
+        </div>
+      </footer>
+    </>
+  );
 }

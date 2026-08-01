@@ -2,9 +2,9 @@
   {
     "source": "src/app/page.tsx",
     "route": "/",
-    "access": "public redirect",
-    "gate": "redirect-contract",
-    "states": ["redirects into the authenticated dashboard flow"]
+    "access": "public",
+    "gate": "public-browser",
+    "states": ["marketing landing page", "format showcase interaction", "mobile reflow"]
   },
   {
     "source": "src/app/login/page.tsx",
