@@ -11,7 +11,7 @@ import {
   generatedCopyQualityIssues,
   repairGeneratedCopyQualityFields,
 } from "@/lib/generated-copy-quality";
-import { fieldLimitInstruction } from "@/lib/template-fields";
+import { fieldLimitInstruction, templateFieldIssues } from "@/lib/template-fields";
 import { isProductLifecycleActive } from "@/lib/product-workspace";
 import {
   citationQuote,
@@ -730,6 +730,9 @@ export async function POST(req: Request) {
 
     const aiFields = aiEditableTemplateFields(runtimeVariant.fields);
     const editableFields = aiFields.map((field) => field.key);
+    const requiredEditableFields = aiFields
+      .filter((field) => field.required !== false)
+      .map((field) => field.key);
     const assetChoiceFields = getTemplateBundleVariantAssetChoiceFields(
       assignment.manifest,
       outputSizeKey
@@ -987,6 +990,12 @@ export async function POST(req: Request) {
           outputSizeKey,
           structured
         );
+        const editableContractIssues = templateFieldIssues(
+          structured,
+          editableFields,
+          fieldLimits,
+          requiredEditableFields
+        );
         const geometryIssues = await templatePlatformFieldFitIssues({
           manifest: assignment.manifest,
           variantKey: outputSizeKey,
@@ -997,6 +1006,11 @@ export async function POST(req: Request) {
         fitReasons = [
           ...editableFields.flatMap((key) =>
             (configuredIssues[key] ?? []).map((issue) => `${key}: ${issue.message}`)
+          ),
+          ...editableFields.flatMap((key) =>
+            (editableContractIssues[key] ?? []).map(
+              (issue) => `${key}: ${issue.message}`
+            )
           ),
           ...formatTemplatePlatformFitIssues(geometryIssues),
           ...formatGeneratedCopyQualityIssues(qualityIssues),
@@ -1137,9 +1151,20 @@ export async function POST(req: Request) {
         outputSizeKey,
         coerced.fields
       );
+      const coercedEditableContractIssues = templateFieldIssues(
+        coerced.fields,
+        editableFields,
+        fieldLimits,
+        requiredEditableFields
+      );
       const coercedReasons = [
         ...editableFields.flatMap((key) =>
           (coercedConfiguredIssues[key] ?? []).map((issue) => `${key}: ${issue.message}`)
+        ),
+        ...editableFields.flatMap((key) =>
+          (coercedEditableContractIssues[key] ?? []).map(
+            (issue) => `${key}: ${issue.message}`
+          )
         ),
         ...formatTemplatePlatformFitIssues(coercedGeometryIssues),
         ...formatGeneratedCopyQualityIssues(coercedQualityIssues),
@@ -1267,6 +1292,27 @@ export async function POST(req: Request) {
       assetUrlByPath,
     });
     const finalGeometryReasons = formatTemplatePlatformFitIssues(finalGeometryIssues);
+    const finalConfiguredIssues = templatePlatformRequiredFieldIssues(
+      assignment.manifest,
+      outputSizeKey,
+      structured
+    );
+    const finalEditableContractIssues = templateFieldIssues(
+      structured,
+      editableFields,
+      fieldLimits,
+      requiredEditableFields
+    );
+    const finalConfiguredReasons = [
+      ...editableFields.flatMap((key) =>
+        (finalConfiguredIssues[key] ?? []).map((issue) => `${key}: ${issue.message}`)
+      ),
+      ...editableFields.flatMap((key) =>
+        (finalEditableContractIssues[key] ?? []).map(
+          (issue) => `${key}: ${issue.message}`
+        )
+      ),
+    ];
     const finalQualityReasons = formatGeneratedCopyQualityIssues(
       generatedCopyQualityIssues(structured, editableFields)
     );
@@ -1286,10 +1332,11 @@ export async function POST(req: Request) {
       generatedFields: structured,
       previousFields: comparisonFields,
     });
-    if (finalVariationIssues.length || finalRevisionIssues.length || finalGeometryReasons.length || finalQualityReasons.length || finalGroundingIssues.length) {
+    if (finalVariationIssues.length || finalRevisionIssues.length || finalConfiguredReasons.length || finalGeometryReasons.length || finalQualityReasons.length || finalGroundingIssues.length) {
       const reasons = [
         ...finalVariationIssues,
         ...finalRevisionIssues,
+        ...finalConfiguredReasons,
         ...finalGeometryReasons,
         ...finalQualityReasons,
         ...finalGroundingIssues,
