@@ -420,6 +420,102 @@ test.describe("Client package live generation QA @live-ai", () => {
     ).toEqual([]);
   });
 
+  test("product variants swap pixels without changing canvas or copy layout", async ({
+    page,
+  }) => {
+    await signIn(page);
+    await generateNimbusDraft(page);
+    await assertPreviewIsAvailable(page);
+
+    const canvas = page.getByTestId("studio-preview-canvas");
+    const subheadline = page.locator('[data-template-field="subheadline_1"]');
+    await expect(canvas).toBeVisible({ timeout: 60_000 });
+    await expect(subheadline).toBeVisible({ timeout: 20_000 });
+    const before = await page.evaluate(() => {
+      const canvasNode = document.querySelector<HTMLElement>('[data-testid="studio-preview-canvas"]');
+      const textNode = document.querySelector<HTMLElement>('[data-template-field="subheadline_1"]');
+      const contentNode = textNode?.querySelector<HTMLElement>("[data-template-content]");
+      return {
+        canvasWidth: canvasNode?.style.width,
+        canvasHeight: canvasNode?.style.height,
+        fontSize: textNode?.dataset.templateFontSize,
+        text: textNode?.textContent,
+        lineClamp: contentNode?.style.webkitLineClamp,
+      };
+    });
+    expect(before.lineClamp ?? "").toBe("");
+
+    const variant = page.getByRole("button", {
+      name: "Product variant: Electric Cobalt",
+      exact: true,
+    });
+    await expect(variant).toBeVisible({ timeout: 20_000 });
+    await variant.click();
+    await expect(variant).toHaveAttribute("aria-pressed", "true").catch(() => undefined);
+    await page.waitForTimeout(500);
+
+    const after = await page.evaluate(() => {
+      const canvasNode = document.querySelector<HTMLElement>('[data-testid="studio-preview-canvas"]');
+      const textNode = document.querySelector<HTMLElement>('[data-template-field="subheadline_1"]');
+      const contentNode = textNode?.querySelector<HTMLElement>("[data-template-content]");
+      return {
+        canvasWidth: canvasNode?.style.width,
+        canvasHeight: canvasNode?.style.height,
+        fontSize: textNode?.dataset.templateFontSize,
+        text: textNode?.textContent,
+        lineClamp: contentNode?.style.webkitLineClamp,
+      };
+    });
+    expect(after).toEqual(before);
+
+    const input = page.locator("#studio-field-subheadline_1");
+    const measuredCopy = "Meet Nimbus 1 for daily miles u";
+    await input.fill(measuredCopy);
+    await expect(input).toHaveValue(measuredCopy);
+    await expect(page.getByText(/31\/\d+ · 1\/1 line ✓ fits/i)).toBeVisible({
+      timeout: 20_000,
+    });
+    await expect(subheadline).toContainText(measuredCopy);
+    await expect(subheadline).not.toContainText("…");
+  });
+
+  test("Shorter reduces the total copy without requiring every field to change", async ({
+    page,
+  }) => {
+    await signIn(page);
+    await generateNimbusDraft(page);
+    await assertPreviewIsAvailable(page);
+    const beforeFields = await readGeneratedTextFields(page);
+    const visibleLength = (fields: Array<{ field: string; text: string }>) =>
+      fields.reduce(
+        (sum, value) => sum + [...new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(value.text)].length,
+        0
+      );
+
+    const shorter = page.getByRole("button", { name: "Shorter", exact: true });
+    await shorter.click();
+    const responsePromise = page.waitForResponse(
+      (response) =>
+        response.url().includes("/api/products/generate") &&
+        response.request().method() === "POST",
+      { timeout: 120_000 }
+    );
+    await page.getByRole("button", { name: "Apply “Shorter”", exact: true }).click();
+    const response = await responsePromise;
+    const payload = (await response.json().catch(() => ({}))) as { error?: unknown };
+    expect(response.ok(), String(payload.error ?? "Shorter request failed")).toBeTruthy();
+    await expectStudioDraftState(page, "Draft", 120_000);
+    await expect
+      .poll(async () => JSON.stringify(await readGeneratedTextFields(page)), {
+        timeout: 120_000,
+        message: "Shorter returned successfully but Studio did not apply the new copy.",
+      })
+      .not.toBe(JSON.stringify(beforeFields));
+    const afterFields = await readGeneratedTextFields(page);
+    expect(visibleLength(afterFields)).toBeLessThan(visibleLength(beforeFields));
+    await expect(page.getByText(/shorter in every field/i)).toHaveCount(0);
+  });
+
   test("submits, approves, and downloads the approved PNG export", async ({
     page,
   }, testInfo) => {
