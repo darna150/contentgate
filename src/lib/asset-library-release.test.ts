@@ -8,6 +8,7 @@ const phase0 = readFileSync("supabase/migrations/20260728061333_phase0_asset_lib
 const phase1 = readFileSync("supabase/migrations/20260728062642_phase1_asset_media_jobs.sql", "utf8");
 const phase2 = readFileSync("supabase/migrations/20260728064525_phase2_asset_versioning_lifecycle.sql", "utf8");
 const phase3 = readFileSync("supabase/migrations/20260728080432_phase3_asset_media_observability.sql", "utf8");
+const assetLibrary = readFileSync("src/components/assets/asset-library.tsx", "utf8");
 
 test("release SQL keeps member discovery and storage reads approval-gated", () => {
   assert.match(phase0, /approval_status = 'approved' and archived_at is null/);
@@ -27,6 +28,12 @@ test("release SQL includes durable worker claiming and a liveness signal", () =>
   assert.match(phase1, /for update skip locked/);
   assert.match(phase1, /attempt_count = attempt_count \+ 1/);
   assert.match(phase3, /asset_media_worker_heartbeats/);
+});
+
+test("cold asset pages do not expose upload before hydration", () => {
+  assert.match(assetLibrary, /useSyncExternalStore/);
+  assert.match(assetLibrary, /const hydrated = useSyncExternalStore/);
+  assert.match(assetLibrary, /disabled={!hydrated}/);
 });
 
 test("synthetic brand-file fixtures are accepted or rejected by exact MIME policy", () => {

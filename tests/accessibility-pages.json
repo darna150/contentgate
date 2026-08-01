@@ -2,9 +2,9 @@
   {
     "source": "src/app/page.tsx",
     "route": "/",
-    "access": "public redirect",
-    "gate": "redirect-contract",
-    "states": ["redirects into the authenticated dashboard flow"]
+    "access": "public",
+    "gate": "public-browser",
+    "states": ["marketing landing page", "format showcase interaction", "mobile reflow"]
   },
   {
     "source": "src/app/login/page.tsx",
@@ -33,6 +33,13 @@
     "access": "invited user",
     "gate": "public-browser",
     "states": ["profile setup", "validation error", "busy submission"]
+  },
+  {
+    "source": "src/app/mfa/page.tsx",
+    "route": "/mfa",
+    "access": "admin",
+    "gate": "authenticated-mfa-browser",
+    "states": ["loading", "new enrollment", "existing-factor challenge", "invalid code", "verified session"]
   },
   {
     "source": "src/app/(app)/dashboard/page.tsx",
@@ -151,7 +158,7 @@
     "route": "/settings",
     "access": "admin",
     "gate": "authenticated-browser",
-    "states": ["member directory", "invite form", "invite error", "invite success", "non-admin redirect"]
+    "states": ["MFA unenforced", "MFA session verified", "MFA required", "member directory", "invite form", "invite error", "invite success", "non-admin redirect"]
   },
   {
     "source": "src/app/(app)/onboarding/page.tsx",

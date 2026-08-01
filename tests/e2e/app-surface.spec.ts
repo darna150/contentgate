@@ -407,6 +407,11 @@ test.describe("ContentGate full app surface QA", () => {
 
   test("keeps every public surface accessible", async ({ page }) => {
     for (const surface of [
+      {
+        name: "Marketing landing",
+        path: "/",
+        expectedText: /You don.t need to be a marketer to market well/i,
+      },
       { name: "Sign in", path: "/login", expectedText: /Sign in/i },
       { name: "Forgot password", path: "/forgot-password", expectedText: /Reset your password/i },
       { name: "Reset password", path: "/reset-password", expectedText: /Choose a new password/i },
@@ -417,6 +422,15 @@ test.describe("ContentGate full app surface QA", () => {
       await assertNoAxeViolations(page, surface.name);
       await assertBasicSemantics(page, surface.name);
     }
+
+    await page.setViewportSize({ width: 320, height: 800 });
+    await page.goto("/");
+    await assertMobileReflow(page, "Marketing landing mobile");
+    await assertMobileTouchTargets(page, "Marketing landing mobile");
+
+    const openGraphImage = await page.request.get("/opengraph-image");
+    expect(openGraphImage.ok(), "Open Graph image must be publicly reachable").toBeTruthy();
+    expect(openGraphImage.headers()["content-type"]).toContain("image/png");
   });
 
   test("meets the Phase 1 automated accessibility gate", async ({ page }) => {

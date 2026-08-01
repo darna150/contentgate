@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useId, useState } from "react";
+import { useId, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { createClient, hasSupabaseBrowserConfig } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -29,10 +29,19 @@ function signInErrorMessage(error: { message: string; status?: number }) {
   return "That email and password do not match an account. Check both and try again.";
 }
 
+const subscribeToHydration = () => () => undefined;
+const getHydratedSnapshot = () => true;
+const getServerHydratedSnapshot = () => false;
+
 export function LoginForm() {
   const router = useRouter();
   const emailId = useId();
   const passwordId = useId();
+  const hydrated = useSyncExternalStore(
+    subscribeToHydration,
+    getHydratedSnapshot,
+    getServerHydratedSnapshot,
+  );
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [status, setStatus] = useState<
@@ -69,7 +78,11 @@ export function LoginForm() {
     }
   }
 
-  const busy = status.kind === "busy";
+  // The server-rendered form is visible before React attaches this component's
+  // submit handler. Keeping the button disabled until hydration prevents a
+  // fast click on a cold/slow page from performing a native form reload and
+  // silently discarding the credential attempt.
+  const busy = !hydrated || status.kind === "busy";
 
   return (
     <form onSubmit={signInWithPassword} className="flex flex-col gap-4">
@@ -121,7 +134,11 @@ export function LoginForm() {
       </div>
 
       <Button type="submit" size="lg" disabled={busy} className="mt-1">
-        {busy ? "Entering…" : "Enter workspace"}
+        {!hydrated
+          ? "Loading sign-in…"
+          : status.kind === "busy"
+            ? "Entering…"
+            : "Enter workspace"}
       </Button>
 
       {status.kind === "sent" && (

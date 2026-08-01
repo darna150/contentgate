@@ -1,17 +1,32 @@
 import "server-only";
 
-import { createClient } from "../supabase/server";
+import { loadAdminMfaContext } from "../auth/admin-mfa";
+import { adminMfaSatisfied } from "../auth/admin-mfa-policy";
 import { isPlatformOperator } from "./environment";
 
+export class PlatformOperatorMfaRequiredError extends Error {
+  constructor() {
+    super("Platform operator MFA verification is required.");
+    this.name = "PlatformOperatorMfaRequiredError";
+  }
+}
+
 export async function requirePlatformOperator() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user || !isPlatformOperator(user.email)) {
+  const context = await loadAdminMfaContext();
+  if (!context || !isPlatformOperator(context.email)) {
     throw new Error("Platform operator access is required.");
   }
-  return { userId: user.id, email: user.email ?? null };
+  if (
+    !adminMfaSatisfied({
+      role: context.role,
+      required: context.required,
+      currentLevel: context.currentLevel,
+      alwaysRequireAal2: true,
+    })
+  ) {
+    throw new PlatformOperatorMfaRequiredError();
+  }
+  return { userId: context.userId, email: context.email };
 }
 
 export function assertOperatorPackagePath(userId: string, storagePath: string) {

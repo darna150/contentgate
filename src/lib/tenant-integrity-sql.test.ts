@@ -162,3 +162,173 @@ test("Ask production telemetry separates environments and bounds operational dat
   assert.match(telemetrySql, /cached_input_tokens \+ cache_write_input_tokens <= input_tokens/);
   assert.match(telemetrySql, /knowledge_queries_org_environment_traffic_created_idx/);
 });
+
+test("enterprise admin MFA is an additive fail-closed authorization control", () => {
+  const mfaSql = compact(
+    readFileSync(
+      "supabase/migrations/20260731132045_enterprise_admin_mfa.sql",
+      "utf8"
+    )
+  );
+
+  assert.match(mfaSql, /add column if not exists require_admin_mfa boolean/);
+  assert.match(mfaSql, /alter column require_admin_mfa set default true/);
+  assert.match(mfaSql, /and organization\.require_admin_mfa/);
+  assert.match(mfaSql, /auth\.jwt\(\) ->> 'aal'/);
+  assert.match(mfaSql, /<> 'aal2'/);
+  assert.match(mfaSql, /then 'member'::public\.user_role/);
+  assert.match(mfaSql, /create or replace function public\.auth_admin_mfa_satisfied\(\)/);
+  assert.match(mfaSql, /revoke execute on function public\.auth_admin_mfa_satisfied\(\) from public, anon, service_role/);
+  assert.match(mfaSql, /grant execute on function public\.auth_admin_mfa_satisfied\(\) to authenticated/);
+  assert.match(mfaSql, /create or replace function public\.enable_admin_mfa_requirement\(\)/);
+  assert.match(mfaSql, /insert into public\.audit_log/);
+  assert.match(mfaSql, /'admin_mfa_required'/);
+  assert.match(mfaSql, /revoke all on function public\.enable_admin_mfa_requirement\(\) from public, anon, service_role/);
+});
+
+test("enterprise member lifecycle cuts off live JWT data access and audits admin changes", () => {
+  const lifecycleSql = compact(
+    readFileSync(
+      "supabase/migrations/20260731132952_enterprise_user_lifecycle.sql",
+      "utf8"
+    )
+  );
+
+  assert.match(lifecycleSql, /add column access_status text/);
+  assert.match(lifecycleSql, /profiles_access_status_check/);
+  assert.match(lifecycleSql, /profile\.access_status = 'active'/);
+  assert.match(lifecycleSql, /create or replace function public\.admin_change_member_role/);
+  assert.match(lifecycleSql, /create or replace function public\.admin_disable_member/);
+  assert.match(lifecycleSql, /create or replace function public\.admin_restore_member/);
+  assert.match(lifecycleSql, /auth\.jwt\(\) ->> 'aal'/);
+  assert.match(lifecycleSql, /<> 'aal2'/);
+  assert.match(lifecycleSql, /target_profile_id = actor_id/);
+  assert.match(lifecycleSql, /active_admin_count <= 1/);
+  assert.match(lifecycleSql, /'member_role_changed'/);
+  assert.match(lifecycleSql, /'member_disabled'/);
+  assert.match(lifecycleSql, /'member_restored'/);
+  assert.match(lifecycleSql, /revoke all on function public\.admin_disable_member\(uuid\) from public, anon, service_role/);
+  assert.match(lifecycleSql, /grant execute on function public\.admin_restore_member\(uuid\) to authenticated/);
+});
+
+test("enterprise stale sessions cannot invoke legacy SECURITY DEFINER RPCs", () => {
+  const cutoffSql = compact(
+    readFileSync(
+      "supabase/migrations/20260801014500_enterprise_stale_session_rpc_cutoff.sql",
+      "utf8"
+    )
+  );
+
+  for (const functionName of [
+    "enable_admin_mfa_requirement",
+    "consume_api_rate_limit",
+    "transition_generated_content",
+    "record_generated_content_export",
+    "record_product_asset_download",
+    "record_uiux_measurement_event",
+  ]) {
+    assert.match(
+      cutoffSql,
+      new RegExp(`create or replace function public\\.${functionName}`)
+    );
+  }
+  assert.equal(
+    (cutoffSql.match(/profile\.access_status = 'active'/g) ?? []).length,
+    6
+  );
+  assert.equal(
+    (cutoffSql.match(/active account access is required/g) ?? []).length,
+    5
+  );
+  assert.match(cutoffSql, /active administrator access is required/);
+  assert.match(cutoffSql, /set search_path = ''/);
+  assert.match(
+    cutoffSql,
+    /revoke all on function public\.record_product_asset_download\(uuid\) from public, anon, service_role/
+  );
+});
+
+test("validated lifecycle RPC can cross the direct profile membership guard", () => {
+  const bridgeSql = compact(
+    readFileSync(
+      "supabase/migrations/20260731134218_allow_validated_lifecycle_role_changes.sql",
+      "utf8"
+    )
+  );
+
+  assert.match(bridgeSql, /create or replace function public\.protect_profile_membership_fields\(\)/);
+  assert.match(bridgeSql, /security invoker/);
+  assert.match(bridgeSql, /auth\.jwt\(\) ->> 'role'/);
+  assert.match(bridgeSql, /<> 'service_role'/);
+  assert.match(bridgeSql, /current_user <> 'postgres'/);
+  assert.match(bridgeSql, /only trusted server actions may change profile org or role/);
+});
+
+test("approved renders atomically create immutable export evidence", () => {
+  const evidenceSql = compact(
+    readFileSync(
+      "supabase/migrations/20260731152448_enterprise_stateful_capacity_evidence.sql",
+      "utf8"
+    )
+  );
+
+  assert.match(evidenceSql, /create or replace function public\.record_render_job_event/);
+  assert.match(evidenceSql, /insert into public\.render_jobs/);
+  assert.match(evidenceSql, /insert into public\.generated_content_events/);
+  assert.match(evidenceSql, /'content\.exported'/);
+  assert.match(evidenceSql, /'render_job_id', inserted_id/);
+  assert.match(evidenceSql, /approved_revision_number <> content_row\.current_revision_number/);
+  assert.match(evidenceSql, /grant execute on function public\.record_render_job_event[^;]+to authenticated/);
+});
+
+test("stateful capacity cleanup stays bounded and service-role only", () => {
+  const evidenceSql = compact(
+    readFileSync(
+      "supabase/migrations/20260731152448_enterprise_stateful_capacity_evidence.sql",
+      "utf8"
+    )
+  );
+
+  assert.match(evidenceSql, /dispose_enterprise_stateful_capacity_fixture/);
+  assert.match(evidenceSql, /expected_org_id constant uuid := '77777777-7777-4777-8777-777777777777'/);
+  assert.match(evidenceSql, /cardinality\(p_user_ids\), 0\) not between 1 and 3/);
+  assert.match(evidenceSql, /cardinality\(target_content_ids\) > 2/);
+  assert.match(evidenceSql, /profile\.full_name like 'enterprise stateful %'/);
+  assert.match(evidenceSql, /asset\.title like 'enterprise stateful qa %'/);
+  assert.match(evidenceSql, /revoke all on function public\.dispose_enterprise_stateful_capacity_fixture[^;]+authenticated, service_role/);
+  assert.match(evidenceSql, /grant execute on function public\.dispose_enterprise_stateful_capacity_fixture[^;]+to service_role/);
+});
+
+test("synthetic cleanup bypasses immutability only inside its validated transaction", () => {
+  const cleanupSql = compact(
+    readFileSync(
+      "supabase/migrations/20260731153009_allow_guarded_stateful_capacity_cleanup.sql",
+      "utf8"
+    )
+  );
+
+  assert.match(cleanupSql, /create or replace function public\.prevent_content_history_mutation\(\)/);
+  assert.match(cleanupSql, /current_user = 'postgres'/);
+  assert.match(cleanupSql, /contentgate\.enterprise_stateful_capacity_cleanup/);
+  assert.match(cleanupSql, /raise exception 'generated content history is immutable'/);
+  assert.match(cleanupSql, /rename to dispose_enterprise_stateful_capacity_fixture_v1/);
+  assert.match(cleanupSql, /revoke all on function public\.dispose_enterprise_stateful_capacity_fixture_v1[^;]+service_role/);
+  assert.match(cleanupSql, /perform set_config\( [^;]+'on', true \)/);
+  assert.match(cleanupSql, /grant execute on function public\.dispose_enterprise_stateful_capacity_fixture[^;]+to service_role/);
+});
+
+test("stateful asset cleanup detaches only its bounded synthetic current versions", () => {
+  const cleanupSql = compact(
+    readFileSync(
+      "supabase/migrations/20260731153139_fix_stateful_capacity_asset_cleanup.sql",
+      "utf8"
+    )
+  );
+
+  assert.match(cleanupSql, /update public\.product_assets as asset set current_version_id = null/);
+  assert.match(cleanupSql, /asset\.org_id = p_org_id/);
+  assert.match(cleanupSql, /asset\.id = any\(coalesce\(p_asset_ids, '\{\}'::uuid\[\]\)\)/);
+  assert.match(cleanupSql, /asset\.uploaded_by = any\(coalesce\(p_user_ids, '\{\}'::uuid\[\]\)\)/);
+  assert.match(cleanupSql, /asset\.title like 'enterprise stateful qa %'/);
+  assert.match(cleanupSql, /return public\.dispose_enterprise_stateful_capacity_fixture_v1/);
+});

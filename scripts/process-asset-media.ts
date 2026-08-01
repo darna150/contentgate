@@ -19,6 +19,15 @@ const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 if (!url || !key) throw new Error("NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required.");
 const supabase = createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
 const workerId = process.env.MEDIA_WORKER_ID ?? `asset-media-${process.pid}`;
+const maxJobs = (() => {
+  const raw = process.env.MEDIA_WORKER_MAX_JOBS;
+  if (!raw) return null;
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < 1 || value > 100) {
+    throw new Error("MEDIA_WORKER_MAX_JOBS must be an integer from 1 to 100.");
+  }
+  return value;
+})();
 
 async function heartbeat(status: "healthy" | "degraded" = "healthy") {
   const { error } = await supabase.from("asset_media_worker_heartbeats").upsert({
@@ -97,12 +106,20 @@ async function processJob(job: Record<string, unknown>) {
 }
 
 async function run() {
+  let claimedJobs = 0;
   for (;;) {
     await heartbeat();
     const { data, error } = await supabase.rpc("claim_asset_media_job", { p_worker_id: workerId });
     if (error) throw error;
     const job = Array.isArray(data) ? data[0] : data;
-    if (!job || !job.id) { await new Promise((resolve) => setTimeout(resolve, 2_000)); continue; }
+    if (!job || !job.id) {
+      // Bounded runs are used by release certification and scheduled workers:
+      // an empty queue is successful completion, not a reason to stay alive.
+      if (maxJobs !== null) return;
+      await new Promise((resolve) => setTimeout(resolve, 2_000));
+      continue;
+    }
+    claimedJobs += 1;
     try {
       await processJob(job as Record<string, unknown>);
       const { error: completeError } = await supabase.from("asset_media_jobs").update({ status: "completed", completed_at: new Date().toISOString() }).eq("id", job.id);
@@ -158,7 +175,11 @@ async function run() {
         await supabase.from("product_assets").update({ approval_status: "rejected" }).eq("id", job.asset_id).eq("approval_status", "processing");
       }
     }
+    if (maxJobs !== null && claimedJobs >= maxJobs) return;
   }
 }
 
-void run();
+void run().catch((error) => {
+  console.error(error instanceof Error ? error.message : error);
+  process.exitCode = 1;
+});

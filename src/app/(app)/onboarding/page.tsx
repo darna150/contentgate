@@ -3,7 +3,10 @@ import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { requirePlatformOperator } from "@/lib/onboarding/operator";
+import {
+  PlatformOperatorMfaRequiredError,
+  requirePlatformOperator,
+} from "@/lib/onboarding/operator";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { OnboardingWorkflow } from "./onboarding-workflow";
 
@@ -12,7 +15,8 @@ export const runtime = "nodejs";
 export default async function OnboardingPage() {
   try {
     await requirePlatformOperator();
-  } catch {
+  } catch (error) {
+    if (error instanceof PlatformOperatorMfaRequiredError) redirect("/mfa");
     redirect("/dashboard");
   }
 

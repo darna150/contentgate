@@ -91,6 +91,14 @@ After applying the six migrations:
 - run tenant isolation and onboarding contract tests;
 - keep `CONTENTGATE_ALLOW_PRODUCTION_ONBOARDING` disabled.
 
+An enterprise-beta promotion additionally requires
+`20260731132045_enterprise_admin_mfa.sql`, after it has passed the clean replay
+and staging enrollment/step-up gate. Existing production organizations remain
+unenforced immediately after that additive migration. Enroll and verify at
+least two named administrators before enabling their workspace through the
+atomic Settings control. Do not flip the column manually or enable it before a
+tested recovery owner is recorded.
+
 Local development is also fail-closed. `npm run dev` permits an env-free
 preview, local Supabase in `development`, or a remote `development`/`staging`
 project whose URL matches `CONTENTGATE_SUPABASE_PROJECT_REF`. It refuses

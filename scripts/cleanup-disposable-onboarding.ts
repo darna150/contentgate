@@ -129,9 +129,9 @@ async function main() {
           "poster_storage_path",
           "transcoded_storage_path",
         ]),
-        ...pathsFromRows(storageQueries[3].data, ["output_storage_path"]),
       ],
     ],
+    ["rendered-assets", pathsFromRows(storageQueries[3].data, ["output_storage_path"])],
     ["template-bundles", pathsFromRows(storageQueries[4].data, ["storage_path"])],
   ]);
 
