@@ -338,38 +338,35 @@ export default function LandingPage() {
                 id="how-heading"
                 className="mt-4 text-display text-balance text-ink"
               >
-                Five steps. One is theirs.
+                Three steps. Then it ships.
               </h2>
+              {/* Source approval and template publishing are real, but they are
+                  one-time setup done centrally. Leading with them makes the
+                  product look like configuration before it looks like
+                  production. They stay acknowledged here and are covered
+                  properly in the persona and enforcement sections. */}
+              <p className="mt-5 text-lede text-pretty text-ink-muted-strong">
+                Your brand approves the sources and publishes the templates
+                once, centrally. This is what everyone else ever sees.
+              </p>
             </div>
 
             <ol className="anim-rise mt-12 flex flex-col gap-4">
               {[
                 {
                   n: "01",
-                  who: "Brand & compliance",
-                  title: "Approve the sources",
-                  body: "Upload the documents and claims, or paste a URL and let the server pull the page. Nothing becomes citable until a human signs it off.",
-                },
-                {
-                  n: "02",
-                  who: "Design",
-                  title: "Publish templates from Figma",
-                  body: "Lock the layout, declare the fields that open. Bundles are checksummed on the way in. Nobody hand-codes a coordinate to add a brand.",
-                },
-                {
-                  n: "03",
                   who: "The local team",
                   title: "Fill in what only they know",
                   body: "Their customer, their offer, their week. That is the whole job. They never restyle anything and never decide what may be claimed.",
                 },
                 {
-                  n: "04",
+                  n: "02",
                   who: "The system",
                   title: "Draft, cite, fit-check",
                   body: "Copy is drafted against the approved sources. Every claim carries a citation checked word for word. Real glyph metrics catch the headline that won’t fit — before the render, not after.",
                 },
                 {
-                  n: "05",
+                  n: "03",
                   who: "An approver",
                   title: "Release it. Only then export",
                   body: "A named person approves one exact revision, and export will accept nothing else. Edit an approved asset and it falls back to draft on the spot.",
@@ -394,7 +391,7 @@ export default function LandingPage() {
             </ol>
 
             <p className="mt-8 max-w-3xl text-lede text-pretty text-ink">
-              Step five is the one worth watching in a demo. Change a single
+              Step three is the one worth watching in a demo. Change a single
               word of approved copy and the asset reverts to draft in front of
               you. Everything before that is a content tool. That keystroke is
               the product.
