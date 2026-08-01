@@ -32,10 +32,7 @@ const REQUIRED_VIEWPORTS = [
   { label: "1440x900", width: 1440, height: 900 },
 ] as const;
 
-/**
- * Story is the named P1 launch requirement; a4, portrait and poster are the
- * other formats that fell below the floor before it existed.
- */
+/** Tall formats exercise the height-bound fit path. */
 const ACCEPTANCE_FORMATS = ["story", "a4", "portrait", "poster"] as const;
 
 function scaleFor(
@@ -53,41 +50,37 @@ function scaleFor(
   return { ...resolvePreviewScale({ zoom, fitScale, width }), fitScale, width, height };
 }
 
-test("acceptance formats stay at or above the readable floor on every required viewport", () => {
+test("fit shows every acceptance format without scrolling", () => {
   for (const format of ACCEPTANCE_FORMATS) {
     for (const viewport of REQUIRED_VIEWPORTS) {
-      const { scale } = scaleFor(format, viewport);
-      assert.ok(
-        scale >= PREVIEW_MIN_SCALE,
-        `${format} at ${viewport.label} scaled to ${(scale * 100).toFixed(1)}%, below the ${PREVIEW_MIN_SCALE * 100}% floor`,
-      );
+      const { scale, fitScale, overflows } = scaleFor(format, viewport);
+      assert.ok(scale <= fitScale, `${format} at ${viewport.label} exceeded fit`);
+      assert.equal(overflows, false, `${format} at ${viewport.label} scrolled on fit`);
     }
   }
 });
 
-test("story — the named P1 requirement — clears the floor at 1366x768", () => {
+test("story uses its measured fit below 50% instead of forcing scroll", () => {
   const { scale, fitScale, overflows } = scaleFor("story", REQUIRED_VIEWPORTS[0]);
-  // Unfloored fit is ~32% here, which is the defect this module exists to fix.
-  assert.ok(fitScale < PREVIEW_MIN_SCALE, "expected raw fit to be below the floor");
-  assert.equal(scale, PREVIEW_MIN_SCALE);
-  assert.equal(overflows, true, "a floored canvas must be scrollable");
+  assert.ok(fitScale < 0.5, "expected story fit to be below 50%");
+  assert.ok(Math.abs(scale - fitScale) < 0.001);
+  assert.equal(overflows, false);
 });
 
-test("every format is readable at fit on every required viewport", () => {
+test("every format fits completely on every required viewport", () => {
   for (const format of Object.keys(TEMPLATE_OUTPUT_SIZES) as Array<
     keyof typeof TEMPLATE_OUTPUT_SIZES
   >) {
     for (const viewport of REQUIRED_VIEWPORTS) {
-      const { scale } = scaleFor(format, viewport);
-      assert.ok(scale >= PREVIEW_MIN_SCALE, `${format} at ${viewport.label}`);
+      const { scale, fitScale, overflows } = scaleFor(format, viewport);
+      assert.ok(scale <= fitScale, `${format} at ${viewport.label}`);
+      assert.equal(overflows, false, `${format} at ${viewport.label}`);
     }
   }
 });
 
-test("formats that already fit above the floor are left untouched", () => {
-  // Square fits at ~57% on the tightest viewport, so the floor must not alter it.
+test("fit scale is left untouched apart from whole-pixel snapping", () => {
   const { scale, fitScale, overflows } = scaleFor("square", REQUIRED_VIEWPORTS[0]);
-  assert.ok(fitScale > PREVIEW_MIN_SCALE);
   assert.equal(overflows, false, "artwork that fits must not scroll");
   assert.ok(Math.abs(scale - fitScale) < 0.001);
 });
@@ -104,7 +97,7 @@ test("continuous zoom levels override fit and remain bounded", () => {
   assert.equal(scaleFor("story", viewport, 2).scale, 2);
   // 100% on a format that would otherwise fit must still scroll.
   assert.equal(scaleFor("square", viewport, 1).overflows, true);
-  assert.equal(clampPreviewZoom(0.1), PREVIEW_MIN_SCALE);
+  assert.equal(clampPreviewZoom(0.01), PREVIEW_MIN_SCALE);
   assert.equal(clampPreviewZoom(4), PREVIEW_MAX_SCALE);
 });
 

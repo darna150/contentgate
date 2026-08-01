@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import {
   PREVIEW_MAX_SCALE,
   PREVIEW_MIN_SCALE,
-  PREVIEW_ZOOM_STEP,
   stepPreviewZoom,
   type PreviewZoom,
 } from "@/lib/studio-preview-scale";
@@ -34,9 +33,8 @@ function formatChannel(key: string, label: string) {
 /**
  * Zoom selector for the preview stage.
  *
- * Compact design-canvas control: fit, step down, continuous slider, step up,
- * and the real rendered percentage. Native range semantics provide arrow-key
- * control without rebuilding slider accessibility in JavaScript.
+ * Familiar document-viewer control: fit, step down, current percentage, and
+ * step up. Fit always means the whole design is visible; manual zoom can scroll.
  */
 function PreviewZoomControl({
   zoom,
@@ -71,6 +69,7 @@ function PreviewZoomControl({
           disabled={disabled}
           aria-pressed={zoom === "fit"}
           onClick={() => onZoomChange("fit")}
+          title="Fit the entire design in the preview"
           className={cn(
             "flex min-h-11 items-center gap-1.5 rounded-[7px] px-2.5 text-[12px] font-bold transition-colors",
             zoom === "fit" ? "bg-surface text-ink shadow-sm" : "text-ink-faint"
@@ -84,38 +83,28 @@ function PreviewZoomControl({
           disabled={disabled || atMinimum}
           onClick={() => onZoomChange(stepPreviewZoom(resolvedZoom, -1))}
           aria-label="Zoom out"
+          title="Zoom out"
           className="flex size-11 shrink-0 items-center justify-center rounded-[7px] text-ink-muted hover:bg-surface hover:text-ink disabled:opacity-35"
         >
           <Minus className="size-4" aria-hidden="true" />
         </button>
-        <input
-          id="studio-preview-zoom-range"
-          type="range"
-          min={PREVIEW_MIN_SCALE}
-          max={PREVIEW_MAX_SCALE}
-          step={PREVIEW_ZOOM_STEP}
-          value={resolvedZoom}
-          disabled={disabled}
-          onChange={(event) => onZoomChange(Number(event.currentTarget.value))}
-          aria-label="Preview zoom"
-          aria-valuetext={`${percent}%`}
-          className="h-11 w-20 min-w-16 cursor-pointer accent-brand disabled:cursor-not-allowed md:w-24"
-        />
+        <output
+          aria-label="Current preview zoom"
+          aria-live="polite"
+          className="w-12 shrink-0 text-center text-[12px] font-bold tabular-nums text-ink-muted"
+        >
+          {percent}%
+        </output>
         <button
           type="button"
           disabled={disabled || atMaximum}
           onClick={() => onZoomChange(stepPreviewZoom(resolvedZoom, 1))}
           aria-label="Zoom in"
+          title="Zoom in"
           className="flex size-11 shrink-0 items-center justify-center rounded-[7px] text-ink-muted hover:bg-surface hover:text-ink disabled:opacity-35"
         >
           <Plus className="size-4" aria-hidden="true" />
         </button>
-        <output
-          htmlFor="studio-preview-zoom-range"
-          className="w-10 shrink-0 text-right text-[11px] font-bold tabular-nums text-ink-muted"
-        >
-          {percent}%
-        </output>
       </div>
     </div>
   );

@@ -1,20 +1,16 @@
 /**
  * Studio preview scaling.
  *
- * Studio previews used to fit the artwork to both axes with no lower bound. On
- * the required review viewports that collapsed tall formats to an unreadable
- * size — a 1080×1920 story lands at 32% on 1366×768, and no amount of chrome
- * trimming reaches 50% (the format needs a 1112px-tall viewport to fit at 50%).
- *
- * So "fit" is floored at PREVIEW_MIN_SCALE and the viewport scrolls whenever the
- * floor wins. Formats that already fit above the floor are unaffected.
+ * Fit and manual zoom have deliberately different contracts. Fit always shows
+ * the complete artwork without scrollbars. Manual zoom prioritizes inspection
+ * and becomes scrollable whenever the chosen scale exceeds the available area.
  */
 
 /** Total padding (both edges) inside the preview viewport — Tailwind `p-4`. */
 export const PREVIEW_VIEWPORT_PADDING = 32;
 
-/** Reviewers must never be shown artwork below this scale. */
-export const PREVIEW_MIN_SCALE = 0.5;
+/** Manual zoom floor. Fit may go lower when a small viewport requires it. */
+export const PREVIEW_MIN_SCALE = 0.1;
 
 /** Canvas-style zoom ceiling. The authored 2× reference remains sharp here. */
 export const PREVIEW_MAX_SCALE = 2;
@@ -65,8 +61,8 @@ function snapToWholePixels(width: number, scale: number) {
 /**
  * Resolve the scale actually applied to the canvas.
  *
- * `overflows` reports that the artwork is larger than the viewport and the
- * container must therefore scroll — it is the floor doing its job, not a bug.
+ * `overflows` reports that a manually selected scale is larger than the
+ * viewport. Fit uses the measured fit scale directly and never scrolls.
  */
 export function resolvePreviewScale(input: {
   zoom: PreviewZoom;
@@ -74,9 +70,7 @@ export function resolvePreviewScale(input: {
   width: number;
 }): { scale: number; overflows: boolean } {
   const target =
-    input.zoom === "fit"
-      ? Math.max(input.fitScale, PREVIEW_MIN_SCALE)
-      : clampPreviewZoom(input.zoom);
+    input.zoom === "fit" ? input.fitScale : clampPreviewZoom(input.zoom);
   const scale = snapToWholePixels(input.width, target);
   // Tolerance keeps float noise from reporting a scrollbar that never appears.
   return { scale, overflows: scale > input.fitScale + 1e-9 };
