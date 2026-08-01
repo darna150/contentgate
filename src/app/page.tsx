@@ -4,6 +4,7 @@ import Link from "next/link";
 
 import { CampaignShowcase } from "@/components/landing/campaign-showcase";
 import { CitationProof } from "@/components/landing/citation-proof";
+import { PlaceholderVisual } from "@/components/landing/placeholder-visual";
 
 /*
  * Public marketing landing page at "/". Kept static and unauthenticated —
@@ -164,6 +165,17 @@ export default function LandingPage() {
                 every claim came from and who approved it.
               </p>
             </div>
+
+            {/* Fills the dead right column at ≥1280px. Bleeds past the
+                container edge on purpose — the section is overflow-hidden, and
+                a boxed image reads worse here. Hidden below xl so the mobile
+                layout never has to carry it. */}
+            <PlaceholderVisual
+              label="Hero visual"
+              spec="384 × 520, bleeds right"
+              tone="dark"
+              className="pointer-events-none absolute right-[-6%] top-1/2 hidden h-[520px] w-[460px] -translate-y-1/2 xl:block"
+            />
           </div>
         </section>
 
@@ -461,6 +473,16 @@ export default function LandingPage() {
                   key={persona.role}
                   className="flex flex-col gap-4 rounded-card border border-edge bg-page p-7"
                 >
+                  {/* Photography slot — in context, never stock boardrooms, and
+                      never attributed: no names, no companies, no logos. */}
+                  <PlaceholderVisual
+                    label="Portrait"
+                    spec="in context"
+                    tone="light"
+                    variant="portrait"
+                    ratio="16 / 9"
+                    className="w-full"
+                  />
                   <p className="text-label text-ink-muted-strong">
                     {persona.role}
                   </p>
@@ -553,7 +575,7 @@ export default function LandingPage() {
             proof section earns the trust, this closes on it. Hence no top
             border and a tighter top pad than the light-section rhythm. */}
         <section aria-labelledby="cta-heading" className="bg-brand-dark">
-          <div className="mx-auto w-full max-w-6xl px-5 pb-20 pt-8 sm:px-8 sm:pb-24 sm:pt-12">
+          <div className="mx-auto grid w-full max-w-6xl gap-10 px-5 pb-20 pt-8 sm:px-8 sm:pb-24 sm:pt-12 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] lg:items-center lg:gap-16">
             <div className="max-w-3xl">
               <h2
                 id="cta-heading"
@@ -584,6 +606,18 @@ export default function LandingPage() {
                 </a>
               </div>
             </div>
+
+            {/* The revert loop — approve, change one approved word, watch the
+                export shut. ~6–10s, muted/playsInline/loop, poster frame, and
+                a static fallback under prefers-reduced-motion. */}
+            <PlaceholderVisual
+              label="The revert"
+              spec="silent loop, 800 × 500"
+              tone="dark"
+              variant="media"
+              ratio="16 / 10"
+              className="w-full"
+            />
           </div>
         </section>
       </main>
