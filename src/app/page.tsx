@@ -1,7 +1,9 @@
+import { ArrowRight } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 
 import { CampaignShowcase } from "@/components/landing/campaign-showcase";
+import { CitationProof } from "@/components/landing/citation-proof";
 
 /*
  * Public marketing landing page at "/". Kept static and unauthenticated —
@@ -145,9 +147,8 @@ export default function LandingPage() {
               </h1>
               <p className="mt-6 max-w-2xl text-lede text-pretty text-sidebar-text">
                 Your franchisees, distributors, and field reps have to make
-                marketing. Not one of them was hired to. Hand them a system
-                where the design and the claims are already settled, and let
-                them get back to selling.
+                marketing. None of them were hired to. Give them a system where
+                the design and the claims are already settled.
               </p>
               <div className="mt-9 flex flex-wrap gap-3">
                 <a href={DEMO_HREF} className={ctaOnDark}>
@@ -180,14 +181,19 @@ export default function LandingPage() {
                 id="showcase-heading"
                 className="mt-4 text-display text-balance text-white"
               >
-                One campaign. Every size the channel asks for. Nobody touches
-                the layout.
+                Fill the fields. Nothing else moves.
               </h2>
               <p className="mt-5 text-lede text-pretty text-sidebar-text">
-                Pick a format. That is the entire decision. No blank canvas, no
-                design tool, no judgement call about what the brand is allowed
-                to say.
+                Five things open. Everything that makes it look like the brand
+                stays shut.
               </p>
+              <a
+                href="#proof"
+                className="mt-4 inline-flex items-center gap-1.5 text-[15px] font-semibold text-brand-on-dark underline-offset-4 hover:underline"
+              >
+                See what stops it shipping
+                <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              </a>
             </div>
 
             <div className="mt-14">
@@ -332,8 +338,7 @@ export default function LandingPage() {
                 id="how-heading"
                 className="mt-4 text-display text-balance text-ink"
               >
-                Five steps, and only one of them belongs to the person at the
-                edge.
+                Five steps. One is theirs.
               </h2>
             </div>
 
@@ -415,8 +420,7 @@ export default function LandingPage() {
                 id="who-heading"
                 className="mt-4 text-display text-balance text-ink"
               >
-                Five people. One broken process. It breaks each of their jobs
-                differently.
+                Five people. One broken process.
               </h2>
               <p className="mt-5 text-lede text-pretty text-ink-muted-strong">
                 Three of them make marketing with no marketing training at all.
@@ -490,21 +494,28 @@ export default function LandingPage() {
                 id="proof-heading"
                 className="mt-4 text-display text-balance text-white"
               >
-                Everyone says their AI is grounded in your content. This one
-                proves it — claim by claim, and again a year later.
+                Everyone says grounded. This one shows the receipt.
               </h2>
               <p className="mt-5 text-lede text-pretty text-sidebar-text">
-                None of the below is policy. It is enforcement, and it holds
-                whether or not anyone is watching.
+                Every claim is matched word for word against a source you
+                approved — and re-checked every time it moves.
               </p>
             </div>
 
-            <ul className="mt-12 grid gap-4 md:grid-cols-2">
+            <div className="mt-12">
+              <CitationProof />
+              {/* The §4 safe wording travels with the vignette rather than in a
+                  card of its own — the vignette IS this claim. Verbatim; do
+                  not widen. */}
+              <p className="mt-4 max-w-3xl text-prose text-pretty text-sidebar-text">
+                Generated copy must carry server-verified verbatim citations to
+                approved sources. Not a similarity score — the actual span,
+                re-checked at submit, approve, export, and render.
+              </p>
+            </div>
+
+            <ul className="mt-10 grid gap-4 md:grid-cols-2">
               {[
-                {
-                  title: "Every claim shows its source",
-                  body: "Generated copy must carry server-verified verbatim citations to approved sources. Not a similarity score — the actual span, matched word for word, and checked again at submit, approve, export, and render.",
-                },
                 {
                   title: "Export is gated on the approved revision",
                   body: "Final exports require the current approved revision. Admins can download clearly filename-labelled draft previews for internal QA.",
