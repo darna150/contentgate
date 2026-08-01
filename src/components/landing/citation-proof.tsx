@@ -6,8 +6,19 @@ import { ArrowDown, Check } from "lucide-react";
  * both. Built in markup rather than shipped as an image — the Frontify
  * pattern — so it stays crisp, themeable, and readable to screen readers.
  *
- * Illustrative content, NOT live output and not a screenshot of Studio. The
- * document name, revision, approver, and date are invented specimen data.
+ * Illustrative wording, NOT live output and not a screenshot of Studio.
+ *
+ * Kept honest against the real data model. `GeneratedFieldEvidence`
+ * (src/lib/evidence-validation.ts) carries exactly `field`, `approved_source`,
+ * `excerpt`, and `source_id` — there is NO document title, revision number,
+ * approver, or date on a citation. Studio surfaces this as the "Source
+ * support" list in studio-review-summary.tsx: one `Field: excerpt` row per
+ * cited field.
+ *
+ * Approver and timestamp are real but live on the content revision, not the
+ * citation, so they are shown below as a separate approval row rather than as
+ * per-claim provenance. Do not merge the two back together — an earlier draft
+ * of this component did, and it depicted a record the product does not keep.
  */
 
 const GENERATED = {
@@ -29,7 +40,10 @@ export function CitationProof() {
         {/* Generated copy */}
         <div className="flex flex-col gap-2.5">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-label text-sidebar-text">Generated copy</span>
+            {/* Citations are per-field — this is what `citation.field` holds. */}
+            <span className="text-label text-sidebar-text">
+              Generated copy · Headline
+            </span>
             <span className="rounded-full border border-white/15 px-2 py-0.5 text-caption text-sidebar-text">
               Draft
             </span>
@@ -74,16 +88,17 @@ export function CitationProof() {
         </div>
       </div>
 
-      {/* Provenance strip */}
+      {/* Where the excerpt is re-checked. These four points are the §4 safe
+          wording, not decoration — the same span is revalidated at each. */}
       <dl className="grid grid-cols-2 gap-px border-t border-white/10 bg-white/[0.06] sm:grid-cols-4">
         {[
-          { k: "Document", v: "Product data sheet" },
-          { k: "Revision", v: "rev. 4" },
-          { k: "Approved by", v: "M. Santos" },
-          { k: "Date", v: "12 Mar 2026" },
+          { k: "Re-checked at", v: "Submit" },
+          { k: "And at", v: "Approve" },
+          { k: "And at", v: "Export" },
+          { k: "And at", v: "Render" },
         ].map((item) => (
           <div
-            key={item.k}
+            key={item.v}
             className="flex flex-col gap-1 bg-brand-dark px-5 py-4"
           >
             <dt className="text-label text-sidebar-text">{item.k}</dt>
@@ -91,6 +106,18 @@ export function CitationProof() {
           </div>
         ))}
       </dl>
+
+      {/* Approval is real but lives on the content revision, not the citation.
+          Kept visually separate for exactly that reason. */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 px-6 py-4 sm:px-8">
+        <p className="text-caption text-sidebar-text">
+          The asset itself is released separately, by a named person against one
+          exact revision.
+        </p>
+        <p className="text-caption text-sidebar-text">
+          Illustration, not live output.
+        </p>
+      </div>
     </div>
   );
 }
