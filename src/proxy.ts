@@ -3,7 +3,24 @@ import { NextResponse, type NextRequest } from "next/server";
 
 // /welcome must stay public: invitees arrive without a session and establish
 // one client-side from the invite link's tokens.
-const PUBLIC_PATHS = ["/login", "/auth", "/welcome"];
+//
+// The metadata routes must stay public too. Next generates them from the
+// file conventions in src/app (opengraph-image.tsx and friends) at extensionless
+// paths, so the matcher below does not exclude them the way it excludes
+// _next/static and *.svg. Without these entries a social crawler fetching the
+// preview image gets a 307 to /login and the link previews blank — which is
+// the exact failure the OG image exists to prevent.
+const PUBLIC_PATHS = [
+  "/login",
+  "/auth",
+  "/welcome",
+  "/opengraph-image",
+  "/twitter-image",
+  "/icon",
+  "/apple-icon",
+  "/robots.txt",
+  "/sitemap.xml",
+];
 
 // "/" is the public marketing landing page. It is matched exactly rather than
 // added to PUBLIC_PATHS above, since startsWith("/") would make every route
