@@ -2,11 +2,13 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  calibrateTemplatePlatformFieldBudgets,
   coerceTemplatePlatformFieldsToFit,
   resolveTemplatePlatformTextSlotLayout,
   resolveTemplatePlatformVariantLayout,
   templatePlatformFieldFitIssues,
 } from "./fit.ts";
+import { graphemeCount } from "../graphemes.ts";
 import type { TemplateBundleManifest, TemplateBundleTextSlot } from "./manifest.ts";
 import { validTemplateBundleManifest } from "./test-fixtures.ts";
 
@@ -38,6 +40,58 @@ const overflowsAtMaxOnly = "Approved local marketing copy for every team";
 // Long enough that it fails to fit even at minFontSize (56).
 const overflowsEvenAtMin =
   "This headline is deliberately far too long to ever fit inside a locked two line headline box no matter how small the font gets rendered";
+
+test("calibrates a format-specific hard maximum from actual font and slot geometry", async () => {
+  const budgets = await calibrateTemplatePlatformFieldBudgets({
+    manifest,
+    variantKey: "square",
+  });
+  const budget = budgets.headline;
+  assert.ok(budget.hardMaxChars > 0);
+  assert.ok(budget.geometryCapacityChars > 0);
+  assert.equal(
+    budget.generationTargetChars,
+    Math.floor(budget.hardMaxChars * 0.85)
+  );
+  assert.equal(budget.width, headlineSlot.width);
+  assert.equal(budget.height, headlineSlot.height);
+  assert.equal(budget.minFontSize, headlineSlot.minFontSize);
+});
+
+test("authored caps can tighten but geometry-derived caches cannot override calibration", async () => {
+  const authored: TemplateBundleManifest = {
+    ...manifest,
+    variants: manifest.variants.map((variant) => ({
+      ...variant,
+      slots: variant.slots.map((slot) =>
+        slot.kind === "text"
+          ? { ...slot, maxChars: 12, maxCharsSource: "authored" as const }
+          : slot
+      ),
+    })),
+  };
+  const geometry: TemplateBundleManifest = {
+    ...authored,
+    variants: authored.variants.map((variant) => ({
+      ...variant,
+      slots: variant.slots.map((slot) =>
+        slot.kind === "text"
+          ? { ...slot, maxChars: 2, maxCharsSource: "geometry" as const }
+          : slot
+      ),
+    })),
+  };
+  const authoredBudget = await calibrateTemplatePlatformFieldBudgets({
+    manifest: authored,
+    variantKey: "square",
+  });
+  const geometryBudget = await calibrateTemplatePlatformFieldBudgets({
+    manifest: geometry,
+    variantKey: "square",
+  });
+  assert.equal(authoredBudget.headline.hardMaxChars, 12);
+  assert.ok(geometryBudget.headline.hardMaxChars > 2);
+});
 
 test("shrink_to_fit resolves a smaller font size for copy that overflows the authored size", async () => {
   const atMax = await resolveTemplatePlatformTextSlotLayout(manifest, "Short headline", headlineSlot);
@@ -141,6 +195,27 @@ test("coerceTemplatePlatformFieldsToFit keeps character-limit truncation on word
   assert.equal(result.fields.headline, "Cloud-soft");
   assert.equal(result.fields.headline.length <= 18, true);
   assert.deepEqual(result.truncatedFields, ["headline"]);
+});
+
+test("coercion never splits a visible grapheme", async () => {
+  const constrained: TemplateBundleManifest = {
+    ...manifest,
+    variants: [
+      {
+        ...manifest.variants[0],
+        slots: manifest.variants[0].slots.map((slot) =>
+          slot.kind === "text" ? { ...slot, maxChars: 3 } : slot
+        ),
+      },
+    ],
+  };
+  const result = await coerceTemplatePlatformFieldsToFit({
+    manifest: constrained,
+    variantKey: "square",
+    fields: { headline: "A👩‍💻B approved" },
+  });
+  assert.ok(graphemeCount(result.fields.headline) <= 3);
+  assert.equal(result.fields.headline.includes("�"), false);
 });
 
 test("coercion removes a dangling connector created by truncation", async () => {

@@ -208,6 +208,7 @@ Editable Figma layer names must include a `cg` annotation:
 Headline [cg:field=headline label="Headline" maxChars=64 maxLines=2 minFontSize=48 source=ai]
 CTA [cg:field=cta label="CTA" maxChars=24 maxLines=1 source=user]
 Hero Image [cg:field=hero_image type=image source=product]
+Headline frame [cg:containerFor=headline]
 ```
 
 Supported annotation keys:
@@ -216,9 +217,12 @@ Supported annotation keys:
 - `label`: human-readable label.
 - `type`: optional field type override, such as `text`, `image`, or `asset_choice`.
 - `source`: `ai`, `user`, `product`, or `locked`.
-- `maxChars` or `maxWords`: required for publishable text slots.
+- `maxChars` or `maxWords`: optional authored ceiling. When present, it may tighten but never enlarge the geometry-calibrated ceiling.
 - `maxLines`: rendered line limit.
 - `minFontSize`: enables shrink-to-fit and declares the smallest allowed font size.
+- `containerFor`: attaches a visible Figma border/frame to an editable field. Its exact width, height, and position become the field's layout box, so designers can change copy capacity by resizing the frame instead of editing code.
+
+Every text field is calibrated separately for every format using the bundled font's measured glyph widths, the field box width and height, maximum line count, line height, and minimum allowed font size. Character limits count user-visible grapheme clusters (for example, an emoji or a letter plus combining accent counts as one), not JavaScript UTF-16 code units. Generation targets 85% of the calibrated hard ceiling to leave breathing room for variable-width copy. The real bundled-font glyph layout is still the final acceptance authority: a candidate is rejected or safely repaired if it does not fit, even when its character count is below the estimate.
 
 The compiler in [figma-publisher.ts](</Users/debbiemelgarejo/Documents/Content Gate/contentgate/src/lib/template-platform/figma-publisher.ts:1>) converts this metadata into the same bundle manifest used by the importer. It blocks unsafe inputs before they become bundle folders:
 

@@ -5,6 +5,7 @@ import { useMemo, useState, useTransition } from "react";
 import { updateStructuredFields, submitForReview } from "../actions";
 import { fieldLabel, type Evidence } from "@/lib/templates";
 import { fieldLimitText, type FieldLimits } from "@/lib/template-fields";
+import { sliceGraphemes } from "@/lib/graphemes";
 
 export function StructuredReview({
   id,
@@ -99,10 +100,16 @@ export function StructuredReview({
                 <textarea
                   id={`review-field-${id}-${key}`}
                   value={fields[key] ?? ""}
-                  onChange={(e) => setField(key, e.target.value)}
+                  onChange={(e) =>
+                    setField(
+                      key,
+                      limits[key]?.max_chars
+                        ? sliceGraphemes(e.target.value, 0, limits[key]?.max_chars)
+                        : e.target.value
+                    )
+                  }
                   readOnly={!editable}
                   disabled={busy}
-                  maxLength={limits[key]?.max_chars}
                   rows={rows}
                   className={
                     isHeadline

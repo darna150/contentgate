@@ -360,9 +360,8 @@ async function askQuestion(page: Page, sessionId: string, question: string) {
 
 async function generateDraft(page: Page, fixture: StatefulFixture) {
   const attempts: Array<{ status: number; durationMs: number; text: string }> = [];
-  for (let attempt = 1; attempt <= 3; attempt += 1) {
-    const startedAt = performance.now();
-    const result = await page.evaluate(
+  const startedAt = performance.now();
+  const result = await page.evaluate(
       async ({ assignmentId, outputSize }) => {
         const response = await fetch("/api/products/generate", {
           method: "POST",
@@ -385,26 +384,15 @@ async function generateDraft(page: Page, fixture: StatefulFixture) {
       },
       { assignmentId: fixture.assignmentId, outputSize: fixture.outputSize },
     );
-    attempts.push({
-      status: result.status,
-      durationMs: performance.now() - startedAt,
-      text: result.text.slice(0, 500),
-    });
-    if (result.status >= 500) {
-      throw new Error(`Generation returned ${result.status}: ${result.text}`);
-    }
-    if (result.status === 200 && typeof result.json.contentId === "string") {
-      return { contentId: result.json.contentId, attempts };
-    }
-    const retryable =
-      result.status === 429 ||
-      (result.status === 422 && /could not (?:produce copy|ground)/iu.test(result.text));
-    if (!retryable || attempt === 3) {
-      throw new Error(`Generation returned ${result.status}: ${result.text}`);
-    }
-    await page.waitForTimeout(2_000 * attempt);
+  attempts.push({
+    status: result.status,
+    durationMs: performance.now() - startedAt,
+    text: result.text.slice(0, 500),
+  });
+  if (result.status !== 200 || typeof result.json.contentId !== "string") {
+    throw new Error(`First-request generation returned ${result.status}: ${result.text}`);
   }
-  throw new Error("Generation exhausted the bounded retry count.");
+  return { contentId: result.json.contentId, attempts };
 }
 
 async function expectStudioState(page: Page, state: "Draft" | "In review" | "Approved") {

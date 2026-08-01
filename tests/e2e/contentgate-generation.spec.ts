@@ -146,76 +146,59 @@ async function openNimbusTemplate(page: Page) {
 }
 
 async function generateNimbusDraft(page: Page) {
-  let result: {
+  const result = await page.evaluate(
+    async ({ platformAssignmentId, outputSize }) => {
+      const response = await fetch("/api/products/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          platformAssignmentId,
+          language: "English",
+          outputSize,
+        }),
+      });
+      const text = await response.text();
+      let json: Record<string, unknown> = {};
+      try {
+        json = JSON.parse(text) as Record<string, unknown>;
+      } catch {
+        // Keep the raw text for diagnostics below.
+      }
+      return {
+        ok: response.ok,
+        status: response.status,
+        text,
+        json,
+      };
+    },
+    {
+      platformAssignmentId: PLATFORM_ASSIGNMENT_ID,
+      outputSize: OUTPUT_SIZE,
+    }
+  ) as {
     ok: boolean;
     status: number;
     text: string;
     json: Record<string, unknown>;
-  } | null = null;
-
-  for (let attempt = 1; attempt <= 3; attempt += 1) {
-    result = await page.evaluate(
-      async ({ platformAssignmentId, outputSize }) => {
-        const response = await fetch("/api/products/generate", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            platformAssignmentId,
-            language: "English",
-            outputSize,
-          }),
-        });
-        const text = await response.text();
-        let json: Record<string, unknown> = {};
-        try {
-          json = JSON.parse(text) as Record<string, unknown>;
-        } catch {
-          // Keep the raw text for diagnostics below.
-        }
-        return {
-          ok: response.ok,
-          status: response.status,
-          text,
-          json,
-        };
-      },
-      {
-        platformAssignmentId: PLATFORM_ASSIGNMENT_ID,
-        outputSize: OUTPUT_SIZE,
-      }
-    );
-
-    const generationError =
-      typeof result.json.error === "string" ? result.json.error : "";
-    const retryableSafeRejection =
-      result.status === 422 &&
-      /could not (?:produce copy|ground)/i.test(generationError);
-    if (
-      result.ok ||
-      (!retryableSafeRejection && ![429, 502, 503, 504].includes(result.status))
-    ) {
-      break;
-    }
-    await page.waitForTimeout(2_000 * attempt);
-  }
+  };
 
   expect(
-    result?.ok,
-    `Generation failed with ${result?.status}: ${result?.text}`
+    result.ok,
+    `First-request generation failed with ${result.status}: ${result.text}`
   ).toBeTruthy();
 
-  expect(result?.json.contentId, "Generation did not return contentId.").toEqual(
+  expect(result.json.contentId, "Generation did not return contentId.").toEqual(
     expect.any(String)
   );
 
   await page.goto(
-    `/studio/${result?.json.contentId as string}?size=${
-      (result?.json.outputSize as string | undefined) ?? OUTPUT_SIZE
+    `/studio/${result.json.contentId as string}?size=${
+      (result.json.outputSize as string | undefined) ?? OUTPUT_SIZE
     }`
   );
   await expectStudioDraftState(page, "Draft", 60_000);
 
-  return result?.json.contentId as string;
+  return result.json.contentId as string;
 }
 
 async function makeNimbusDraftReviewable(page: Page) {
@@ -638,24 +621,10 @@ test.describe("Client package live generation QA @live-ai", () => {
         error?: unknown;
       };
 
-      if (!generationResponse.ok()) {
-        const safeError =
-          typeof generationPayload.error === "string" ? generationPayload.error : "";
-        expect(generationResponse.status(), `${label} returned ${safeError}`).toBe(422);
-        expect(safeError, `${label} regressed to a grounding failure`).not.toMatch(
-          /grounding|required evidence|could not verify/i
-        );
-        expect(safeError, `${label} did not return an actionable safe rejection`).toMatch(
-          /meaningfully different|could not produce copy|safely fits/i
-        );
-        await expect(page.getByText(safeError, { exact: true })).toBeVisible({
-          timeout: 10_000,
-        });
-        await refineBtn.click();
-        await expect(refineBtn).toHaveAttribute("aria-pressed", "false");
-        handledRefinements += 1;
-        continue;
-      }
+      expect(
+        generationResponse.ok(),
+        `${label} must return usable copy on its first request: ${String(generationPayload.error ?? "unknown error")}`
+      ).toBeTruthy();
 
       handledRefinements += 1;
 

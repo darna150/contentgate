@@ -47,6 +47,7 @@ export type StudioContent = {
   rejectionNote: string | null;
   structured_fields: Record<string, string>;
   citations: Array<{ field: string; approved_source: string; excerpt?: string }>;
+  fieldLimits: FieldLimits | null;
   templateVersionId: string | null;
   outputSize: string | null;
   campaignRootContentId: string;
@@ -210,6 +211,7 @@ function campaignGroupId(row: Pick<GeneratedContentRow, "id" | "prompt_context">
 }
 
 function toStudioContent(row: GeneratedContentRow, userId?: string): StudioContent {
+  const promptFieldLimits = row.prompt_context?.field_limits;
   return {
     id: row.id,
     title: row.title,
@@ -217,6 +219,10 @@ function toStudioContent(row: GeneratedContentRow, userId?: string): StudioConte
     rejectionNote: row.rejection_note ?? null,
     structured_fields: (row.structured_fields ?? {}) as Record<string, string>,
     citations: Array.isArray(row.citations) ? row.citations : [],
+    fieldLimits:
+      promptFieldLimits && typeof promptFieldLimits === "object" && !Array.isArray(promptFieldLimits)
+        ? (promptFieldLimits as FieldLimits)
+        : null,
     templateVersionId: row.template_version_id ?? null,
     outputSize: contentOutputSize(row),
     campaignRootContentId: campaignGroupId(row),

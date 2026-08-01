@@ -164,3 +164,63 @@ test("flags conflicting field annotations across reusable frame layers", () => {
     true
   );
 });
+
+test("derives a geometry character cache from an unannotated Figma text container", () => {
+  const result = compileFigmaPublisherInput({
+    ...baseInput,
+    frames: [
+      {
+        ...baseInput.frames[0],
+        layers: [
+          {
+            ...baseInput.frames[0].layers[0],
+            name: "Headline [cg:field=headline label=Headline maxLines=2 minFontSize=56 source=ai]",
+          },
+        ],
+      },
+    ],
+  });
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  const slot = result.manifest.variants[0].slots[0];
+  assert.equal(slot.kind, "text");
+  if (slot.kind !== "text") return;
+  assert.equal(slot.maxCharsSource, "geometry");
+  assert.ok((slot.maxChars ?? 0) > 0);
+});
+
+test("uses an explicit Figma border container as the editable field geometry", () => {
+  const result = compileFigmaPublisherInput({
+    ...baseInput,
+    frames: [
+      {
+        ...baseInput.frames[0],
+        layers: [
+          {
+            ...baseInput.frames[0].layers[0],
+            name: "Headline [cg:field=headline label=Headline maxLines=2 minFontSize=56 source=ai]",
+          },
+          {
+            id: "headline-container",
+            name: "Headline capacity [cg:containerFor=headline]",
+            kind: "container",
+            x: 80,
+            y: 540,
+            width: 900,
+            height: 220,
+          },
+        ],
+      },
+    ],
+  });
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  const slot = result.manifest.variants[0].slots[0];
+  assert.equal(slot.kind, "text");
+  if (slot.kind !== "text") return;
+  assert.deepEqual(
+    { x: slot.x, y: slot.y, width: slot.width, height: slot.height },
+    { x: 80, y: 540, width: 900, height: 220 }
+  );
+  assert.equal(slot.maxCharsSource, "geometry");
+});

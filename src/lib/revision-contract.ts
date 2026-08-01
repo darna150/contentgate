@@ -1,5 +1,7 @@
+import { graphemeCount } from "./graphemes.ts";
+
 function normalizedLength(value: string | undefined) {
-  return String(value ?? "").replace(/\s+/g, " ").trim().length;
+  return graphemeCount(String(value ?? "").replace(/\s+/g, " ").trim());
 }
 
 function normalizedValue(value: string | undefined) {

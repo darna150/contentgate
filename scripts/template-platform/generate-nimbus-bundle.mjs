@@ -50,11 +50,28 @@ function canonicalNimbusSlots(frame) {
   const productWidth = 0.523 * Math.sqrt(frame.width * frame.height);
   const productHeight = productWidth / 1.17;
   const contentTop = frame.height / 24;
+  const geometryMaxChars = ({ width, height, fontSize, lineHeight, maxLines, minFontSize }) => {
+    const capacityFontSize = minFontSize ?? fontSize;
+    const usableLines = Math.max(
+      1,
+      Math.min(maxLines, Math.floor(height / (capacityFontSize * lineHeight)))
+    );
+    return Math.max(
+      1,
+      Math.floor(width / Math.max(1, capacityFontSize * 0.62)) * usableLines -
+        Math.max(0, usableLines - 1)
+    );
+  };
+  const textSlot = (slot) => ({
+    ...slot,
+    maxChars: geometryMaxChars(slot),
+    maxCharsSource: "geometry",
+  });
   return [
     { key: "product-slot", field: "__productVariantKey", kind: "image", x: (frame.width - productWidth) / 2 - frame.width * 0.076, y: (frame.height - productHeight) / 2, width: productWidth, height: productHeight, fit: "contain", focalPoint: { x: 0.5, y: 0.5 } },
-    { key: "headline-slot", field: "headline", kind: "text", x: margin, y: contentTop, width: frame.width - margin * 2, height: headlineSize * 1.1 * headlineLines, fontKey: "dela-gothic-one-regular", fontSize: headlineSize, lineHeight: 1.1, letterSpacing: 0, color: "#000000", align: "center", verticalAlign: "center", maxChars: 24, maxLines: headlineLines, minFontSize: headlineSize * 0.58, fit: "shrink_to_fit" },
-    { key: "subheadline-1-slot", field: "subheadline_1", kind: "text", x: margin, y: contentTop + headlineSize * (headlineLines === 1 ? 0.925 : 2.025), width: frame.width - margin * 2, height: subheadSize * 1.2, fontKey: "geist-mono-regular", fontSize: subheadSize, lineHeight: 1.2, letterSpacing: 0, color: "#000000", align: "center", verticalAlign: "bottom", maxChars: 40, maxLines: 1, minFontSize: subheadSize * 0.58, fit: "shrink_to_fit" },
-    { key: "subheadline-2-slot", field: "subheadline_2", kind: "text", x: margin, y: frame.height * 0.5694444444, width: frame.width - margin * 2, height: subheadSize * 4.2857142857, fontKey: "geist-mono-regular", fontSize: subheadSize, lineHeight: 1.2, letterSpacing: 0, color: "#000000", align: "right", verticalAlign: "bottom", maxChars: 56, maxLines: 3, minFontSize: subheadSize * 0.58, fit: "shrink_to_fit" },
+    textSlot({ key: "headline-slot", field: "headline", kind: "text", x: margin, y: contentTop, width: frame.width - margin * 2, height: headlineSize * 1.1 * headlineLines, fontKey: "dela-gothic-one-regular", fontSize: headlineSize, lineHeight: 1.1, letterSpacing: 0, color: "#000000", align: "center", verticalAlign: "center", maxLines: headlineLines, minFontSize: headlineSize * 0.58, fit: "shrink_to_fit" }),
+    textSlot({ key: "subheadline-1-slot", field: "subheadline_1", kind: "text", x: margin, y: contentTop + headlineSize * (headlineLines === 1 ? 0.925 : 2.025), width: frame.width - margin * 2, height: subheadSize * 1.2, fontKey: "geist-mono-regular", fontSize: subheadSize, lineHeight: 1.2, letterSpacing: 0, color: "#000000", align: "center", verticalAlign: "bottom", maxLines: 1, minFontSize: subheadSize * 0.58, fit: "shrink_to_fit" }),
+    textSlot({ key: "subheadline-2-slot", field: "subheadline_2", kind: "text", x: margin, y: frame.height * 0.5694444444, width: frame.width - margin * 2, height: subheadSize * 4.2857142857, fontKey: "geist-mono-regular", fontSize: subheadSize, lineHeight: 1.2, letterSpacing: 0, color: "#000000", align: "right", verticalAlign: "bottom", maxLines: 3, minFontSize: subheadSize * 0.58, fit: "shrink_to_fit" }),
   ];
 }
 
@@ -201,7 +218,7 @@ async function main() {
       // A bundle version is immutable after import. Bump this whenever the
       // checked-in Figma reference exports or locked layout contract changes,
       // otherwise the importer correctly reuses stale storage assets.
-      name: "figma-full-v7",
+      name: "figma-full-v8-calibrated-copy",
       source: "figma",
       sourceFileKey: source.sourceFileKey,
       sourcePageNodeId: source.sourcePageNodeId,

@@ -25,6 +25,7 @@ type FailureFixture = {
   password: string;
   notebookSessionId: string;
   queryIds: string[];
+  contentIds: string[];
 };
 
 function required(name: string) {
@@ -112,6 +113,7 @@ async function createFixture(): Promise<FailureFixture> {
     password,
     notebookSessionId,
     queryIds: [],
+    contentIds: [],
   };
   try {
     const { error: provisionError } = await admin.rpc("provision_user", {
@@ -159,7 +161,7 @@ async function deleteFixture(fixture: FailureFixture | null) {
     {
       p_org_id: fixture.organizationId,
       p_user_ids: [fixture.userId],
-      p_content_ids: [],
+      p_content_ids: fixture.contentIds,
       p_asset_ids: [],
       p_session_ids: [fixture.notebookSessionId],
       p_query_ids: queryIds,
@@ -224,7 +226,7 @@ test.describe.serial("enterprise provider failure @enterprise-provider-failure",
     await deleteFixture(fixture);
   });
 
-  test("fails Ask and generation safely after bounded retries and attempts incident routing", async () => {
+  test("fails Ask safely and returns validated generation fallback after bounded provider retries", async () => {
     if (!fixture || !context) throw new Error("Provider-failure fixture was not created.");
     const page = await context.newPage();
     await page.goto("/dashboard", { waitUntil: "domcontentloaded" });
@@ -284,16 +286,12 @@ test.describe.serial("enterprise provider failure @enterprise-provider-failure",
       },
       { assignmentId: fixture.assignmentId, outputSize: fixture.outputSize },
     );
-    expect(generation.status).toBe(503);
-    expect(generation.retryAfter).toBe("3");
-    expect(generation.body.code).toBe("provider_unavailable");
-    expect(generation.body.error).toMatch(/already retried automatically/iu);
-    const generationValidation = generation.body.validation as Record<string, unknown>;
-    expect(generationValidation.attempts).toBeGreaterThanOrEqual(2);
-    expect(generationValidation.attempts).toBeLessThanOrEqual(6);
-    expect(["delivered", "unconfigured", "failed"]).toContain(
-      generationValidation.incidentDelivery,
-    );
+    expect(generation.status).toBe(200);
+    expect(generation.retryAfter).toBeNull();
+    expect(generation.body.fallbackUsed).toBe(true);
+    expect(generation.body.generationMode).toBe("safe_fallback");
+    expect(generation.body.contentId).toEqual(expect.any(String));
+    fixture.contentIds.push(generation.body.contentId as string);
 
     const { data: queries, error: queriesError } = await fixture.admin
       .from("knowledge_queries")
@@ -316,7 +314,7 @@ test.describe.serial("enterprise provider failure @enterprise-provider-failure",
       .eq("org_id", fixture.organizationId)
       .eq("created_by", fixture.userId);
     if (contentError) throw contentError;
-    expect(contentCount).toBe(0);
+    expect(contentCount).toBe(1);
 
     await page.close();
   });

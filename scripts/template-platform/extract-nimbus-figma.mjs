@@ -47,6 +47,17 @@ function textSlot(node, frame, field, key) {
   const position = frameRelativePosition(node, frame);
   const lineHeight = percent(node.lineHeight);
   const maxLines = field === "subheadline_2" ? 3 : 1;
+  const minFontSize = Math.max(5, Math.round(node.fontSize * 0.58));
+  const height = Math.max(node.height, node.fontSize * lineHeight * maxLines);
+  const usableLines = Math.max(
+    1,
+    Math.min(maxLines, Math.floor(height / (minFontSize * lineHeight)))
+  );
+  const geometryMaxChars = Math.max(
+    1,
+    Math.floor(node.width / Math.max(1, minFontSize * 0.62)) * usableLines -
+      Math.max(0, usableLines - 1)
+  );
   return {
     key,
     field,
@@ -54,7 +65,7 @@ function textSlot(node, frame, field, key) {
     x: position.x,
     y: position.y,
     width: node.width,
-    height: Math.max(node.height, node.fontSize * lineHeight * maxLines),
+    height,
     fontKey:
       node.fontName?.family === "Dela Gothic One"
         ? "dela-gothic-one-regular"
@@ -68,9 +79,10 @@ function textSlot(node, frame, field, key) {
       node.textAlignVertical === "CENTER"
         ? "middle"
         : node.textAlignVertical?.toLowerCase() ?? "top",
-    maxChars: field === "headline" ? 24 : field === "subheadline_1" ? 40 : 56,
+    maxChars: geometryMaxChars,
+    maxCharsSource: "geometry",
     maxLines,
-    minFontSize: Math.max(5, Math.round(node.fontSize * 0.58)),
+    minFontSize,
     fit: "shrink_to_fit",
   };
 }

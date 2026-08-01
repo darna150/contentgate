@@ -69,6 +69,8 @@ export type TemplateBundleTextSlot = {
   align?: "left" | "center" | "right";
   verticalAlign?: "top" | "middle" | "bottom";
   maxChars?: number;
+  /** Whether maxChars is an intentional editorial cap or a geometry-derived cache. */
+  maxCharsSource?: "authored" | "geometry";
   maxWords?: number;
   maxLines: number;
   lineChars?: number;
@@ -450,6 +452,19 @@ export function validateTemplateBundleManifest(
         }
         if (slot.maxChars != null && !isPositiveFinite(slot.maxChars)) {
           issues.push(issue("value", `${slotPath}.maxChars`, "Text slot maxChars must be positive."));
+        }
+        if (
+          slot.maxCharsSource != null &&
+          slot.maxCharsSource !== "authored" &&
+          slot.maxCharsSource !== "geometry"
+        ) {
+          issues.push(
+            issue(
+              "value",
+              `${slotPath}.maxCharsSource`,
+              'Text slot maxCharsSource must be "authored" or "geometry".'
+            )
+          );
         }
         if (slot.maxWords != null && !isPositiveFinite(slot.maxWords)) {
           issues.push(issue("value", `${slotPath}.maxWords`, "Text slot maxWords must be positive."));

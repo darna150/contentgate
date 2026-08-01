@@ -16,7 +16,8 @@ export const FIGMA_PUBLISHER_SCHEMA_VERSION = "figma-publisher-v1" as const;
 export type FigmaPublisherLayer = {
   id: string;
   name: string;
-  kind: "image" | "text";
+  /** Container layers are optional Figma border rectangles for text capacity. */
+  kind: "container" | "image" | "text";
   x: number;
   y: number;
   width: number;
@@ -98,6 +99,7 @@ export type FigmaPublisherResult =
 
 type LayerAnnotation = {
   field?: string;
+  containerFor?: string;
   label?: string;
   maxChars?: number;
   maxWords?: number;
@@ -168,6 +170,7 @@ function parseAnnotation(name: string): LayerAnnotation {
 
   return {
     field: values.field,
+    containerFor: values.containerFor,
     label: values.label,
     maxChars: values.maxChars ? Number(values.maxChars) : undefined,
     maxWords: values.maxWords ? Number(values.maxWords) : undefined,
@@ -250,40 +253,68 @@ function upsertField(
   }
 }
 
-function buildTextSlot(layer: FigmaPublisherLayer, annotation: LayerAnnotation): TemplateBundleTextSlot {
+function buildTextSlot(
+  layer: FigmaPublisherLayer,
+  annotation: LayerAnnotation,
+  container?: FigmaPublisherLayer
+): TemplateBundleTextSlot {
   if (!annotation.field) throw new Error(`Layer ${layer.id} is missing cg:field.`);
+  const bounds = container ?? layer;
+  const fontSize = layer.fontSize ?? 16;
+  const lineHeight = layer.lineHeight ?? 1.1;
+  const minFontSize = annotation.minFontSize;
+  const capacityFontSize = minFontSize ?? fontSize;
+  const usableLines = Math.max(
+    1,
+    Math.min(
+      annotation.maxLines ?? 1,
+      Math.floor(bounds.height / (capacityFontSize * lineHeight))
+    )
+  );
+  // This cached value keeps browser-side counters useful. The server replaces
+  // it with actual bundled-font calibration before generation and validation.
+  const geometryMaxChars = Math.max(
+    1,
+    Math.floor(bounds.width / Math.max(1, capacityFontSize * 0.62)) * usableLines -
+      Math.max(0, usableLines - 1)
+  );
   return {
     key: keyPart(`${annotation.field}-${layer.id}`),
     field: annotation.field,
     kind: "text",
-    x: layer.x,
-    y: layer.y,
-    width: layer.width,
-    height: layer.height,
+    x: bounds.x,
+    y: bounds.y,
+    width: bounds.width,
+    height: bounds.height,
     rotation: layer.rotation,
     fontKey: fontKey({
       family: layer.fontFamily ?? "Inter",
       style: layer.fontStyle ?? "normal",
       weight: layer.fontWeight ?? 400,
     }),
-    fontSize: layer.fontSize ?? 16,
-    lineHeight: layer.lineHeight ?? 1.1,
+    fontSize,
+    lineHeight,
     letterSpacing: layer.letterSpacing,
     color: layer.color ?? "#000000",
     align: layer.align ?? "left",
     verticalAlign: layer.verticalAlign ?? "top",
-    maxChars: annotation.maxChars,
+    maxChars: annotation.maxChars ?? geometryMaxChars,
+    maxCharsSource: annotation.maxChars ? "authored" : "geometry",
     maxWords: annotation.maxWords,
     maxLines: annotation.maxLines ?? 1,
-    minFontSize: annotation.minFontSize,
-    fit: annotation.minFontSize ? "shrink_to_fit" : "fixed",
+    minFontSize,
+    fit: minFontSize ? "shrink_to_fit" : "fixed",
   };
 }
 
-function buildSlot(layer: FigmaPublisherLayer): TemplateBundleSlot | null {
+function buildSlot(
+  layer: FigmaPublisherLayer,
+  container?: FigmaPublisherLayer
+): TemplateBundleSlot | null {
   const annotation = parseAnnotation(layer.name);
+  if (layer.kind === "container") return null;
   if (!annotation.field) return null;
-  if (layer.kind === "text") return buildTextSlot(layer, annotation);
+  if (layer.kind === "text") return buildTextSlot(layer, annotation, container);
   return {
     key: keyPart(`${annotation.field}-${layer.id}`),
     field: annotation.field,
@@ -337,11 +368,35 @@ export function compileFigmaPublisherInput(input: FigmaPublisherInput): FigmaPub
       });
     }
 
+    const containersByField = new Map<string, FigmaPublisherLayer>();
+    frame.layers.forEach((layer, layerIndex) => {
+      if (layer.kind !== "container") return;
+      const field = parseAnnotation(layer.name).containerFor;
+      if (!field) {
+        issues.push({
+          path: `frames.${frameIndex}.layers.${layerIndex}.name`,
+          message: "Container layers require cg:containerFor=<field>.",
+        });
+        return;
+      }
+      if (containersByField.has(field)) {
+        issues.push({
+          path: `frames.${frameIndex}.layers.${layerIndex}.name`,
+          message: `Field "${field}" has more than one capacity container.`,
+        });
+        return;
+      }
+      containersByField.set(field, layer);
+    });
+
     const slots = frame.layers.flatMap((layer, layerIndex) => {
       try {
-        const slot = buildSlot(layer);
-        if (!slot) return [];
         const annotation = parseAnnotation(layer.name);
+        const slot = buildSlot(
+          layer,
+          annotation.field ? containersByField.get(annotation.field) : undefined
+        );
+        if (!slot) return [];
         upsertField(
           fields,
           {

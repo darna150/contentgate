@@ -19,6 +19,19 @@ export type TemplatePipelineEvent = {
   damBoundFieldCount?: number;
   durationMs?: number;
   reason?: string;
+  generationRequestId?: string;
+  stage?: string;
+  outcomeCode?: string;
+  attempt?: number;
+  model?: string;
+  provider?: string;
+  providerResponseId?: string;
+  inputTokens?: number;
+  outputTokens?: number;
+  fieldBudgets?: Record<
+    string,
+    { hardMaxChars: number; generationTargetChars: number; actualChars?: number }
+  >;
 };
 
 function cleanEvent(event: TemplatePipelineEvent) {

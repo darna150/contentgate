@@ -318,6 +318,7 @@ export function StudioWorkspace({
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [overflowFields, setOverflowFields] = useState<string[]>([]);
   const [truncatedFields, setTruncatedFields] = useState<string[]>([]);
+  const [usedSafeFallback, setUsedSafeFallback] = useState(false);
   const [textLayoutByField, setTextLayoutByField] = useState<
     Record<string, TemplateBundleTextLayout> | undefined
   >(undefined);
@@ -467,7 +468,8 @@ export function StudioWorkspace({
     [activeVariantFields, selectedTemplate.platformManifest]
   );
   const activeFieldLimits = selectedTemplate.platformManifest
-    ? getTemplateBundleVariantFieldLimits(selectedTemplate.platformManifest, size)
+    ? content?.fieldLimits ??
+      getTemplateBundleVariantFieldLimits(selectedTemplate.platformManifest, size)
     : selectedTemplate.field_limits;
   const requiredFieldSet = useMemo(
     () => new Set(activeRequiredFields),
@@ -506,8 +508,9 @@ export function StudioWorkspace({
     [activeEditableFields, activeFieldLimits, draftFields, requiredFieldSet]
   );
   const hasIssues = activeEditableFields.some((key) => issuesByField[key].length > 0);
-  const truncationWarning =
-    truncatedFields.length > 0
+  const truncationWarning = usedSafeFallback
+    ? "ContentGate used a conservative, source-backed draft after live generation could not produce a compliant result. This draft is valid and editable."
+    : truncatedFields.length > 0
       ? `Some copy was shortened to fit the template (${truncatedFields.map(fieldLabel).join(", ")}). Review the draft and regenerate if the meaning changed.`
       : null;
   const hasLayoutOverflow = overflowFields.length > 0;
@@ -815,6 +818,8 @@ export function StudioWorkspace({
     setHasManualEdits(nextContent?.manuallyEdited ?? false);
     setShowOriginal(true);
     setError(null);
+    setTruncatedFields([]);
+    setUsedSafeFallback(false);
     setCopied(false);
     setOverflowFields([]);
     setSaveState("idle");
@@ -910,6 +915,7 @@ export function StudioWorkspace({
     setBusy(true);
     setError(null);
     setTruncatedFields([]);
+    setUsedSafeFallback(false);
     try {
       const assetChoices = Object.fromEntries(
         activeAssetChoiceFieldKeys.flatMap((key) => {
@@ -981,6 +987,10 @@ export function StudioWorkspace({
         citations: Array.isArray(result.evidence)
           ? (result.evidence as StudioContent["citations"])
           : [],
+        fieldLimits:
+          result.fieldLimits && typeof result.fieldLimits === "object"
+            ? (result.fieldLimits as StudioContent["fieldLimits"])
+            : null,
         templateVersionId: selectedTemplate.templateVersionId ?? null,
         outputSize: (result.outputSize as string | null) ?? size,
         campaignRootContentId:
@@ -1021,9 +1031,10 @@ export function StudioWorkspace({
       setTruncatedFields(
         Array.isArray(result.truncatedFields) ? (result.truncatedFields as string[]) : []
       );
+      setUsedSafeFallback(result.fallbackUsed === true);
       track("studio_generation_completed", {
         duration_ms: Math.round(performance.now() - generationStartedAt),
-        outcome: "success",
+        outcome: result.fallbackUsed === true ? "safe_fallback" : "success",
         fit_state: Array.isArray(result.truncatedFields) && result.truncatedFields.length > 0 ? "trimmed" : "ready",
         evidence_count: Array.isArray(result.evidence) ? result.evidence.length : 0,
       });

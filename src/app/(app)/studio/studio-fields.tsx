@@ -1,5 +1,6 @@
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { graphemeCount } from "@/lib/graphemes";
 import { fieldLabel } from "@/lib/templates";
 import type { FieldIssue, FieldLimits } from "@/lib/template-fields";
 import { cn } from "@/lib/utils";
@@ -19,7 +20,7 @@ function fitIndicator(input: {
   empty: boolean;
 }) {
   const max = input.limit?.max_chars;
-  const count = input.value.length;
+  const count = graphemeCount(input.value);
   if (max) {
     if (count > max) return `${count}/${max} · over by ${count - max}`;
     if (input.overflowing) return `${count}/${max} · layout over`;
