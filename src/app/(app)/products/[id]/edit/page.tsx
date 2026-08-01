@@ -6,6 +6,9 @@ import { ProductAssetPanel } from "@/components/assets/product-asset-panel";
 import type { AssetItem } from "@/components/assets/types";
 import { createProductAssetPreviewUrlMap } from "@/lib/product-assets-server";
 import { ArchiveProductButton } from "../_workspace/archive-product-button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 
 const CLAIM_STATES = [
   { status: "approved", label: "Active" },
@@ -131,7 +134,7 @@ export default async function EditProductPage({
   return (
     <div className="mx-auto flex max-w-[720px] flex-col gap-6 px-4 py-9 sm:px-10">
       <div className="flex flex-col gap-1.5">
-        <a href={`/products/${id}`} className="text-[13px] font-semibold text-brand hover:underline">
+        <a href={`/products/${id}`} className="text-[13px] font-semibold text-brand-strong hover:underline">
           ← {product.name}
         </a>
         <h1 className="text-h1 text-ink">Edit product</h1>
@@ -143,38 +146,41 @@ export default async function EditProductPage({
           <h2 className="text-[15px] font-bold">Product details</h2>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-[12px] font-semibold uppercase tracking-[0.06em] text-ink-faint">
+            <Label htmlFor="product-name" className="text-[12px] tracking-[0.06em]">
               Product name <span className="text-reject">*</span>
-            </label>
-            <input
+            </Label>
+            <Input
+              id="product-name"
               name="name"
               required
               defaultValue={product.name}
-              className="rounded-control border border-edge bg-page px-3.5 py-2.5 text-[13.5px] placeholder:text-ink-faint focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
+              className="bg-page px-3.5 md:text-[13.5px]"
             />
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-[12px] font-semibold uppercase tracking-[0.06em] text-ink-faint">
+            <Label htmlFor="product-description" className="text-[12px] tracking-[0.06em]">
               Description
-            </label>
-            <textarea
+            </Label>
+            <Textarea
+              id="product-description"
               name="description"
               rows={3}
               defaultValue={product.description ?? ""}
-              className="resize-none rounded-control border border-edge bg-page px-3.5 py-2.5 text-[13.5px] placeholder:text-ink-faint focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
+              className="resize-none bg-page px-3.5 py-2.5 md:text-[13.5px]"
             />
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-[12px] font-semibold uppercase tracking-[0.06em] text-ink-faint">
+            <Label htmlFor="product-disclaimer" className="text-[12px] tracking-[0.06em]">
               Mandatory disclaimer
-            </label>
-            <textarea
+            </Label>
+            <Textarea
+              id="product-disclaimer"
               name="disclaimer_text"
               rows={3}
               defaultValue={product.disclaimer_text ?? ""}
-              className="resize-none rounded-control border border-edge bg-page px-3.5 py-2.5 text-[13.5px] placeholder:text-ink-faint focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
+              className="resize-none bg-page px-3.5 py-2.5 md:text-[13.5px]"
             />
           </div>
         </div>
@@ -253,6 +259,7 @@ export default async function EditProductPage({
                         <form key={state.status} action={action}>
                           <button
                             type="submit"
+                            aria-pressed={active}
                             className={`rounded-[7px] px-2.5 py-1 text-[11px] font-semibold transition-colors ${
                               active ? activeClass : "text-ink-faint hover:text-ink"
                             }`}

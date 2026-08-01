@@ -5,6 +5,7 @@ import { useMemo, useState, useTransition } from "react";
 import { updateStructuredFields, submitForReview } from "../actions";
 import { fieldLabel, type Evidence } from "@/lib/templates";
 import { fieldLimitText, type FieldLimits } from "@/lib/template-fields";
+import { sliceGraphemes } from "@/lib/graphemes";
 
 export function StructuredReview({
   id,
@@ -87,18 +88,28 @@ export function StructuredReview({
             const rows = limits[key]?.max_lines ?? (key === "body" ? 4 : 2);
             return (
               <div key={key} className="flex flex-col gap-1.5">
-                <label className="text-[12px] font-semibold uppercase tracking-[0.06em] text-ink-faint">
+                <label
+                  htmlFor={`review-field-${id}-${key}`}
+                  className="text-[12px] font-semibold uppercase tracking-[0.06em] text-ink-faint"
+                >
                   {fieldLabel(key)}{" "}
                   <span className="font-normal normal-case tracking-normal">
                     · {fieldLimitText(limits[key])}
                   </span>
                 </label>
                 <textarea
+                  id={`review-field-${id}-${key}`}
                   value={fields[key] ?? ""}
-                  onChange={(e) => setField(key, e.target.value)}
+                  onChange={(e) =>
+                    setField(
+                      key,
+                      limits[key]?.max_chars
+                        ? sliceGraphemes(e.target.value, 0, limits[key]?.max_chars)
+                        : e.target.value
+                    )
+                  }
                   readOnly={!editable}
                   disabled={busy}
-                  maxLength={limits[key]?.max_chars}
                   rows={rows}
                   className={
                     isHeadline
@@ -145,6 +156,7 @@ export function StructuredReview({
           )}
           {message && (
             <span
+              role={message.kind === "error" ? "alert" : "status"}
               className={`text-[12.5px] font-semibold ${
                 message.kind === "ok" ? "text-approve" : "text-reject"
               }`}

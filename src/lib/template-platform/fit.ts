@@ -1,7 +1,11 @@
 import { createRequire } from "node:module";
 import type { Font, Glyph } from "opentype.js";
 
-import { trimDanglingCopyEnd } from "../generated-copy-quality.ts";
+import {
+  repairGeneratedCopyQualityText,
+  trimDanglingCopyEnd,
+} from "../generated-copy-quality.ts";
+import { graphemeCount, sliceGraphemes, splitGraphemes } from "../graphemes.ts";
 import { fieldIssues, type FieldIssue } from "../template-fields.ts";
 import type { TemplateBundleManifest, TemplateBundleTextSlot } from "./manifest.ts";
 import {
@@ -27,6 +31,21 @@ export type TemplatePlatformTextLayout = {
 export type TemplatePlatformFontSource = {
   assetUrlByPath?: Record<string, string>;
   assetDataByPath?: Record<string, ArrayBuffer | Uint8Array>;
+};
+
+export const GENERATION_CHARACTER_SAFETY_RATIO = 0.85;
+
+export type TemplatePlatformFieldBudget = {
+  field: string;
+  hardMaxChars: number;
+  generationTargetChars: number;
+  geometryCapacityChars: number;
+  authoredMaxChars: number | null;
+  maxLines: number;
+  fontSize: number;
+  minFontSize: number;
+  width: number;
+  height: number;
 };
 
 const fontPromises = new Map<string, Promise<Font>>();
@@ -105,6 +124,90 @@ function textSlots(manifest: TemplateBundleManifest, variantKey: string) {
   );
 }
 
+const CHARACTER_CALIBRATION_SET =
+  "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.,:;!?-()&%/";
+
+function percentile(values: number[], quantile: number) {
+  if (!values.length) return 1;
+  const sorted = [...values].sort((a, b) => a - b);
+  const index = Math.min(sorted.length - 1, Math.max(0, Math.ceil(sorted.length * quantile) - 1));
+  return sorted[index] ?? 1;
+}
+
+/**
+ * Derive a per-slot character capacity from the actual bundled font and the
+ * Figma-authored text container. The 75th-percentile glyph width is
+ * deliberately conservative without treating every field as if it contained
+ * only the widest glyph in the font. Real glyph layout remains the final gate.
+ */
+export async function calibrateTemplatePlatformFieldBudgets(
+  input: {
+    manifest: TemplateBundleManifest;
+    variantKey: string;
+    safetyRatio?: number;
+  } & TemplatePlatformFontSource
+): Promise<Record<string, TemplatePlatformFieldBudget>> {
+  const safetyRatio = Math.min(0.95, Math.max(0.5, input.safetyRatio ?? GENERATION_CHARACTER_SAFETY_RATIO));
+  const entries = await Promise.all(
+    textSlots(input.manifest, input.variantKey).map(async (slot) => {
+      const font = await loadTemplateFont(input.manifest, slot, input);
+      const minFontSize =
+        slot.fit === "shrink_to_fit" && slot.minFontSize
+          ? Math.min(slot.fontSize, slot.minFontSize)
+          : slot.fontSize;
+      const glyphWidths = splitGraphemes(CHARACTER_CALIBRATION_SET).map((character) =>
+        glyphWidth(font, character, minFontSize, 0)
+      );
+      const representativeGlyphWidth = Math.max(
+        1,
+        percentile(glyphWidths, 0.75) + Math.max(0, slot.letterSpacing ?? 0)
+      );
+      const verticalLines = Math.max(
+        1,
+        Math.floor((slot.height + 0.5) / (minFontSize * slot.lineHeight))
+      );
+      const usableLines = Math.max(1, Math.min(slot.maxLines, verticalLines));
+      const charactersPerLine = Math.max(1, Math.floor(slot.width / representativeGlyphWidth));
+      const geometryCapacityChars = Math.max(
+        1,
+        charactersPerLine * usableLines - Math.max(0, usableLines - 1)
+      );
+      const legacyNimbusGeometryContract =
+        input.manifest.family.key === "nimbus-air-campaign" &&
+        slot.maxCharsSource == null;
+      const authoredMaxChars =
+        slot.maxCharsSource !== "geometry" &&
+        !legacyNimbusGeometryContract &&
+        slot.maxChars
+          ? Math.floor(slot.maxChars)
+          : null;
+      const hardMaxChars = Math.max(
+        1,
+        authoredMaxChars
+          ? Math.min(authoredMaxChars, geometryCapacityChars)
+          : geometryCapacityChars
+      );
+      const generationTargetChars = Math.max(1, Math.floor(hardMaxChars * safetyRatio));
+      return [
+        slot.field,
+        {
+          field: slot.field,
+          hardMaxChars,
+          generationTargetChars,
+          geometryCapacityChars,
+          authoredMaxChars,
+          maxLines: usableLines,
+          fontSize: slot.fontSize,
+          minFontSize,
+          width: slot.width,
+          height: slot.height,
+        },
+      ] as const;
+    })
+  );
+  return Object.fromEntries(entries);
+}
+
 /** Return only required-field issues here; measured fit is evaluated separately. */
 export function templatePlatformRequiredFieldIssues(
   manifest: TemplateBundleManifest,
@@ -126,14 +229,17 @@ export function templatePlatformRequiredFieldIssues(
 
 function trimLastWord(value: string) {
   const words = value.split(/\s+/).filter(Boolean);
-  if (words.length <= 1) return value.slice(0, Math.max(0, value.length - 1)).trim();
+  if (words.length <= 1) {
+    return sliceGraphemes(value, 0, Math.max(0, graphemeCount(value) - 1)).trim();
+  }
   return words.slice(0, -1).join(" ").trim();
 }
 
 function trimToCharacterLimit(value: string, maxChars: number) {
-  if (value.length <= maxChars) return value;
-  const sliced = value.slice(0, maxChars).trim();
-  if (!sliced || /\s/.test(value[maxChars] ?? "")) return sliced;
+  if (graphemeCount(value) <= maxChars) return value;
+  const graphemes = splitGraphemes(value);
+  const sliced = graphemes.slice(0, maxChars).join("").trim();
+  if (!sliced || /\s/.test(graphemes[maxChars] ?? "")) return sliced;
   return sliced.replace(/\s+\S+$/, "").trim() || sliced;
 }
 
@@ -387,7 +493,11 @@ export async function coerceTemplatePlatformFieldsToFit(
 
       const tooLongWord = layout.overlongWords[0];
       if (tooLongWord) {
-        const replacement = tooLongWord.slice(0, Math.max(1, tooLongWord.length - 1));
+        const replacement = sliceGraphemes(
+          tooLongWord,
+          0,
+          Math.max(1, graphemeCount(tooLongWord) - 1)
+        );
         value = value.replace(tooLongWord, replacement).trim();
       } else {
         value = trimLastWord(value);
@@ -397,9 +507,9 @@ export async function coerceTemplatePlatformFieldsToFit(
     }
 
     if (value !== original) value = trimDanglingCopyEnd(value);
-
-    coerced[slot.field] = value;
-    if (value !== original) truncatedFields.push(slot.field);
+    const repaired = repairGeneratedCopyQualityText(value);
+    coerced[slot.field] = repaired;
+    if (repaired !== original) truncatedFields.push(slot.field);
   }
 
   return { fields: coerced, truncatedFields };

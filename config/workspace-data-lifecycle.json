@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "orgScopedTables": [
+    { "name": "asset_media_jobs", "purpose": "Asset processing queue and diagnostics", "retentionClass": "workspace" },
+    { "name": "audit_log", "purpose": "Workspace governance and security history", "retentionClass": "audit" },
+    { "name": "brand_voice_versions", "purpose": "Versioned brand voice configuration", "retentionClass": "workspace" },
+    { "name": "brand_voices", "purpose": "Current brand voice configuration", "retentionClass": "workspace" },
+    { "name": "campaigns", "purpose": "Campaign grouping and briefs", "retentionClass": "workspace" },
+    { "name": "documents", "purpose": "Customer knowledge source records and extracted text", "retentionClass": "workspace" },
+    { "name": "generated_content", "purpose": "Generated and governed content", "retentionClass": "workspace" },
+    { "name": "generated_content_events", "purpose": "Content governance event history", "retentionClass": "audit" },
+    { "name": "generated_content_revisions", "purpose": "Versioned governed content", "retentionClass": "workspace" },
+    { "name": "knowledge_chunks", "purpose": "Searchable derived knowledge", "retentionClass": "derived" },
+    { "name": "knowledge_queries", "purpose": "Ask queries and answer metadata", "retentionClass": "operational" },
+    { "name": "knowledge_query_feedback", "purpose": "User feedback on Ask responses", "retentionClass": "operational" },
+    { "name": "notebook_sessions", "purpose": "Ask notebook conversation state", "retentionClass": "workspace" },
+    { "name": "organization_feature_flags", "purpose": "Workspace feature configuration", "retentionClass": "workspace" },
+    { "name": "product_asset_versions", "purpose": "Versioned product asset metadata", "retentionClass": "workspace" },
+    { "name": "product_assets", "purpose": "Product asset metadata and lifecycle", "retentionClass": "workspace" },
+    { "name": "product_claims", "purpose": "Approved product claims and evidence", "retentionClass": "workspace" },
+    { "name": "product_template_assignments", "purpose": "Product-to-template configuration", "retentionClass": "workspace" },
+    { "name": "product_templates", "purpose": "Legacy product template configuration", "retentionClass": "workspace" },
+    { "name": "products", "purpose": "Product records", "retentionClass": "workspace" },
+    { "name": "profiles", "purpose": "Workspace membership and authorization state", "retentionClass": "identity" },
+    { "name": "render_jobs", "purpose": "Render queue, output metadata, and diagnostics", "retentionClass": "operational" },
+    { "name": "template_assets", "purpose": "Template bundle asset metadata", "retentionClass": "workspace" },
+    { "name": "template_families", "purpose": "Reusable template families", "retentionClass": "workspace" },
+    { "name": "template_import_runs", "purpose": "Template import diagnostics", "retentionClass": "operational" },
+    { "name": "template_variants", "purpose": "Template sizes and field contracts", "retentionClass": "workspace" },
+    { "name": "template_versions", "purpose": "Versioned template manifests", "retentionClass": "workspace" },
+    { "name": "templates", "purpose": "Legacy prompt templates", "retentionClass": "workspace" },
+    { "name": "uiux_measurement_events", "purpose": "Beta UX measurement events", "retentionClass": "operational" }
+  ],
+  "controlPlaneTables": [
+    { "name": "organizations", "scope": "id", "purpose": "Workspace account and policy record" },
+    { "name": "onboarding_runs", "scope": "organization_id", "purpose": "Provisioning receipts and package blueprint" },
+    { "name": "onboarding_run_steps", "scope": "run_id", "purpose": "Provisioning execution diagnostics" },
+    { "name": "onboarding_package_uploads", "scope": "operator_user_id", "purpose": "Short-lived package upload tracking; not reliably workspace-linked" },
+    { "name": "workspace_data_export_receipts", "scope": "target_organization_id", "purpose": "Global export evidence retained after workspace removal" },
+    { "name": "workspace_deletion_receipts", "scope": "target_organization_id", "purpose": "Global deletion evidence retained after workspace removal" }
+  ],
+  "storageBuckets": [
+    { "name": "documents", "scope": "org-prefix", "purpose": "Customer source documents" },
+    { "name": "onboarding-packages", "scope": "explicit-upload-path", "purpose": "Short-lived onboarding package archives" },
+    { "name": "product-assets", "scope": "org-prefix", "purpose": "Customer product asset originals and derivatives" },
+    { "name": "rendered-assets", "scope": "org-prefix", "purpose": "Generated render outputs" },
+    { "name": "template-bundles", "scope": "org-prefix", "purpose": "Customer template bundle files" }
+  ],
+  "authData": [
+    { "name": "auth.users", "purpose": "Authentication identity and sign-in state", "export": "limited-metadata" },
+    { "name": "auth.mfa_factors", "purpose": "MFA enrollment state", "export": "factor-type-and-status-only" },
+    { "name": "auth.sessions", "purpose": "Authentication sessions", "export": "not-customer-exported" }
+  ]
+}

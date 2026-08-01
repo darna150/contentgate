@@ -1,3 +1,5 @@
+import { graphemeCount, sliceGraphemes } from "./graphemes.ts";
+
 export type FieldLimit = {
   max_chars?: number;
   max_words?: number;
@@ -56,8 +58,8 @@ export function fitFieldValue(value: unknown, limit?: FieldLimit): string {
   if (limit?.max_words) {
     text = text.split(/\s+/).slice(0, limit.max_words).join(" ");
   }
-  if (limit?.max_chars && text.length > limit.max_chars) {
-    text = text.slice(0, limit.max_chars).trimEnd();
+  if (limit?.max_chars && graphemeCount(text) > limit.max_chars) {
+    text = sliceGraphemes(text, 0, limit.max_chars).trimEnd();
   }
   return text;
 }
@@ -73,10 +75,11 @@ export function fieldIssues(
   if (required && !trimmed) {
     issues.push({ type: "required", message: "Required field" });
   }
-  if (limit?.max_chars && text.length > limit.max_chars) {
+  const characters = graphemeCount(text);
+  if (limit?.max_chars && characters > limit.max_chars) {
     issues.push({
       type: "characters",
-      message: `${text.length - limit.max_chars} characters over`,
+      message: `${characters - limit.max_chars} characters over`,
     });
   }
   const words = trimmed ? trimmed.split(/\s+/).length : 0;

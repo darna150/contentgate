@@ -1,0 +1,191 @@
+[
+  {
+    "source": "src/app/page.tsx",
+    "route": "/",
+    "access": "public",
+    "gate": "public-browser",
+    "states": ["marketing landing page", "format showcase interaction", "mobile reflow"]
+  },
+  {
+    "source": "src/app/login/page.tsx",
+    "route": "/login",
+    "access": "public",
+    "gate": "public-browser",
+    "states": ["empty form", "invalid credentials", "busy submission", "successful keyboard sign-in"]
+  },
+  {
+    "source": "src/app/forgot-password/page.tsx",
+    "route": "/forgot-password",
+    "access": "public",
+    "gate": "public-browser",
+    "states": ["empty form", "busy submission", "generic confirmation", "delivery error"]
+  },
+  {
+    "source": "src/app/reset-password/page.tsx",
+    "route": "/reset-password",
+    "access": "recovery link recipient",
+    "gate": "public-browser",
+    "states": ["verifying link", "expired link", "password validation", "successful password update"]
+  },
+  {
+    "source": "src/app/welcome/page.tsx",
+    "route": "/welcome",
+    "access": "invited user",
+    "gate": "public-browser",
+    "states": ["profile setup", "validation error", "busy submission"]
+  },
+  {
+    "source": "src/app/mfa/page.tsx",
+    "route": "/mfa",
+    "access": "admin",
+    "gate": "authenticated-mfa-browser",
+    "states": ["loading", "new enrollment", "existing-factor challenge", "invalid code", "verified session"]
+  },
+  {
+    "source": "src/app/(app)/dashboard/page.tsx",
+    "route": "/dashboard",
+    "access": "member, approver, admin",
+    "gate": "authenticated-browser",
+    "states": ["recent activity", "empty activity", "desktop navigation", "mobile navigation"]
+  },
+  {
+    "source": "src/app/(app)/products/page.tsx",
+    "route": "/products",
+    "access": "member, approver, admin",
+    "gate": "authenticated-browser",
+    "states": ["product list", "empty list", "admin create action", "read-only role"]
+  },
+  {
+    "source": "src/app/(app)/products/new/page.tsx",
+    "route": "/products/new",
+    "access": "admin",
+    "gate": "authenticated-browser",
+    "states": ["empty form", "required validation", "successful submission", "non-admin redirect"]
+  },
+  {
+    "source": "src/app/(app)/products/[id]/page.tsx",
+    "route": "/products/:productId",
+    "access": "member, approver, admin",
+    "gate": "full-fixture-browser",
+    "states": ["overview", "campaigns", "content", "reviews", "brand knowledge", "assets", "missing product"]
+  },
+  {
+    "source": "src/app/(app)/products/[id]/edit/page.tsx",
+    "route": "/products/:productId/edit",
+    "access": "admin",
+    "gate": "full-fixture-browser",
+    "states": ["details form", "claim state controls", "asset dialogs", "archive confirmation", "non-admin redirect"]
+  },
+  {
+    "source": "src/app/(app)/products/[id]/templates/[templateId]/page.tsx",
+    "route": "/products/:productId/templates/:templateId",
+    "access": "member, approver, admin redirect",
+    "gate": "redirect-contract",
+    "states": ["legacy URL redirects to product campaigns"]
+  },
+  {
+    "source": "src/app/(app)/content/page.tsx",
+    "route": "/content",
+    "access": "member, approver, admin",
+    "gate": "authenticated-browser",
+    "states": ["all statuses", "filtered status", "empty result", "pagination"]
+  },
+  {
+    "source": "src/app/(app)/content/[id]/page.tsx",
+    "route": "/content/:contentId",
+    "access": "author, approver, admin",
+    "gate": "full-fixture-browser",
+    "states": ["draft editing", "in-review approval", "request changes", "rejected note", "approved export", "revision history", "missing content"]
+  },
+  {
+    "source": "src/app/(app)/approvals/page.tsx",
+    "route": "/approvals",
+    "access": "member, approver, admin",
+    "gate": "authenticated-browser",
+    "states": ["pending queue", "empty queue", "product filter", "pagination"]
+  },
+  {
+    "source": "src/app/(app)/assets/page.tsx",
+    "route": "/assets",
+    "access": "member, approver, admin",
+    "gate": "authenticated-browser",
+    "states": ["grid view", "list view", "combined filters", "preview dialog", "upload dialog", "edit dialog", "delete confirmation", "empty result"]
+  },
+  {
+    "source": "src/app/(app)/ask/page.tsx",
+    "route": "/ask",
+    "access": "member, approver, admin",
+    "gate": "authenticated-browser",
+    "states": ["empty notebook", "question submission", "answer with citations", "no-evidence response", "session drawer", "mobile composer"]
+  },
+  {
+    "source": "src/app/(app)/ask/quality/page.tsx",
+    "route": "/ask/quality",
+    "access": "admin",
+    "gate": "authenticated-browser",
+    "states": ["quality metrics", "feedback list", "empty metrics", "non-admin redirect"]
+  },
+  {
+    "source": "src/app/(app)/knowledge/page.tsx",
+    "route": "/knowledge",
+    "access": "admin",
+    "gate": "authenticated-browser",
+    "states": ["source list", "empty list", "index status", "non-admin redirect"]
+  },
+  {
+    "source": "src/app/(app)/knowledge/new/page.tsx",
+    "route": "/knowledge/new",
+    "access": "admin",
+    "gate": "authenticated-browser",
+    "states": ["paste source", "file upload", "paragraph preview", "validation error", "non-admin redirect"]
+  },
+  {
+    "source": "src/app/(app)/knowledge/[id]/page.tsx",
+    "route": "/knowledge/:documentId",
+    "access": "member, approver, admin",
+    "gate": "full-fixture-browser",
+    "states": ["approved source", "inactive source", "original file", "delete confirmation", "read-only role", "missing source"]
+  },
+  {
+    "source": "src/app/(app)/templates/page.tsx",
+    "route": "/templates",
+    "access": "admin",
+    "gate": "authenticated-browser",
+    "states": ["families", "import preflight", "publish", "assignment controls", "render jobs", "empty sections", "non-admin redirect"]
+  },
+  {
+    "source": "src/app/(app)/settings/page.tsx",
+    "route": "/settings",
+    "access": "admin",
+    "gate": "authenticated-browser",
+    "states": ["MFA unenforced", "MFA session verified", "MFA required", "member directory", "invite form", "invite error", "invite success", "non-admin redirect"]
+  },
+  {
+    "source": "src/app/(app)/onboarding/page.tsx",
+    "route": "/onboarding",
+    "access": "platform operator",
+    "gate": "operator-browser",
+    "states": ["package selection", "preflight failure", "preflight success", "provisioning", "completion receipt", "non-operator redirect"]
+  },
+  {
+    "source": "src/app/(app)/studio/page.tsx",
+    "route": "/studio",
+    "access": "member, approver, admin redirect",
+    "gate": "redirect-contract",
+    "states": ["legacy query redirects to new or existing Studio route"]
+  },
+  {
+    "source": "src/app/(app)/studio/new/page.tsx",
+    "route": "/studio/new",
+    "access": "member, approver, admin",
+    "gate": "full-fixture-browser",
+    "states": ["empty Studio", "template selected", "format navigation", "generation", "loading", "error", "rate limited", "unsaved changes", "mobile layout"]
+  },
+  {
+    "source": "src/app/(app)/studio/[contentId]/page.tsx",
+    "route": "/studio/:contentId",
+    "access": "author, approver, admin",
+    "gate": "full-fixture-browser",
+    "states": ["draft editing", "autosave", "preview update", "in-review summary", "approval controls", "rejected revision", "approved export", "missing content"]
+  }
+]

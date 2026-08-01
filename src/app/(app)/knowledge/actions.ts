@@ -2,8 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireAdminMfa } from "@/lib/auth/admin-mfa";
 import { normalizeParagraphs, segmentParagraphs } from "@/lib/paragraphs";
 import { extractDocumentText } from "@/lib/document-extraction";
 import {
@@ -19,21 +19,13 @@ import { importSourcePage } from "@/lib/source-url";
 import { normalizeSourceUrl } from "@/lib/source-url-shared";
 
 async function requireAdminProfile() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("org_id, role")
-    .eq("id", user.id)
-    .single();
-  if (!profile) redirect("/login");
-  if (profile.role !== "admin") throw new Error("Admins only");
-
-  return { supabase, user, profile };
+  const context = await requireAdminMfa();
+  if (!context) throw new Error("Administrator MFA verification is required.");
+  return {
+    supabase: context.supabase,
+    user: { id: context.userId },
+    profile: { org_id: context.orgId, role: context.role },
+  };
 }
 
 function writeAudit(entry: {

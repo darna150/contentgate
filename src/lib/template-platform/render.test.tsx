@@ -40,6 +40,34 @@ test("renders platform bundle generated mode with background and text slots", as
   assert.match(html, /overflow:hidden/);
 });
 
+test("renders an asset slot without inventing a shadow treatment", () => {
+  const rendered = renderTemplateBundleVariant({
+    manifest: validTemplateBundleManifest,
+    variantKey: "square",
+    fields: {
+      headline: "Stable preview",
+      hero_image: "https://assets.example.test/product.png",
+    },
+  });
+  assert.ok(rendered);
+  const html = renderToStaticMarkup(rendered.element);
+  assert.match(html, /https:\/\/assets\.example\.test\/product\.png/);
+  assert.doesNotMatch(html, /rgba\(0,0,0,.34\)/);
+  assert.doesNotMatch(html, /filter:blur/);
+});
+
+test("unresolved text never uses browser line-clamp ellipsis", () => {
+  const rendered = renderTemplateBundleVariant({
+    manifest: validTemplateBundleManifest,
+    variantKey: "square",
+    fields: { headline: "A preview awaiting authoritative glyph measurement" },
+  });
+  assert.ok(rendered);
+  const html = renderToStaticMarkup(rendered.element);
+  assert.doesNotMatch(html, /-webkit-line-clamp/);
+  assert.doesNotMatch(html, /-webkit-box/);
+});
+
 test("renders platform bundle with signed asset URLs when provided", async () => {
   const bundle = await buildContentGateTemplateBundle("contentgate_local_premium");
   const rendered = renderTemplateBundleVariant({

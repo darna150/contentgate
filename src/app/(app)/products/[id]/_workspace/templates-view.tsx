@@ -74,7 +74,12 @@ function TemplateCard({
               className="overflow-hidden rounded-[10px] border border-edge bg-brand-tint"
               style={{ aspectRatio: dims ? `${dims.width} / ${dims.height}` : "1 / 1" }}
             >
-              <PreviewImage src={imageSrc(previewPath)} alt={`${template.familyName} original design`} />
+              <PreviewImage
+                src={imageSrc(previewPath)}
+                alt={`${template.familyName} original design`}
+                loading="eager"
+                revealImmediately
+              />
             </div>
           ) : null}
           <p className="text-[12px] leading-5 text-ink-muted">
@@ -186,7 +191,7 @@ export function TemplatesView({ workspace }: { workspace: ProductWorkspace }) {
     <div className="flex flex-col gap-5">
       <div className="max-w-2xl">
         <p className="text-label text-ink-faint">Campaigns</p>
-        <h1 className="mt-1 text-[24px] font-bold tracking-[-0.03em] text-ink">Make every format feel like one campaign.</h1>
+        <h2 className="mt-1 text-[24px] font-bold tracking-[-0.03em] text-ink">Make every format feel like one campaign.</h2>
       </div>
       {isArchived ? (
         <p className="rounded-control border border-edge-strong bg-page px-4 py-3 text-[13px] text-ink-muted">

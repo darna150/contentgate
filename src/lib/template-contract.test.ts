@@ -226,3 +226,26 @@ test("template field validation can leave optional fields blank", () => {
     }
   );
 });
+
+test("template field validation rejects over-limit optional AI copy when populated", () => {
+  const fields = {
+    headline: "RUN ON AIR",
+    subheadline_2:
+      "Cloud-soft cushioning, ready for real-world speed, everyday comfort",
+  };
+
+  assert.deepEqual(
+    templateFieldIssues(
+      fields,
+      ["headline", "subheadline_2"],
+      {
+        headline: { max_chars: 24, max_lines: 1 },
+        subheadline_2: { max_chars: 56, max_lines: 3 },
+      },
+      ["headline"]
+    ),
+    {
+      subheadline_2: [{ type: "characters", message: "11 characters over" }],
+    }
+  );
+});

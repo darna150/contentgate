@@ -22,5 +22,5 @@ end;
 $$;
 
 create index if not exists documents_approved_evidence_idx
-  on public.documents (org_id, product_id, created_at desc)
+  on public.documents (org_id, product_id, updated_at desc)
   where approval_status = 'approved';

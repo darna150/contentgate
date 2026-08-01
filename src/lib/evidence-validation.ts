@@ -54,6 +54,47 @@ export function evidenceQuoteIsApproved(
   return findGroundingSource(quote, approvedSources) !== null;
 }
 
+export type PromptGroundingSource = {
+  id: string;
+  text: string;
+};
+
+export function resolvePromptGroundingCitation(input: {
+  sourceId?: string;
+  quote: string;
+  sources: readonly PromptGroundingSource[];
+}): { approvedSource: string; excerpt: string } | null {
+  const citedSource = input.sourceId
+    ? input.sources.find((source) => source.id === input.sourceId)
+    : null;
+
+  // Prompt-local source IDs are unambiguous. When the model selects a real
+  // approved source but supplies an excerpt that is empty or too short for
+  // the anti-generic quote threshold, retain the full approved source as the
+  // auditable excerpt instead of falsely claiming that no evidence exists.
+  if (citedSource) {
+    const quote = input.quote.trim();
+    const quoteIsVerbatim = quote
+      ? normalize(citedSource.text).includes(normalize(quote))
+      : false;
+    return {
+      approvedSource: citedSource.text,
+      excerpt:
+        quoteIsVerbatim && findGroundingSource(quote, [citedSource.text])
+          ? quote
+          : citedSource.text,
+    };
+  }
+
+  const approvedSource = findGroundingSource(
+    input.quote,
+    input.sources.map((source) => source.text)
+  );
+  return approvedSource
+    ? { approvedSource, excerpt: input.quote.trim() }
+    : null;
+}
+
 export type GeneratedFieldEvidence = {
   field: string;
   // The fuller approved source text the quote came from. Kept for display and

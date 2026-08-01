@@ -69,6 +69,8 @@ export type TemplateBundleTextSlot = {
   align?: "left" | "center" | "right";
   verticalAlign?: "top" | "middle" | "bottom";
   maxChars?: number;
+  /** Whether maxChars is an intentional editorial cap or a geometry-derived cache. */
+  maxCharsSource?: "authored" | "geometry";
   maxWords?: number;
   maxLines: number;
   lineChars?: number;
@@ -105,6 +107,7 @@ export type TemplateBundleVariant = {
   width: number;
   height: number;
   referenceAsset: string;
+  referenceFields?: Readonly<Record<string, string>>;
   backgroundAsset: string;
   backgroundOptions?: readonly TemplateBundleBackgroundOption[];
   slots: readonly TemplateBundleSlot[];
@@ -351,6 +354,37 @@ export function validateTemplateBundleManifest(
         );
       }
     }
+    if (variant.referenceFields != null) {
+      if (!isRecord(variant.referenceFields)) {
+        issues.push(
+          issue(
+            "value",
+            `variants.${variantIndex}.referenceFields`,
+            "Reference fields must be an object."
+          )
+        );
+      } else {
+        for (const [key, value] of Object.entries(variant.referenceFields)) {
+          if (!fieldKeys.has(key)) {
+            issues.push(
+              issue(
+                "value",
+                `variants.${variantIndex}.referenceFields.${key}`,
+                `Reference copy field "${key}" is not declared.`
+              )
+            );
+          } else if (typeof value !== "string") {
+            issues.push(
+              issue(
+                "value",
+                `variants.${variantIndex}.referenceFields.${key}`,
+                "Reference copy values must be strings."
+              )
+            );
+          }
+        }
+      }
+    }
 
     const backgroundOptionKeys = new Set<string>();
     asArray(variant.backgroundOptions).forEach((option, optionIndex) => {
@@ -418,6 +452,19 @@ export function validateTemplateBundleManifest(
         }
         if (slot.maxChars != null && !isPositiveFinite(slot.maxChars)) {
           issues.push(issue("value", `${slotPath}.maxChars`, "Text slot maxChars must be positive."));
+        }
+        if (
+          slot.maxCharsSource != null &&
+          slot.maxCharsSource !== "authored" &&
+          slot.maxCharsSource !== "geometry"
+        ) {
+          issues.push(
+            issue(
+              "value",
+              `${slotPath}.maxCharsSource`,
+              'Text slot maxCharsSource must be "authored" or "geometry".'
+            )
+          );
         }
         if (slot.maxWords != null && !isPositiveFinite(slot.maxWords)) {
           issues.push(issue("value", `${slotPath}.maxWords`, "Text slot maxWords must be positive."));

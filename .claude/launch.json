@@ -5,7 +5,6 @@
       "name": "contentgate",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
-      "cwd": "/Users/debbiemelgarejo/Documents/Content Gate/contentgate",
       "port": 3001,
       "autoPort": true
     }

@@ -18,6 +18,7 @@ import {
   templatePreviewUrl,
 } from "@/lib/creative";
 import { studioEditableTemplateFields } from "@/lib/generation-evidence";
+import { revisionAvailabilityIssue } from "@/lib/revision-contract";
 import {
   STUDIO_PRODUCT_VARIANT_FIELD,
   studioDirtyState,
@@ -41,6 +42,11 @@ import {
 import { fieldLabel } from "@/lib/templates";
 import type { TemplateBundleTextLayout } from "@/lib/template-platform/render";
 import { fieldIssues } from "@/lib/template-fields";
+import { templateReferenceExportUrl } from "@/lib/studio-export";
+import {
+  getTemplateProductAssetPath,
+  getTemplateProductAssetPaths,
+} from "@/lib/template-platform/live-preview-assets";
 import {
   checkDraftStructuredFieldsFit,
   submitForReview,
@@ -53,6 +59,7 @@ import {
   MissingDraftFrame,
   ServerPreviewFrame,
 } from "./studio-preview";
+import type { PreviewZoom } from "@/lib/studio-preview-scale";
 import { StudioBackgroundPicker } from "./studio-background-picker";
 import { StudioFields } from "./studio-fields";
 import { StudioGeneratePanel } from "./studio-generate-panel";
@@ -89,6 +96,25 @@ function retryAfterSecondsFromPayload(payload: unknown) {
 }
 
 const PRODUCT_VARIANT_FIELD = STUDIO_PRODUCT_VARIANT_FIELD;
+
+// Hold preloaded images for the lifetime of the Studio session. Keeping the
+// decoded 600px product previews resident makes a product click as immediate
+// as a background click, including when the user changes format.
+const preloadedStudioImages = new Map<string, HTMLImageElement>();
+
+function preloadStudioImage(src: string) {
+  if (!src || preloadedStudioImages.has(src)) return;
+  const image = new Image();
+  image.decoding = "async";
+  image.onload = () => {
+    void image.decode().catch(() => undefined);
+  };
+  image.onerror = () => {
+    preloadedStudioImages.delete(src);
+  };
+  preloadedStudioImages.set(src, image);
+  image.src = src;
+}
 
 function StudioAssetChoicePicker({
   fieldKey,
@@ -146,6 +172,8 @@ function StudioAssetChoicePicker({
                 <img
                   src={option.previewUrl}
                   alt=""
+                  decoding="async"
+                  loading="eager"
                   className="size-8 rounded-[7px] object-cover ring-1 ring-black/10"
                 />
               ) : (
@@ -162,7 +190,10 @@ function StudioAssetChoicePicker({
 }
 
 async function downloadUrl(url: string, filename: string) {
-  const response = await fetch(url, { cache: "no-store" });
+  let response = await fetch(url, { cache: "no-store" });
+  if (response.status >= 500) {
+    response = await fetch(url, { cache: "no-store" });
+  }
   if (!response.ok) throw new Error("Download failed.");
   const blob = await response.blob();
   const objectUrl = URL.createObjectURL(blob);
@@ -287,9 +318,11 @@ export function StudioWorkspace({
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [overflowFields, setOverflowFields] = useState<string[]>([]);
   const [truncatedFields, setTruncatedFields] = useState<string[]>([]);
+  const [usedSafeFallback, setUsedSafeFallback] = useState(false);
   const [textLayoutByField, setTextLayoutByField] = useState<
     Record<string, TemplateBundleTextLayout> | undefined
   >(undefined);
+  const [fitCheckPending, setFitCheckPending] = useState(Boolean(initialContent));
   const [platformAssetUrlByPath, setPlatformAssetUrlByPath] = useState(
     selectedTemplate.platformAssetUrlByPath
   );
@@ -376,6 +409,25 @@ export function StudioWorkspace({
     selectedTemplate.assetChoiceOptionsByField?.[PRODUCT_VARIANT_FIELD]?.[0]?.key ||
     selectedTemplate.default_copy[PRODUCT_VARIANT_FIELD] ||
     "";
+  const productPreviewUrls = useMemo(() => {
+    const manifest = selectedTemplate.platformManifest;
+    if (!manifest) return [];
+    const selectedPath = getTemplateProductAssetPath(manifest, selectedProductVariantKey);
+    const paths = [
+      ...(selectedPath ? [selectedPath] : []),
+      ...getTemplateProductAssetPaths(manifest),
+    ];
+    return Array.from(new Set(paths))
+      .map((path) => platformAssetUrlByPath?.[path])
+      .filter((url): url is string => Boolean(url));
+  }, [
+    platformAssetUrlByPath,
+    selectedProductVariantKey,
+    selectedTemplate.platformManifest,
+  ]);
+  useEffect(() => {
+    productPreviewUrls.forEach(preloadStudioImage);
+  }, [productPreviewUrls]);
   const previewFields: Record<string, string> = useMemo(
     () =>
       studioPreviewFields({
@@ -417,12 +469,34 @@ export function StudioWorkspace({
     [activeVariantFields, selectedTemplate.platformManifest]
   );
   const activeFieldLimits = selectedTemplate.platformManifest
-    ? getTemplateBundleVariantFieldLimits(selectedTemplate.platformManifest, size)
+    ? content?.fieldLimits ??
+      getTemplateBundleVariantFieldLimits(selectedTemplate.platformManifest, size)
     : selectedTemplate.field_limits;
   const requiredFieldSet = useMemo(
     () => new Set(activeRequiredFields),
     [activeRequiredFields]
   );
+  const unavailableRevisions = useMemo(() => {
+    if (!content) return {};
+    return Object.fromEntries(
+      ["shorter", "longer"].flatMap((revision) => {
+        const issue = revisionAvailabilityIssue({
+          revision,
+          editableFields: activeEditableFields,
+          currentFields: draftFields,
+          requiredFields: activeRequiredFields,
+          fieldLimits: activeFieldLimits,
+        });
+        return issue ? [[revision, issue]] : [];
+      })
+    );
+  }, [
+    activeEditableFields,
+    activeFieldLimits,
+    activeRequiredFields,
+    content,
+    draftFields,
+  ]);
 
   const issuesByField = useMemo(
     () =>
@@ -435,8 +509,9 @@ export function StudioWorkspace({
     [activeEditableFields, activeFieldLimits, draftFields, requiredFieldSet]
   );
   const hasIssues = activeEditableFields.some((key) => issuesByField[key].length > 0);
-  const truncationWarning =
-    truncatedFields.length > 0
+  const truncationWarning = usedSafeFallback
+    ? "ContentGate used a conservative, source-backed draft after live generation could not produce a compliant result. This draft is valid and editable."
+    : truncatedFields.length > 0
       ? `Some copy was shortened to fit the template (${truncatedFields.map(fieldLabel).join(", ")}). Review the draft and regenerate if the meaning changed.`
       : null;
   const hasLayoutOverflow = overflowFields.length > 0;
@@ -474,7 +549,46 @@ export function StudioWorkspace({
     (selectedTemplate.platformAssignmentId
       ? platformTemplatePreviewUrl(selectedTemplate.platformAssignmentId, size)
       : templatePreviewUrl(selectedTemplate.id, size));
+  // Static reference thumbnails are deliberately capped at 720px for an
+  // instant Studio preview. Downloads must always use the authenticated
+  // renderer, which preserves the manifest's exact output dimensions.
+  const originalExportUrl = templateReferenceExportUrl({
+    templateId: selectedTemplate.id,
+    platformAssignmentId: selectedTemplate.platformAssignmentId,
+    size,
+  });
+  useEffect(() => {
+    // Warm the current reference immediately, then cache the other format
+    // thumbnails once the first image has a head start. Format switches can
+    // therefore swap without exposing an empty canvas.
+    const images: HTMLImageElement[] = [];
+    const warm = (src: string) => {
+      const image = new Image();
+      image.decoding = "async";
+      image.src = src;
+      images.push(image);
+    };
+    warm(originalPreviewUrl);
+
+    const remainingReferences = Array.from(
+      new Set(Object.values(selectedTemplate.referenceAssetBySize ?? {}))
+    ).filter((src) => src !== originalPreviewUrl);
+    const timer = window.setTimeout(() => {
+      remainingReferences.forEach(warm);
+    }, 250);
+
+    return () => {
+      window.clearTimeout(timer);
+      images.forEach((image) => {
+        image.src = "";
+      });
+    };
+  }, [originalPreviewUrl, selectedTemplate.referenceAssetBySize]);
   const [showOriginal, setShowOriginal] = useState(false);
+  // Shared by every preview frame, so switching format or toggling the original
+  // keeps the reviewer's chosen zoom instead of snapping back to fit.
+  const [previewZoom, setPreviewZoom] = useState<PreviewZoom>("fit");
+  const [resolvedPreviewZoom, setResolvedPreviewZoom] = useState(0.5);
   // A size switch is always a reference-first operation. Keeping the size
   // key separately prevents an old draft renderer from flashing while React
   // reconciles the newly selected dimensions.
@@ -540,6 +654,7 @@ export function StudioWorkspace({
     setCopied(false);
     setOverflowFields([]);
     setTextLayoutByField(undefined);
+    setFitCheckPending(Boolean(nextContent));
     setPlatformAssetUrlByPath(selectedTemplate.platformAssetUrlByPath);
     setSaveState("idle");
     setSavedAt(null);
@@ -568,6 +683,7 @@ export function StudioWorkspace({
         if (!cancelled) {
           setOverflowFields([]);
           setTextLayoutByField(undefined);
+          setFitCheckPending(false);
         }
       }, 0);
       return () => {
@@ -581,16 +697,24 @@ export function StudioWorkspace({
       string
     >;
     timer = window.setTimeout(async () => {
-      const result = await checkDraftStructuredFieldsFit(content.id, snapshot);
+      const result = await checkDraftStructuredFieldsFit(content.id, snapshot).catch(() => ({
+        error: "Fit check temporarily unavailable.",
+      }));
       if (cancelled) return;
       if ("error" in result) {
+        setFitCheckPending(false);
+        if (result.error.startsWith("Your session expired")) {
+          router.push("/login");
+          return;
+        }
         if (showOverflowAdvisory) setOverflowFields(["layout"]);
         return;
       }
       setTextLayoutByField(result.textLayoutByField);
+      setFitCheckPending(false);
       if (showOverflowAdvisory) setOverflowFields(result.overflowFields);
       else if (mode === "edit") setOverflowFields([]);
-    }, 900);
+    }, 250);
     return () => {
       cancelled = true;
       window.clearTimeout(timer);
@@ -600,6 +724,7 @@ export function StudioWorkspace({
     fitCheckSignature,
     hasIssues,
     mode,
+    router,
     selectedTemplate.platformManifest,
     size,
   ]);
@@ -626,13 +751,19 @@ export function StudioWorkspace({
     const timer = window.setTimeout(async () => {
       const saveStartedAt = performance.now();
       setSaveState("saving");
-      const result = await updateStructuredFields(content.id, snapshot, content.updatedAt);
+      const result = await updateStructuredFields(content.id, snapshot, content.updatedAt).catch(
+        () => ({ error: "The save service was briefly unavailable." })
+      );
       if (sequence !== saveSequence.current) return;
       if ("error" in result) {
         track("studio_save_completed", {
           duration_ms: Math.round(performance.now() - saveStartedAt),
           outcome: "failed",
         });
+        if (result.error.startsWith("Your session expired")) {
+          router.push("/login");
+          return;
+        }
         setSaveState("error");
         setError(result.error);
         return;
@@ -662,7 +793,7 @@ export function StudioWorkspace({
       });
     }, 750);
     return () => window.clearTimeout(timer);
-  }, [content, dirty, draftFields, hasIssues, hasLayoutOverflow, mode, size, track]);
+  }, [content, dirty, draftFields, hasIssues, hasLayoutOverflow, mode, router, size, track]);
 
   async function selectSize(nextSize: string) {
     if (busy) return;
@@ -692,6 +823,8 @@ export function StudioWorkspace({
     setHasManualEdits(nextContent?.manuallyEdited ?? false);
     setShowOriginal(true);
     setError(null);
+    setTruncatedFields([]);
+    setUsedSafeFallback(false);
     setCopied(false);
     setOverflowFields([]);
     setSaveState("idle");
@@ -712,10 +845,12 @@ export function StudioWorkspace({
       const result = await loadStudioVariantAssetUrls({
         assignmentId: selectedTemplate.platformAssignmentId,
         variantKey: nextSize,
-      });
+      }).catch(() => ({ error: "", urls: {} }));
       if (assetLoadSequence !== formatAssetLoadSequence.current) return;
       if (result.error) {
-        setError(result.error);
+        // The authored reference is already available locally. A signed
+        // working-preview asset miss should not interrupt format selection or
+        // generation; the server renderer will resolve fresh URLs on demand.
         return;
       }
       setPlatformAssetUrlByPath((current) => ({ ...current, ...result.urls }));
@@ -733,7 +868,13 @@ export function StudioWorkspace({
     );
     setSaveState(nextDirty ? "unsaved" : "saved");
     setHasManualEdits(nextDirty ? true : (content?.manuallyEdited ?? false));
-    if (key !== BACKGROUND_CHOICE_FIELD) setTextLayoutByField(undefined);
+    // Asset pickers are layout-invariant: they may swap pixels, but must not
+    // discard measured copy layout or make the canvas jump/ellipsize. Only an
+    // editable text field invalidates the glyph measurement.
+    if (activeEditableFields.includes(key)) {
+      setTextLayoutByField(undefined);
+      setFitCheckPending(Boolean(content && selectedTemplate.platformManifest));
+    }
     setDraftFields(nextFields);
     if (key === BACKGROUND_CHOICE_FIELD || activeAssetChoiceFieldKeys.includes(key)) {
       track("studio_picker_selected", {
@@ -785,6 +926,7 @@ export function StudioWorkspace({
     setBusy(true);
     setError(null);
     setTruncatedFields([]);
+    setUsedSafeFallback(false);
     try {
       const assetChoices = Object.fromEntries(
         activeAssetChoiceFieldKeys.flatMap((key) => {
@@ -826,6 +968,10 @@ export function StudioWorkspace({
         }),
       });
       const result = await response.json();
+      if (response.status === 401) {
+        router.push("/login");
+        return;
+      }
       if (!response.ok) {
         track("studio_generation_failed", {
           duration_ms: Math.round(performance.now() - generationStartedAt),
@@ -852,6 +998,10 @@ export function StudioWorkspace({
         citations: Array.isArray(result.evidence)
           ? (result.evidence as StudioContent["citations"])
           : [],
+        fieldLimits:
+          result.fieldLimits && typeof result.fieldLimits === "object"
+            ? (result.fieldLimits as StudioContent["fieldLimits"])
+            : null,
         templateVersionId: selectedTemplate.templateVersionId ?? null,
         outputSize: (result.outputSize as string | null) ?? size,
         campaignRootContentId:
@@ -892,20 +1042,21 @@ export function StudioWorkspace({
       setTruncatedFields(
         Array.isArray(result.truncatedFields) ? (result.truncatedFields as string[]) : []
       );
+      setUsedSafeFallback(result.fallbackUsed === true);
       track("studio_generation_completed", {
         duration_ms: Math.round(performance.now() - generationStartedAt),
-        outcome: "success",
+        outcome: result.fallbackUsed === true ? "safe_fallback" : "success",
         fit_state: Array.isArray(result.truncatedFields) && result.truncatedFields.length > 0 ? "trimmed" : "ready",
         evidence_count: Array.isArray(result.evidence) ? result.evidence.length : 0,
       });
       setShowOriginal(false);
       setReferenceLockedSize(null);
       if (!regenerateCurrentDraft) {
-        window.history.replaceState(
-          window.history.state,
-          "",
-          studioContentUrl(nextContent.id, nextContentSize, returnTo)
-        );
+        // Move from /studio/new to the durable content route. A native history
+        // update changes the address bar but leaves Server Actions attached to
+        // the new-draft route tree, so the next autosave can re-render Studio
+        // with the blank template payload.
+        router.replace(studioContentUrl(nextContent.id, nextContentSize, returnTo));
       }
     } catch {
       track("studio_generation_failed", {
@@ -965,7 +1116,7 @@ export function StudioWorkspace({
         const filename = `${selectedProduct.name}-${selectedTemplate.variant}-brand-reference-${size}`
           .replace(/[^\w]+/g, "-")
           .toLowerCase();
-        const serverPreviewUrl = new URL(originalPreviewUrl, window.location.origin);
+        const serverPreviewUrl = new URL(originalExportUrl, window.location.origin);
         serverPreviewUrl.searchParams.set("format", exportFormat);
         serverPreviewUrl.searchParams.set("scale", exportScale);
         serverPreviewUrl.searchParams.set("download", "1");
@@ -1050,19 +1201,28 @@ export function StudioWorkspace({
     if (!content || dirty || hasIssues || hasLayoutOverflow || saveState === "saving") return;
     setSubmitting(true);
     setError(null);
-    const result = await submitForReview(content.id);
-    if ("error" in result) {
-      setError(result.error);
-    } else {
-      setContentsBySize((current) => {
-        const existing = current[size];
-        if (!existing || existing.id !== content.id) return current;
-        return { ...current, [size]: { ...existing, status: "in_review" } };
-      });
-      router.refresh();
-      track("studio_review_submitted", { format_key: size });
+    try {
+      const result = await submitForReview(content.id);
+      if ("error" in result) {
+        if (result.error.startsWith("Your session expired")) {
+          router.push("/login");
+          return;
+        }
+        setError(result.error);
+      } else {
+        setContentsBySize((current) => {
+          const existing = current[size];
+          if (!existing || existing.id !== content.id) return current;
+          return { ...current, [size]: { ...existing, status: "in_review" } };
+        });
+        router.refresh();
+        track("studio_review_submitted", { format_key: size });
+      }
+    } catch {
+      setError("Review submission was interrupted. Your draft is still saved; try submitting again.");
+    } finally {
+      setSubmitting(false);
     }
-    setSubmitting(false);
   }
 
   function markReviewed(status: "approved" | "rejected", rejectionNote?: string | null) {
@@ -1127,7 +1287,16 @@ export function StudioWorkspace({
         className="flex min-h-0 flex-1 flex-col-reverse overflow-visible md:grid md:overflow-hidden"
         style={{ gridTemplateColumns: "minmax(340px, 400px) minmax(0, 1fr)" }}
       >
-        <aside className="flex min-h-0 flex-col gap-6 overflow-visible border-r border-edge bg-surface px-4 py-6 md:overflow-y-auto md:px-8">
+        <aside
+          aria-label="Studio controls and review details"
+          className="flex min-h-0 flex-col gap-6 overflow-visible border-r border-edge bg-surface px-4 py-6 md:overflow-y-auto md:px-8"
+        >
+          <a
+            href="#studio-preview-stage"
+            className="sr-only focus:not-sr-only focus:rounded-[8px] focus:px-3 focus:py-2 focus:text-[13px] focus:font-semibold focus:text-brand focus:ring-2 focus:ring-brand"
+          >
+            Skip to template preview
+          </a>
           <div className="flex flex-col gap-3">
             <span className="text-label text-ink-faint">Product and campaign</span>
             <select
@@ -1170,6 +1339,20 @@ export function StudioWorkspace({
             </section>
           )}
 
+          {/* What the reviewer asked for has to be readable before the copy it
+              applies to. This sat below the Generate button, under the fold at
+              1440x900, so an author opening rejected work saw the fields to
+              edit and not the instruction telling them what to change. Same
+              block, same condition, same content — moved above the editor. */}
+          {mode === "edit" && content?.status === "rejected" && content.rejectionNote && (
+            <div className="rounded-control border border-reject-border bg-reject-tint px-3 py-2.5">
+              <p className="text-[13px] font-bold text-reject">Changes requested</p>
+              <p className="mt-1 text-[13px] leading-relaxed text-ink-muted">
+                {content.rejectionNote}
+              </p>
+            </div>
+          )}
+
           <section className="flex flex-col gap-4" aria-labelledby="studio-message">
             <h2 id="studio-message" className="text-label text-ink-faint">Message</h2>
             <StudioFields
@@ -1180,6 +1363,8 @@ export function StudioWorkspace({
               editable={editable && !busy}
               issuesByField={issuesByField}
               overflowFields={overflowFields}
+              textLayoutByField={textLayoutByField}
+              fitCheckPending={fitCheckPending}
               onChange={updateField}
             />
 
@@ -1196,6 +1381,8 @@ export function StudioWorkspace({
               buttonLabel="Generate"
               error={error}
               warning={truncationWarning}
+              unavailableRevisions={unavailableRevisions}
+              allowedLocales={selectedTemplate.allowedLocales}
             />
           )}
 
@@ -1212,6 +1399,8 @@ export function StudioWorkspace({
               buttonLabel="Generate"
               error={error}
               warning={truncationWarning}
+              unavailableRevisions={unavailableRevisions}
+              allowedLocales={selectedTemplate.allowedLocales}
             />
           )}
 
@@ -1228,6 +1417,8 @@ export function StudioWorkspace({
               buttonLabel="Generate"
               error={error}
               warning={truncationWarning}
+              unavailableRevisions={unavailableRevisions}
+              allowedLocales={selectedTemplate.allowedLocales}
             />
           )}
           </section>
@@ -1237,14 +1428,6 @@ export function StudioWorkspace({
               Manual edits are tracked separately from the generated copy and require reviewer
               approval before export.
             </p>
-          )}
-          {mode === "edit" && content?.status === "rejected" && content.rejectionNote && (
-            <div className="rounded-control border border-reject-border bg-reject-tint px-3 py-2.5">
-              <p className="text-[13px] font-bold text-reject">Changes requested</p>
-              <p className="mt-1 text-[13px] leading-relaxed text-ink-muted">
-                {content.rejectionNote}
-              </p>
-            </div>
           )}
           {mode === "edit" && content && (
             <div className="flex items-center justify-between rounded-control border border-edge bg-page px-3 py-2" role="status" aria-live="polite">
@@ -1341,7 +1524,10 @@ export function StudioWorkspace({
           )}
         </aside>
 
-        <section className="flex min-h-[52dvh] min-w-0 flex-col bg-[#f5f5f2] md:min-h-0">
+        <section
+          id="studio-preview-stage"
+          className="flex min-h-[52dvh] min-w-0 flex-col bg-[#f5f5f2] md:min-h-0"
+        >
           <StudioToolbar
             sizes={sizes}
             activeSize={size}
@@ -1357,6 +1543,9 @@ export function StudioWorkspace({
             }
             onSelectSize={selectSize}
             disabled={busy}
+            zoom={previewZoom}
+            resolvedZoom={resolvedPreviewZoom}
+            onZoomChange={setPreviewZoom}
             viewToggle={
               hasAnyGeneratedDraft
                 ? {
@@ -1380,6 +1569,8 @@ export function StudioWorkspace({
                 busy={busy}
                 onGenerate={generate}
                 onCopyFromCampaign={() => generate(true)}
+                zoom={previewZoom}
+                onScaleChange={setResolvedPreviewZoom}
               />
             ) : content && !isBrandReferenceView && selectedTemplate.platformManifest ? (
               <LiveTemplatePreviewFrame
@@ -1392,13 +1583,18 @@ export function StudioWorkspace({
                 width={dims.w}
                 height={dims.h}
                 updating={saveState === "saving"}
+                zoom={previewZoom}
+                onScaleChange={setResolvedPreviewZoom}
               />
             ) : isBrandReferenceView ? (
               <ServerPreviewFrame
                 src={originalPreviewUrl}
+                highResolutionSrc={originalExportUrl}
                 width={dims.w}
                 height={dims.h}
                 updating={false}
+                zoom={previewZoom}
+                onScaleChange={setResolvedPreviewZoom}
               />
             ) : (
             <ServerPreviewFrame
@@ -1406,6 +1602,8 @@ export function StudioWorkspace({
                 width={dims.w}
                 height={dims.h}
                 updating={false}
+                zoom={previewZoom}
+                onScaleChange={setResolvedPreviewZoom}
               />
             )}
           </div>
@@ -1419,6 +1617,7 @@ export function StudioWorkspace({
             downloadDisabled={downloadDisabled}
             downloadDisabledReason={downloadDisabledReason}
             canDownloadDraft={draftPreviewDownloadAllowed}
+            isBrandReference={isBrandReferenceView}
           />
         </section>
       </div>

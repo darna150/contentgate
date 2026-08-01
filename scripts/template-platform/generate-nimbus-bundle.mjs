@@ -35,6 +35,44 @@ async function copyAsset(inputPath, outputPath) {
   return sha256(await readFile(outputPath));
 }
 
+// Product variants come from separate exports whose transparent canvases and
+// faint edge pixels are not identical. `object-fit: contain` therefore made
+// the visible shoe change size/position even though the locked image slot did
+// not change. Normalize the visible alpha bounds onto one canonical canvas so
+// a variant click swaps only the product pixels.
+async function normalizeProductAsset(inputPath, outputPath) {
+  const source = sharp(inputPath).ensureAlpha();
+  const { data, info } = await source.raw().toBuffer({ resolveWithObject: true });
+  for (let offset = 3; offset < data.length; offset += info.channels) {
+    if (data[offset] < 16) data[offset] = 0;
+  }
+  const canonicalWidth = 1404;
+  const canonicalHeight = 1200;
+  const visibleWidth = 1190;
+  const visibleHeight = 1015;
+  const buffer = await sharp(data, {
+    raw: { width: info.width, height: info.height, channels: info.channels },
+  })
+    .trim({ background: { r: 0, g: 0, b: 0, alpha: 0 }, threshold: 2 })
+    .resize(visibleWidth, visibleHeight, {
+      fit: "contain",
+      withoutEnlargement: false,
+      background: { r: 0, g: 0, b: 0, alpha: 0 },
+    })
+    .extend({
+      top: Math.floor((canonicalHeight - visibleHeight) / 2),
+      bottom: Math.ceil((canonicalHeight - visibleHeight) / 2),
+      left: Math.floor((canonicalWidth - visibleWidth) / 2),
+      right: Math.ceil((canonicalWidth - visibleWidth) / 2),
+      background: { r: 0, g: 0, b: 0, alpha: 0 },
+    })
+    .png()
+    .toBuffer();
+  await mkdir(dirname(outputPath), { recursive: true });
+  await writeFile(outputPath, buffer);
+  return { hash: sha256(buffer), width: canonicalWidth, height: canonicalHeight };
+}
+
 // Nimbus was designed as one responsive Figma system, not 42 unrelated
 // canvases. These values are the design-system equations used by the Figma
 // frames (geometric-mean scale preserves both very wide and very tall
@@ -50,11 +88,28 @@ function canonicalNimbusSlots(frame) {
   const productWidth = 0.523 * Math.sqrt(frame.width * frame.height);
   const productHeight = productWidth / 1.17;
   const contentTop = frame.height / 24;
+  const geometryMaxChars = ({ width, height, fontSize, lineHeight, maxLines, minFontSize }) => {
+    const capacityFontSize = minFontSize ?? fontSize;
+    const usableLines = Math.max(
+      1,
+      Math.min(maxLines, Math.floor(height / (capacityFontSize * lineHeight)))
+    );
+    return Math.max(
+      1,
+      Math.floor(width / Math.max(1, capacityFontSize * 0.62)) * usableLines -
+        Math.max(0, usableLines - 1)
+    );
+  };
+  const textSlot = (slot) => ({
+    ...slot,
+    maxChars: geometryMaxChars(slot),
+    maxCharsSource: "geometry",
+  });
   return [
     { key: "product-slot", field: "__productVariantKey", kind: "image", x: (frame.width - productWidth) / 2 - frame.width * 0.076, y: (frame.height - productHeight) / 2, width: productWidth, height: productHeight, fit: "contain", focalPoint: { x: 0.5, y: 0.5 } },
-    { key: "headline-slot", field: "headline", kind: "text", x: margin, y: contentTop, width: frame.width - margin * 2, height: headlineSize * 1.1 * headlineLines, fontKey: "dela-gothic-one-regular", fontSize: headlineSize, lineHeight: 1.1, letterSpacing: 0, color: "#000000", align: "center", verticalAlign: "center", maxChars: 24, maxLines: headlineLines, minFontSize: headlineSize * 0.58, fit: "shrink_to_fit" },
-    { key: "subheadline-1-slot", field: "subheadline_1", kind: "text", x: margin, y: contentTop + headlineSize * (headlineLines === 1 ? 0.925 : 2.025), width: frame.width - margin * 2, height: subheadSize * 1.2, fontKey: "geist-mono-regular", fontSize: subheadSize, lineHeight: 1.2, letterSpacing: 0, color: "#000000", align: "center", verticalAlign: "bottom", maxChars: 40, maxLines: 1, minFontSize: subheadSize * 0.58, fit: "shrink_to_fit" },
-    { key: "subheadline-2-slot", field: "subheadline_2", kind: "text", x: margin, y: frame.height * 0.5694444444, width: frame.width - margin * 2, height: subheadSize * 4.2857142857, fontKey: "geist-mono-regular", fontSize: subheadSize, lineHeight: 1.2, letterSpacing: 0, color: "#000000", align: "right", verticalAlign: "bottom", maxChars: 56, maxLines: 3, minFontSize: subheadSize * 0.58, fit: "shrink_to_fit" },
+    textSlot({ key: "headline-slot", field: "headline", kind: "text", x: margin, y: contentTop, width: frame.width - margin * 2, height: headlineSize * 1.1 * headlineLines, fontKey: "dela-gothic-one-regular", fontSize: headlineSize, lineHeight: 1.1, letterSpacing: 0, color: "#000000", align: "center", verticalAlign: "center", maxLines: headlineLines, minFontSize: headlineSize * 0.58, fit: "shrink_to_fit" }),
+    textSlot({ key: "subheadline-1-slot", field: "subheadline_1", kind: "text", x: margin, y: contentTop + headlineSize * (headlineLines === 1 ? 0.925 : 2.025), width: frame.width - margin * 2, height: subheadSize * 1.2, fontKey: "geist-mono-regular", fontSize: subheadSize, lineHeight: 1.2, letterSpacing: 0, color: "#000000", align: "center", verticalAlign: "bottom", maxLines: 1, minFontSize: subheadSize * 0.58, fit: "shrink_to_fit" }),
+    textSlot({ key: "subheadline-2-slot", field: "subheadline_2", kind: "text", x: margin, y: frame.height * 0.5694444444, width: frame.width - margin * 2, height: subheadSize * 4.2857142857, fontKey: "geist-mono-regular", fontSize: subheadSize, lineHeight: 1.2, letterSpacing: 0, color: "#000000", align: "right", verticalAlign: "bottom", maxLines: 3, minFontSize: subheadSize * 0.58, fit: "shrink_to_fit" }),
   ];
 }
 
@@ -103,8 +158,7 @@ async function main() {
 
   for (const productVariant of source.productVariants) {
     const productPath = join(baseAssetRoot, productVariant.asset);
-    const productMeta = await sharp(productPath).metadata();
-    const productHash = await copyAsset(
+    const product = await normalizeProductAsset(
       productPath,
       join(outputRoot, "products", `${productVariant.key}.png`)
     );
@@ -112,9 +166,9 @@ async function main() {
       key: `product-${productVariant.key}`,
       kind: "image",
       path: `products/${productVariant.key}.png`,
-      sha256: productHash,
-      width: productMeta.width,
-      height: productMeta.height,
+      sha256: product.hash,
+      width: product.width,
+      height: product.height,
       mimeType: "image/png",
     });
   }
@@ -181,6 +235,7 @@ async function main() {
       height: frame.height,
       sourceNodeId: frame.figmaNodeId,
       referenceAsset: `${frame.key}-reference`,
+      referenceFields: source.referenceFields,
       backgroundAsset: `${frame.key}-${source.defaultBackgroundKey}-background`,
       backgroundOptions,
       slots: layout?.slots ?? canonicalNimbusSlots(frame),
@@ -200,7 +255,7 @@ async function main() {
       // A bundle version is immutable after import. Bump this whenever the
       // checked-in Figma reference exports or locked layout contract changes,
       // otherwise the importer correctly reuses stale storage assets.
-      name: "figma-full-v7",
+      name: "figma-full-v9-stable-assets",
       source: "figma",
       sourceFileKey: source.sourceFileKey,
       sourcePageNodeId: source.sourcePageNodeId,

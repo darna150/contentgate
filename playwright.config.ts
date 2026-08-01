@@ -1,10 +1,11 @@
 import { defineConfig, devices } from "@playwright/test";
 
 const baseURL =
-  process.env.CONTENTGATE_E2E_BASE_URL ?? "http://127.0.0.1:3000";
+  process.env.CONTENTGATE_E2E_BASE_URL ?? "http://localhost:3000";
 
 export default defineConfig({
   testDir: "./tests/e2e",
+  globalSetup: "./tests/e2e/global-setup.mjs",
   timeout: 180_000,
   expect: {
     timeout: 20_000,

@@ -77,7 +77,7 @@ export default async function KnowledgePage({
           <Button asChild>
             <Link href="/knowledge/new">
               <UploadIcon />
-              Add source
+              Add document
             </Link>
           </Button>
         }
@@ -86,8 +86,8 @@ export default async function KnowledgePage({
       {docs.length === 0 ? (
         <EmptyState
           title="No sources yet"
-          description="Add approved guides, claim sheets, FAQs, or public webpages. Generated content can only draw on what lives here."
-          action={{ label: "Add your first source", href: "/knowledge/new" }}
+          description="Add a product's approved guides, claim sheets, and FAQs. Generated content can only draw on what lives here."
+          action={{ label: "Add your first document", href: "/knowledge/new" }}
         />
       ) : (
         <div className="flex flex-col gap-3.5 rounded-card border border-edge bg-surface p-[22px]">

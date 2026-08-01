@@ -14,10 +14,14 @@ export function PreviewImage({
   src,
   alt,
   className,
+  loading = "lazy",
+  revealImmediately = false,
 }: {
   src: string;
   alt: string;
   className?: string;
+  loading?: "eager" | "lazy";
+  revealImmediately?: boolean;
 }) {
   const [state, setState] = useState<"loading" | "loaded" | "error">("loading");
 
@@ -56,10 +60,11 @@ export function PreviewImage({
         }}
         src={src}
         alt={alt}
-        loading="lazy"
+        loading={loading}
+        decoding="async"
         className={cn(
           "h-full w-full object-contain transition-opacity duration-200",
-          state === "loaded" ? "opacity-100" : "opacity-0"
+          revealImmediately || state === "loaded" ? "opacity-100" : "opacity-0"
         )}
         onLoad={() => setState("loaded")}
         onError={() => setState("error")}

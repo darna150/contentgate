@@ -15,6 +15,7 @@ import {
   Rows3,
   Settings,
   Sparkles,
+  WandSparkles,
   X,
 } from "lucide-react";
 
@@ -43,13 +44,14 @@ type Props = {
   userName: string;
   userRole: string;
   pendingCount: number;
+  platformOperator: boolean;
 };
 
 function initialOf(value: string, fallback = "•") {
   return value.trim().charAt(0).toUpperCase() || fallback;
 }
 
-export function Sidebar({ orgName, orgIndustry, userName, userRole, pendingCount }: Props) {
+export function Sidebar({ orgName, orgIndustry, userName, userRole, pendingCount, platformOperator }: Props) {
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -153,6 +155,26 @@ export function Sidebar({ orgName, orgIndustry, userName, userRole, pendingCount
               </Link>
             );
           })}
+        </div>
+      )}
+
+      {platformOperator && (
+        <div className="flex flex-col gap-0.5 border-t border-white/10 pt-3">
+          <p className="px-3 pb-1 text-label text-sidebar-faint">Platform</p>
+          <Link
+            href="/onboarding"
+            onClick={onNavigate}
+            aria-current={pathname.startsWith("/onboarding") ? "page" : undefined}
+            className={cn(
+              "flex items-center gap-2.5 rounded-full px-3 py-2.5 text-small font-semibold transition-colors",
+              pathname.startsWith("/onboarding")
+                ? "bg-white/[0.08] text-white"
+                : "text-sidebar-text hover:bg-white/5 hover:text-white",
+            )}
+          >
+            <WandSparkles className="size-[15px] shrink-0" aria-hidden />
+            <span className="flex-1">Client onboarding</span>
+          </Link>
         </div>
       )}
     </nav>

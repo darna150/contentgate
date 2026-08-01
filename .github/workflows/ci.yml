@@ -102,25 +102,27 @@ jobs:
             echo "Timed out waiting for Vercel preview deployment (6 min)" >&2
             exit 1
           fi
-      - name: Refuse to run against production
-        run: |
-          case "${{ steps.preview.outputs.preview_url }}" in
-            https://contentgate-delta.vercel.app*)
-              echo "E2E preview gate must not target production." >&2
-              exit 1
-              ;;
-          esac
-      - name: Run Playwright E2E against preview
+      - name: Verify the stateful E2E target is not production
+        env:
+          CONTENTGATE_E2E_BASE_URL: ${{ steps.preview.outputs.preview_url }}
+        run: node scripts/assert-safe-e2e-target.mjs
+      - name: Run deterministic Playwright E2E and accessibility gate against preview
         env:
           CONTENTGATE_E2E_BASE_URL: ${{ steps.preview.outputs.preview_url }}
           CONTENTGATE_E2E_EMAIL: ${{ secrets.CONTENTGATE_E2E_EMAIL }}
           CONTENTGATE_E2E_PASSWORD: ${{ secrets.CONTENTGATE_E2E_PASSWORD }}
           CONTENTGATE_E2E_ASSIGNMENT_ID: ${{ secrets.CONTENTGATE_E2E_ASSIGNMENT_ID }}
+          CONTENTGATE_E2E_CONTENT_ID: ${{ secrets.CONTENTGATE_E2E_CONTENT_ID }}
+          CONTENTGATE_E2E_DOCUMENT_ID: ${{ secrets.CONTENTGATE_E2E_DOCUMENT_ID }}
           CONTENTGATE_E2E_PRODUCT_ID: ${{ secrets.CONTENTGATE_E2E_PRODUCT_ID }}
+          CONTENTGATE_E2E_PRODUCT_NAME: ${{ secrets.CONTENTGATE_E2E_PRODUCT_NAME }}
           CONTENTGATE_E2E_TEMPLATE_NAME: ${{ secrets.CONTENTGATE_E2E_TEMPLATE_NAME }}
-          CONTENTGATE_E2E_OUTPUT_SIZE: ${{ secrets.CONTENTGATE_E2E_OUTPUT_SIZE }}
+          CONTENTGATE_E2E_OUTPUT_SIZE_KEY: ${{ secrets.CONTENTGATE_E2E_OUTPUT_SIZE_KEY }}
           CONTENTGATE_E2E_OUTPUT_SIZE_LABEL: ${{ secrets.CONTENTGATE_E2E_OUTPUT_SIZE_LABEL }}
-        run: npm run test:e2e
+          CONTENTGATE_E2E_OUTPUT_WIDTH: ${{ secrets.CONTENTGATE_E2E_OUTPUT_WIDTH }}
+          CONTENTGATE_E2E_OUTPUT_HEIGHT: ${{ secrets.CONTENTGATE_E2E_OUTPUT_HEIGHT }}
+          CONTENTGATE_E2E_KNOWLEDGE_QUESTION: ${{ secrets.CONTENTGATE_E2E_KNOWLEDGE_QUESTION }}
+        run: npm run test:e2e:deterministic
       - uses: actions/upload-artifact@v5
         if: always()
         with:

@@ -5,13 +5,18 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-control text-[13px] font-semibold transition-colors outline-none disabled:pointer-events-none disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-brand/40 focus-visible:ring-offset-2 focus-visible:ring-offset-surface [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  // The ring is the only focus indicator here — outline-none removes the
+  // global one — so it has to carry the contrast on its own. At brand/40 it
+  // resolved to roughly 1.8:1 against a white surface, under the 3:1 that
+  // WCAG 2.2 SC 1.4.11 requires of a focus indicator. Full-strength brand is
+  // 5.2:1. This applies to every button in the product.
+  "inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-control text-[13px] font-semibold transition-colors outline-none disabled:pointer-events-none disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-surface [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
-        default: "bg-brand text-white hover:bg-brand-dark",
+        default: "bg-brand text-white hover:bg-brand-strong",
         accent: "bg-accent text-white hover:bg-accent-dark",
-        secondary: "bg-brand-tint text-brand hover:bg-brand-tint/70",
+        secondary: "bg-brand-tint text-brand-on-tint hover:bg-brand-tint/70",
         outline:
           "border border-edge-strong bg-surface text-ink hover:border-brand hover:text-brand",
         ghost: "text-ink-muted hover:bg-page hover:text-ink",

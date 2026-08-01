@@ -52,7 +52,7 @@ export function AssetsView({ workspace }: { workspace: ProductWorkspace }) {
         <div className="flex justify-end">
           <Link
             href={sections.assets.actionHref}
-            className="text-[13px] font-semibold text-brand hover:underline"
+            className="text-[13px] font-semibold text-brand-strong hover:underline"
           >
             Open Assets →
           </Link>

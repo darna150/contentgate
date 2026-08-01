@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   formatGeneratedCopyQualityIssues,
   generatedCopyQualityIssues,
+  repairGeneratedCopyQualityFields,
 } from "./generated-copy-quality.ts";
 
 test("generated copy quality rejects visibly truncated thoughts", () => {
@@ -75,4 +76,23 @@ test("generated copy quality rejects em dashes and generic AI phrasing", () => {
     formatGeneratedCopyQualityIssues(issues).join("\n"),
     /generic AI marketing language/
   );
+});
+
+test("repairs structural and generic model-copy issues before fit validation", () => {
+  const repaired = repairGeneratedCopyQualityFields(
+    {
+      headline: "Elevate every run — starting now",
+      subheadline: "Cloud-soft cushioning for",
+      proof_note: "Updates from {{Market Name}}",
+    },
+    ["headline", "subheadline", "proof_note"]
+  );
+
+  assert.deepEqual(
+    generatedCopyQualityIssues(repaired, ["headline", "subheadline", "proof_note"]),
+    {}
+  );
+  assert.equal(repaired.headline, "Strengthen every run. starting now");
+  assert.equal(repaired.subheadline, "Cloud-soft cushioning");
+  assert.equal(repaired.proof_note, "Updates");
 });

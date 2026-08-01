@@ -1,7 +1,9 @@
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { graphemeCount } from "@/lib/graphemes";
 import { fieldLabel } from "@/lib/templates";
 import type { FieldIssue, FieldLimits } from "@/lib/template-fields";
+import type { TemplateBundleTextLayout } from "@/lib/template-platform/render";
 import { cn } from "@/lib/utils";
 
 function compactFieldLabel(key: string) {
@@ -16,16 +18,28 @@ function fitIndicator(input: {
   required: boolean;
   issues: FieldIssue[];
   overflowing: boolean;
+  empty: boolean;
+  layout?: TemplateBundleTextLayout;
+  pending: boolean;
 }) {
   const max = input.limit?.max_chars;
-  const count = input.value.length;
+  const count = graphemeCount(input.value);
+  const maxLines = input.limit?.max_lines;
+  const lineStatus = input.layout && maxLines
+    ? `${input.layout.lines.length}/${maxLines} line${maxLines === 1 ? "" : "s"}`
+    : null;
   if (max) {
     if (count > max) return `${count}/${max} · over by ${count - max}`;
+    if (input.pending) return `${count}/${max} · measuring…`;
     if (input.overflowing) return `${count}/${max} · layout over`;
+    // An untouched required field is an outstanding step, not a mistake the
+    // author has made. Saying "needs edit" in red on arrival reads as a failure
+    // before anyone has typed, so state the requirement plainly instead.
+    if (input.empty) return input.required ? `0/${max} · required` : `0/${max}`;
     if (input.issues.length) return `${count}/${max} · needs edit`;
-    return `${count}/${max} ✓ fits`;
+    return `${count}/${max}${lineStatus ? ` · ${lineStatus}` : ""} ✓ fits`;
   }
-  if (!input.value.trim() && input.required) return "Required";
+  if (input.empty) return input.required ? "Required" : "Optional";
   if (input.overflowing) return "Layout over";
   if (input.issues.length) return input.issues.map((issue) => issue.message).join(" · ");
   return "✓ fits";
@@ -39,6 +53,8 @@ export function StudioFields({
   editable,
   issuesByField,
   overflowFields,
+  textLayoutByField,
+  fitCheckPending = false,
   onChange,
 }: {
   fields: string[];
@@ -48,6 +64,8 @@ export function StudioFields({
   editable: boolean;
   issuesByField: Record<string, FieldIssue[]>;
   overflowFields: string[];
+  textLayoutByField?: Record<string, TemplateBundleTextLayout>;
+  fitCheckPending?: boolean;
   onChange?: (key: string, value: string) => void;
 }) {
   const required = new Set(requiredFields);
@@ -57,14 +75,21 @@ export function StudioFields({
       {fields.map((key) => {
         const issues = issuesByField[key] ?? [];
         const overflowing = overflowFields.includes(key);
-        const hasProblem = issues.length > 0 || overflowing;
         const value = values[key] ?? "";
+        const empty = !value.trim();
+        // Empty is "not started yet"; only content the author has actually
+        // entered can be wrong. Submission gating is unchanged — this only
+        // decides whether the field is presented as an error.
+        const hasProblem = !empty && (issues.length > 0 || overflowing);
         const indicator = fitIndicator({
           value,
           limit: limits[key],
           required: required.has(key),
           issues,
           overflowing,
+          empty,
+          layout: textLayoutByField?.[key],
+          pending: fitCheckPending,
         });
         const rows = Math.min(4, Math.max(1, limits[key]?.max_lines ?? (key === "cta" ? 1 : 2)));
         return (
@@ -84,7 +109,7 @@ export function StudioFields({
                 <span
                   className={cn(
                     "shrink-0 text-[13px] font-semibold",
-                    hasProblem ? "text-reject" : "text-brand"
+                    hasProblem ? "text-reject" : empty ? "text-ink-muted" : "text-brand"
                   )}
                 >
                   {indicator}

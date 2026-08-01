@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { flattenFields } from "@/lib/templates";
 import { studioEditableTemplateFields } from "@/lib/generation-evidence";
+import { studioFieldsForPersistence } from "@/lib/studio-state";
 import { type FieldLimits } from "@/lib/template-fields";
 import { validateTemplateContentFit } from "@/lib/template-content-fit";
 import { validateStoredContentEvidence } from "@/lib/evidence-lifecycle";
@@ -17,6 +18,7 @@ import {
 } from "@/lib/template-platform/fit";
 import {
   BACKGROUND_CHOICE_FIELD,
+  getTemplateBundleVariantAssetChoiceFields,
   getTemplateBundleVariantPersistedFields,
 } from "@/lib/template-platform/runtime";
 import { createTemplateBundleAssetUrlMap } from "@/lib/template-platform/storage-urls";
@@ -233,19 +235,25 @@ export async function updateStructuredFields(
         )
       : [];
   const editablePlatformFields = studioEditableTemplateFields(platformFields);
+  const pickerPlatformFields =
+    !template && version?.manifest && variant?.variant_key
+      ? getTemplateBundleVariantAssetChoiceFields(
+          version.manifest as TemplateBundleManifest,
+          variant.variant_key
+        )
+      : [];
   const order = template
     ? ((template.editable_fields ?? []) as string[])
     : editablePlatformFields.map((field) => field.key);
   const fullOrder = template ? order : platformFields.map((field) => field.key);
   const existingFields = (content?.structured_fields ?? {}) as Record<string, string>;
-  const cleaned = Object.fromEntries(
-    (template ? order : fullOrder).map((key) => [
-      key,
-      order.includes(key)
-        ? String(fields[key] ?? "")
-        : String(existingFields[key] ?? ""),
-    ])
-  );
+  const cleaned = studioFieldsForPersistence({
+    fieldKeys: template ? order : fullOrder,
+    editableFieldKeys: order,
+    pickerFieldKeys: template ? [] : pickerPlatformFields.map((field) => field.key),
+    submittedFields: fields,
+    existingFields,
+  });
   if (!template && typeof fields[BACKGROUND_CHOICE_FIELD] === "string") {
     cleaned[BACKGROUND_CHOICE_FIELD] = fields[BACKGROUND_CHOICE_FIELD];
   }
@@ -380,17 +388,20 @@ export async function checkDraftStructuredFieldsFit(
   if (!template && version?.manifest && variant?.variant_key) {
     const platformFields = getTemplateBundleVariantPersistedFields(version.manifest, variant.variant_key);
     const editableFields = studioEditableTemplateFields(platformFields);
+    const pickerFields = getTemplateBundleVariantAssetChoiceFields(
+      version.manifest,
+      variant.variant_key
+    );
     const order = editableFields.map((field) => field.key);
     const fullOrder = platformFields.map((field) => field.key);
     const existingFields = (content.structured_fields ?? {}) as Record<string, string>;
-    const cleaned = Object.fromEntries(
-      fullOrder.map((key) => [
-        key,
-        order.includes(key)
-          ? String(fields[key] ?? "")
-          : String(existingFields[key] ?? ""),
-      ])
-    );
+    const cleaned = studioFieldsForPersistence({
+      fieldKeys: fullOrder,
+      editableFieldKeys: order,
+      pickerFieldKeys: pickerFields.map((field) => field.key),
+      submittedFields: fields,
+      existingFields,
+    });
     const configuredIssues = templatePlatformRequiredFieldIssues(
       version.manifest,
       variant.variant_key,

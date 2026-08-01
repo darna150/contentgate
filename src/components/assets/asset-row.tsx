@@ -36,7 +36,7 @@ export function AssetRow({
   const thumb = (
     asset.mediaKind === "video" ? (
       <div className="relative h-full w-full bg-ink">
-        <video src={asset.previewUrl} className="h-full w-full object-cover" muted preload="metadata" />
+        <video src={asset.previewUrl} className="h-full w-full object-cover" muted preload="metadata" aria-hidden />
         <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold uppercase text-white/90">
           Video
         </span>

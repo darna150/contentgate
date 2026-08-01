@@ -1,9 +1,21 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-// /welcome must stay public: invitees arrive without a session and establish
-// one client-side from the invite link's tokens.
-const PUBLIC_PATHS = ["/login", "/auth", "/welcome"];
+// Password and invite callbacks must stay public: users arrive without a
+// session and establish one client-side from the email link's tokens.
+const PUBLIC_PATHS = [
+  "/login",
+  "/auth",
+  "/welcome",
+  "/forgot-password",
+  "/reset-password",
+];
+
+// "/" is the public marketing landing page. It is matched exactly rather than
+// added to PUBLIC_PATHS above, since startsWith("/") would make every route
+// public. Signed-in visitors still see the landing page; its "Log in" link
+// bounces them to /dashboard via the rule below.
+const PUBLIC_EXACT_PATHS = ["/", "/opengraph-image"];
 
 export async function proxy(request: NextRequest) {
   // Not configured yet (fresh clone / preview without env) — let pages render.
@@ -41,9 +53,9 @@ export async function proxy(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const isPublic = PUBLIC_PATHS.some((p) =>
-    request.nextUrl.pathname.startsWith(p)
-  );
+  const isPublic =
+    PUBLIC_EXACT_PATHS.includes(request.nextUrl.pathname) ||
+    PUBLIC_PATHS.some((p) => request.nextUrl.pathname.startsWith(p));
 
   if (!user && !isPublic) {
     const url = request.nextUrl.clone();

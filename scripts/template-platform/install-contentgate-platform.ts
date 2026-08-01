@@ -6,9 +6,12 @@ import { createClient } from "@supabase/supabase-js";
 import { buildContentGateTemplateBundle } from "../../src/lib/template-platform/contentgate-bundle.ts";
 import {
   importTemplateBundle,
+  templateBundleStoragePrefix,
+  TEMPLATE_BUNDLE_IMPORT_UPLOAD_CONCURRENCY,
   type TemplateBundleAssetSource,
   type TemplateBundleImportRepository,
 } from "../../src/lib/template-platform/importer.ts";
+import { templateBundleAssetStoragePath } from "../../src/lib/template-platform/storage-paths.ts";
 import { loadTemplateBundleDirectory } from "../../src/lib/template-platform/bundle-directory.ts";
 import {
   formatTemplateBundlePreflightReport,
@@ -144,13 +147,16 @@ type ContentGateTarget = {
 };
 
 type CliOptions = {
+  bundleDir?: string;
   bundleRoot?: string;
   bundleSource: "auto" | "figwright" | "bundled";
+  defaultVariantKey?: string;
   orgId?: string;
   productIds: string[];
   productName?: string;
   assign: boolean;
   dryRun: boolean;
+  repairAssets: boolean;
 };
 
 type ExistingTemplateVersion = {
@@ -196,6 +202,7 @@ function parseArgs(args: string[]): CliOptions {
     productName: "ContentGate",
     assign: true,
     dryRun: false,
+    repairAssets: false,
   };
 
   for (let index = 0; index < args.length; index += 1) {
@@ -220,8 +227,21 @@ function parseArgs(args: string[]): CliOptions {
       case "--dry-run":
         options.dryRun = true;
         break;
+      case "--repair-assets":
+        options.repairAssets = true;
+        break;
       case "--bundle-root":
         options.bundleRoot = next;
+        index += 1;
+        break;
+      case "--bundle-dir":
+        if (!next) throw new Error("--bundle-dir requires a directory path.");
+        options.bundleDir = next;
+        index += 1;
+        break;
+      case "--default-variant":
+        if (!next) throw new Error("--default-variant requires a variant key.");
+        options.defaultVariantKey = next;
         index += 1;
         break;
       case "--bundle-source":
@@ -245,12 +265,8 @@ function requireEnv(name: string) {
   return value;
 }
 
-function defaultStoragePrefix(manifest: TemplateBundleManifest) {
-  return ["template-bundles", manifest.family.key, manifest.version.name].join("/");
-}
-
 type InstallableContentGateBundle = {
-  source: "figwright" | "bundled";
+  source: "directory" | "figwright" | "bundled";
   manifest: TemplateBundleManifest;
   assets: TemplateBundleAssetSource[];
 };
@@ -259,6 +275,15 @@ async function loadContentGateBundle(input: {
   options: CliOptions;
   target: ContentGateTarget;
 }): Promise<InstallableContentGateBundle> {
+  if (input.options.bundleDir) {
+    const bundle = await loadTemplateBundleDirectory(input.options.bundleDir);
+    return {
+      source: "directory",
+      manifest: bundle.manifest,
+      assets: bundle.assets,
+    };
+  }
+
   const figwrightDirectory = join(
     input.options.bundleRoot ?? "",
     input.target.figwrightBundleFolder,
@@ -397,6 +422,54 @@ async function publishTemplateVersion(input: {
   return "published";
 }
 
+async function repairTemplateAssets(input: {
+  supabase: AdminClient;
+  orgId: string;
+  versionId: string;
+  bundle: InstallableContentGateBundle;
+}) {
+  const sourcesByPath = new Map(input.bundle.assets.map((asset) => [asset.path, asset]));
+  const storagePrefix = templateBundleStoragePrefix({
+    orgId: input.orgId,
+    manifest: input.bundle.manifest,
+  });
+
+  for (
+    let start = 0;
+    start < input.bundle.manifest.assets.length;
+    start += TEMPLATE_BUNDLE_IMPORT_UPLOAD_CONCURRENCY
+  ) {
+    const chunk = input.bundle.manifest.assets.slice(
+      start,
+      start + TEMPLATE_BUNDLE_IMPORT_UPLOAD_CONCURRENCY
+    );
+    await Promise.all(
+      chunk.map(async (asset) => {
+        const source = sourcesByPath.get(asset.path);
+        if (!source) throw new Error(`Missing asset payload for ${asset.path}.`);
+        const storagePath = templateBundleAssetStoragePath(storagePrefix, asset);
+        throwOnSupabaseError(
+          await input.supabase.storage.from("template-bundles").upload(storagePath, source.data, {
+            contentType: source.contentType,
+            upsert: true,
+          }),
+          `Repair template asset ${asset.path}`
+        );
+        throwOnSupabaseError(
+          await input.supabase
+            .from("template_assets")
+            .update({ storage_path: storagePath })
+            .eq("org_id", input.orgId)
+            .eq("template_version_id", input.versionId)
+            .eq("asset_key", asset.key),
+          `Repair template asset row ${asset.key}`
+        );
+      })
+    );
+  }
+  console.log(`  repaired ${input.bundle.manifest.assets.length} canonical asset path(s)`);
+}
+
 async function assignTemplateToProducts(input: {
   supabase: AdminClient;
   orgId: string;
@@ -440,7 +513,10 @@ async function installTarget(input: {
     options: input.options,
     target: input.target,
   });
-  const report = await preflightTemplateBundle({ manifest: bundle.manifest });
+  const report = await preflightTemplateBundle({
+    manifest: bundle.manifest,
+    assets: bundle.assets,
+  });
   if (!report.ok) {
     throw new Error(formatTemplateBundlePreflightReport(report));
   }
@@ -458,7 +534,10 @@ async function installTarget(input: {
         assets: bundle.assets,
         orgId: input.orgId,
         createdBy: null,
-        storagePrefix: defaultStoragePrefix(bundle.manifest),
+        storagePrefix: templateBundleStoragePrefix({
+          orgId: input.orgId,
+          manifest: bundle.manifest,
+        }),
       },
       createCliTemplateBundleRepository(input.supabase)
     );
@@ -487,12 +566,30 @@ async function installTarget(input: {
   });
   console.log(`  ${publishStatus}`);
 
+  if (input.options.repairAssets) {
+    await repairTemplateAssets({
+      supabase: input.supabase,
+      orgId: input.orgId,
+      versionId: version.id,
+      bundle,
+    });
+  }
+
+  const defaultVariantKey =
+    input.options.defaultVariantKey ??
+    (input.options.bundleDir
+      ? bundle.manifest.variants[0]?.key
+      : input.target.defaultVariantKey);
+  if (!defaultVariantKey) {
+    throw new Error(`Bundle ${bundle.manifest.family.key} does not declare a default variant.`);
+  }
+
   await assignTemplateToProducts({
     supabase: input.supabase,
     orgId: input.orgId,
     productIds: input.productIds,
     version,
-    defaultVariantKey: input.target.defaultVariantKey,
+    defaultVariantKey,
   });
 }
 
@@ -504,7 +601,10 @@ async function main() {
     console.log("Dry run: building and validating local ContentGate platform bundles.");
     for (const target of targets) {
       const bundle = await loadContentGateBundle({ options, target });
-      const report = await preflightTemplateBundle({ manifest: bundle.manifest });
+      const report = await preflightTemplateBundle({
+        manifest: bundle.manifest,
+        assets: bundle.assets,
+      });
       console.log(formatTemplateBundlePreflightReport(report));
       if (!report.ok) throw new Error(`${bundle.manifest.family.key} failed preflight.`);
       console.log(

@@ -7,10 +7,32 @@ import {
   getTemplateBundleVariantBackgroundOptions,
   getTemplateBundleVariantEditableFields,
   getTemplateBundleVariantGeneratedFields,
+  getTemplateBundleVariantReferenceFields,
   getTemplateBundleSupportedSizes,
   getTemplateBundleVariantDimensions,
   resolveTemplateBundleRuntimeVariant,
 } from "./runtime";
+
+test("resolves authored reference copy for generation comparison", () => {
+  const manifest = {
+    ...validTemplateBundleManifest,
+    family: {
+      ...validTemplateBundleManifest.family,
+      key: "nimbus-air-campaign",
+    },
+    variants: validTemplateBundleManifest.variants.map((variant) => ({
+      ...variant,
+      referenceFields: {
+        headline: "A declared authored headline",
+        missing_field: "This undeclared field must be ignored",
+      },
+    })),
+  };
+
+  assert.deepEqual(getTemplateBundleVariantReferenceFields(manifest, "square"), {
+    headline: "A declared authored headline",
+  });
+});
 
 test("keeps system asset controls out of editable and AI-generated copy", () => {
   const manifest = {

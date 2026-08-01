@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { requireAdminMfaRequest } from "@/lib/auth/admin-mfa";
 import type { TemplateBundleManifest } from "@/lib/template-platform/manifest";
 import {
   preflightTemplateBundle,
@@ -46,29 +46,9 @@ function isPreflightSample(value: unknown): value is TemplateBundlePreflightSamp
   );
 }
 
-async function requireAdmin() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: Response.json({ error: "Unauthorized" }, { status: 401 }) };
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-  if (!profile) return { error: Response.json({ error: "No profile." }, { status: 401 }) };
-  if (profile.role !== "admin") {
-    return { error: Response.json({ error: "Admins only." }, { status: 403 }) };
-  }
-
-  return { value: true };
-}
-
 export async function POST(req: Request) {
   const startedAt = Date.now();
-  const admin = await requireAdmin();
+  const admin = await requireAdminMfaRequest();
   if ("error" in admin) return admin.error;
 
   let body: PreflightBody;

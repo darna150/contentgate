@@ -4,6 +4,7 @@ import { Sidebar } from "@/components/sidebar";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { UiUxMeasurementProvider } from "@/components/uiux-measurement-provider";
+import { isPlatformOperator } from "@/lib/onboarding/environment";
 
 export default async function AppLayout({
   children,
@@ -22,6 +23,7 @@ export default async function AppLayout({
             userName="Preview User"
             userRole="admin"
             pendingCount={0}
+            platformOperator={false}
           />
           <main id="main-content" tabIndex={-1} className="min-w-0 flex-1">{children}</main>
         </div>
@@ -39,7 +41,7 @@ export default async function AppLayout({
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("full_name, role, org_id, organizations(name, industry)")
+    .select("full_name, role, org_id, organizations(name, industry, require_admin_mfa)")
     .eq("id", user.id)
     .single();
 
@@ -48,6 +50,12 @@ export default async function AppLayout({
   const org = Array.isArray(profile.organizations)
     ? profile.organizations[0]
     : profile.organizations;
+
+  if (profile.role === "admin" && org?.require_admin_mfa === true) {
+    const { data: assurance, error: assuranceError } =
+      await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+    if (assuranceError || assurance.currentLevel !== "aal2") redirect("/mfa");
+  }
 
   const { count } = await supabase
     .from("generated_content")
@@ -71,6 +79,7 @@ export default async function AppLayout({
           userName={profile.full_name ?? user.email ?? "User"}
           userRole={profile.role}
           pendingCount={count ?? 0}
+          platformOperator={isPlatformOperator(user.email)}
         />
         <main id="main-content" tabIndex={-1} className="min-w-0 flex-1">{children}</main>
       </div>

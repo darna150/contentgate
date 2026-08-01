@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 
 import { Button } from "@/components/ui/button";
 import { useUiUxMeasurement } from "@/components/uiux-measurement-provider";
@@ -22,6 +22,11 @@ export function StudioReviewActions({
   const [feedbackCategory, setFeedbackCategory] = useState("Claim or evidence");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const feedbackCategoryRef = useRef<HTMLSelectElement>(null);
+
+  useEffect(() => {
+    if (rejecting) feedbackCategoryRef.current?.focus();
+  }, [rejecting]);
 
   function onApprove() {
     setError(null);
@@ -87,6 +92,7 @@ export function StudioReviewActions({
           <label className="flex flex-col gap-1.5 text-[13px] font-semibold text-ink">
             Feedback category
             <select
+              ref={feedbackCategoryRef}
               value={feedbackCategory}
               onChange={(event) => setFeedbackCategory(event.target.value)}
               className="h-10 rounded-control border border-edge-strong bg-surface px-3 text-[13px] font-normal text-ink outline-none focus:border-reject"
@@ -99,10 +105,10 @@ export function StudioReviewActions({
             </select>
           </label>
           <Textarea
+            aria-label="Requested changes"
             value={note}
             onChange={(event) => setNote(event.target.value)}
             rows={3}
-            autoFocus
             placeholder="What needs to change before this can be approved?"
             className="focus:border-reject"
           />
@@ -128,7 +134,7 @@ export function StudioReviewActions({
         </div>
       )}
       {error && (
-        <p className="rounded-control border border-reject-border bg-reject-tint px-3.5 py-2.5 text-[13px] text-reject">
+        <p role="alert" className="rounded-control border border-reject-border bg-reject-tint px-3.5 py-2.5 text-[13px] text-reject">
           {error}
         </p>
       )}

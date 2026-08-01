@@ -1,4 +1,5 @@
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { requireAdminMfaRequest } from "@/lib/auth/admin-mfa";
 import {
   importTemplateBundle,
   templateBundleStoragePrefix,
@@ -37,38 +38,13 @@ function isAssetBody(value: unknown): value is ImportAssetBody {
   );
 }
 
-async function requireAdmin() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: Response.json({ error: "Unauthorized" }, { status: 401 }) };
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("org_id, role")
-    .eq("id", user.id)
-    .single();
-  if (!profile) return { error: Response.json({ error: "No profile." }, { status: 401 }) };
-  if (profile.role !== "admin") {
-    return { error: Response.json({ error: "Admins only." }, { status: 403 }) };
-  }
-
-  return {
-    value: {
-      orgId: profile.org_id as string,
-      userId: user.id,
-    },
-  };
-}
-
 export async function POST(req: Request) {
   const startedAt = Date.now();
   if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
     return Response.json({ error: "Template import is not configured." }, { status: 503 });
   }
 
-  const admin = await requireAdmin();
+  const admin = await requireAdminMfaRequest();
   if ("error" in admin) return admin.error;
 
   let body: ImportBody;
@@ -115,7 +91,7 @@ export async function POST(req: Request) {
         createdBy: admin.value.userId,
         storagePrefix,
       },
-      createSupabaseTemplateBundleRepository()
+      createSupabaseTemplateBundleRepository(createAdminClient() as never)
     );
 
     if (!result.ok) {

@@ -1,7 +1,16 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import {
+  PREVIEW_VIEWPORT_PADDING,
+  previewFitScale,
+  previewOverlayScale,
+  resolvePreviewScale,
+  type PreviewZoom,
+} from "@/lib/studio-preview-scale";
+import { studioPreviewImageSources } from "@/lib/studio-preview-images";
 import type { TemplateBundleManifest } from "@/lib/template-platform/manifest";
 import {
   renderTemplateBundleVariant,
@@ -54,43 +63,89 @@ function loadPreviewFont(input: {
   return pending;
 }
 
-function previewScale(input: {
-  availableWidth: number;
-  availableHeight: number;
+/**
+ * Single source of truth for preview sizing across all three frames (server
+ * image, missing-draft placeholder, live editable canvas). Previously each one
+ * carried its own copy of this effect, which let them drift.
+ */
+function usePreviewScale(input: {
   width: number;
   height: number;
+  zoom: PreviewZoom;
+  onScaleChange?: (scale: number) => void;
 }) {
-  const raw = Math.min(
-    1,
-    input.availableWidth / input.width,
-    input.availableHeight / input.height
-  );
-  // Snap the displayed frame to whole CSS pixels. Fractional image sizes make
-  // raster-locked Figma exports (logos, texture, baked layout) look soft while
-  // overlaid live text remains crisp.
-  const displayedWidth = Math.max(1, Math.floor(input.width * raw));
-  return displayedWidth / input.width;
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const [fitScale, setFitScale] = useState(0.72);
+
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    const updateFit = () => {
+      setFitScale(
+        previewFitScale({
+          availableWidth: Math.max(1, viewport.clientWidth - PREVIEW_VIEWPORT_PADDING),
+          availableHeight: Math.max(1, viewport.clientHeight - PREVIEW_VIEWPORT_PADDING),
+          width: input.width,
+          height: input.height,
+        })
+      );
+    };
+    updateFit();
+    const observer = new ResizeObserver(updateFit);
+    observer.observe(viewport);
+    return () => observer.disconnect();
+  }, [input.height, input.width]);
+
+  const { scale, overflows } = resolvePreviewScale({
+    zoom: input.zoom,
+    fitScale,
+    width: input.width,
+  });
+  const onScaleChange = input.onScaleChange;
+  useEffect(() => {
+    onScaleChange?.(scale);
+  }, [onScaleChange, scale]);
+  return { viewportRef, scale, overflows };
 }
 
-function highDensityPreviewSrc(src: string) {
-  const makeScaledApiUrl = (value: string) => {
-    const base =
-      typeof window === "undefined" ? "http://contentgate.local" : window.location.origin;
-    const url = new URL(value, base);
-    url.searchParams.set("scale", "2");
-    return value.startsWith("http") ? url.toString() : url.pathname + url.search + url.hash;
-  };
-
-  if (src.includes("/api/creative/")) return makeScaledApiUrl(src);
-  if (!src.startsWith("/")) return src;
-  const [pathname, query = ""] = src.split("?");
-  if (
-    /\/template-(bundles|packages)\/contentgate\//.test(pathname) &&
-    pathname.toLowerCase().endsWith(".png")
-  ) {
-    return `${pathname.replace(/\.png$/i, "@2x.png")}${query ? `?${query}` : ""}`;
-  }
-  return src;
+/**
+ * Scrollable, centred preview stage.
+ *
+ * Overlays (status badges, loading states) are siblings of the scroll container
+ * rather than children, so they stay pinned instead of scrolling away with the
+ * artwork. The inner `w-max min-w-full` wrapper keeps the artwork centred when
+ * it fits and prevents flexbox from clipping the leading edge when it does not
+ * — plain `justify-center` makes overflow on that side unreachable by scroll.
+ */
+function PreviewStage({
+  viewportRef,
+  overlay,
+  children,
+  overflows,
+  ...rest
+}: {
+  viewportRef: RefObject<HTMLDivElement | null>;
+  overlay?: ReactNode;
+  children: ReactNode;
+  overflows: boolean;
+} & React.HTMLAttributes<HTMLDivElement>) {
+  return (
+    <div className="relative h-full min-h-0 w-full bg-[#f5f5f2]" {...rest}>
+      {overlay}
+      <div
+        ref={viewportRef}
+        data-testid="studio-preview-viewport"
+        role={overflows ? "region" : undefined}
+        aria-label={overflows ? "Scrollable template preview" : undefined}
+        tabIndex={overflows ? 0 : undefined}
+        className={cn("h-full w-full", overflows ? "overflow-auto" : "overflow-hidden")}
+      >
+        <div className="flex min-h-full w-max min-w-full items-center justify-center p-4">
+          {children}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export function GenerationLoader() {
@@ -141,79 +196,113 @@ export function GenerationLoader() {
 
 export function ServerPreviewFrame({
   src,
+  highResolutionSrc,
   width,
   height,
   updating,
+  zoom = "fit",
+  onScaleChange,
 }: {
   src: string;
+  /** Optional authenticated authored asset. The lightweight `src` remains the
+   * first paint; this image replaces it only after a successful decode. */
+  highResolutionSrc?: string;
   width: number;
   height: number;
   updating: boolean;
+  zoom?: PreviewZoom;
+  onScaleChange?: (scale: number) => void;
 }) {
-  const viewportRef = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState(0.72);
+  const { viewportRef, scale, overflows } = usePreviewScale({
+    width,
+    height,
+    zoom,
+    onScaleChange,
+  });
+  const sources = studioPreviewImageSources({ src, highResolutionSrc });
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
-  const displaySrc = highDensityPreviewSrc(src);
-  const [loadedSrc, setLoadedSrc] = useState(displaySrc);
+  const [loadedSrc, setLoadedSrc] = useState(sources.instantSrc);
+  const loadedSrcRef = useRef(sources.instantSrc);
+  const [instantReadyFor, setInstantReadyFor] = useState<string | null>(null);
   const [loadingNext, setLoadingNext] = useState(false);
-  const imageFailed = failedSrc === displaySrc;
+  const imageFailed = failedSrc === sources.instantSrc;
 
-  // Decode the next reference off-screen and keep the previous one in place
-  // until it is paint-ready. Size changes therefore never expose a blank or
-  // half-loaded canvas, even on a cold 2× Figma export.
-  useEffect(() => {
-    if (displaySrc === loadedSrc) return;
-    let cancelled = false;
-    const image = new Image();
-    queueMicrotask(() => {
-      if (!cancelled) setLoadingNext(true);
+  function reveal(nextSrc: string) {
+    loadedSrcRef.current = nextSrc;
+    setLoadedSrc(nextSrc);
+  }
+
+  function preloadAndDecode(nextSrc: string, priority: "high" | "low") {
+    return new Promise<void>((resolve, reject) => {
+      const image = new Image();
+      image.decoding = "async";
+      image.fetchPriority = priority;
+      image.onload = () => {
+        const decode = image.decode ? image.decode() : Promise.resolve();
+        void decode.catch(() => undefined).then(() => resolve());
+      };
+      image.onerror = () => reject(new Error("Preview image could not be loaded."));
+      image.src = nextSrc;
     });
-    const reveal = () => {
-      if (cancelled) return;
-      setLoadedSrc(displaySrc);
-      setLoadingNext(false);
-      setFailedSrc(null);
-    };
-    image.onload = () => {
-      const decode = image.decode ? image.decode() : Promise.resolve();
-      void decode.catch(() => undefined).then(reveal);
-    };
-    image.onerror = () => {
-      if (!cancelled) {
-        setFailedSrc(displaySrc);
-        setLoadingNext(false);
-      }
-    };
-    image.src = displaySrc;
+  }
+
+  // On a size change, decode the tiny thumbnail before replacing the previous
+  // format. The authored high-resolution asset is deliberately not requested
+  // until this first paint is ready, so it cannot compete with instant display.
+  useEffect(() => {
+    if (loadedSrcRef.current === sources.instantSrc) return;
+    setInstantReadyFor(null);
+    setFailedSrc(null);
+    let cancelled = false;
+    setLoadingNext(true);
+    void preloadAndDecode(sources.instantSrc, "high")
+      .then(() => {
+        if (!cancelled) reveal(sources.instantSrc);
+      })
+      .catch(() => {
+        if (!cancelled) setFailedSrc(sources.instantSrc);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingNext(false);
+      });
     return () => {
       cancelled = true;
     };
-  }, [displaySrc, loadedSrc]);
+  }, [sources.instantSrc]);
 
+  // Upgrade only after the thumbnail has painted. A failed or expired signed
+  // full-resolution URL is non-fatal: the ready thumbnail stays visible.
   useEffect(() => {
-    const viewport = viewportRef.current;
-    if (!viewport) return;
-    const updateScale = () => {
-      const availableWidth = Math.max(1, viewport.clientWidth - 32);
-      const availableHeight = Math.max(1, viewport.clientHeight - 32);
-      setScale(previewScale({ availableWidth, availableHeight, width, height }));
+    const upgradeSrc = sources.highResolutionSrc;
+    if (!upgradeSrc || instantReadyFor !== sources.instantSrc) return;
+    if (loadedSrcRef.current === upgradeSrc) return;
+    let cancelled = false;
+    setLoadingNext(true);
+    void preloadAndDecode(upgradeSrc, "low")
+      .then(() => {
+        if (!cancelled) reveal(upgradeSrc);
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (!cancelled) setLoadingNext(false);
+      });
+    return () => {
+      cancelled = true;
     };
-    updateScale();
-    const observer = new ResizeObserver(updateScale);
-    observer.observe(viewport);
-    return () => observer.disconnect();
-  }, [height, width]);
+  }, [instantReadyFor, sources.highResolutionSrc, sources.instantSrc]);
 
   return (
-    <div
-      ref={viewportRef}
-      className="relative flex h-full min-h-0 w-full items-center justify-center overflow-hidden bg-[#f5f5f2] p-4"
+    <PreviewStage
+      viewportRef={viewportRef}
+      overflows={overflows}
+      overlay={
+        (updating || loadingNext) && (
+          <div className="absolute right-4 top-4 z-10 rounded-full bg-surface/90 px-3 py-1.5 text-[11px] font-semibold text-ink-muted shadow-sm">
+            {loadingNext ? "Sharpening preview…" : "Updating preview…"}
+          </div>
+        )
+      }
     >
-      {(updating || loadingNext) && (
-        <div className="absolute right-4 top-4 z-10 rounded-full bg-surface/90 px-3 py-1.5 text-[11px] font-semibold text-ink-muted shadow-sm">
-          {loadingNext ? "Loading reference…" : "Updating preview…"}
-        </div>
-      )}
       {imageFailed ? (
         <div className="flex max-w-[420px] flex-col items-center gap-3 rounded-card border border-edge bg-surface px-7 py-6 text-center shadow-elevated">
           <div className="flex size-11 items-center justify-center rounded-full bg-brand-tint text-[18px] text-brand">
@@ -241,14 +330,29 @@ export function ServerPreviewFrame({
           src={loadedSrc}
           alt="Generated template preview"
           className="block rounded-[3px] shadow-elevated"
-          onError={() => setFailedSrc(displaySrc)}
+          decoding="async"
+          fetchPriority="high"
+          onLoad={() => {
+            if (loadedSrc === sources.instantSrc) {
+              setInstantReadyFor(sources.instantSrc);
+            }
+          }}
+          onError={() => {
+            if (loadedSrc !== sources.instantSrc) {
+              reveal(sources.instantSrc);
+              return;
+            }
+            setFailedSrc(sources.instantSrc);
+          }}
+          data-testid="studio-preview-canvas"
+          data-preview-scale={scale}
           style={{
             width: Math.round(width * scale),
             height: Math.round(height * scale),
           }}
         />
       )}
-    </div>
+    </PreviewStage>
   );
 }
 
@@ -259,6 +363,8 @@ export function MissingDraftFrame({
   busy,
   onGenerate,
   onCopyFromCampaign,
+  zoom = "fit",
+  onScaleChange,
 }: {
   width: number;
   height: number;
@@ -266,31 +372,22 @@ export function MissingDraftFrame({
   busy: boolean;
   onGenerate: () => void;
   onCopyFromCampaign: () => void;
+  zoom?: PreviewZoom;
+  onScaleChange?: (scale: number) => void;
 }) {
-  const viewportRef = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState(0.72);
-
-  useEffect(() => {
-    const viewport = viewportRef.current;
-    if (!viewport) return;
-    const updateScale = () => {
-      const availableWidth = Math.max(1, viewport.clientWidth - 32);
-      const availableHeight = Math.max(1, viewport.clientHeight - 32);
-      setScale(previewScale({ availableWidth, availableHeight, width, height }));
-    };
-    updateScale();
-    const observer = new ResizeObserver(updateScale);
-    observer.observe(viewport);
-    return () => observer.disconnect();
-  }, [height, width]);
+  const { viewportRef, scale, overflows } = usePreviewScale({
+    width,
+    height,
+    zoom,
+    onScaleChange,
+  });
 
   return (
-    <div
-      ref={viewportRef}
-      className="relative flex h-full min-h-0 w-full items-center justify-center overflow-hidden bg-[#f5f5f2] p-4"
-    >
+    <PreviewStage viewportRef={viewportRef} overflows={overflows}>
       <div
         className="flex flex-col items-center justify-center rounded-[3px] border border-dashed border-edge-strong bg-surface px-6 py-8 text-center shadow-sm"
+        data-testid="studio-preview-canvas"
+        data-preview-scale={scale}
         style={{
           width: Math.round(width * scale),
           height: Math.round(height * scale),
@@ -317,7 +414,7 @@ export function MissingDraftFrame({
           Copy from campaign
         </Button>
       </div>
-    </div>
+    </PreviewStage>
   );
 }
 
@@ -332,6 +429,8 @@ export function LiveTemplatePreviewFrame({
   height,
   updating,
   original = false,
+  zoom = "fit",
+  onScaleChange,
 }: {
   manifest: TemplateBundleManifest;
   variantKey: string;
@@ -350,9 +449,15 @@ export function LiveTemplatePreviewFrame({
   height: number;
   updating: boolean;
   original?: boolean;
+  zoom?: PreviewZoom;
+  onScaleChange?: (scale: number) => void;
 }) {
-  const viewportRef = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState(0.72);
+  const { viewportRef, scale, overflows } = usePreviewScale({
+    width,
+    height,
+    zoom,
+    onScaleChange,
+  });
   const [fontsReady, setFontsReady] = useState(false);
   const renderScale = 2;
   const rendered = renderTemplateBundleVariant({
@@ -365,20 +470,6 @@ export function LiveTemplatePreviewFrame({
     scale: renderScale,
     original,
   });
-
-  useEffect(() => {
-    const viewport = viewportRef.current;
-    if (!viewport) return;
-    const updateScale = () => {
-      const availableWidth = Math.max(1, viewport.clientWidth - 32);
-      const availableHeight = Math.max(1, viewport.clientHeight - 32);
-      setScale(previewScale({ availableWidth, availableHeight, width, height }));
-    };
-    updateScale();
-    const observer = new ResizeObserver(updateScale);
-    observer.observe(viewport);
-    return () => observer.disconnect();
-  }, [height, width]);
 
   // The editable canvas must use the same embedded font files as the fit
   // service and ImageResponse export. A CSS family name by itself falls back
@@ -440,28 +531,34 @@ export function LiveTemplatePreviewFrame({
   }
 
   return (
-    <div
-      ref={viewportRef}
-      className="relative flex h-full min-h-0 w-full items-center justify-center overflow-hidden bg-[#f5f5f2] p-4"
+    <PreviewStage
+      viewportRef={viewportRef}
+      overflows={overflows}
       aria-busy={!fontsReady}
+      overlay={
+        <>
+          {!fontsReady && (
+            <div
+              className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-[#f5f5f2]/90 text-center"
+              role="status"
+              aria-live="polite"
+            >
+              <span className="size-7 animate-spin rounded-full border-2 border-brand/25 border-t-brand motion-reduce:animate-none" aria-hidden="true" />
+              <p className="text-[12.5px] font-semibold text-ink-muted">Loading locked preview…</p>
+            </div>
+          )}
+          {updating && (
+            <div className="absolute right-4 top-4 z-10 rounded-full bg-surface/90 px-3 py-1.5 text-[11px] font-semibold text-ink-muted shadow-sm">
+              Saving…
+            </div>
+          )}
+        </>
+      }
     >
-      {!fontsReady && (
-        <div
-          className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-[#f5f5f2]/90 text-center"
-          role="status"
-          aria-live="polite"
-        >
-          <span className="size-7 animate-spin rounded-full border-2 border-brand/25 border-t-brand motion-reduce:animate-none" aria-hidden="true" />
-          <p className="text-[12.5px] font-semibold text-ink-muted">Loading locked preview…</p>
-        </div>
-      )}
-      {updating && (
-        <div className="absolute right-4 top-4 z-10 rounded-full bg-surface/90 px-3 py-1.5 text-[11px] font-semibold text-ink-muted shadow-sm">
-          Saving…
-        </div>
-      )}
       <div
         className="rounded-[3px] shadow-elevated"
+        data-testid="studio-preview-canvas"
+        data-preview-scale={scale}
         style={{
           width: Math.round(width * scale),
           height: Math.round(height * scale),
@@ -471,7 +568,9 @@ export function LiveTemplatePreviewFrame({
           style={{
             width: rendered.width,
             height: rendered.height,
-            transform: `scale(${scale / renderScale})`,
+            // Composed with the outer box this lands on exactly the same pixel
+            // width; studio-preview-scale.test.ts guards that identity.
+            transform: `scale(${previewOverlayScale(scale, renderScale)})`,
             transformOrigin: "top left",
             // Do not flash a system-font layout before the bundle fonts are
             // present; the explicit loading state above keeps this from
@@ -482,6 +581,6 @@ export function LiveTemplatePreviewFrame({
           {rendered.element}
         </div>
       </div>
-    </div>
+    </PreviewStage>
   );
 }

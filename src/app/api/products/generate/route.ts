@@ -1,15 +1,24 @@
 import { createClient } from "@/lib/supabase/server";
 import { flattenFields, revisionInstruction, type Evidence } from "@/lib/templates";
 import {
+  meaningfulVariationIssues,
+  revisionContractKind,
+  revisionLengthIssues,
+  semanticRevisionCriterion,
+} from "@/lib/revision-contract";
+import {
   formatGeneratedCopyQualityIssues,
   generatedCopyQualityIssues,
+  repairGeneratedCopyQualityFields,
 } from "@/lib/generated-copy-quality";
-import { fieldLimitInstruction } from "@/lib/template-fields";
+import { fieldLimitInstruction, templateFieldIssues } from "@/lib/template-fields";
+import { graphemeCount } from "@/lib/graphemes";
+import { sourceBackedFallbackCandidates } from "@/lib/generation-fallback";
 import { isProductLifecycleActive } from "@/lib/product-workspace";
 import {
   citationQuote,
-  findGroundingSource,
   generatedCopyEvidenceIssues,
+  resolvePromptGroundingCitation,
 } from "@/lib/evidence-validation";
 import {
   aiEditableTemplateFields,
@@ -26,10 +35,11 @@ import {
 import {
   BACKGROUND_CHOICE_FIELD,
   getTemplateBundleVariantAssetChoiceFields,
-  getTemplateBundleVariantFieldLimits,
+  getTemplateBundleVariantReferenceFields,
   resolveTemplateBundleRuntimeVariant,
 } from "@/lib/template-platform/runtime";
 import {
+  calibrateTemplatePlatformFieldBudgets,
   coerceTemplatePlatformFieldsToFit,
   formatTemplatePlatformFitIssues,
   templatePlatformFieldFitIssues,
@@ -41,9 +51,15 @@ import {
   logTemplatePipelineEvent,
   templatePipelineDuration,
 } from "@/lib/template-platform/observability";
+import {
+  isSyntheticProviderFailureRequest,
+  reportProviderIncident,
+} from "@/lib/provider-failure";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+// Pro/Fluid Compute budget: generation can include candidate creation,
+// targeted repair, evidence entailment verification, and a safe fallback.
+export const maxDuration = 300;
 
 const OPENAI_GENERATION_MODEL =
   process.env.OPENAI_GENERATION_MODEL ??
@@ -67,6 +83,7 @@ type Body = {
   replaceContentId?: string; // when revising, update this draft in place
   replaceContentUpdatedAt?: string; // optimistic concurrency token from Studio
   sourceContentId?: string; // when adapting another size, preserve the same campaign idea
+  campaignId?: string; // explicit campaign; otherwise inherit or use the active product campaign
 };
 
 const SUPPORTED_GENERATION_LANGUAGES = new Set([
@@ -93,6 +110,7 @@ type ReplaceContentRow = {
   prompt_context: Record<string, unknown> | null;
   structured_fields: Record<string, string> | null;
   updated_at: string;
+  campaign_id: string | null;
 };
 
 type CampaignSourceRow = {
@@ -100,6 +118,7 @@ type CampaignSourceRow = {
   template_variant_id: string | null;
   structured_fields: Record<string, string> | null;
   prompt_context: Record<string, unknown> | null;
+  campaign_id: string | null;
   template_variants:
     | { variant_key: string; label: string | null }
     | { variant_key: string; label: string | null }[]
@@ -112,7 +131,13 @@ type GeneratedCopy = {
 };
 
 type OpenAIResponse = {
+  id?: string;
   output_text?: string;
+  usage?: {
+    input_tokens?: number;
+    output_tokens?: number;
+    total_tokens?: number;
+  };
   output?: Array<{
     type?: string;
     content?: Array<{
@@ -129,12 +154,37 @@ function selectedProvider() {
 
 function parseGeneratedCopy(value: unknown): GeneratedCopy {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return { fields: {}, evidence: [] };
+    throw new Error("OpenAI returned a non-object generation payload.");
   }
   const raw = value as { fields?: unknown; evidence?: unknown };
+  if (!raw.fields || typeof raw.fields !== "object" || Array.isArray(raw.fields)) {
+    throw new Error("OpenAI generation payload is missing fields.");
+  }
+  if (!Array.isArray(raw.evidence)) {
+    throw new Error("OpenAI generation payload is missing evidence.");
+  }
+  const evidence = raw.evidence.map((item, index) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) {
+      throw new Error(`OpenAI evidence item ${index + 1} is invalid.`);
+    }
+    const candidate = item as Record<string, unknown>;
+    if (
+      typeof candidate.field !== "string" ||
+      typeof candidate.source_id !== "string" ||
+      typeof candidate.excerpt !== "string"
+    ) {
+      throw new Error(`OpenAI evidence item ${index + 1} has an invalid shape.`);
+    }
+    return {
+      field: candidate.field,
+      source_id: candidate.source_id,
+      excerpt: candidate.excerpt,
+      approved_source: "",
+    } satisfies Evidence;
+  });
   return {
     fields: asStringRecord(raw.fields),
-    evidence: Array.isArray(raw.evidence) ? (raw.evidence as Evidence[]) : [],
+    evidence,
   };
 }
 
@@ -153,7 +203,11 @@ async function generateWithOpenAI(input: {
   system: string;
   prompt: string;
   editableFields: string[];
-}): Promise<GeneratedCopy> {
+}): Promise<{
+  copy: GeneratedCopy;
+  responseId: string | null;
+  usage: OpenAIResponse["usage"] | null;
+}> {
   if (!process.env.OPENAI_API_KEY) {
     throw new Error("OpenAI generation is not configured.");
   }
@@ -190,7 +244,37 @@ async function generateWithOpenAI(input: {
       ],
       text: {
         format: {
-          type: "json_object",
+          type: "json_schema",
+          name: "contentgate_generated_copy",
+          strict: true,
+          schema: {
+            type: "object",
+            properties: {
+              fields: {
+                type: "object",
+                properties: Object.fromEntries(
+                  input.editableFields.map((field) => [field, { type: "string" }])
+                ),
+                required: input.editableFields,
+                additionalProperties: false,
+              },
+              evidence: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    field: { type: "string", enum: input.editableFields },
+                    source_id: { type: "string" },
+                    excerpt: { type: "string" },
+                  },
+                  required: ["field", "source_id", "excerpt"],
+                  additionalProperties: false,
+                },
+              },
+            },
+            required: ["fields", "evidence"],
+            additionalProperties: false,
+          },
         },
       },
     }),
@@ -206,7 +290,184 @@ async function generateWithOpenAI(input: {
   const json = (await response.json()) as OpenAIResponse;
   const text = openAIOutputText(json).trim();
   if (!text) throw new Error("OpenAI returned no text output.");
-  return parseGeneratedCopy(JSON.parse(text));
+  return {
+    copy: parseGeneratedCopy(JSON.parse(text)),
+    responseId: typeof json.id === "string" ? json.id : null,
+    usage: json.usage ?? null,
+  };
+}
+
+async function evaluateSemanticRevisionWithOpenAI(input: {
+  revision: string;
+  instruction: string;
+  criterion: string;
+  language: string;
+  editableFields: string[];
+  previousFields: Record<string, string>;
+  generatedFields: Record<string, string>;
+  approvedContext: string;
+}) {
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error("OpenAI generation is not configured.");
+  }
+
+  const response = await fetch("https://api.openai.com/v1/responses", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: OPENAI_GENERATION_MODEL,
+      max_output_tokens: 500,
+      input: [
+        {
+          role: "system",
+          content:
+            "You are a strict marketing-copy refinement verifier. Compare the before and after copy and reject cosmetic changes that do not visibly satisfy the requested direction. Do not give the rewrite the benefit of the doubt. Return JSON only.",
+        },
+        {
+          role: "user",
+          content: [
+            `REFINEMENT: ${input.revision}`,
+            `AUTHOR INSTRUCTION: ${input.instruction}`,
+            `PASS CRITERION: ${input.criterion}`,
+            `LANGUAGE: ${input.language}`,
+            `EDITABLE FIELDS: ${input.editableFields.join(", ")}`,
+            `BEFORE COPY: ${JSON.stringify(input.previousFields)}`,
+            `AFTER COPY: ${JSON.stringify(input.generatedFields)}`,
+            `APPROVED EVIDENCE AND BRAND CONTEXT:\n${input.approvedContext.slice(0, 12_000)}`,
+            "Return ONLY valid JSON in this shape:",
+            JSON.stringify({
+              passes: false,
+              issues: ["field: concise reason the requested refinement is not visible"],
+            }),
+          ].join("\n\n"),
+        },
+      ],
+      text: { format: { type: "json_object" } },
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => "");
+    throw new Error(
+      `OpenAI refinement verification failed (${response.status}): ${errorText.slice(0, 240)}`
+    );
+  }
+
+  const json = (await response.json()) as OpenAIResponse;
+  const text = openAIOutputText(json).trim();
+  if (!text) throw new Error("OpenAI returned no refinement verification.");
+  const parsed = JSON.parse(text) as { passes?: unknown; issues?: unknown };
+  if (parsed.passes === true) return [];
+  const issues = Array.isArray(parsed.issues)
+    ? parsed.issues.filter((issue): issue is string => typeof issue === "string" && issue.trim().length > 0)
+    : [];
+  return issues.length
+    ? issues
+    : [`generated copy did not visibly satisfy the ${input.revision} refinement`];
+}
+
+async function evaluateGeneratedEvidenceSupportWithOpenAI(input: {
+  fields: Record<string, string>;
+  evidence: Evidence[];
+  requiredFields: string[];
+  language: string;
+}) {
+  const activeFields = input.requiredFields.filter((field) =>
+    String(input.fields[field] ?? "").trim()
+  );
+  if (!activeFields.length) return [];
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error("OpenAI evidence support verification is not configured.");
+  }
+  const evidenceByField = Object.fromEntries(
+    activeFields.map((field) => [
+      field,
+      input.evidence
+        .filter((item) => item.field === field)
+        .map((item) => ({
+          approved_source: item.approved_source,
+          cited_excerpt: citationQuote(item),
+        })),
+    ])
+  );
+  const response = await fetch("https://api.openai.com/v1/responses", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: OPENAI_GENERATION_MODEL,
+      max_output_tokens: 700,
+      input: [
+        {
+          role: "system",
+          content:
+            "You are a marketing-claim entailment verifier. For each field, evaluate the combined meaning of all cited approved sources. Accept faithful paraphrases, compression, changes in voice, and combinations of claims that are individually supported by those sources; the generated wording does not need to appear verbatim. Generic creative phrasing that introduces no factual proposition is also acceptable. Reject only a material capability, guarantee, comparison, performance claim, quantified claim, or benefit that is not entailed by the cited sources. The cited excerpt is audit evidence; the fuller approved source supplies its context. Do not judge style, originality, or exact wording. Return structured JSON only.",
+        },
+        {
+          role: "user",
+          content: [
+            `LANGUAGE: ${input.language}`,
+            `GENERATED FIELDS: ${JSON.stringify(Object.fromEntries(activeFields.map((field) => [field, input.fields[field] ?? ""])))}`,
+            `CITED APPROVED SOURCES: ${JSON.stringify(evidenceByField)}`,
+          ].join("\n"),
+        },
+      ],
+      text: {
+        format: {
+          type: "json_schema",
+          name: "contentgate_evidence_support",
+          strict: true,
+          schema: {
+            type: "object",
+            properties: {
+              verdicts: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    field: { type: "string", enum: activeFields },
+                    supported: { type: "boolean" },
+                    reason: { type: "string" },
+                  },
+                  required: ["field", "supported", "reason"],
+                  additionalProperties: false,
+                },
+              },
+            },
+            required: ["verdicts"],
+            additionalProperties: false,
+          },
+        },
+      },
+    }),
+  });
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => "");
+    throw new Error(
+      `OpenAI evidence support verification failed (${response.status}): ${errorText.slice(0, 240)}`
+    );
+  }
+  const json = (await response.json()) as OpenAIResponse;
+  const text = openAIOutputText(json).trim();
+  if (!text) throw new Error("OpenAI returned no evidence support verification.");
+  const parsed = JSON.parse(text) as {
+    verdicts?: Array<{ field?: unknown; supported?: unknown; reason?: unknown }>;
+  };
+  const verdicts = Array.isArray(parsed.verdicts) ? parsed.verdicts : [];
+  return activeFields.flatMap((field) => {
+    const verdict = verdicts.find((item) => item.field === field);
+    if (verdict?.supported === true) return [];
+    const reason =
+      typeof verdict?.reason === "string" && verdict.reason.trim()
+        ? verdict.reason.trim()
+        : "generated claim was not proven by its cited approved source";
+    return [`${field}: ${reason}`];
+  });
 }
 
 type GroundingSource = { id: string; label: string; text: string };
@@ -238,7 +499,7 @@ function buildGroundingSources(
 function resolveApprovedEvidence(
   evidence: Evidence[],
   editableFields: string[],
-  approvedSourceTexts: string[]
+  groundingSources: GroundingSource[]
 ): Evidence[] {
   const validFields = new Set(editableFields);
   const resolved: Evidence[] = [];
@@ -252,12 +513,16 @@ function resolveApprovedEvidence(
         typeof item.approved_source === "string" ? item.approved_source : "",
       excerpt: typeof item.excerpt === "string" ? item.excerpt : undefined,
     });
-    const source = findGroundingSource(quote, approvedSourceTexts);
-    if (!source) continue;
+    const resolvedCitation = resolvePromptGroundingCitation({
+      sourceId: typeof item.source_id === "string" ? item.source_id : undefined,
+      quote,
+      sources: groundingSources,
+    });
+    if (!resolvedCitation) continue;
     resolved.push({
       field: item.field,
-      approved_source: source,
-      excerpt: quote,
+      approved_source: resolvedCitation.approvedSource,
+      excerpt: resolvedCitation.excerpt,
     });
   }
   return resolved;
@@ -274,7 +539,7 @@ function groundingRepairInstruction(issues: string[]): string {
     fields.length
       ? `Fix these fields: ${fields.join(", ")}.`
       : ``,
-    `For each, add an evidence entry with the source id (e.g. C1 or P2) and an "excerpt" copied WORD-FOR-WORD from that approved source. Do not assert anything that is not directly supported by an approved claim or source sentence.`,
+    `For each, add an evidence entry with the source id (e.g. C1 or P2) and an "excerpt" copied WORD-FOR-WORD from that approved source. Use at least four words, or copy the entire source when it is shorter. Do not assert anything that is not directly supported by an approved claim or source sentence.`,
   ]
     .filter(Boolean)
     .join("\n");
@@ -381,7 +646,7 @@ function deterministicRevisionVariation(input: {
     if (
       candidate &&
       normalizedCopyValue(candidate) !== normalizedCopyValue(current) &&
-      (!limit || candidate.length <= limit)
+      (!limit || graphemeCount(candidate) <= limit)
     ) {
       nextFields[key] = candidate;
       break;
@@ -392,11 +657,16 @@ function deterministicRevisionVariation(input: {
 
 export async function POST(req: Request) {
   const startedAt = Date.now();
+  const generationRequestId = crypto.randomUUID();
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const syntheticProviderFailure = isSyntheticProviderFailureRequest(
+    req,
+    user.email,
+  );
 
   let requestBody: Body;
   try {
@@ -416,6 +686,7 @@ export async function POST(req: Request) {
     replaceContentId,
     replaceContentUpdatedAt,
     sourceContentId,
+    campaignId,
   } = requestBody;
   if (productTemplateId) {
     return Response.json(
@@ -519,7 +790,7 @@ export async function POST(req: Request) {
       const { data: existingContent } = await supabase
         .from("generated_content")
         .select(
-          "id, status, created_by, product_id, template_version_id, template_variant_id, prompt_context, structured_fields, updated_at"
+          "id, status, created_by, product_id, template_version_id, template_variant_id, prompt_context, structured_fields, updated_at, campaign_id"
         )
         .eq("id", replaceContentId)
         .eq("org_id", profile.org_id)
@@ -561,7 +832,7 @@ export async function POST(req: Request) {
       const { data: sourceContent } = await supabase
         .from("generated_content")
         .select(
-          "id, template_variant_id, structured_fields, prompt_context, template_variants!generated_content_template_variant_id_fkey(variant_key, label)"
+          "id, template_variant_id, structured_fields, prompt_context, campaign_id, template_variants!generated_content_template_variant_id_fkey(variant_key, label)"
         )
         .eq("id", sourceContentId)
         .eq("org_id", profile.org_id)
@@ -570,10 +841,11 @@ export async function POST(req: Request) {
         .in("status", ["draft", "rejected", "in_review", "approved"])
         .maybeSingle();
 
-      if (!sourceContent) {
-        return Response.json({ error: "Source draft was not found." }, { status: 404 });
-      }
-      campaignSource = sourceContent as CampaignSourceRow;
+      // Campaign continuity is an enhancement, not a prerequisite. A source
+      // draft can disappear after Studio loaded (for example, another tab
+      // archived it). Continue with an independent, grounded generation
+      // instead of failing the selected format.
+      campaignSource = sourceContent ? (sourceContent as CampaignSourceRow) : null;
     }
 
     const { data: product } = await supabase
@@ -591,6 +863,36 @@ export async function POST(req: Request) {
     }
     const productDisplayName = product.name;
 
+    let resolvedCampaignId =
+      campaignId ?? replaceContent?.campaign_id ?? campaignSource?.campaign_id ?? null;
+    if (resolvedCampaignId) {
+      const { data: campaign } = await supabase
+        .from("campaigns")
+        .select("id")
+        .eq("id", resolvedCampaignId)
+        .eq("org_id", profile.org_id)
+        .eq("product_id", product.id)
+        .neq("status", "archived")
+        .maybeSingle();
+      if (!campaign) {
+        return Response.json(
+          { error: "Campaign not found for this product." },
+          { status: 404 }
+        );
+      }
+    } else {
+      const { data: activeCampaign } = await supabase
+        .from("campaigns")
+        .select("id")
+        .eq("org_id", profile.org_id)
+        .eq("product_id", product.id)
+        .eq("status", "active")
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      resolvedCampaignId = activeCampaign?.id ?? null;
+    }
+
     const [{ data: claims }, { data: docs }] = await Promise.all([
       supabase.from("product_claims").select("claim_text").eq("product_id", product.id).eq("status", "approved"),
       supabase
@@ -603,6 +905,9 @@ export async function POST(req: Request) {
 
     const aiFields = aiEditableTemplateFields(runtimeVariant.fields);
     const editableFields = aiFields.map((field) => field.key);
+    const requiredEditableFields = aiFields
+      .filter((field) => field.required !== false)
+      .map((field) => field.key);
     const assetChoiceFields = getTemplateBundleVariantAssetChoiceFields(
       assignment.manifest,
       outputSizeKey
@@ -619,12 +924,59 @@ export async function POST(req: Request) {
         { status: 409 }
       );
     }
-    const fieldLimits = getTemplateBundleVariantFieldLimits(
-      assignment.manifest,
-      outputSizeKey
-    );
     const assetUrlByPath = Object.fromEntries(
       await createTemplateBundleAssetUrlMap(supabase, profile.org_id, [assignment.manifest])
+    );
+    let fieldBudgets: Awaited<ReturnType<typeof calibrateTemplatePlatformFieldBudgets>>;
+    try {
+      fieldBudgets = await calibrateTemplatePlatformFieldBudgets({
+        manifest: assignment.manifest,
+        variantKey: outputSizeKey,
+        assetUrlByPath,
+      });
+    } catch (error) {
+      logTemplatePipelineEvent({
+        event: "template.generate",
+        ok: false,
+        generationRequestId,
+        orgId: profile.org_id,
+        userId: user.id,
+        platformAssignmentId: assignment.assignmentId,
+        familyKey: assignment.familyKey,
+        versionName: assignment.versionLabel,
+        variantKey: outputSizeKey,
+        templateVersionId: assignment.versionId,
+        stage: "budget_calibration",
+        outcomeCode: "template_font_unavailable",
+        reason: error instanceof Error ? error.message : "field budget calibration failed",
+        durationMs: templatePipelineDuration(startedAt),
+      });
+      return Response.json(
+        {
+          error: "This template cannot be measured safely right now. ContentGate did not generate or save copy.",
+          code: "template_font_unavailable",
+          requestId: generationRequestId,
+        },
+        { status: 503 }
+      );
+    }
+    const fieldLimits = Object.fromEntries(
+      Object.entries(fieldBudgets).map(([field, budget]) => [
+        field,
+        {
+          max_chars: budget.hardMaxChars,
+          max_lines: budget.maxLines,
+        },
+      ])
+    );
+    const generationFieldLimits = Object.fromEntries(
+      Object.entries(fieldBudgets).map(([field, budget]) => [
+        field,
+        {
+          max_chars: budget.generationTargetChars,
+          max_lines: budget.maxLines,
+        },
+      ])
     );
     const typographyInstructions = templatePlatformFitInstructions({
       manifest: assignment.manifest,
@@ -632,6 +984,10 @@ export async function POST(req: Request) {
     });
     const defaultCopy = asStringRecord(
       (assignmentRow as TemplatePlatformAssignmentRow).default_payload
+    );
+    const authoredReferenceCopy = getTemplateBundleVariantReferenceFields(
+      assignment.manifest,
+      outputSizeKey
     );
     const previousStructuredFields = asStringRecord(replaceContent?.structured_fields);
     const approvedClaims = (claims ?? []).map((c) => c.claim_text);
@@ -664,7 +1020,15 @@ export async function POST(req: Request) {
       .map(revisionInstruction)
       .filter(Boolean)
       .join(" ");
+    const selectedRevision = revisions[0];
+    const selectedRevisionKind = revisionContractKind(selectedRevision);
+    const selectedSemanticCriterion = semanticRevisionCriterion(selectedRevision);
     const isRegeneration = Boolean(replaceContent);
+    const comparisonFields = isRegeneration
+      ? previousStructuredFields
+      : Object.keys(authoredReferenceCopy).length > 0
+        ? authoredReferenceCopy
+        : defaultCopy;
     const generationProfile =
       (assignmentRow as TemplatePlatformAssignmentRow).generation_profile &&
       typeof (assignmentRow as TemplatePlatformAssignmentRow).generation_profile === "object"
@@ -706,11 +1070,17 @@ export async function POST(req: Request) {
       isRegeneration
         ? `\nREGENERATION REQUIREMENT: Produce a visibly different alternate copy draft. Keep the approved facts and campaign idea, but do not return the same wording for any AI-editable field unless the field is a fixed product name.`
         : ``,
+      !isRegeneration && Object.keys(authoredReferenceCopy).length > 0
+        ? `\nAUTHORED REFERENCE COPY: ${JSON.stringify(authoredReferenceCopy)}\nThis copy is visible in the original design and is a reference only. Produce a genuinely new draft; do not repeat it or make only cosmetic word substitutions.`
+        : ``,
       `\nSELECTED OUTPUT SIZE: ${runtimeVariant.variant.label} (${runtimeVariant.variant.width}x${runtimeVariant.variant.height}). Generate copy only for this size and stay inside its field limits.`,
       ``,
       `Produce exactly these AI-editable fields and no other fields: ${editableFields.join(", ")}.`,
       `FIELD LIMITS:`,
-      editableFields.map((key) => fieldLimitInstruction(key, fieldLimits[key])).join("\n"),
+      editableFields
+        .map((key) => fieldLimitInstruction(key, generationFieldLimits[key]))
+        .join("\n"),
+      `These are safe generation targets set to 85% of the measured hard capacity. ContentGate separately enforces the full hard limit and real glyph layout before saving.`,
       typographyInstructions.length ? `\nTYPOGRAPHIC FIT RULES:` : ``,
       typographyInstructions.join("\n"),
       typographyInstructions.length
@@ -720,9 +1090,9 @@ export async function POST(req: Request) {
       `Every generated field must read like a complete thought. Short fragments are okay for CTAs and headlines, but never end a field with a dangling connector, broken hyphenated word, comma, colon, or dash.`,
       ``,
       `The existing template copy below is a length and tone reference only. Do not repeat unsupported facts from it:`,
-      editableFields.map((key) => `${key}: ${defaultCopy[key] ?? ""}`).join("\n"),
+      editableFields.map((key) => `${key}: ${comparisonFields[key] ?? ""}`).join("\n"),
       ``,
-      `EVIDENCE: for every field that makes a factual or benefit claim, add an evidence entry with { field, source_id, excerpt } where source_id is the id (e.g. C2 or P1) of the approved item it rests on and excerpt is a short phrase copied WORD-FOR-WORD from that item. The excerpt must appear exactly, verbatim, in the cited approved item. You may reword the field copy freely, but the excerpt proves the claim is grounded. Command/label fields (CTA, button) do not need evidence.`,
+      `EVIDENCE: for every field that makes a factual or benefit claim, add an evidence entry with { field, source_id, excerpt } where source_id is the id (e.g. C2 or P1) of the approved item it rests on and excerpt is copied WORD-FOR-WORD from that item. Use at least four words, or copy the entire source when it is shorter. The excerpt must appear exactly, verbatim, in the cited approved item. You may reword the field copy freely, but the excerpt proves the claim is grounded. Command/label fields (CTA, button) do not need evidence.`,
     ].join("\n");
 
     try {
@@ -742,22 +1112,52 @@ export async function POST(req: Request) {
     let fitReasons: string[] = [];
     let groundingIssues: string[] = [];
     let variationIssues: string[] = [];
-    const generationMode = "ai";
+    let providerFailure: string | null = null;
+    let providerIncidentDelivery: unknown = null;
+    let truncatedFields: string[] = [];
+    let evidenceSupportSignature = "";
+    let generationMode = "ai";
+    const budgetTelemetry = Object.fromEntries(
+      editableFields.map((field) => [
+        field,
+        {
+          hardMaxChars: fieldBudgets[field]?.hardMaxChars ?? 0,
+          generationTargetChars: fieldBudgets[field]?.generationTargetChars ?? 0,
+        },
+      ])
+    );
 
     for (let attempt = 0; attempt < PLATFORM_GENERATION_ATTEMPTS; attempt += 1) {
+      const failedFields = new Set(
+        [...fitReasons, ...groundingIssues, ...variationIssues]
+          .map((reason) => reason.split(":")[0]?.trim())
+          .filter((field): field is string => Boolean(field && editableFields.includes(field)))
+      );
+      const failedDraft = Object.fromEntries(
+        [...failedFields].map((field) => [field, generatedFields[field] ?? ""])
+      );
       const repairBlocks = [
         fitReasons.length
           ? [
               `REWRITE REQUIRED: the previous draft failed the locked template fit check:`,
               ...fitReasons.map((reason) => `- ${reason}`),
-              `Return a shorter, complete rewrite. Do not truncate a sentence and do not repeat the failed wording.`,
+              `FAILED DRAFT FIELDS: ${JSON.stringify(failedDraft)}`,
+              `EXACT REPLACEMENT TARGETS:`,
+              ...[...failedFields].map((field) =>
+                fieldLimitInstruction(field, generationFieldLimits[field])
+              ),
+              `Rewrite each failed field from the supplied wording. Return a shorter, complete replacement and keep already-valid fields stable.`,
             ].join("\n")
           : ``,
         variationIssues.length
           ? [
-              `REWRITE REQUIRED: the previous draft reused the same wording instead of creating an alternate:`,
+              `REWRITE REQUIRED: the previous draft failed the requested refinement:`,
               ...variationIssues.map((reason) => `- ${reason}`),
-              `Return a materially different rewrite for those fields. Keep the approved facts, but change the wording, rhythm, and angle enough that the user can see a real alternate copy option.`,
+              selectedRevision === "shorter"
+                ? `Every listed field must be strictly shorter than its current copy. Do not compensate by making one field longer while shortening another.`
+                : selectedRevision === "longer"
+                  ? `Every listed field must be strictly longer than its current copy while staying within its template limit.`
+                  : `Return a materially different rewrite for those fields. Keep the approved facts, but change the wording, rhythm, and angle enough that the user can see a real alternate copy option.`,
             ].join("\n")
           : ``,
         groundingIssues.length ? groundingRepairInstruction(groundingIssues) : ``,
@@ -766,7 +1166,7 @@ export async function POST(req: Request) {
         ? [userPrompt, ``, ...repairBlocks].join("\n")
         : userPrompt;
 
-      if (provider === "fallback") {
+      if (provider === "fallback" && !syntheticProviderFailure) {
         return Response.json(
           { error: "Generation is temporarily unavailable." },
           { status: 503 }
@@ -774,33 +1174,62 @@ export async function POST(req: Request) {
       }
 
       try {
-        const candidate = await generateWithOpenAI({
+        if (syntheticProviderFailure) {
+          throw new Error("Synthetic staging provider failure.");
+        }
+        const providerResult = await generateWithOpenAI({
           system,
           prompt: attemptPrompt,
           editableFields,
         });
+        const candidate = providerResult.copy;
 
         const candidateEvidence = Array.isArray(candidate.evidence)
           ? candidate.evidence
           : [];
-        generatedFields = Object.fromEntries(
-          editableFields.map((key) => [
-            key,
-            String(candidate.fields?.[key] ?? "")
-              .replace(/\r\n?/g, "\n")
-              .trim(),
-          ])
+        generatedFields = repairGeneratedCopyQualityFields(
+          Object.fromEntries(
+            editableFields.map((key) => [
+              key,
+              String(candidate.fields?.[key] ?? "")
+                .replace(/\r\n?/g, "\n")
+                .trim(),
+            ])
+          ),
+          editableFields
         );
-        const comparisonFields = isRegeneration
-          ? previousStructuredFields
-          : defaultCopy;
-        variationIssues = allGeneratedFieldsUnchanged({
-          editableFields,
-          generatedFields,
-          previousFields: comparisonFields,
-        })
-          ? ["generated copy did not visibly change from the current template copy"]
-          : [];
+        const unchangedIssues = selectedRevisionKind === "length"
+          ? []
+          : meaningfulVariationIssues({
+              editableFields,
+              generatedFields,
+              previousFields: comparisonFields,
+            });
+        const lengthIssues = revisionLengthIssues({
+            revision: selectedRevision,
+            editableFields,
+            generatedFields,
+            previousFields: comparisonFields,
+          });
+        const semanticIssues =
+          selectedRevisionKind === "semantic" &&
+          selectedRevision &&
+          selectedSemanticCriterion &&
+          unchangedIssues.length === 0
+            ? await evaluateSemanticRevisionWithOpenAI({
+                revision: selectedRevision,
+                instruction: revisionInstruction(selectedRevision) ?? "",
+                criterion: selectedSemanticCriterion,
+                language,
+                editableFields,
+                previousFields: comparisonFields,
+                generatedFields,
+                approvedContext: [generationProfile, approvedEvidenceBlock]
+                  .filter(Boolean)
+                  .join("\n\n"),
+              })
+            : [];
+        variationIssues = [...unchangedIssues, ...lengthIssues, ...semanticIssues];
         structured = composeStructuredFieldsForGeneration({
           allFieldKeys: allRuntimeFieldKeys,
           aiFieldKeys: editableFields,
@@ -813,6 +1242,12 @@ export async function POST(req: Request) {
           outputSizeKey,
           structured
         );
+        const editableContractIssues = templateFieldIssues(
+          structured,
+          editableFields,
+          fieldLimits,
+          requiredEditableFields
+        );
         const geometryIssues = await templatePlatformFieldFitIssues({
           manifest: assignment.manifest,
           variantKey: outputSizeKey,
@@ -824,6 +1259,11 @@ export async function POST(req: Request) {
           ...editableFields.flatMap((key) =>
             (configuredIssues[key] ?? []).map((issue) => `${key}: ${issue.message}`)
           ),
+          ...editableFields.flatMap((key) =>
+            (editableContractIssues[key] ?? []).map(
+              (issue) => `${key}: ${issue.message}`
+            )
+          ),
           ...formatTemplatePlatformFitIssues(geometryIssues),
           ...formatGeneratedCopyQualityIssues(qualityIssues),
         ];
@@ -831,7 +1271,7 @@ export async function POST(req: Request) {
         verifiedEvidence = resolveApprovedEvidence(
           candidateEvidence,
           editableFields,
-          approvedSourceTexts
+          groundingSources
         );
         rawEvidenceCount = candidateEvidence.length;
         groundingIssues = generatedCopyEvidenceIssues({
@@ -839,23 +1279,135 @@ export async function POST(req: Request) {
           evidence: verifiedEvidence,
           approvedSources: approvedSourceTexts,
         });
+        if (!fitReasons.length && !variationIssues.length && !groundingIssues.length) {
+          groundingIssues = await evaluateGeneratedEvidenceSupportWithOpenAI({
+            fields: structured,
+            evidence: verifiedEvidence,
+            requiredFields: evidenceRequiredFields,
+            language,
+          });
+          if (!groundingIssues.length) {
+            evidenceSupportSignature = JSON.stringify({
+              fields: Object.fromEntries(
+                evidenceRequiredFields.map((field) => [field, structured[field] ?? ""])
+              ),
+              evidence: verifiedEvidence,
+            });
+          }
+        }
+
+        logTemplatePipelineEvent({
+          event: "template.generate",
+          ok: !fitReasons.length && !groundingIssues.length && !variationIssues.length,
+          generationRequestId,
+          orgId: profile.org_id,
+          userId: user.id,
+          productId: product.id,
+          platformAssignmentId: assignment.assignmentId,
+          familyKey: assignment.familyKey,
+          versionName: assignment.versionLabel,
+          variantKey: outputSizeKey,
+          templateVersionId: assignment.versionId,
+          stage: "candidate_validation",
+          outcomeCode: !fitReasons.length && !groundingIssues.length && !variationIssues.length
+            ? "candidate_accepted"
+            : "candidate_repair_required",
+          attempt: attempt + 1,
+          model: OPENAI_GENERATION_MODEL,
+          provider,
+          providerResponseId: providerResult.responseId ?? undefined,
+          inputTokens: providerResult.usage?.input_tokens,
+          outputTokens: providerResult.usage?.output_tokens,
+          fieldBudgets: Object.fromEntries(
+            editableFields.map((field) => [
+              field,
+              {
+                ...budgetTelemetry[field],
+                actualChars: graphemeCount(generatedFields[field] ?? ""),
+              },
+            ])
+          ),
+          reason: [...fitReasons, ...groundingIssues, ...variationIssues].join(" | ").slice(0, 1_000),
+          durationMs: templatePipelineDuration(startedAt),
+        });
 
         if (!fitReasons.length && !groundingIssues.length && !variationIssues.length) {
           out = { fields: structured, evidence: verifiedEvidence };
           break;
         }
       } catch (err) {
-        console.error("platform generation provider failed:", err);
-        return Response.json(
-          { error: "Generation is temporarily unavailable. Please try again." },
-          { status: 503 }
-        );
+        console.warn("platform generation provider attempt failed; retrying:", {
+          platformAssignmentId,
+          outputSize: outputSizeKey,
+          attempt: attempt + 1,
+          error: err instanceof Error ? err.message : "provider request failed",
+        });
+        providerFailure = err instanceof Error ? err.message : "provider request failed";
+        logTemplatePipelineEvent({
+          event: "template.generate",
+          ok: false,
+          generationRequestId,
+          orgId: profile.org_id,
+          userId: user.id,
+          productId: product.id,
+          platformAssignmentId: assignment.assignmentId,
+          familyKey: assignment.familyKey,
+          versionName: assignment.versionLabel,
+          variantKey: outputSizeKey,
+          templateVersionId: assignment.versionId,
+          stage: "provider",
+          outcomeCode: "provider_attempt_failed",
+          attempt: attempt + 1,
+          model: OPENAI_GENERATION_MODEL,
+          provider,
+          reason: providerFailure,
+          durationMs: templatePipelineDuration(startedAt),
+        });
+        // A malformed response, transient provider failure, or failed
+        // semantic-verifier call should consume one internal attempt, not
+        // become a user-visible dead end on the first occurrence.
+        continue;
       }
     }
 
-    if (!out && variationIssues.length && !fitReasons.length && !groundingIssues.length) {
+    if (
+      !out &&
+      providerFailure &&
+      !fitReasons.length &&
+      !groundingIssues.length &&
+      !variationIssues.length
+    ) {
+      console.error("platform generation provider exhausted retries:", {
+        platformAssignmentId,
+        outputSize: outputSizeKey,
+        error: providerFailure,
+      });
+      providerIncidentDelivery = await reportProviderIncident({
+        severity: "P1",
+        service: "contentgate-generation",
+        summary: "Generation provider retries exhausted",
+        occurredAt: new Date().toISOString(),
+        environment: process.env.CONTENTGATE_ENVIRONMENT ?? "unknown",
+        deployment: process.env.VERCEL_GIT_COMMIT_SHA ?? null,
+        details: {
+          route: "/api/products/generate",
+          code: "provider_unavailable",
+          attempts: PLATFORM_GENERATION_ATTEMPTS,
+          output_size: outputSizeKey,
+          synthetic: syntheticProviderFailure,
+        },
+      });
+    }
+
+    if (
+      !out &&
+      selectedRevisionKind !== "semantic" &&
+      variationIssues.length &&
+      !fitReasons.length &&
+      !groundingIssues.length
+    ) {
       const deterministicFields = deterministicRevisionVariation({
-        revision: revisions[0],
+        revision: selectedRevision,
         editableFields,
         fields: structured,
         previousFields: previousStructuredFields,
@@ -873,7 +1425,13 @@ export async function POST(req: Request) {
     // template-aware shortening pass before failing the author. The result
     // still goes through the same quality, geometry, and evidence gates below;
     // it is never persisted merely because it is shorter.
-    if (!out && fitReasons.length && !groundingIssues.length && !variationIssues.length) {
+    if (
+      !out &&
+      selectedRevisionKind !== "semantic" &&
+      fitReasons.length &&
+      !groundingIssues.length &&
+      !variationIssues.length
+    ) {
       const coerced = await coerceTemplatePlatformFieldsToFit({
         manifest: assignment.manifest,
         variantKey: outputSizeKey,
@@ -900,9 +1458,20 @@ export async function POST(req: Request) {
         outputSizeKey,
         coerced.fields
       );
+      const coercedEditableContractIssues = templateFieldIssues(
+        coerced.fields,
+        editableFields,
+        fieldLimits,
+        requiredEditableFields
+      );
       const coercedReasons = [
         ...editableFields.flatMap((key) =>
           (coercedConfiguredIssues[key] ?? []).map((issue) => `${key}: ${issue.message}`)
+        ),
+        ...editableFields.flatMap((key) =>
+          (coercedEditableContractIssues[key] ?? []).map(
+            (issue) => `${key}: ${issue.message}`
+          )
         ),
         ...formatTemplatePlatformFitIssues(coercedGeometryIssues),
         ...formatGeneratedCopyQualityIssues(coercedQualityIssues),
@@ -911,6 +1480,7 @@ export async function POST(req: Request) {
 
       if (!coercedReasons.length) {
         structured = coerced.fields;
+        truncatedFields = coerced.truncatedFields;
         generatedFields = Object.fromEntries(
           editableFields.map((key) => [key, coerced.fields[key] ?? ""])
         );
@@ -918,9 +1488,167 @@ export async function POST(req: Request) {
       }
     }
 
+    // A normal generation request must still produce an editable, compliant
+    // draft when the provider or its candidate-repair loop is exhausted. Build
+    // a conservative extractive fallback from approved sources, clear optional
+    // AI fields, and run the exact same hard contract + real-font layout gates.
+    if (!out && selectedRevisionKind !== "semantic") {
+      const fallbackCandidates = sourceBackedFallbackCandidates({
+        editableFields,
+        requiredFields: requiredEditableFields,
+        sources: groundingSources,
+      });
+      for (const fallbackCandidate of fallbackCandidates) {
+        const fallbackStructured = composeStructuredFieldsForGeneration({
+          allFieldKeys: allRuntimeFieldKeys,
+          aiFieldKeys: editableFields,
+          generatedFields: fallbackCandidate.fields,
+          defaultFields: defaultCopy,
+          previousFields: previousStructuredFields,
+        });
+        const coerced = await coerceTemplatePlatformFieldsToFit({
+          manifest: assignment.manifest,
+          variantKey: outputSizeKey,
+          fields: fallbackStructured,
+          assetUrlByPath,
+        });
+        const fallbackConfiguredIssues = templatePlatformRequiredFieldIssues(
+          assignment.manifest,
+          outputSizeKey,
+          coerced.fields
+        );
+        const fallbackContractIssues = templateFieldIssues(
+          coerced.fields,
+          editableFields,
+          fieldLimits,
+          requiredEditableFields
+        );
+        const fallbackGeometryIssues = await templatePlatformFieldFitIssues({
+          manifest: assignment.manifest,
+          variantKey: outputSizeKey,
+          fields: coerced.fields,
+          assetUrlByPath,
+        });
+        const fallbackQualityIssues = generatedCopyQualityIssues(
+          coerced.fields,
+          editableFields
+        );
+        const fallbackEvidenceIssues = generatedCopyEvidenceIssues({
+          fields: evidenceScopedFields(coerced.fields, evidenceRequiredFields),
+          evidence: fallbackCandidate.evidence,
+          approvedSources: approvedSourceTexts,
+        });
+        const fallbackVariationIssues = isRegeneration && selectedRevisionKind !== "length"
+          ? meaningfulVariationIssues({
+              editableFields,
+              generatedFields: coerced.fields,
+              previousFields: comparisonFields,
+            })
+          : [];
+        const fallbackReasons = [
+          ...editableFields.flatMap((field) =>
+            (fallbackConfiguredIssues[field] ?? []).map((issue) => `${field}: ${issue.message}`)
+          ),
+          ...editableFields.flatMap((field) =>
+            (fallbackContractIssues[field] ?? []).map((issue) => `${field}: ${issue.message}`)
+          ),
+          ...formatTemplatePlatformFitIssues(fallbackGeometryIssues),
+          ...formatGeneratedCopyQualityIssues(fallbackQualityIssues),
+          ...fallbackEvidenceIssues,
+          ...fallbackVariationIssues,
+        ];
+        if (fallbackReasons.length) continue;
+
+        structured = coerced.fields;
+        generatedFields = Object.fromEntries(
+          editableFields.map((field) => [field, coerced.fields[field] ?? ""])
+        );
+        verifiedEvidence = fallbackCandidate.evidence;
+        truncatedFields = coerced.truncatedFields;
+        groundingIssues = [];
+        fitReasons = [];
+        variationIssues = [];
+        generationMode = "safe_fallback";
+        out = { fields: structured, evidence: fallbackCandidate.evidence };
+        logTemplatePipelineEvent({
+          event: "template.generate",
+          ok: true,
+          generationRequestId,
+          orgId: profile.org_id,
+          userId: user.id,
+          productId: product.id,
+          platformAssignmentId: assignment.assignmentId,
+          familyKey: assignment.familyKey,
+          versionName: assignment.versionLabel,
+          variantKey: outputSizeKey,
+          templateVersionId: assignment.versionId,
+          stage: "safe_fallback",
+          outcomeCode: providerFailure ? "provider_fallback_accepted" : "contract_fallback_accepted",
+          model: OPENAI_GENERATION_MODEL,
+          provider,
+          fieldBudgets: Object.fromEntries(
+            editableFields.map((field) => [
+              field,
+              {
+                ...budgetTelemetry[field],
+                actualChars: graphemeCount(generatedFields[field] ?? ""),
+              },
+            ])
+          ),
+          durationMs: templatePipelineDuration(startedAt),
+        });
+        break;
+      }
+    }
+
     if (!out) {
+      logTemplatePipelineEvent({
+        event: "template.generate",
+        ok: false,
+        generationRequestId,
+        orgId: profile.org_id,
+        userId: user.id,
+        productId: product.id,
+        platformAssignmentId: assignment.assignmentId,
+        familyKey: assignment.familyKey,
+        versionName: assignment.versionLabel,
+        variantKey: outputSizeKey,
+        templateVersionId: assignment.versionId,
+        stage: "terminal_validation",
+        outcomeCode: providerFailure
+          ? "provider_and_fallback_exhausted"
+          : fitReasons.length
+            ? "fit_and_fallback_exhausted"
+            : variationIssues.length
+              ? "variation_and_fallback_exhausted"
+              : "evidence_and_fallback_exhausted",
+        model: OPENAI_GENERATION_MODEL,
+        provider,
+        fieldBudgets: budgetTelemetry,
+        reason: [...fitReasons, ...variationIssues, ...groundingIssues].join(" | ").slice(0, 1_000),
+        durationMs: templatePipelineDuration(startedAt),
+      });
+      if (providerFailure && !fitReasons.length && !variationIssues.length && !groundingIssues.length) {
+        return Response.json(
+          {
+            error: "Generation service is temporarily unavailable and no validated fallback could be produced.",
+            code: "provider_unavailable",
+            requestId: generationRequestId,
+            retryAfterSeconds: 3,
+            ...(syntheticProviderFailure
+              ? {
+                  validation: {
+                    attempts: PLATFORM_GENERATION_ATTEMPTS,
+                    incidentDelivery: providerIncidentDelivery,
+                  },
+                }
+              : {}),
+          },
+          { status: 503, headers: { "Retry-After": "3" } }
+        );
+      }
       if (fitReasons.length) {
-        console.error("platform generated copy failed template fit validation:", {
+        console.warn("platform generated copy failed template fit validation:", {
           platformAssignmentId,
           outputSize: outputSizeKey,
           reasons: fitReasons,
@@ -929,12 +1657,14 @@ export async function POST(req: Request) {
           {
             error:
               "ContentGate could not produce copy that safely fits this size. Please try again.",
+            code: "generation_fit_exhausted",
+            requestId: generationRequestId,
           },
           { status: 422 }
         );
       }
       if (variationIssues.length) {
-        console.error("platform generated copy failed variation validation:", {
+        console.warn("platform generated copy failed variation validation:", {
           platformAssignmentId,
           outputSize: outputSizeKey,
           reasons: variationIssues,
@@ -943,6 +1673,8 @@ export async function POST(req: Request) {
           {
             error:
               "ContentGate could not produce a meaningfully different alternate. Please try Generate again.",
+            code: "generation_variation_exhausted",
+            requestId: generationRequestId,
           },
           { status: 422 }
         );
@@ -950,7 +1682,7 @@ export async function POST(req: Request) {
       const ungroundedFields = groundingIssues
         .map((issue) => issue.split(":")[0]?.trim())
         .filter(Boolean);
-      console.error("platform generated copy failed evidence validation:", {
+      console.warn("platform generated copy failed evidence validation:", {
         platformAssignmentId,
         outputSize: outputSizeKey,
         reasons: groundingIssues,
@@ -958,8 +1690,10 @@ export async function POST(req: Request) {
       return Response.json(
         {
           error: ungroundedFields.length
-            ? `ContentGate could not ground ${ungroundedFields.join(", ")} in an approved claim or source. Add an approved claim or source that supports this copy, then try again.`
+            ? `ContentGate could not verify the source citations for ${ungroundedFields.join(", ")}. Please try Generate again.`
             : "ContentGate could not verify that every generated claim is grounded in approved sources.",
+          code: "generation_evidence_exhausted",
+          requestId: generationRequestId,
         },
         { status: 422 }
       );
@@ -999,7 +1733,7 @@ export async function POST(req: Request) {
       })
     ) {
       const deterministicFields = deterministicRevisionVariation({
-        revision: revisions[0],
+        revision: selectedRevision,
         editableFields,
         fields: visibleGeneratedFields,
         previousFields: previousStructuredFields,
@@ -1029,6 +1763,27 @@ export async function POST(req: Request) {
       assetUrlByPath,
     });
     const finalGeometryReasons = formatTemplatePlatformFitIssues(finalGeometryIssues);
+    const finalConfiguredIssues = templatePlatformRequiredFieldIssues(
+      assignment.manifest,
+      outputSizeKey,
+      structured
+    );
+    const finalEditableContractIssues = templateFieldIssues(
+      structured,
+      editableFields,
+      fieldLimits,
+      requiredEditableFields
+    );
+    const finalConfiguredReasons = [
+      ...editableFields.flatMap((key) =>
+        (finalConfiguredIssues[key] ?? []).map((issue) => `${key}: ${issue.message}`)
+      ),
+      ...editableFields.flatMap((key) =>
+        (finalEditableContractIssues[key] ?? []).map(
+          (issue) => `${key}: ${issue.message}`
+        )
+      ),
+    ];
     const finalQualityReasons = formatGeneratedCopyQualityIssues(
       generatedCopyQualityIssues(structured, editableFields)
     );
@@ -1037,28 +1792,104 @@ export async function POST(req: Request) {
       evidence,
       approvedSources: approvedSourceTexts,
     });
-    const finalUnchanged = allGeneratedFieldsUnchanged({
-        editableFields,
-        generatedFields: structured,
-        previousFields: isRegeneration ? previousStructuredFields : defaultCopy,
-      });
-    if (finalUnchanged || finalGeometryReasons.length || finalQualityReasons.length || finalGroundingIssues.length) {
+    const finalEvidenceSignature = JSON.stringify({
+      fields: Object.fromEntries(
+        evidenceRequiredFields.map((field) => [field, structured[field] ?? ""])
+      ),
+      evidence,
+    });
+    let finalSemanticGroundingIssues: string[] = [];
+    if (
+      generationMode === "ai" &&
+      !finalGroundingIssues.length &&
+      evidenceSupportSignature !== finalEvidenceSignature
+    ) {
+      try {
+        finalSemanticGroundingIssues = await evaluateGeneratedEvidenceSupportWithOpenAI({
+          fields: structured,
+          evidence,
+          requiredFields: evidenceRequiredFields,
+          language,
+        });
+      } catch (error) {
+        finalSemanticGroundingIssues = [
+          `evidence: final support verification was unavailable (${error instanceof Error ? error.message : "provider failure"})`,
+        ];
+      }
+    }
+    const finalVariationIssues = selectedRevisionKind === "length"
+      ? []
+      : meaningfulVariationIssues({
+          editableFields,
+          generatedFields: structured,
+          previousFields: comparisonFields,
+        });
+    const finalRevisionIssues = revisionLengthIssues({
+      revision: selectedRevision,
+      editableFields,
+      generatedFields: structured,
+      previousFields: comparisonFields,
+    });
+    if (finalVariationIssues.length || finalRevisionIssues.length || finalConfiguredReasons.length || finalGeometryReasons.length || finalQualityReasons.length || finalGroundingIssues.length || finalSemanticGroundingIssues.length) {
       const reasons = [
-        ...(finalUnchanged ? ["generated copy did not change from the current draft"] : []),
+        ...finalVariationIssues,
+        ...finalRevisionIssues,
+        ...finalConfiguredReasons,
         ...finalGeometryReasons,
         ...finalQualityReasons,
         ...finalGroundingIssues,
+        ...finalSemanticGroundingIssues,
       ];
-      console.error("platform generation final contract validation failed:", {
+      console.warn("platform generation final contract validation failed:", {
         platformAssignmentId,
         outputSize: outputSizeKey,
         reasons,
       });
+      const finalOutcomeCode =
+        finalVariationIssues.length || finalRevisionIssues.length
+          ? "generation_variation_exhausted"
+          : finalGroundingIssues.length || finalSemanticGroundingIssues.length
+            ? "generation_evidence_exhausted"
+            : "generation_fit_exhausted";
+      logTemplatePipelineEvent({
+        event: "template.generate",
+        ok: false,
+        generationRequestId,
+        orgId: profile.org_id,
+        userId: user.id,
+        productId: product.id,
+        platformAssignmentId: assignment.assignmentId,
+        familyKey: assignment.familyKey,
+        versionName: assignment.versionLabel,
+        variantKey: outputSizeKey,
+        templateVersionId: assignment.versionId,
+        stage: "final_contract",
+        outcomeCode: finalOutcomeCode,
+        model: OPENAI_GENERATION_MODEL,
+        provider,
+        fieldBudgets: Object.fromEntries(
+          editableFields.map((field) => [
+            field,
+            {
+              ...budgetTelemetry[field],
+              actualChars: graphemeCount(structured[field] ?? ""),
+            },
+          ])
+        ),
+        reason: reasons.join(" | ").slice(0, 1_000),
+        durationMs: templatePipelineDuration(startedAt),
+      });
       return Response.json(
         {
-          error: finalUnchanged
-            ? "ContentGate could not produce a meaningfully different alternate. Please try Generate again."
-            : "ContentGate could not produce copy that safely fits this size. Please try again.",
+          error: finalRevisionIssues.length
+            ? `ContentGate could not make the copy ${selectedRevision} overall while preserving the approved meaning. Please try again.`
+            : finalVariationIssues.length
+              ? "ContentGate could not produce a meaningfully different alternate. Please try Generate again."
+              : finalGroundingIssues.length || finalSemanticGroundingIssues.length
+                ? "ContentGate could not prove that every generated claim is supported by its approved source."
+                : "ContentGate could not produce copy that safely fits this size. Please try again.",
+          code: finalOutcomeCode,
+          requestId: generationRequestId,
           reasons,
         },
         { status: 422 }
@@ -1091,6 +1922,7 @@ export async function POST(req: Request) {
       template_family_key: assignment.familyKey,
       template_version_id: assignment.versionId,
       template_variant_id: variantRow.id,
+      campaign_id: resolvedCampaignId,
       campaign_root_content_id: campaignRootContentId,
       campaign_source_content_id: campaignSource?.id ?? replaceContent?.id ?? null,
       campaign_source_fields: continuityPrompt
@@ -1126,6 +1958,7 @@ export async function POST(req: Request) {
             prompt_context: promptContext,
             template_version_id: assignment.versionId,
             template_variant_id: variantRow.id,
+            campaign_id: resolvedCampaignId,
             renderer_version: "template-platform-v1",
             status: "draft",
             updated_at: savedAt,
@@ -1139,6 +1972,7 @@ export async function POST(req: Request) {
           product_template_id: null,
           template_version_id: assignment.versionId,
           template_variant_id: variantRow.id,
+          campaign_id: resolvedCampaignId,
           renderer_version: "template-platform-v1",
           template_id: null,
           structured_fields: structured,
@@ -1171,6 +2005,7 @@ export async function POST(req: Request) {
     logTemplatePipelineEvent({
       event: "template.generate",
       ok: true,
+      generationRequestId,
       orgId: profile.org_id,
       userId: user.id,
       productId: product.id,
@@ -1180,6 +2015,19 @@ export async function POST(req: Request) {
       variantKey: outputSizeKey,
       templateVersionId: assignment.versionId,
       durationMs: templatePipelineDuration(startedAt),
+      stage: "persistence",
+      outcomeCode: generationMode === "safe_fallback" ? "fallback_saved" : "candidate_saved",
+      model: OPENAI_GENERATION_MODEL,
+      provider,
+      fieldBudgets: Object.fromEntries(
+        editableFields.map((field) => [
+          field,
+          {
+            ...budgetTelemetry[field],
+            actualChars: graphemeCount(structured[field] ?? ""),
+          },
+        ])
+      ),
     });
 
     return Response.json({
@@ -1191,7 +2039,11 @@ export async function POST(req: Request) {
       evidence,
       title,
       platform: true,
-      truncatedFields: [],
+      requestId: generationRequestId,
+      generationMode,
+      fallbackUsed: generationMode === "safe_fallback",
+      fieldLimits,
+      truncatedFields,
     });
   }
 

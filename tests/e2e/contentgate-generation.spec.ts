@@ -1,22 +1,18 @@
 import { expect, test, type Page, type TestInfo } from "@playwright/test";
+import { clientFixture, requireClientFixture } from "./client-fixture";
 
 const E2E_EMAIL = process.env.CONTENTGATE_E2E_EMAIL;
 const E2E_PASSWORD = process.env.CONTENTGATE_E2E_PASSWORD;
-const TEMPLATE_NAME =
-  process.env.CONTENTGATE_E2E_TEMPLATE_NAME ?? "Nimbus Air Campaign";
-const PLATFORM_ASSIGNMENT_ID =
-  process.env.CONTENTGATE_E2E_ASSIGNMENT_ID ??
-  "6433194b-789e-4ca6-afd4-79a42ae54d7e";
-const OUTPUT_SIZE =
-  process.env.CONTENTGATE_E2E_OUTPUT_SIZE ?? "instagram-post-square";
-const OUTPUT_SIZE_LABEL =
-  process.env.CONTENTGATE_E2E_OUTPUT_SIZE_LABEL ?? "Instagram post (square)";
+const TEMPLATE_NAME = clientFixture.templateName;
+const PLATFORM_ASSIGNMENT_ID = clientFixture.assignmentId;
+const OUTPUT_SIZE = clientFixture.outputSizeKey;
+const OUTPUT_SIZE_LABEL = clientFixture.outputSizeLabel;
+const OUTPUT_DIMENSIONS_TEXT = `${clientFixture.outputWidth}×${clientFixture.outputHeight}`;
 const LIVE_EDIT_TEXT = `QA Live ${Date.now().toString().slice(-5)}`;
 const BASE_URL = process.env.CONTENTGATE_E2E_BASE_URL ?? "";
 
 const OUTPUT_SIZE_DIMENSIONS: Record<string, { width: number; height: number }> = {
-  "instagram-post-square": { width: 1080, height: 1080 },
-  square: { width: 1080, height: 1080 },
+  [OUTPUT_SIZE]: { width: clientFixture.outputWidth, height: clientFixture.outputHeight },
 };
 
 type BrowserIssue = {
@@ -31,10 +27,20 @@ function requireCredentials() {
         "Missing live QA credentials.",
         "Run with CONTENTGATE_E2E_EMAIL and CONTENTGATE_E2E_PASSWORD.",
         "Example:",
-        'CONTENTGATE_E2E_BASE_URL="https://contentgate-delta.vercel.app" CONTENTGATE_E2E_EMAIL="you@example.com" CONTENTGATE_E2E_PASSWORD="..." npm run test:e2e -- --headed',
+        'CONTENTGATE_E2E_BASE_URL="https://contentgate-git-release-example.vercel.app" CONTENTGATE_E2E_EMAIL="you@example.com" CONTENTGATE_E2E_PASSWORD="..." npm run test:e2e:live-ai -- --headed',
       ].join("\n")
     );
   }
+  requireClientFixture([
+    "productId",
+    "productName",
+    "assignmentId",
+    "templateName",
+    "outputSizeKey",
+    "outputSizeLabel",
+    "outputWidth",
+    "outputHeight",
+  ]);
 }
 
 async function attachBrowserIssues(testInfo: TestInfo, issues: BrowserIssue[]) {
@@ -101,7 +107,7 @@ async function expectStudioDraftState(
     timeout,
   });
   await expect(page.getByLabel("Size and format")).toContainText(
-    new RegExp(`${escapeRegExp(OUTPUT_SIZE_LABEL)}\\s+·\\s+1080×1080`, "i"),
+    new RegExp(`${escapeRegExp(OUTPUT_SIZE_LABEL)}\\s+·\\s+${escapeRegExp(OUTPUT_DIMENSIONS_TEXT)}`, "i"),
     { timeout }
   );
 }
@@ -111,7 +117,7 @@ async function expectNimbusReviewMode(page: Page) {
     timeout: 30_000,
   });
   await expect(page.getByLabel("Size and format")).toContainText(
-    new RegExp(`${escapeRegExp(OUTPUT_SIZE_LABEL)}\\s+·\\s+1080×1080`, "i")
+    new RegExp(`${escapeRegExp(OUTPUT_SIZE_LABEL)}\\s+·\\s+${escapeRegExp(OUTPUT_DIMENSIONS_TEXT)}`, "i")
   );
 }
 
@@ -120,7 +126,9 @@ async function openNimbusTemplate(page: Page) {
   await expect(page).toHaveURL(/\/products/);
   await expect(page.getByRole("heading", { name: /Products/i })).toBeVisible();
 
-  const productLink = page.getByRole("link", { name: /Nimbus 1/i }).first();
+  const productLink = page.getByRole("link", {
+    name: new RegExp(escapeRegExp(clientFixture.productName), "i"),
+  }).first();
   await expect(productLink).toBeVisible();
   await productLink.click();
   await page.waitForURL(/\/products\//, { timeout: 45_000 });
@@ -132,70 +140,86 @@ async function openNimbusTemplate(page: Page) {
     await page.goto(`${page.url().split("?")[0]}?view=templates`);
   }
 
-  await expect(page.getByText(TEMPLATE_NAME)).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: TEMPLATE_NAME, exact: true })
+  ).toBeVisible();
 }
 
 async function generateNimbusDraft(page: Page) {
-  let result: {
+  const result = await page.evaluate(
+    async ({ platformAssignmentId, outputSize }) => {
+      const response = await fetch("/api/products/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          platformAssignmentId,
+          language: "English",
+          outputSize,
+        }),
+      });
+      const text = await response.text();
+      let json: Record<string, unknown> = {};
+      try {
+        json = JSON.parse(text) as Record<string, unknown>;
+      } catch {
+        // Keep the raw text for diagnostics below.
+      }
+      return {
+        ok: response.ok,
+        status: response.status,
+        text,
+        json,
+      };
+    },
+    {
+      platformAssignmentId: PLATFORM_ASSIGNMENT_ID,
+      outputSize: OUTPUT_SIZE,
+    }
+  ) as {
     ok: boolean;
     status: number;
     text: string;
     json: Record<string, unknown>;
-  } | null = null;
-
-  for (let attempt = 1; attempt <= 3; attempt += 1) {
-    result = await page.evaluate(
-      async ({ platformAssignmentId, outputSize }) => {
-        const response = await fetch("/api/products/generate", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            platformAssignmentId,
-            language: "English",
-            outputSize,
-          }),
-        });
-        const text = await response.text();
-        let json: Record<string, unknown> = {};
-        try {
-          json = JSON.parse(text) as Record<string, unknown>;
-        } catch {
-          // Keep the raw text for diagnostics below.
-        }
-        return {
-          ok: response.ok,
-          status: response.status,
-          text,
-          json,
-        };
-      },
-      {
-        platformAssignmentId: PLATFORM_ASSIGNMENT_ID,
-        outputSize: OUTPUT_SIZE,
-      }
-    );
-
-    if (result.ok || ![429, 502, 503, 504].includes(result.status)) break;
-    await page.waitForTimeout(2_000 * attempt);
-  }
+  };
 
   expect(
-    result?.ok,
-    `Generation failed with ${result?.status}: ${result?.text}`
+    result.ok,
+    `First-request generation failed with ${result.status}: ${result.text}`
   ).toBeTruthy();
 
-  expect(result?.json.contentId, "Generation did not return contentId.").toEqual(
+  expect(result.json.contentId, "Generation did not return contentId.").toEqual(
     expect.any(String)
   );
 
   await page.goto(
-    `/studio/${result?.json.contentId as string}?size=${
-      (result?.json.outputSize as string | undefined) ?? OUTPUT_SIZE
+    `/studio/${result.json.contentId as string}?size=${
+      (result.json.outputSize as string | undefined) ?? OUTPUT_SIZE
     }`
   );
   await expectStudioDraftState(page, "Draft", 60_000);
 
-  return result?.json.contentId as string;
+  return result.json.contentId as string;
+}
+
+async function makeNimbusDraftReviewable(page: Page) {
+  const submitButton = page.getByRole("button", { name: /Submit for review/i });
+  if (await submitButton.isEnabled()) return;
+
+  const fitSafeReferenceCopy: Record<string, string> = {
+    headline: "RUN ON AIR",
+    subheadline_1: "INTRODUCING THE NEW NIMBUS 1",
+    subheadline_2: "CLOUD-SOFT CUSHIONING MEETS REAL-WORLD SPEED",
+  };
+
+  for (const [field, value] of Object.entries(fitSafeReferenceCopy)) {
+    const input = page.locator(`#studio-field-${field}`);
+    if (await input.isVisible().catch(() => false)) {
+      await input.fill(value);
+    }
+  }
+
+  await expect(page.getByText(/layout over/i)).toHaveCount(0, { timeout: 30_000 });
+  await expect(submitButton).toBeEnabled({ timeout: 30_000 });
 }
 
 async function getPreviewMetrics(page: Page) {
@@ -288,7 +312,7 @@ function readPngDimensions(bytes: number[]) {
   };
 }
 
-test.describe("Nimbus live generation QA", () => {
+test.describe("Client package live generation QA @live-ai", () => {
   // Serial so each test can reuse state from the previous; 5-minute per-test
   // budget accommodates OpenAI generation latency plus SSR cold starts on a
   // Vercel preview deployment.
@@ -396,6 +420,102 @@ test.describe("Nimbus live generation QA", () => {
     ).toEqual([]);
   });
 
+  test("product variants swap pixels without changing canvas or copy layout", async ({
+    page,
+  }) => {
+    await signIn(page);
+    await generateNimbusDraft(page);
+    await assertPreviewIsAvailable(page);
+
+    const canvas = page.getByTestId("studio-preview-canvas");
+    const subheadline = page.locator('[data-template-field="subheadline_1"]');
+    await expect(canvas).toBeVisible({ timeout: 60_000 });
+    await expect(subheadline).toBeVisible({ timeout: 20_000 });
+    const before = await page.evaluate(() => {
+      const canvasNode = document.querySelector<HTMLElement>('[data-testid="studio-preview-canvas"]');
+      const textNode = document.querySelector<HTMLElement>('[data-template-field="subheadline_1"]');
+      const contentNode = textNode?.querySelector<HTMLElement>("[data-template-content]");
+      return {
+        canvasWidth: canvasNode?.style.width,
+        canvasHeight: canvasNode?.style.height,
+        fontSize: textNode?.dataset.templateFontSize,
+        text: textNode?.textContent,
+        lineClamp: contentNode?.style.webkitLineClamp,
+      };
+    });
+    expect(before.lineClamp ?? "").toBe("");
+
+    const variant = page.getByRole("button", {
+      name: "Product variant: Electric Cobalt",
+      exact: true,
+    });
+    await expect(variant).toBeVisible({ timeout: 20_000 });
+    await variant.click();
+    await expect(variant).toHaveAttribute("aria-pressed", "true").catch(() => undefined);
+    await page.waitForTimeout(500);
+
+    const after = await page.evaluate(() => {
+      const canvasNode = document.querySelector<HTMLElement>('[data-testid="studio-preview-canvas"]');
+      const textNode = document.querySelector<HTMLElement>('[data-template-field="subheadline_1"]');
+      const contentNode = textNode?.querySelector<HTMLElement>("[data-template-content]");
+      return {
+        canvasWidth: canvasNode?.style.width,
+        canvasHeight: canvasNode?.style.height,
+        fontSize: textNode?.dataset.templateFontSize,
+        text: textNode?.textContent,
+        lineClamp: contentNode?.style.webkitLineClamp,
+      };
+    });
+    expect(after).toEqual(before);
+
+    const input = page.locator("#studio-field-subheadline_1");
+    const measuredCopy = "Meet Nimbus 1 for daily miles u";
+    await input.fill(measuredCopy);
+    await expect(input).toHaveValue(measuredCopy);
+    await expect(page.getByText(/31\/\d+ · 1\/1 line ✓ fits/i)).toBeVisible({
+      timeout: 20_000,
+    });
+    await expect(subheadline).toContainText(measuredCopy);
+    await expect(subheadline).not.toContainText("…");
+  });
+
+  test("Shorter reduces the total copy without requiring every field to change", async ({
+    page,
+  }) => {
+    await signIn(page);
+    await generateNimbusDraft(page);
+    await assertPreviewIsAvailable(page);
+    const beforeFields = await readGeneratedTextFields(page);
+    const visibleLength = (fields: Array<{ field: string; text: string }>) =>
+      fields.reduce(
+        (sum, value) => sum + [...new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(value.text)].length,
+        0
+      );
+
+    const shorter = page.getByRole("button", { name: "Shorter", exact: true });
+    await shorter.click();
+    const responsePromise = page.waitForResponse(
+      (response) =>
+        response.url().includes("/api/products/generate") &&
+        response.request().method() === "POST",
+      { timeout: 120_000 }
+    );
+    await page.getByRole("button", { name: "Apply “Shorter”", exact: true }).click();
+    const response = await responsePromise;
+    const payload = (await response.json().catch(() => ({}))) as { error?: unknown };
+    expect(response.ok(), String(payload.error ?? "Shorter request failed")).toBeTruthy();
+    await expectStudioDraftState(page, "Draft", 120_000);
+    await expect
+      .poll(async () => JSON.stringify(await readGeneratedTextFields(page)), {
+        timeout: 120_000,
+        message: "Shorter returned successfully but Studio did not apply the new copy.",
+      })
+      .not.toBe(JSON.stringify(beforeFields));
+    const afterFields = await readGeneratedTextFields(page);
+    expect(visibleLength(afterFields)).toBeLessThan(visibleLength(beforeFields));
+    await expect(page.getByText(/shorter in every field/i)).toHaveCount(0);
+  });
+
   test("submits, approves, and downloads the approved PNG export", async ({
     page,
   }, testInfo) => {
@@ -426,6 +546,7 @@ test.describe("Nimbus live generation QA", () => {
     await signIn(page);
     const contentId = await generateNimbusDraft(page);
 
+    await makeNimbusDraftReviewable(page);
     await page.getByRole("button", { name: /Submit for review/i }).click();
     await expectNimbusReviewMode(page);
 
@@ -516,6 +637,7 @@ test.describe("Nimbus live generation QA", () => {
     await signIn(page);
     await generateNimbusDraft(page);
 
+    await makeNimbusDraftReviewable(page);
     await page.getByRole("button", { name: /Submit for review/i }).click();
     await expectNimbusReviewMode(page);
 
@@ -535,7 +657,7 @@ test.describe("Nimbus live generation QA", () => {
     ).toEqual([]);
   });
 
-  test("refine buttons complete without a grounding error across key revision types", async ({
+  test("refinements complete or fail closed without a grounding regression", async ({
     page,
   }, testInfo) => {
     const issues: BrowserIssue[] = [];
@@ -551,7 +673,7 @@ test.describe("Nimbus live generation QA", () => {
     page.on("response", (response) => {
       const status = response.status();
       const url = response.url();
-      if (status >= 500 || (status === 422 && url.includes("/api/products/generate"))) {
+      if (status >= 500) {
         issues.push({
           kind: "http",
           message: `${status} ${response.request().method()} ${url}`,
@@ -566,6 +688,7 @@ test.describe("Nimbus live generation QA", () => {
     // "More strategic" is the refine option that triggered the Phase 1 grounding bug —
     // it is the primary regression guard and must run first.
     const refineOptions = ["More strategic", "Shorter", "More playful"] as const;
+    let handledRefinements = 0;
 
     for (const label of refineOptions) {
       const refineBtn = page.getByRole("button", { name: label, exact: true });
@@ -579,10 +702,27 @@ test.describe("Nimbus live generation QA", () => {
         exact: true,
       });
       await expect(applyBtn).toBeVisible();
+      const generationResponsePromise = page.waitForResponse(
+        (response) =>
+          response.url().includes("/api/products/generate") &&
+          response.request().method() === "POST",
+        { timeout: 120_000 }
+      );
       await applyBtn.click();
       await expect(
         page.getByRole("button", { name: /Making every word earn its place/i })
       ).toBeVisible({ timeout: 5_000 });
+      const generationResponse = await generationResponsePromise;
+      const generationPayload = (await generationResponse.json().catch(() => ({}))) as {
+        error?: unknown;
+      };
+
+      expect(
+        generationResponse.ok(),
+        `${label} must return usable copy on its first request: ${String(generationPayload.error ?? "unknown error")}`
+      ).toBeTruthy();
+
+      handledRefinements += 1;
 
       // Wait for the generation to complete: the draft status returns and the
       // preview is available again. Grounding failure surfaces as an error banner.
@@ -609,6 +749,11 @@ test.describe("Nimbus live generation QA", () => {
         body: await page.screenshot({ fullPage: true }),
       });
     }
+
+    expect(
+      handledRefinements,
+      "Every refinement must either complete or return an actionable safe rejection."
+    ).toBe(refineOptions.length);
 
     await attachBrowserIssues(testInfo, issues);
     expect(

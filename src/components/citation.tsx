@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useId, useState } from "react";
 
 export type CitationData = {
   documentId?: string | null;
@@ -18,6 +18,7 @@ export type CitationData = {
  */
 export function CitationChip({ citation, defaultOpen = false }: { citation: CitationData; defaultOpen?: boolean }) {
   const [open, setOpen] = useState(defaultOpen);
+  const excerptId = useId();
   const { documentId, documentTitle, excerpt, paragraphN } = citation;
 
   return (
@@ -27,17 +28,23 @@ export function CitationChip({ citation, defaultOpen = false }: { citation: Cita
         onClick={() => setOpen((v) => !v)}
         className="flex items-center gap-2 self-start rounded-full border border-edge bg-page px-3 py-1.5 text-left transition-colors hover:border-brand"
         aria-expanded={open}
+        aria-controls={excerptId}
       >
-        {paragraphN != null && <span className="text-[11.5px] font-bold text-brand">¶{paragraphN}</span>}
+        {paragraphN != null && <span className="text-[11.5px] font-bold text-brand-strong">¶{paragraphN}</span>}
         <span className="text-[12px] font-semibold text-ink-muted">{documentTitle}</span>
       </button>
       {open && (
-        <div className="mt-1.5 flex flex-col gap-1.5 rounded-[8px] border-l-[3px] border-brand bg-[#fafafa] px-4 py-3">
+        <div
+          id={excerptId}
+          role="region"
+          aria-label={`Source excerpt from ${documentTitle}`}
+          className="mt-1.5 flex flex-col gap-1.5 rounded-[8px] border-l-[3px] border-brand bg-[#fafafa] px-4 py-3"
+        >
           <p className="text-[12.5px] leading-relaxed italic text-ink-muted">&ldquo;{excerpt}&rdquo;</p>
           {documentId && (
             <Link
               href={paragraphN != null ? `/knowledge/${documentId}#p-${paragraphN}` : `/knowledge/${documentId}`}
-              className="text-[11.5px] font-semibold text-brand hover:underline"
+              className="text-[11.5px] font-semibold text-brand-strong hover:underline"
             >
               View in Brand knowledge →
             </Link>
@@ -52,7 +59,7 @@ export function CitationList({ citations, label = "From approved sources" }: { c
   if (citations.length === 0) return null;
   return (
     <div className="flex flex-col gap-2">
-      <span className="text-label text-brand">{label}</span>
+      <span className="text-label text-brand-strong">{label}</span>
       <div className="flex flex-wrap gap-2">
         {citations.map((c, i) => (
           <CitationChip key={`${c.documentId ?? c.documentTitle}-${c.paragraphN ?? i}`} citation={c} />
@@ -71,7 +78,7 @@ export function ParagraphMark({ n, id }: { n: number; id?: string }) {
   return (
     <span
       id={id}
-      className="mt-0.5 flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full border border-approve-border bg-brand-tint px-1.5 text-[11px] font-bold text-brand"
+      className="mt-0.5 flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full border border-approve-border bg-brand-tint px-1.5 text-[11px] font-bold text-brand-on-tint"
     >
       ¶{n}
     </span>

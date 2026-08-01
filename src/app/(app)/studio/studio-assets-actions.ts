@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import type { TemplateBundleManifest } from "@/lib/template-platform/manifest";
 import { getTemplateVariantRenderAssetPaths } from "@/lib/template-platform/live-preview-assets";
+import { publicTemplateStudioAssetPath } from "@/lib/template-platform/public-contentgate-assets";
 import { createTemplateBundleAssetUrlMap } from "@/lib/template-platform/storage-urls";
 
 export async function loadStudioVariantAssetUrls(input: {
@@ -46,5 +47,13 @@ export async function loadStudioVariantAssetUrls(input: {
   const urls = await createTemplateBundleAssetUrlMap(supabase, profile.org_id, [manifest], {
     assetPaths,
   });
-  return { error: null, urls: Object.fromEntries(urls) };
+  return {
+    error: null,
+    urls: Object.fromEntries(
+      [...urls].map(([assetPath, url]) => [
+        assetPath,
+        publicTemplateStudioAssetPath(manifest, assetPath) ?? url,
+      ])
+    ),
+  };
 }

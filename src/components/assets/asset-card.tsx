@@ -34,11 +34,11 @@ export function AssetCard({
         type="button"
         onClick={onPreview}
         aria-label={`Preview ${asset.title}`}
-        className="group relative aspect-square w-full overflow-hidden rounded-[6px] border border-edge bg-page focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
+        className="group relative aspect-square w-full overflow-hidden rounded-[6px] border border-edge bg-page focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
       >
         {asset.mediaKind === "video" ? (
           <>
-            <video src={asset.previewUrl} className="h-full w-full object-cover" muted preload="metadata" />
+            <video src={asset.previewUrl} className="h-full w-full object-cover" muted preload="metadata" aria-hidden />
             <span className="absolute left-2 top-2 rounded-full bg-ink/75 px-2 py-1 text-[10.5px] font-bold text-white">
               Video{duration ? ` · ${duration}` : ""}
             </span>
@@ -54,7 +54,7 @@ export function AssetCard({
             className="p-2"
           />
         )}
-        <span className="absolute inset-0 flex items-center justify-center bg-ink/0 opacity-0 transition-all group-hover:bg-ink/5 group-hover:opacity-100">
+        <span className="invisible absolute inset-0 flex items-center justify-center bg-ink/0 transition-colors group-hover:visible group-hover:bg-ink/5 group-focus-visible:visible">
           <span className="flex items-center gap-1.5 rounded-full bg-surface px-3 py-1.5 text-[11.5px] font-semibold text-ink shadow-sm">
             <EyeIcon className="h-3.5 w-3.5" /> Preview
           </span>

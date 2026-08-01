@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { approveContent, rejectContent } from "../actions";
 
 export function ApprovalActions({ id }: { id: string }) {
@@ -9,6 +9,12 @@ export function ApprovalActions({ id }: { id: string }) {
   const [feedbackCategory, setFeedbackCategory] = useState("Claim or evidence");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const feedbackCategoryRef = useRef<HTMLSelectElement>(null);
+  const requestChangesRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (rejecting) feedbackCategoryRef.current?.focus();
+  }, [rejecting]);
 
   function onApprove() {
     setError(null);
@@ -24,6 +30,11 @@ export function ApprovalActions({ id }: { id: string }) {
       const result = await rejectContent(id, `${feedbackCategory}: ${note.trim()}`);
       if ("error" in result) setError(result.error);
     });
+  }
+
+  function cancelRejecting() {
+    setRejecting(false);
+    window.requestAnimationFrame(() => requestChangesRef.current?.focus());
   }
 
   return (
@@ -44,6 +55,7 @@ export function ApprovalActions({ id }: { id: string }) {
             {pending ? "Working…" : "Approve"}
           </button>
           <button
+            ref={requestChangesRef}
             type="button"
             onClick={() => setRejecting(true)}
             disabled={pending}
@@ -57,6 +69,7 @@ export function ApprovalActions({ id }: { id: string }) {
           <label className="flex flex-col gap-1.5 text-[12px] font-semibold text-ink">
             Feedback category
             <select
+              ref={feedbackCategoryRef}
               value={feedbackCategory}
               onChange={(event) => setFeedbackCategory(event.target.value)}
               className="h-10 rounded-control border border-edge-strong bg-surface px-3 text-[13px] font-normal text-ink outline-none focus:border-reject"
@@ -69,10 +82,10 @@ export function ApprovalActions({ id }: { id: string }) {
             </select>
           </label>
           <textarea
+            aria-label="Requested changes"
             value={note}
             onChange={(e) => setNote(e.target.value)}
             rows={3}
-            autoFocus
             placeholder="What needs to change before this can be approved?"
             className="resize-y rounded-control border border-edge-strong bg-surface px-3.5 py-2.5 text-[13px] outline-none focus:border-reject"
           />
@@ -87,7 +100,7 @@ export function ApprovalActions({ id }: { id: string }) {
             </button>
             <button
               type="button"
-              onClick={() => setRejecting(false)}
+              onClick={cancelRejecting}
               disabled={pending}
               className="rounded-control border border-edge-strong px-4 py-2.5 text-[13.5px] font-semibold text-ink-muted hover:border-brand disabled:opacity-50"
             >
@@ -97,7 +110,7 @@ export function ApprovalActions({ id }: { id: string }) {
         </div>
       )}
       {error && (
-        <p className="rounded-control border border-reject-border bg-reject-tint px-3.5 py-2.5 text-[13px] text-reject">
+        <p role="alert" className="rounded-control border border-reject-border bg-reject-tint px-3.5 py-2.5 text-[13px] text-reject">
           {error}
         </p>
       )}

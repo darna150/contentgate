@@ -145,6 +145,7 @@ function toTextSlot(slot: PublishedTextSlot): TemplateBundleTextSlot {
     align: slot.align ?? "left",
     verticalAlign: slot.verticalAlign === "center" ? "middle" : slot.verticalAlign ?? "top",
     maxChars: slot.maxChars,
+    maxCharsSource: "authored",
     maxLines: slot.maxLines,
     lineChars: slot.lineChars,
     minFontSize: Math.max(8, Math.floor(slot.fontSize * 0.72)),
