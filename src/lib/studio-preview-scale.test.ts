@@ -3,10 +3,14 @@ import test from "node:test";
 import { TEMPLATE_OUTPUT_SIZES } from "./template-contract.ts";
 import {
   PREVIEW_MIN_SCALE,
+  PREVIEW_MAX_SCALE,
   PREVIEW_VIEWPORT_PADDING,
+  clampPreviewZoom,
   previewFitScale,
   previewOverlayScale,
   resolvePreviewScale,
+  stepPreviewZoom,
+  type PreviewZoom,
 } from "./studio-preview-scale.ts";
 
 /**
@@ -37,7 +41,7 @@ const ACCEPTANCE_FORMATS = ["story", "a4", "portrait", "poster"] as const;
 function scaleFor(
   format: keyof typeof TEMPLATE_OUTPUT_SIZES,
   viewport: { width: number; height: number },
-  zoom: "fit" | "half" | "full" = "fit",
+  zoom: PreviewZoom = "fit",
 ) {
   const { w: width, h: height } = TEMPLATE_OUTPUT_SIZES[format];
   const fitScale = previewFitScale({
@@ -93,12 +97,21 @@ test("small formats are never upscaled past their native size", () => {
   assert.equal(scale, 1);
 });
 
-test("explicit zoom levels override fit in both directions", () => {
+test("continuous zoom levels override fit and remain bounded", () => {
   const viewport = REQUIRED_VIEWPORTS[0];
-  assert.equal(scaleFor("story", viewport, "half").scale, 0.5);
-  assert.equal(scaleFor("story", viewport, "full").scale, 1);
+  assert.equal(scaleFor("story", viewport, 0.5).scale, 0.5);
+  assert.equal(scaleFor("story", viewport, 1).scale, 1);
+  assert.equal(scaleFor("story", viewport, 2).scale, 2);
   // 100% on a format that would otherwise fit must still scroll.
-  assert.equal(scaleFor("square", viewport, "full").overflows, true);
+  assert.equal(scaleFor("square", viewport, 1).overflows, true);
+  assert.equal(clampPreviewZoom(0.1), PREVIEW_MIN_SCALE);
+  assert.equal(clampPreviewZoom(4), PREVIEW_MAX_SCALE);
+});
+
+test("zoom buttons step in five-point increments", () => {
+  assert.equal(stepPreviewZoom(0.5, 1), 0.55);
+  assert.equal(stepPreviewZoom(0.55, -1), 0.5);
+  assert.equal(stepPreviewZoom(PREVIEW_MAX_SCALE, 1), PREVIEW_MAX_SCALE);
 });
 
 test("displayed width always lands on whole pixels", () => {
@@ -125,7 +138,7 @@ test("displayed width always lands on whole pixels", () => {
  */
 test("editable overlay composes to exactly the outer frame width at every zoom", () => {
   const renderScale = 2;
-  for (const zoom of ["fit", "half", "full"] as const) {
+  for (const zoom of ["fit", 0.5, 1, 1.5] as const) {
     for (const format of ACCEPTANCE_FORMATS) {
       for (const viewport of REQUIRED_VIEWPORTS) {
         const { scale, width, height } = scaleFor(format, viewport, zoom);

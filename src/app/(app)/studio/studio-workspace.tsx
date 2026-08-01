@@ -584,6 +584,7 @@ export function StudioWorkspace({
   // Shared by every preview frame, so switching format or toggling the original
   // keeps the reviewer's chosen zoom instead of snapping back to fit.
   const [previewZoom, setPreviewZoom] = useState<PreviewZoom>("fit");
+  const [resolvedPreviewZoom, setResolvedPreviewZoom] = useState(0.5);
   // A size switch is always a reference-first operation. Keeping the size
   // key separately prevents an old draft renderer from flashing while React
   // reconciles the newly selected dimensions.
@@ -1519,6 +1520,7 @@ export function StudioWorkspace({
             onSelectSize={selectSize}
             disabled={busy}
             zoom={previewZoom}
+            resolvedZoom={resolvedPreviewZoom}
             onZoomChange={setPreviewZoom}
             viewToggle={
               hasAnyGeneratedDraft
@@ -1544,6 +1546,7 @@ export function StudioWorkspace({
                 onGenerate={generate}
                 onCopyFromCampaign={() => generate(true)}
                 zoom={previewZoom}
+                onScaleChange={setResolvedPreviewZoom}
               />
             ) : content && !isBrandReferenceView && selectedTemplate.platformManifest ? (
               <LiveTemplatePreviewFrame
@@ -1557,6 +1560,7 @@ export function StudioWorkspace({
                 height={dims.h}
                 updating={saveState === "saving"}
                 zoom={previewZoom}
+                onScaleChange={setResolvedPreviewZoom}
               />
             ) : isBrandReferenceView ? (
               <ServerPreviewFrame
@@ -1566,6 +1570,7 @@ export function StudioWorkspace({
                 height={dims.h}
                 updating={false}
                 zoom={previewZoom}
+                onScaleChange={setResolvedPreviewZoom}
               />
             ) : (
             <ServerPreviewFrame
@@ -1574,6 +1579,7 @@ export function StudioWorkspace({
                 height={dims.h}
                 updating={false}
                 zoom={previewZoom}
+                onScaleChange={setResolvedPreviewZoom}
               />
             )}
           </div>

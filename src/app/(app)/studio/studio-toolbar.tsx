@@ -1,10 +1,12 @@
 "use client";
 
-import { useRef } from "react";
+import { Minus, Plus, Scan } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { nextRovingIndex } from "@/lib/roving-focus";
 import {
-  PREVIEW_ZOOM_OPTIONS,
+  PREVIEW_MAX_SCALE,
+  PREVIEW_MIN_SCALE,
+  PREVIEW_ZOOM_STEP,
+  stepPreviewZoom,
   type PreviewZoom,
 } from "@/lib/studio-preview-scale";
 import {
@@ -32,24 +34,27 @@ function formatChannel(key: string, label: string) {
 /**
  * Zoom selector for the preview stage.
  *
- * A radiogroup rather than a set of toggle buttons: the three levels are
- * mutually exclusive, so arrow keys move between them and only the selected
- * option is a tab stop.
+ * Compact design-canvas control: fit, step down, continuous slider, step up,
+ * and the real rendered percentage. Native range semantics provide arrow-key
+ * control without rebuilding slider accessibility in JavaScript.
  */
 function PreviewZoomControl({
   zoom,
+  resolvedZoom,
   onZoomChange,
   disabled,
 }: {
   zoom: PreviewZoom;
+  resolvedZoom: number;
   onZoomChange: (zoom: PreviewZoom) => void;
   disabled: boolean;
 }) {
-  const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
-  const activeIndex = PREVIEW_ZOOM_OPTIONS.findIndex((option) => option.value === zoom);
+  const atMinimum = resolvedZoom <= PREVIEW_MIN_SCALE + 1e-9;
+  const atMaximum = resolvedZoom >= PREVIEW_MAX_SCALE - 1e-9;
+  const percent = Math.round(resolvedZoom * 100);
 
   return (
-    <div className="flex min-w-0 shrink-0 flex-col gap-1">
+    <div className="flex min-w-0 max-w-full shrink-0 flex-col gap-1">
       <span
         id="studio-preview-zoom-label"
         className="text-[10px] font-bold uppercase tracking-[0.1em] text-ink-faint"
@@ -57,46 +62,60 @@ function PreviewZoomControl({
         Zoom
       </span>
       <div
-        role="radiogroup"
+        role="group"
         aria-labelledby="studio-preview-zoom-label"
-        className="flex items-center gap-1 rounded-[8px] bg-page p-1"
+        className="flex min-h-11 max-w-full items-center gap-1 rounded-[8px] bg-page p-1"
       >
-        {PREVIEW_ZOOM_OPTIONS.map((option, index) => {
-          const selected = option.value === zoom;
-          return (
-            <button
-              key={option.value}
-              ref={(node) => {
-                optionRefs.current[index] = node;
-              }}
-              type="button"
-              role="radio"
-              aria-checked={selected}
-              tabIndex={selected ? 0 : -1}
-              disabled={disabled}
-              onClick={() => onZoomChange(option.value)}
-              // Arrow keys move selection within the group (ARIA APG radiogroup);
-              // the handler sits on the radios because that is where focus is.
-              onKeyDown={(event) => {
-                const next = nextRovingIndex(
-                  activeIndex,
-                  event.key,
-                  PREVIEW_ZOOM_OPTIONS.length
-                );
-                if (next === null) return;
-                event.preventDefault();
-                onZoomChange(PREVIEW_ZOOM_OPTIONS[next].value);
-                optionRefs.current[next]?.focus();
-              }}
-              className={cn(
-                "min-h-11 min-w-11 rounded-[7px] px-3 py-2 text-[12.5px] font-bold transition-colors",
-                selected ? "bg-surface text-ink shadow-sm" : "text-ink-faint"
-              )}
-            >
-              {option.label}
-            </button>
-          );
-        })}
+        <button
+          type="button"
+          disabled={disabled}
+          aria-pressed={zoom === "fit"}
+          onClick={() => onZoomChange("fit")}
+          className={cn(
+            "flex min-h-11 items-center gap-1.5 rounded-[7px] px-2.5 text-[12px] font-bold transition-colors",
+            zoom === "fit" ? "bg-surface text-ink shadow-sm" : "text-ink-faint"
+          )}
+        >
+          <Scan className="size-3.5" aria-hidden="true" />
+          Fit
+        </button>
+        <button
+          type="button"
+          disabled={disabled || atMinimum}
+          onClick={() => onZoomChange(stepPreviewZoom(resolvedZoom, -1))}
+          aria-label="Zoom out"
+          className="flex size-11 shrink-0 items-center justify-center rounded-[7px] text-ink-muted hover:bg-surface hover:text-ink disabled:opacity-35"
+        >
+          <Minus className="size-4" aria-hidden="true" />
+        </button>
+        <input
+          id="studio-preview-zoom-range"
+          type="range"
+          min={PREVIEW_MIN_SCALE}
+          max={PREVIEW_MAX_SCALE}
+          step={PREVIEW_ZOOM_STEP}
+          value={resolvedZoom}
+          disabled={disabled}
+          onChange={(event) => onZoomChange(Number(event.currentTarget.value))}
+          aria-label="Preview zoom"
+          aria-valuetext={`${percent}%`}
+          className="h-11 w-20 min-w-16 cursor-pointer accent-brand disabled:cursor-not-allowed md:w-24"
+        />
+        <button
+          type="button"
+          disabled={disabled || atMaximum}
+          onClick={() => onZoomChange(stepPreviewZoom(resolvedZoom, 1))}
+          aria-label="Zoom in"
+          className="flex size-11 shrink-0 items-center justify-center rounded-[7px] text-ink-muted hover:bg-surface hover:text-ink disabled:opacity-35"
+        >
+          <Plus className="size-4" aria-hidden="true" />
+        </button>
+        <output
+          htmlFor="studio-preview-zoom-range"
+          className="w-10 shrink-0 text-right text-[11px] font-bold tabular-nums text-ink-muted"
+        >
+          {percent}%
+        </output>
       </div>
     </div>
   );
@@ -111,6 +130,7 @@ export function StudioToolbar({
   disabled = false,
   viewToggle,
   zoom,
+  resolvedZoom,
   onZoomChange,
 }: {
   sizes: string[];
@@ -122,6 +142,7 @@ export function StudioToolbar({
   disabled?: boolean;
   viewToggle?: { showOriginal: boolean; onShowOriginalChange: (showOriginal: boolean) => void };
   zoom?: PreviewZoom;
+  resolvedZoom?: number;
   onZoomChange?: (zoom: PreviewZoom) => void;
 }) {
   const formatGroups = sizes.reduce<Record<string, string[]>>((groups, key) => {
@@ -130,7 +151,7 @@ export function StudioToolbar({
     return groups;
   }, {});
   return (
-    <div className="flex flex-wrap items-end justify-between gap-3 border-b border-edge bg-surface px-4 py-3 md:min-h-[64px] md:flex-nowrap md:items-center md:gap-4 md:px-6">
+    <div className="flex flex-wrap items-end justify-between gap-3 border-b border-edge bg-surface px-4 py-3 md:min-h-[64px] md:items-center md:gap-4 md:px-6">
       <div className="flex w-full min-w-0 flex-col gap-1 md:w-auto">
         <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-ink-faint">
           Formats
@@ -155,9 +176,14 @@ export function StudioToolbar({
           </SelectContent>
         </Select>
       </div>
-      <div className="flex w-full min-w-0 flex-wrap items-end gap-3 md:w-auto md:shrink-0 md:flex-nowrap md:items-center md:gap-4">
-        {zoom && onZoomChange && (
-          <PreviewZoomControl zoom={zoom} onZoomChange={onZoomChange} disabled={disabled} />
+      <div className="flex w-full min-w-0 flex-wrap items-end gap-3 md:w-auto md:shrink-0 md:items-center md:gap-4">
+        {zoom !== undefined && resolvedZoom !== undefined && onZoomChange && (
+          <PreviewZoomControl
+            zoom={zoom}
+            resolvedZoom={resolvedZoom}
+            onZoomChange={onZoomChange}
+            disabled={disabled}
+          />
         )}
         {viewToggle && (
           <div className="flex max-w-full shrink-0 items-center gap-1 rounded-[8px] bg-page p-1">

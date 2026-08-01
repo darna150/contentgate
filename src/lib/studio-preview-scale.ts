@@ -16,16 +16,24 @@ export const PREVIEW_VIEWPORT_PADDING = 32;
 /** Reviewers must never be shown artwork below this scale. */
 export const PREVIEW_MIN_SCALE = 0.5;
 
-export type PreviewZoom = "fit" | "half" | "full";
+/** Canvas-style zoom ceiling. The authored 2× reference remains sharp here. */
+export const PREVIEW_MAX_SCALE = 2;
 
-export const PREVIEW_ZOOM_OPTIONS: ReadonlyArray<{
-  value: PreviewZoom;
-  label: string;
-}> = [
-  { value: "fit", label: "Fit" },
-  { value: "half", label: "50%" },
-  { value: "full", label: "100%" },
-];
+/** Five percentage points matches familiar design-canvas zoom controls. */
+export const PREVIEW_ZOOM_STEP = 0.05;
+
+export type PreviewZoom = "fit" | number;
+
+export function clampPreviewZoom(scale: number) {
+  if (!Number.isFinite(scale)) return PREVIEW_MIN_SCALE;
+  return Math.min(PREVIEW_MAX_SCALE, Math.max(PREVIEW_MIN_SCALE, scale));
+}
+
+export function stepPreviewZoom(scale: number, direction: -1 | 1) {
+  const stepped =
+    Math.round(scale / PREVIEW_ZOOM_STEP + direction) * PREVIEW_ZOOM_STEP;
+  return clampPreviewZoom(Number(stepped.toFixed(2)));
+}
 
 /**
  * Largest scale at which the artwork fits entirely inside the viewport, capped
@@ -68,9 +76,7 @@ export function resolvePreviewScale(input: {
   const target =
     input.zoom === "fit"
       ? Math.max(input.fitScale, PREVIEW_MIN_SCALE)
-      : input.zoom === "half"
-        ? PREVIEW_MIN_SCALE
-        : 1;
+      : clampPreviewZoom(input.zoom);
   const scale = snapToWholePixels(input.width, target);
   // Tolerance keeps float noise from reporting a scrollbar that never appears.
   return { scale, overflows: scale > input.fitScale + 1e-9 };

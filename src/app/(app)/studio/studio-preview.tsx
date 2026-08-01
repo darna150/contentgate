@@ -72,6 +72,7 @@ function usePreviewScale(input: {
   width: number;
   height: number;
   zoom: PreviewZoom;
+  onScaleChange?: (scale: number) => void;
 }) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const [fitScale, setFitScale] = useState(0.72);
@@ -100,6 +101,10 @@ function usePreviewScale(input: {
     fitScale,
     width: input.width,
   });
+  const onScaleChange = input.onScaleChange;
+  useEffect(() => {
+    onScaleChange?.(scale);
+  }, [onScaleChange, scale]);
   return { viewportRef, scale, overflows };
 }
 
@@ -196,6 +201,7 @@ export function ServerPreviewFrame({
   height,
   updating,
   zoom = "fit",
+  onScaleChange,
 }: {
   src: string;
   /** Optional authenticated authored asset. The lightweight `src` remains the
@@ -205,8 +211,14 @@ export function ServerPreviewFrame({
   height: number;
   updating: boolean;
   zoom?: PreviewZoom;
+  onScaleChange?: (scale: number) => void;
 }) {
-  const { viewportRef, scale, overflows } = usePreviewScale({ width, height, zoom });
+  const { viewportRef, scale, overflows } = usePreviewScale({
+    width,
+    height,
+    zoom,
+    onScaleChange,
+  });
   const sources = studioPreviewImageSources({ src, highResolutionSrc });
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
   const [loadedSrc, setLoadedSrc] = useState(sources.instantSrc);
@@ -352,6 +364,7 @@ export function MissingDraftFrame({
   onGenerate,
   onCopyFromCampaign,
   zoom = "fit",
+  onScaleChange,
 }: {
   width: number;
   height: number;
@@ -360,8 +373,14 @@ export function MissingDraftFrame({
   onGenerate: () => void;
   onCopyFromCampaign: () => void;
   zoom?: PreviewZoom;
+  onScaleChange?: (scale: number) => void;
 }) {
-  const { viewportRef, scale, overflows } = usePreviewScale({ width, height, zoom });
+  const { viewportRef, scale, overflows } = usePreviewScale({
+    width,
+    height,
+    zoom,
+    onScaleChange,
+  });
 
   return (
     <PreviewStage viewportRef={viewportRef} overflows={overflows}>
@@ -411,6 +430,7 @@ export function LiveTemplatePreviewFrame({
   updating,
   original = false,
   zoom = "fit",
+  onScaleChange,
 }: {
   manifest: TemplateBundleManifest;
   variantKey: string;
@@ -430,8 +450,14 @@ export function LiveTemplatePreviewFrame({
   updating: boolean;
   original?: boolean;
   zoom?: PreviewZoom;
+  onScaleChange?: (scale: number) => void;
 }) {
-  const { viewportRef, scale, overflows } = usePreviewScale({ width, height, zoom });
+  const { viewportRef, scale, overflows } = usePreviewScale({
+    width,
+    height,
+    zoom,
+    onScaleChange,
+  });
   const [fontsReady, setFontsReady] = useState(false);
   const renderScale = 2;
   const rendered = renderTemplateBundleVariant({
