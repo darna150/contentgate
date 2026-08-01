@@ -196,7 +196,7 @@ export default function LandingPage() {
               </a>
             </div>
 
-            <div className="mt-14">
+            <div className="anim-rise mt-14">
               <CampaignShowcase />
             </div>
           </div>
@@ -209,7 +209,7 @@ export default function LandingPage() {
           className="scroll-mt-20 bg-page"
         >
           <div className="mx-auto w-full max-w-6xl px-5 py-20 sm:px-8 sm:py-24">
-            <div className="max-w-3xl">
+            <div className="anim-rise max-w-3xl">
               <SectionLabel>The problem</SectionLabel>
               <h2
                 id="problem-heading"
@@ -225,7 +225,7 @@ export default function LandingPage() {
               </p>
             </div>
 
-            <ol className="mt-12 grid gap-5 md:grid-cols-3">
+            <ol className="anim-rise mt-12 grid gap-5 md:grid-cols-3">
               {[
                 {
                   n: "01",
@@ -258,7 +258,7 @@ export default function LandingPage() {
               ))}
             </ol>
 
-            <div className="mt-6 rounded-card border border-edge bg-brand-dark p-8 sm:p-10">
+            <div className="anim-rise mt-6 rounded-card border border-edge bg-brand-dark p-8 sm:p-10">
               <p className="text-label text-brand-on-dark">Option four</p>
               <p className="mt-4 max-w-3xl text-h1 text-balance text-white">
                 The real constraint is not effort. It is expertise.
@@ -287,7 +287,7 @@ export default function LandingPage() {
               </h2>
             </div>
 
-            <div className="mt-12 grid gap-5 sm:grid-cols-2">
+            <div className="anim-rise mt-12 grid gap-5 sm:grid-cols-2">
               {[
                 {
                   title: "Local teams stop waiting",
@@ -342,7 +342,7 @@ export default function LandingPage() {
               </h2>
             </div>
 
-            <ol className="mt-12 flex flex-col gap-4">
+            <ol className="anim-rise mt-12 flex flex-col gap-4">
               {[
                 {
                   n: "01",
@@ -429,7 +429,7 @@ export default function LandingPage() {
               </p>
             </div>
 
-            <div className="mt-12 grid gap-5 md:grid-cols-2">
+            <div className="anim-rise mt-12 grid gap-5 md:grid-cols-2">
               {[
                 {
                   role: "CEO, country GM, commercial director",
@@ -502,7 +502,7 @@ export default function LandingPage() {
               </p>
             </div>
 
-            <div className="mt-12">
+            <div className="anim-rise mt-12">
               <CitationProof />
               {/* The §4 safe wording travels with the vignette rather than in a
                   card of its own — the vignette IS this claim. Verbatim; do
@@ -514,7 +514,7 @@ export default function LandingPage() {
               </p>
             </div>
 
-            <ul className="mt-10 grid gap-4 md:grid-cols-2">
+            <ul className="anim-rise mt-10 grid gap-4 md:grid-cols-2">
               {[
                 {
                   title: "Export is gated on the approved revision",

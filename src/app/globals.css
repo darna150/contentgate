@@ -125,6 +125,57 @@ body {
 
 :focus-visible { outline: 3px solid var(--color-brand); outline-offset: 3px; }
 
+/*
+ * Marketing motion — scroll-driven, CSS-only.
+ *
+ * Deliberately built on `animation-timeline: view()` rather than an
+ * IntersectionObserver, because the failure mode matters: a JS reveal that
+ * starts at opacity 0 leaves the page blank if the script never runs. Here the
+ * animation is additive — where `view()` is unsupported the content simply
+ * renders in its final state, and the global prefers-reduced-motion block
+ * above neutralises it for anyone who asks. Nothing is hidden without JS.
+ */
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+}
+
+/* Marker-pen sweep for citation highlights: the span fills left-to-right as it
+   scrolls in, which is the "matched word for word" claim made kinetic. */
+@keyframes sweep-in {
+  from {
+    background-size: 0% 100%;
+  }
+}
+
+.sweep {
+  background-image: linear-gradient(
+    to right,
+    var(--sweep-color, rgb(0 170 159 / 0.28)),
+    var(--sweep-color, rgb(0 170 159 / 0.28))
+  );
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: view()) {
+    .anim-rise {
+      animation: rise-in linear both;
+      animation-timeline: view();
+      animation-range: entry 5% entry 45%;
+    }
+
+    .sweep {
+      animation: sweep-in linear both;
+      animation-timeline: view();
+      animation-range: entry 25% entry 65%;
+    }
+  }
+}
+
 /* A wrapped mobile placeholder must remain legible before anyone types. Keep
    the compact desktop treatment, but reserve two touch-friendly lines below
    the small breakpoint. This explicit rule also avoids utility-order changes

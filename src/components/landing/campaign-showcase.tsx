@@ -1,7 +1,7 @@
 "use client";
 
 import { Lock, Pencil } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 /*
  * Coded micro-demo for the landing page: the declared fields beside the
@@ -84,7 +84,32 @@ const pillOff =
 
 export function CampaignShowcase() {
   const [sizeId, setSizeId] = useState(SIZES[0].id);
+  // Autoplay stops permanently on first interaction — once someone has taken
+  // control of the demo, moving it under them is hostile.
+  const [autoplay, setAutoplay] = useState(true);
   const size = SIZES.find((s) => s.id === sizeId) ?? SIZES[0];
+
+  useEffect(() => {
+    if (!autoplay) return;
+    if (
+      typeof window === "undefined" ||
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    ) {
+      return;
+    }
+    const timer = window.setInterval(() => {
+      setSizeId((current) => {
+        const i = SIZES.findIndex((s) => s.id === current);
+        return SIZES[(i + 1) % SIZES.length].id;
+      });
+    }, 2600);
+    return () => window.clearInterval(timer);
+  }, [autoplay]);
+
+  const pick = (id: string) => {
+    setAutoplay(false);
+    setSizeId(id);
+  };
 
   return (
     <div className="flex flex-col gap-8">
@@ -96,7 +121,7 @@ export function CampaignShowcase() {
               key={s.id}
               type="button"
               aria-pressed={s.id === sizeId}
-              onClick={() => setSizeId(s.id)}
+              onClick={() => pick(s.id)}
               className={`${pillBase} ${s.id === sizeId ? pillOn : pillOff}`}
             >
               {s.label} <span className="font-normal opacity-70">{s.dims}</span>
@@ -155,7 +180,7 @@ export function CampaignShowcase() {
         <div className="flex flex-col items-center gap-4">
           <div
             aria-live="polite"
-            className={`w-full ${size.frameWidth} overflow-hidden rounded-card border border-white/15 bg-surface shadow-elevated`}
+            className={`w-full ${size.frameWidth} overflow-hidden rounded-card border border-white/15 bg-surface shadow-elevated transition-[max-width,aspect-ratio] duration-500 ease-out motion-reduce:transition-none`}
             style={{ aspectRatio: size.ratio }}
           >
             <div className="flex h-full flex-col justify-between gap-4 p-5">
