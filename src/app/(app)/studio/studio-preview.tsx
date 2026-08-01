@@ -10,6 +10,7 @@ import {
   resolvePreviewScale,
   type PreviewZoom,
 } from "@/lib/studio-preview-scale";
+import { studioPreviewImageSources } from "@/lib/studio-preview-images";
 import type { TemplateBundleManifest } from "@/lib/template-platform/manifest";
 import {
   renderTemplateBundleVariant,
@@ -142,21 +143,6 @@ function PreviewStage({
   );
 }
 
-function highDensityPreviewSrc(src: string) {
-  const makeScaledApiUrl = (value: string) => {
-    const base =
-      typeof window === "undefined" ? "http://contentgate.local" : window.location.origin;
-    const url = new URL(value, base);
-    url.searchParams.set("scale", "2");
-    return value.startsWith("http") ? url.toString() : url.pathname + url.search + url.hash;
-  };
-
-  if (src.includes("/api/creative/")) return makeScaledApiUrl(src);
-  // Static references are already authored PNG exports. Keep their exact URL:
-  // swapping to a 2x companion delays the view and can display a stale export.
-  return src;
-}
-
 export function GenerationLoader() {
   const [messageIndex, setMessageIndex] = useState(0);
 
@@ -205,55 +191,93 @@ export function GenerationLoader() {
 
 export function ServerPreviewFrame({
   src,
+  highResolutionSrc,
   width,
   height,
   updating,
   zoom = "fit",
 }: {
   src: string;
+  /** Optional authenticated authored asset. The lightweight `src` remains the
+   * first paint; this image replaces it only after a successful decode. */
+  highResolutionSrc?: string;
   width: number;
   height: number;
   updating: boolean;
   zoom?: PreviewZoom;
 }) {
   const { viewportRef, scale, overflows } = usePreviewScale({ width, height, zoom });
+  const sources = studioPreviewImageSources({ src, highResolutionSrc });
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
-  const displaySrc = highDensityPreviewSrc(src);
-  const [loadedSrc, setLoadedSrc] = useState(displaySrc);
+  const [loadedSrc, setLoadedSrc] = useState(sources.instantSrc);
+  const loadedSrcRef = useRef(sources.instantSrc);
+  const [instantReadyFor, setInstantReadyFor] = useState<string | null>(null);
   const [loadingNext, setLoadingNext] = useState(false);
-  const imageFailed = failedSrc === displaySrc;
+  const imageFailed = failedSrc === sources.instantSrc;
 
-  // Decode the next reference off-screen and keep the previous one in place
-  // until it is paint-ready. Size changes therefore never expose a blank or
-  // half-loaded canvas, even on a cold 2× Figma export.
-  useEffect(() => {
-    if (displaySrc === loadedSrc) return;
-    let cancelled = false;
-    const image = new Image();
-    queueMicrotask(() => {
-      if (!cancelled) setLoadingNext(true);
+  function reveal(nextSrc: string) {
+    loadedSrcRef.current = nextSrc;
+    setLoadedSrc(nextSrc);
+  }
+
+  function preloadAndDecode(nextSrc: string, priority: "high" | "low") {
+    return new Promise<void>((resolve, reject) => {
+      const image = new Image();
+      image.decoding = "async";
+      image.fetchPriority = priority;
+      image.onload = () => {
+        const decode = image.decode ? image.decode() : Promise.resolve();
+        void decode.catch(() => undefined).then(() => resolve());
+      };
+      image.onerror = () => reject(new Error("Preview image could not be loaded."));
+      image.src = nextSrc;
     });
-    const reveal = () => {
-      if (cancelled) return;
-      setLoadedSrc(displaySrc);
-      setLoadingNext(false);
-      setFailedSrc(null);
-    };
-    image.onload = () => {
-      const decode = image.decode ? image.decode() : Promise.resolve();
-      void decode.catch(() => undefined).then(reveal);
-    };
-    image.onerror = () => {
-      if (!cancelled) {
-        setFailedSrc(displaySrc);
-        setLoadingNext(false);
-      }
-    };
-    image.src = displaySrc;
+  }
+
+  // On a size change, decode the tiny thumbnail before replacing the previous
+  // format. The authored high-resolution asset is deliberately not requested
+  // until this first paint is ready, so it cannot compete with instant display.
+  useEffect(() => {
+    if (loadedSrcRef.current === sources.instantSrc) return;
+    setInstantReadyFor(null);
+    setFailedSrc(null);
+    let cancelled = false;
+    setLoadingNext(true);
+    void preloadAndDecode(sources.instantSrc, "high")
+      .then(() => {
+        if (!cancelled) reveal(sources.instantSrc);
+      })
+      .catch(() => {
+        if (!cancelled) setFailedSrc(sources.instantSrc);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingNext(false);
+      });
     return () => {
       cancelled = true;
     };
-  }, [displaySrc, loadedSrc]);
+  }, [sources.instantSrc]);
+
+  // Upgrade only after the thumbnail has painted. A failed or expired signed
+  // full-resolution URL is non-fatal: the ready thumbnail stays visible.
+  useEffect(() => {
+    const upgradeSrc = sources.highResolutionSrc;
+    if (!upgradeSrc || instantReadyFor !== sources.instantSrc) return;
+    if (loadedSrcRef.current === upgradeSrc) return;
+    let cancelled = false;
+    setLoadingNext(true);
+    void preloadAndDecode(upgradeSrc, "low")
+      .then(() => {
+        if (!cancelled) reveal(upgradeSrc);
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (!cancelled) setLoadingNext(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [instantReadyFor, sources.highResolutionSrc, sources.instantSrc]);
 
   return (
     <PreviewStage
@@ -262,7 +286,7 @@ export function ServerPreviewFrame({
       overlay={
         (updating || loadingNext) && (
           <div className="absolute right-4 top-4 z-10 rounded-full bg-surface/90 px-3 py-1.5 text-[11px] font-semibold text-ink-muted shadow-sm">
-            {loadingNext ? "Loading reference…" : "Updating preview…"}
+            {loadingNext ? "Sharpening preview…" : "Updating preview…"}
           </div>
         )
       }
@@ -294,7 +318,20 @@ export function ServerPreviewFrame({
           src={loadedSrc}
           alt="Generated template preview"
           className="block rounded-[3px] shadow-elevated"
-          onError={() => setFailedSrc(displaySrc)}
+          decoding="async"
+          fetchPriority="high"
+          onLoad={() => {
+            if (loadedSrc === sources.instantSrc) {
+              setInstantReadyFor(sources.instantSrc);
+            }
+          }}
+          onError={() => {
+            if (loadedSrc !== sources.instantSrc) {
+              reveal(sources.instantSrc);
+              return;
+            }
+            setFailedSrc(sources.instantSrc);
+          }}
           data-testid="studio-preview-canvas"
           data-preview-scale={scale}
           style={{

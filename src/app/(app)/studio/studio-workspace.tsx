@@ -1561,6 +1561,7 @@ export function StudioWorkspace({
             ) : isBrandReferenceView ? (
               <ServerPreviewFrame
                 src={originalPreviewUrl}
+                highResolutionSrc={originalExportUrl}
                 width={dims.w}
                 height={dims.h}
                 updating={false}
