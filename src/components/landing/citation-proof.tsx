@@ -50,7 +50,10 @@ export function CitationProof() {
           </div>
           <p className="text-subhead text-pretty text-white">
             {GENERATED.before}
-            <mark className="sweep rounded bg-transparent px-1 py-0.5 text-white">
+            <mark
+              data-reveal
+              className="sweep rounded bg-transparent px-1 py-0.5 text-white"
+            >
               {GENERATED.cited}
             </mark>
             {GENERATED.after}
@@ -80,7 +83,10 @@ export function CitationProof() {
           </div>
           <p className="text-prose text-pretty text-sidebar-text">
             {SOURCE.before}
-            <mark className="sweep rounded bg-transparent px-1 py-0.5 text-white">
+            <mark
+              data-reveal
+              className="sweep rounded bg-transparent px-1 py-0.5 text-white"
+            >
               {SOURCE.cited}
             </mark>
             {SOURCE.after}

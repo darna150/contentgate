@@ -5,6 +5,7 @@ import Link from "next/link";
 import { CampaignShowcase } from "@/components/landing/campaign-showcase";
 import { CitationProof } from "@/components/landing/citation-proof";
 import { PlaceholderVisual } from "@/components/landing/placeholder-visual";
+import { ScrollReveal } from "@/components/landing/scroll-reveal";
 
 /*
  * Public marketing landing page at "/". Kept static and unauthenticated —
@@ -85,6 +86,8 @@ export default function LandingPage() {
     <>
       {/* .skip-link is defined globally in globals.css as of 29c5e2a — use it
           rather than re-implementing the pattern here. */}
+      <ScrollReveal />
+
       <a href="#main" className="skip-link">
         Skip to content
       </a>
@@ -208,7 +211,7 @@ export default function LandingPage() {
               </a>
             </div>
 
-            <div className="anim-rise mt-14">
+            <div data-reveal className="mt-14">
               <CampaignShowcase />
             </div>
           </div>
@@ -221,7 +224,7 @@ export default function LandingPage() {
           className="scroll-mt-20 bg-page"
         >
           <div className="mx-auto w-full max-w-6xl px-5 py-20 sm:px-8 sm:py-24">
-            <div className="anim-rise max-w-3xl">
+            <div data-reveal className="max-w-3xl">
               <SectionLabel>The problem</SectionLabel>
               <h2
                 id="problem-heading"
@@ -237,7 +240,7 @@ export default function LandingPage() {
               </p>
             </div>
 
-            <ol className="anim-rise mt-12 grid gap-5 md:grid-cols-3">
+            <ol className="mt-12 grid gap-5 md:grid-cols-3">
               {[
                 {
                   n: "01",
@@ -257,7 +260,8 @@ export default function LandingPage() {
               ].map((option) => (
                 <li
                   key={option.n}
-                  className="flex flex-col gap-3 rounded-card border border-edge bg-surface p-6"
+                  data-reveal
+                  className="lift flex flex-col gap-3 rounded-card border border-edge bg-surface p-6"
                 >
                   <span className="text-label text-ink-muted-strong">
                     {option.n}
@@ -270,7 +274,10 @@ export default function LandingPage() {
               ))}
             </ol>
 
-            <div className="anim-rise mt-6 rounded-card border border-edge bg-brand-dark p-8 sm:p-10">
+            <div
+              data-reveal
+              className="mt-6 rounded-card border border-edge bg-brand-dark p-8 sm:p-10"
+            >
               <p className="text-label text-brand-on-dark">Option four</p>
               <p className="mt-4 max-w-3xl text-h1 text-balance text-white">
                 The real constraint is not effort. It is expertise.
@@ -299,7 +306,7 @@ export default function LandingPage() {
               </h2>
             </div>
 
-            <div className="anim-rise mt-12 grid gap-5 sm:grid-cols-2">
+            <div className="mt-12 grid gap-5 sm:grid-cols-2">
               {[
                 {
                   title: "Local teams stop waiting",
@@ -323,7 +330,8 @@ export default function LandingPage() {
               ].map((message, index) => (
                 <div
                   key={message.title}
-                  className="flex flex-col gap-3 rounded-card border border-edge bg-page p-7"
+                  data-reveal
+                  className="lift flex flex-col gap-3 rounded-card border border-edge bg-page p-7"
                 >
                   <span className="text-label text-accent-dark">
                     {String(index + 1).padStart(2, "0")}
@@ -366,7 +374,7 @@ export default function LandingPage() {
               </p>
             </div>
 
-            <ol className="anim-rise mt-12 flex flex-col gap-4">
+            <ol className="mt-12 flex flex-col gap-4">
               {[
                 {
                   n: "01",
@@ -389,7 +397,8 @@ export default function LandingPage() {
               ].map((step) => (
                 <li
                   key={step.n}
-                  className="grid gap-4 rounded-card border border-edge bg-surface p-6 sm:grid-cols-[auto_180px_minmax(0,1fr)] sm:items-start sm:gap-8 sm:p-7"
+                  data-reveal
+                  className="lift grid gap-4 rounded-card border border-edge bg-surface p-6 sm:grid-cols-[auto_180px_minmax(0,1fr)] sm:items-start sm:gap-8 sm:p-7"
                 >
                   <span className="text-label text-accent-dark">{step.n}</span>
                   <div className="flex flex-col gap-1">
@@ -441,7 +450,7 @@ export default function LandingPage() {
               </p>
             </div>
 
-            <div className="anim-rise mt-12 grid gap-5 md:grid-cols-2">
+            <div className="mt-12 grid gap-5 md:grid-cols-2">
               {[
                 {
                   role: "CEO, country GM, commercial director",
@@ -474,7 +483,8 @@ export default function LandingPage() {
               ].map((persona) => (
                 <article
                   key={persona.role}
-                  className="flex flex-col gap-4 rounded-card border border-edge bg-page p-7"
+                  data-reveal
+                  className="lift flex flex-col gap-4 rounded-card border border-edge bg-page p-7"
                 >
                   {/* Photography slot — in context, never stock boardrooms, and
                       never attributed: no names, no companies, no logos. */}
@@ -509,7 +519,7 @@ export default function LandingPage() {
             omitted; that is a separate decision. */}
         <section aria-labelledby="managed-heading" className="bg-page">
           <div className="mx-auto w-full max-w-6xl px-5 py-20 sm:px-8 sm:py-24">
-            <div className="anim-rise max-w-3xl">
+            <div data-reveal className="max-w-3xl">
               <SectionLabel>Getting live</SectionLabel>
               <h2
                 id="managed-heading"
@@ -524,7 +534,7 @@ export default function LandingPage() {
               </p>
             </div>
 
-            <ol className="anim-rise mt-12 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+            <ol className="mt-12 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
               {[
                 { n: "01", phase: "Discover" },
                 { n: "02", phase: "Organize" },
@@ -535,7 +545,8 @@ export default function LandingPage() {
               ].map((step) => (
                 <li
                   key={step.phase}
-                  className="flex items-baseline gap-3 rounded-card border border-edge bg-surface px-5 py-4 lg:flex-col lg:gap-2"
+                  data-reveal
+                  className="lift flex items-baseline gap-3 rounded-card border border-edge bg-surface px-5 py-4 lg:flex-col lg:gap-2"
                 >
                   <span className="text-label text-accent-dark">{step.n}</span>
                   <span className="text-subhead text-ink">{step.phase}</span>
@@ -543,7 +554,10 @@ export default function LandingPage() {
               ))}
             </ol>
 
-            <p className="anim-rise mt-8 max-w-3xl text-lede text-pretty text-ink">
+            <p
+              data-reveal
+              className="mt-8 max-w-3xl text-lede text-pretty text-ink"
+            >
               Easy for local teams. Controlled for the brand.
             </p>
           </div>
@@ -572,7 +586,7 @@ export default function LandingPage() {
               </p>
             </div>
 
-            <div className="anim-rise mt-12">
+            <div data-reveal className="mt-12">
               <CitationProof />
               {/* The §4 safe wording travels with the vignette rather than in a
                   card of its own — the vignette IS this claim. Verbatim; do
@@ -584,7 +598,7 @@ export default function LandingPage() {
               </p>
             </div>
 
-            <ul className="anim-rise mt-10 grid gap-4 md:grid-cols-2">
+            <ul className="mt-10 grid gap-4 md:grid-cols-2">
               {[
                 {
                   title: "Export is gated on the approved revision",
@@ -609,7 +623,8 @@ export default function LandingPage() {
               ].map((item) => (
                 <li
                   key={item.title}
-                  className="flex flex-col gap-3 rounded-card border border-white/10 bg-white/[0.03] p-7"
+                  data-reveal
+                  className="lift flex flex-col gap-3 rounded-card border border-white/10 bg-white/[0.03] p-7"
                 >
                   <h3 className="text-subhead text-white">{item.title}</h3>
                   <p className="text-prose text-pretty text-sidebar-text">

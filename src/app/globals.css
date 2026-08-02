@@ -126,90 +126,108 @@ body {
 :focus-visible { outline: 3px solid var(--color-brand); outline-offset: 3px; }
 
 /*
- * Marketing motion — scroll-driven, CSS-only.
+ * Marketing motion.
  *
- * Deliberately built on `animation-timeline: view()` rather than an
- * IntersectionObserver, because the failure mode matters: a JS reveal that
- * starts at opacity 0 leaves the page blank if the script never runs. Here the
- * animation is additive — where `view()` is unsupported the content simply
- * renders in its final state, and the global prefers-reduced-motion block
- * above neutralises it for anyone who asks. Nothing is hidden without JS.
+ * Transition-based and driven by ScrollReveal (IntersectionObserver), not by
+ * `animation-timeline: view()`. View timelines were the first implementation
+ * and degraded safely, but Firefox does not support them, so a large share of
+ * visitors saw no motion at all.
+ *
+ * Nothing here hides content on its own. The `[data-reveal-state="hidden"]`
+ * attribute is only ever set by JS, and only on elements below the fold, so a
+ * failed script leaves a fully visible page rather than a blank one.
  */
-@keyframes rise-in {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
+/* Reveal uses the independent `translate` property, hover lift uses
+   `transform`. Separate properties so a card can do both without one clobbering
+   the other. The combined rule is explicit because `transition` is a shorthand:
+   whichever declaration lands last would otherwise win outright, which silently
+   dropped the opacity fade on every card carrying .lift. */
+[data-reveal] {
+  transition:
+    opacity 620ms cubic-bezier(0.22, 1, 0.36, 1),
+    translate 620ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-/* Marker-pen sweep for citation highlights: the span fills left-to-right as it
-   scrolls in, which is the "matched word for word" claim made kinetic. */
-@keyframes sweep-in {
-  from {
-    background-size: 0% 100%;
-  }
+[data-reveal][data-reveal-state="hidden"] {
+  opacity: 0;
+  translate: 0 26px;
 }
 
+/* Marker-pen sweep for citation highlights: the span fills left-to-right on
+   reveal, which is the "matched word for word" claim made kinetic. */
 .sweep {
   background-image: linear-gradient(
     to right,
-    var(--sweep-color, rgb(0 170 159 / 0.28)),
-    var(--sweep-color, rgb(0 170 159 / 0.28))
+    var(--sweep-color, rgb(0 170 159 / 0.3)),
+    var(--sweep-color, rgb(0 170 159 / 0.3))
   );
   background-repeat: no-repeat;
   background-size: 100% 100%;
+  transition: background-size 900ms cubic-bezier(0.22, 1, 0.36, 1) 220ms;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  @supports (animation-timeline: view()) {
-    .anim-rise {
-      animation: rise-in linear both;
-      animation-timeline: view();
-      animation-range: entry 5% entry 45%;
-    }
+.sweep[data-reveal-state="hidden"] {
+  background-size: 0% 100%;
+}
 
-    .sweep {
-      animation: sweep-in linear both;
-      animation-timeline: view();
-      animation-range: entry 25% entry 65%;
-    }
+/* Cards lift slightly under the pointer. Cheap, and it makes a long page of
+   bordered surfaces feel responsive rather than printed. */
+.lift {
+  transition:
+    transform 220ms ease-out,
+    border-color 220ms ease-out;
+}
+
+[data-reveal].lift {
+  transition:
+    opacity 620ms cubic-bezier(0.22, 1, 0.36, 1),
+    translate 620ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 220ms ease-out,
+    border-color 220ms ease-out;
+}
+
+@media (hover: hover) {
+  .lift:hover {
+    transform: translateY(-3px);
   }
 }
 
-/* A wrapped mobile placeholder must remain legible before anyone types. Keep
-   the compact desktop treatment, but reserve two touch-friendly lines below
-   the small breakpoint. This explicit rule also avoids utility-order changes
-   accidentally collapsing the composer during production builds. */
-.ask-composer-input { min-height: 64px; }
+/* The showcase's declared fields populate in sequence — Frontify's "metadata
+   generating…" beat. Pure CSS with a per-row delay rather than React state, so
+   there are no cascading renders and the values are simply present wherever
+   animation does not run. */
+@keyframes field-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
 
-@media (min-width: 640px) {
-  .ask-composer-input { min-height: 44px; }
+@keyframes value-in {
+  from {
+    opacity: 0;
+    transform: translateX(8px);
+  }
+}
+
+.field-row {
+  animation: field-in 460ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.field-value {
+  animation: value-in 460ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    scroll-behavior: auto !important;
-    transition-duration: 0.01ms !important;
-  }
-}
-
-/* Mobile controls must remain comfortably operable by touch. Individual
-   desktop density classes can set a smaller height, but on a narrow viewport
-   this floor wins without changing the desktop information density. */
-@media (max-width: 767px) {
-  button,
-  [role="button"] {
-    min-width: 44px;
+  [data-reveal],
+  .sweep,
+  .lift {
+    transition: none;
   }
 
-  button,
-  [role="button"],
-  input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]),
-  select,
-  textarea {
-    min-height: 44px;
+  .field-row,
+  .field-value {
+    animation: none;
   }
 }
 

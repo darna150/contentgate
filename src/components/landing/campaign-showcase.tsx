@@ -138,10 +138,11 @@ export function CampaignShowcase() {
               What the local team fills in
             </p>
             <ul className="flex flex-col gap-2">
-              {OPEN_FIELDS.map((field) => (
+              {OPEN_FIELDS.map((field, i) => (
                 <li
                   key={field.name}
-                  className="flex items-center gap-3 rounded-control border border-white/15 bg-brand-dark px-3 py-2.5"
+                  style={{ animationDelay: `${360 + i * 200}ms` }}
+                  className="field-row flex items-center gap-3 rounded-control border border-white/15 bg-brand-dark px-3 py-2.5"
                 >
                   <Pencil
                     className="h-3.5 w-3.5 shrink-0 text-brand-on-dark"
@@ -150,7 +151,10 @@ export function CampaignShowcase() {
                   <span className="text-caption font-semibold text-white">
                     {field.name}
                   </span>
-                  <span className="ml-auto truncate text-caption text-sidebar-text">
+                  <span
+                    style={{ animationDelay: `${520 + i * 200}ms` }}
+                    className="field-value ml-auto truncate text-caption text-sidebar-text"
+                  >
                     {field.value}
                   </span>
                 </li>
