@@ -116,14 +116,12 @@ Sits on `#0a0a0a` with no border and no container.
 
 ### 2 — Showcase `YES — partly built; needs real creative`
 
-**Now shipped as a coded micro-demo** in `campaign-showcase.tsx`: a format switcher, a
-**declared-fields panel** (five editable fields with pencil marks, five locked
-properties with lock marks), and the artefact those fields produce.
+**Superseded by the pinned scroll story** in `gate-story.tsx`. The standalone showcase
+and citation card-grids are gone; both jobs are now beats in one continuous take.
 
-The fields panel is the Frontify Variables move and it is done. What remains for design
-is the **artefact itself** — it is still a CSS schematic labelled *"Schematic
-illustration, not live output."* Replacing it with real designed creative removes that
-disclaimer and is the biggest single upgrade left.
+What remains for design is the **artefact inside the story** — still a CSS schematic
+labelled *"Schematic illustration, not live output."* Replacing it with real designed
+creative removes that disclaimer and is the biggest single upgrade left.
 
 The frame is **400 × 400 at desktop** and swaps aspect ratio with the format control:
 
@@ -148,7 +146,7 @@ only place governance appears as a visual rather than a sentence — keep it.
 Localization is deliberately not demonstrated. No language picker, no language count,
 no named languages anywhere on the page. Do not reintroduce one through the media.
 
-Card copy lives in `src/components/landing/campaign-showcase.tsx`.
+Copy and beat timings live in `src/components/landing/gate-story.tsx`.
 
 ### 3 — The problem `NO — and this is the strongest "no" on the page`
 
@@ -205,10 +203,8 @@ names, no company names, no logos, no attributed quotes. Role labels only, as no
 
 ### 7 — What holds it together `YES — BUILT`
 
-**Now shipped as a coded micro-demo** in `citation-proof.tsx`: the generated line, the
-approved source beneath it, the verbatim span highlighted across both, a "matched word
-for word" connector, and a four-cell provenance strip — document, revision, approver,
-date.
+**Superseded by the scroll story**, where the citation match is beat 3: the sweep fills
+the cited span and the approved-source panel rises beneath it.
 
 This is the Vanta technique applied to the one thing ContentGate does that nobody else
 does, and the specimen data does the persuading exactly as it does on their page. The

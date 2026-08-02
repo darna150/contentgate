@@ -192,6 +192,108 @@ body {
   }
 }
 
+/*
+ * The pinned scroll story. A tall wrapper, a sticky full-height stage, and one
+ * artefact scrubbed through its lifecycle while copy beats move past it.
+ *
+ * The base styles below are the FALLBACK — plain vertical flow, everything
+ * visible and readable. Pinning only engages under `[data-story="on"]`, which
+ * the component sets on mount and never sets under prefers-reduced-motion. No
+ * JS means a longer readable page, not a broken one.
+ */
+.story-sweep {
+  background-image: linear-gradient(
+    to right,
+    rgb(0 170 159 / 0.32),
+    rgb(0 170 159 / 0.32)
+  );
+  background-repeat: no-repeat;
+  background-size: var(--sweep, 100%) 100%;
+  border-radius: 4px;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+/* Fallback shows the approved state only; the revert chip would otherwise sit
+   on top of it, since the two share a slot and JS cross-fades them. */
+.story:not([data-story="on"]) [data-layer="revert"] {
+  display: none;
+}
+
+.story[data-story="on"] {
+  height: calc(6 * 88vh);
+}
+
+.story[data-story="on"] .story-stage {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  padding-top: 0;
+  padding-bottom: 0;
+  translate: 0 var(--shift, 0);
+}
+
+.story[data-story="on"] .story-beats {
+  position: relative;
+  min-height: 44vh;
+}
+
+.story[data-story="on"] .story-beat {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  margin-top: -3.5rem;
+  will-change: opacity, transform;
+}
+
+.story[data-story="on"] .story-frame {
+  transition: aspect-ratio 420ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: aspect-ratio;
+}
+
+/*
+ * Pinned storytelling is hostile on a small screen — it hijacks scroll and
+ * leaves the copy cramped beside a shrunken artefact. Below lg the section
+ * reverts to plain flow and every scrubbed value is forced back to its final
+ * state, since the scroll maths no longer corresponds to anything.
+ */
+@media (max-width: 1023px) {
+  .story[data-story="on"] {
+    height: auto;
+  }
+
+  .story[data-story="on"] .story-stage {
+    position: static;
+    height: auto;
+    translate: none;
+  }
+
+  .story[data-story="on"] .story-beats {
+    min-height: 0;
+  }
+
+  .story[data-story="on"] .story-beat {
+    position: static;
+    margin-top: 0;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  .story[data-story="on"] [data-layer] {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  .story[data-story="on"] [data-layer="revert"] {
+    display: none;
+  }
+
+  .story[data-story="on"] .story-sweep {
+    background-size: 100% 100% !important;
+  }
+}
+
 /* The showcase's declared fields populate in sequence — Frontify's "metadata
    generating…" beat. Pure CSS with a per-row delay rather than React state, so
    there are no cascading renders and the values are simply present wherever

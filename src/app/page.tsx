@@ -1,9 +1,7 @@
-import { ArrowRight } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { CampaignShowcase } from "@/components/landing/campaign-showcase";
-import { CitationProof } from "@/components/landing/citation-proof";
+import { GateStory } from "@/components/landing/gate-story";
 import { PlaceholderVisual } from "@/components/landing/placeholder-visual";
 import { ScrollReveal } from "@/components/landing/scroll-reveal";
 
@@ -182,40 +180,10 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* ── Showcase ─────────────────────────────────────────────────── */}
-        <section
-          aria-labelledby="showcase-heading"
-          className="border-t border-white/10 bg-brand-dark"
-        >
-          <div className="mx-auto w-full max-w-6xl px-5 py-20 sm:px-8 sm:py-24">
-            <div className="max-w-2xl">
-              <p className="text-label text-brand-on-dark">
-                One brand, every market
-              </p>
-              <h2
-                id="showcase-heading"
-                className="mt-4 text-display text-balance text-white"
-              >
-                Fill the fields. Nothing else moves.
-              </h2>
-              <p className="mt-5 text-lede text-pretty text-sidebar-text">
-                Five things open. Everything that makes it look like the brand
-                stays shut.
-              </p>
-              <a
-                href="#proof"
-                className="mt-4 inline-flex items-center gap-1.5 text-[15px] font-semibold text-brand-on-dark underline-offset-4 hover:underline"
-              >
-                See what stops it shipping
-                <ArrowRight className="h-4 w-4" aria-hidden="true" />
-              </a>
-            </div>
-
-            <div data-reveal className="mt-14">
-              <CampaignShowcase />
-            </div>
-          </div>
-        </section>
+        {/* ── The story ─────────────────────────────────────────────────── */}
+        {/* One asset, pinned, scrubbed through its whole lifecycle. Replaces
+            the old showcase and citation card-grids — see gate-story.tsx. */}
+        <GateStory />
 
         {/* ── Problem ──────────────────────────────────────────────────── */}
         <section
@@ -586,19 +554,20 @@ export default function LandingPage() {
               </p>
             </div>
 
-            <div data-reveal className="mt-12">
-              <CitationProof />
-              {/* The §4 safe wording travels with the vignette rather than in a
-                  card of its own — the vignette IS this claim. Verbatim; do
-                  not widen. */}
-              <p className="mt-4 max-w-3xl text-prose text-pretty text-sidebar-text">
-                Generated copy must carry server-verified verbatim citations to
-                approved sources. Not a similarity score — the actual span,
-                re-checked at submit, approve, export, and render.
-              </p>
-            </div>
+            {/* §4 safe wording, verbatim. The scroll story shows this
+                happening; these sentences are the record of it. Do not widen. */}
+            <p
+              data-reveal
+              className="mt-8 max-w-3xl text-lede text-pretty text-sidebar-text"
+            >
+              Generated copy must carry server-verified verbatim citations to
+              approved sources. Not a similarity score — the actual span,
+              re-checked at submit, approve, export, and render.
+            </p>
 
-            <ul className="mt-10 grid gap-4 md:grid-cols-2">
+            {/* A divided list, not a card grid. Same content, far less "wall of
+                boxes", which is the look the page is deliberately avoiding. */}
+            <ul className="mt-12 flex flex-col divide-y divide-white/10 border-y border-white/10">
               {[
                 {
                   title: "Export is gated on the approved revision",
@@ -624,7 +593,7 @@ export default function LandingPage() {
                 <li
                   key={item.title}
                   data-reveal
-                  className="lift flex flex-col gap-3 rounded-card border border-white/10 bg-white/[0.03] p-7"
+                  className="grid gap-2 py-6 sm:grid-cols-[minmax(0,20rem)_minmax(0,1fr)] sm:gap-10"
                 >
                   <h3 className="text-subhead text-white">{item.title}</h3>
                   <p className="text-prose text-pretty text-sidebar-text">
